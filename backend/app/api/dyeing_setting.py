@@ -159,7 +159,7 @@ async def list_dye_recipes(
 async def create_dye_recipe(
     payload: DyeRecipeCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('dye_recipe.create')),
 ):
     existing = await db.execute(select(DyeRecipe).filter(DyeRecipe.code == payload.code))
     if existing.scalars().first():
@@ -284,7 +284,7 @@ async def update_dye_recipe(
     recipe_id: str,
     payload: DyeRecipeUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('dye_recipe.edit')),
 ):
     result = await db.execute(
         select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe_id)
@@ -362,7 +362,7 @@ async def update_dye_recipe(
 async def delete_dye_recipe(
     recipe_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('dye_recipe.delete')),
 ):
     result = await db.execute(select(DyeRecipe).filter(DyeRecipe.id == recipe_id))
     r = result.scalars().first()
@@ -397,7 +397,7 @@ async def list_dyeing_runs(
 async def create_dyeing_run(
     payload: DyeingRunCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     wo_result = await db.execute(select(WorkOrder).filter(WorkOrder.id == payload.work_order_id))
     if not wo_result.scalars().first():
@@ -445,7 +445,7 @@ async def create_dyeing_run(
 async def start_dyeing_run(
     run_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
@@ -473,7 +473,7 @@ async def complete_dyeing_run(
     run_id: str,
     payload: DyeingRunCompletePayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
@@ -564,7 +564,7 @@ async def list_setting_runs(
 async def create_setting_run(
     payload: SettingRunCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     wo_result = await db.execute(select(WorkOrder).filter(WorkOrder.id == payload.work_order_id))
     if not wo_result.scalars().first():
@@ -602,7 +602,7 @@ async def create_setting_run(
 async def start_setting_run(
     run_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     result = await db.execute(
         select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
@@ -630,7 +630,7 @@ async def complete_setting_run(
     run_id: str,
     payload: SettingRunCompletePayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     result = await db.execute(
         select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)

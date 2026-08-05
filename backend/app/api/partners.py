@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.schemas import PartnerCreate, PartnerResponse, PartnerUpdate, PaginatedPartnerResponse
 from app.models.partner import Partner
 from app.models.audit import AuditLog
-from app.api.auth import get_current_user, require_permission, require_any_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission, user_has_permission
 from app.models.auth import User
 from typing import List, Optional
 import uuid
@@ -13,7 +13,10 @@ import uuid
 router = APIRouter(prefix="/partners", tags=["partners"])
 
 @router.post("", response_model=PartnerResponse)
-def create_partner(payload: PartnerCreate, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission('sales.manage', 'purchasing.manage'))):
+def create_partner(payload: PartnerCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    required = 'customer.create' if str(payload.type).upper().endswith('CUSTOMER') else 'supplier.create'
+    if not user_has_permission(current_user, required):
+        raise HTTPException(status_code=403, detail=f"Missing permission: {required}")
     partner = Partner(
         name=payload.name,
         address=payload.address,
@@ -48,11 +51,15 @@ def get_partners(
     return {"items": items, "total": total, "page": page, "size": limit}
 
 @router.put("/{partner_id}", response_model=PartnerResponse)
-def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission('sales.manage', 'purchasing.manage'))):
+def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
-    
+
+    required = 'customer.edit' if str(partner.type).upper().endswith('CUSTOMER') else 'supplier.edit'
+    if not user_has_permission(current_user, required):
+        raise HTTPException(status_code=403, detail=f"Missing permission: {required}")
+
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(partner, key, value)
@@ -63,11 +70,15 @@ def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = 
     return partner
 
 @router.delete("/{partner_id}")
-def delete_partner(partner_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission('sales.manage', 'purchasing.manage'))):
+def delete_partner(partner_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
-    
+
+    required = 'customer.delete' if str(partner.type).upper().endswith('CUSTOMER') else 'supplier.delete'
+    if not user_has_permission(current_user, required):
+        raise HTTPException(status_code=403, detail=f"Missing permission: {required}")
+
     try:
         db.add(AuditLog(
             user_id=current_user.id,

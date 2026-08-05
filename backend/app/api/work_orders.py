@@ -114,7 +114,7 @@ def _require_wo_scope(current_user: User, center_type: str | None):
 async def create_work_order(
     payload: WorkOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.create')),
+    current_user: User = Depends(require_permission('work_order.create')),
 ):
     mo_result = await db.execute(
         select(ManufacturingOrder)
@@ -249,7 +249,7 @@ async def update_work_order(
     wo_id: str,
     payload: WorkOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+    current_user: User = Depends(require_permission('work_order.edit')),
 ):
     result = await db.execute(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
@@ -331,7 +331,7 @@ async def update_work_order_status(
     wo_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     valid = {"PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"}
     if status not in valid:
@@ -370,7 +370,7 @@ async def update_work_order_status(
 async def mark_work_orders_printed_bulk(
     payload: WorkOrderMarkPrintedBulk,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
+    current_user: User = Depends(require_permission('work_order.print_card')),
 ):
     """Stamp print time on many WOs at once (bulk Kartu Kerja print)."""
     if payload.kind not in ("card", "labels"):
@@ -399,7 +399,7 @@ async def mark_work_order_printed(
     wo_id: str,
     kind: str = "card",
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
+    current_user: User = Depends(require_permission('work_order.print_card')),
 ):
     """Stamp print time on a WO. kind='card' (Kartu Kerja) or 'labels' (bag labels).
     Idempotent — reprints just overwrite with a newer timestamp."""
@@ -435,7 +435,7 @@ async def mark_work_order_printed(
 async def create_work_orders_bulk(
     payloads: list[WorkOrderCreate],
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.create')),
+    current_user: User = Depends(require_permission('work_order.create')),
 ):
     if not payloads:
         return []
@@ -976,7 +976,7 @@ async def stage_wo_materials(
     wo_id: str,
     payload: WOStagePayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+    current_user: User = Depends(require_permission('work_order.stage')),
 ):
     wo, mo = await _load_wo_and_mo(db, wo_id)
     _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
@@ -1083,7 +1083,7 @@ async def create_leftover_beam(
     wo_id: str,
     payload: LeftoverBeamCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+    current_user: User = Depends(require_permission('work_order.edit')),
 ):
     """Re-lot leftover warp: move kg out of the WO input location's batch-less
     pool into a new trackable beam batch (born from this weaving WO)."""
@@ -1223,7 +1223,7 @@ async def mount_beam_on_loom(
     wc_id: str,
     payload: BeamMountCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+    current_user: User = Depends(require_permission('work_order.edit')),
 ):
     """Gait a beam onto a loom directly (no WO context needed)."""
     wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == wc_id))).scalars().first()
@@ -1257,7 +1257,7 @@ async def dismount_beam_from_loom(
     mount_id: str,
     payload: BeamDismountPayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+    current_user: User = Depends(require_permission('beam.unmount')),
 ):
     """Take a beam off the loom. The remnant keeps its own lot and remaining kg —
     no re-lotting step. Optionally send it back to a store location."""
@@ -1314,7 +1314,7 @@ async def get_wo_beam_status(
 async def delete_work_order(
     wo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+    current_user: User = Depends(require_permission('work_order.delete')),
 ):
     result = await db.execute(select(WorkOrder).filter(WorkOrder.id == wo_id))
     wo = result.scalars().first()

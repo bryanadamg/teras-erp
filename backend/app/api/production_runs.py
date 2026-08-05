@@ -444,7 +444,7 @@ async def get_production_runs_material_status(
 async def preview_production_run_plan(
     payload: ProductionRunPreviewRequest,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('production_run.create')),
 ):
     """Dry-run: shows the netting plan (per component: net-from location, gross,
     net-free, net qty, decision) for a PR before it is created. Creates nothing."""
@@ -467,7 +467,7 @@ async def preview_production_run_plan(
 async def create_production_run(
     payload: ProductionRunCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('production_run.create')),
 ):
     if not payload.bom_entries:
         raise HTTPException(status_code=400, detail="At least one BOM entry is required")
@@ -670,7 +670,7 @@ async def update_production_run_status(
     pr_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('production_run.edit')),
 ):
     valid = {"PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"}
     if status not in valid:
@@ -708,7 +708,7 @@ async def update_production_run_status(
 async def delete_production_run(
     pr_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('production_run.delete')),
 ):
     result = await db.execute(select(ProductionRun).filter(ProductionRun.id == pr_id))
     pr = result.scalars().first()

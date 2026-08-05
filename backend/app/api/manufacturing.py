@@ -33,7 +33,7 @@ from app.schemas import (
 )
 from app.models.attribute import AttributeValue
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
+from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok, user_has_permission
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
@@ -308,7 +308,7 @@ async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, 
 
 
 @router.post("/manufacturing-orders/preview", response_model=list[NettingPreviewNode])
-async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
+async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing_order.create'))):
     """Dry-run: netting plan for a nested MO before creation (root always made,
     components netted against net-free stock). Creates nothing."""
     location = None
@@ -325,7 +325,7 @@ async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSessio
 
 
 @router.post("/manufacturing-orders", response_model=ManufacturingOrderResponse)
-async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
+async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing_order.create'))):
     # 1. Validation
     result = await db.execute(select(BOM).filter(BOM.id == payload.bom_id))
     bom = result.scalars().first()
@@ -827,7 +827,7 @@ async def list_work_orders_flat(
 
 
 @router.put("/manufacturing-orders/{mo_id}/status")
-async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
+async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing_order.edit'))):
     result = await db.execute(
         select(ManufacturingOrder)
         .filter(ManufacturingOrder.id == mo_id)
@@ -841,6 +841,9 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
     valid_statuses = ["PENDING", "IN_PROGRESS", "DELIVERED", "COMPLETED", "CANCELLED"]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
+
+    if status == "COMPLETED" and not user_has_permission(current_user, 'manufacturing_order.close'):
+        raise HTTPException(status_code=403, detail="Missing permission: manufacturing_order.close")
 
     if status == "IN_PROGRESS" and previous_status != "IN_PROGRESS":
         # No stock gate at start. Material availability is decided at PR/MO creation
@@ -890,7 +893,7 @@ async def update_mo_attributes(
     mo_id: str,
     payload: MOAttributeUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('manufacturing_order.edit')),
 ):
     result = await db.execute(
         select(ManufacturingOrder)
@@ -934,7 +937,7 @@ async def update_mo_color(
     mo_id: str,
     payload: MOColorUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('manufacturing_order.edit')),
 ):
     """Set (or override) the color on a root MO. Used to confirm an approved Color
     Library shade for an order placed against a still-pending lab dip — this fills
@@ -975,7 +978,7 @@ async def update_mo_putaway(
     mo_id: str,
     payload: MOPutawayUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('manufacturing_order.edit')),
 ):
     """Assign the planned putaway bin — planning/store decides where the output
     will be stored before production finishes. Completions book output stock to
@@ -1022,7 +1025,7 @@ async def update_mo_tolerance(
     mo_id: str,
     payload: MOToleranceUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('manufacturing_order.edit')),
 ):
     """Per-order overdelivery override. Planning raises this when a run is
     deliberately over-issued (spare beams against bad yarn) rather than editing the
@@ -1064,7 +1067,7 @@ async def update_mo_tolerance(
 async def mark_mo_printed(
     mo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('manufacturing_order.print')),
 ):
     """Stamps card_printed_at when SPK Produksi (MO print) is printed from the ERP."""
     result = await db.execute(
@@ -1095,7 +1098,7 @@ async def add_mo_completion(
     mo_id: str,
     payload: MOCompletionCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
+    current_user: User = Depends(require_permission('work_order.log')),
 ):
     result = await db.execute(
         select(ManufacturingOrder)
@@ -1583,7 +1586,7 @@ async def reject_mo_completion(
     completion_id: str,
     payload: MOCompletionReject,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+    current_user: User = Depends(require_permission('work_order.edit')),
 ):
     """QC reject of a produced lot. The completion stops counting toward MO/WO
     progress (MO reopens if it had auto-completed) and the output lot is marked
@@ -1693,7 +1696,7 @@ async def complete_manufacturing_order_with_batches(
     mo_id: str,
     payload: MOCompleteWithBatchesPayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('manufacturing_order.close')),
 ):
     from app.models.batch import BatchConsumption
 
@@ -1832,7 +1835,7 @@ async def _collect_mo_delete_set(db: AsyncSession, root_id: uuid.UUID) -> set:
 
 
 @router.delete("/manufacturing-orders/{mo_id}")
-async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
+async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing_order.delete'))):
     result = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id))
     mo = result.scalars().first()
     if not mo: raise HTTPException(status_code=404, detail="Not found")

@@ -45,7 +45,7 @@ async def _enrich_colors_with_items(db: AsyncSession, samples: list) -> None:
 async def create_sample_request(
     payload: SampleRequestCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.create')),
 ):
     count_result = await db.execute(select(func.count()).select_from(SampleRequest))
     count = count_result.scalar_one()
@@ -161,7 +161,7 @@ async def update_sample_request(
     sample_id: str,
     payload: SampleRequestUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.edit')),
 ):
     result = await db.execute(
         select(SampleRequest)
@@ -255,7 +255,7 @@ async def update_sample_status(
     sample_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.update_status')),
 ):
     result = await db.execute(select(SampleRequest).filter(SampleRequest.id == sample_id))
     sample = result.scalars().first()
@@ -298,7 +298,7 @@ async def update_color_status(
     reason: str | None = None,
     notes: str | None = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.update_status')),
 ):
     result = await db.execute(
         select(SampleColor).filter(SampleColor.id == color_id, SampleColor.sample_request_id == sample_id)
@@ -350,7 +350,7 @@ async def update_color_status(
 async def mark_sample_read(
     sample_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.edit')),
 ):
     result = await db.execute(
         select(SampleRequestRead).filter(
@@ -376,7 +376,7 @@ async def mark_sample_read(
 async def mark_sample_unread(
     sample_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.edit')),
 ):
     result = await db.execute(
         select(SampleRequestRead).filter(
@@ -394,7 +394,7 @@ async def mark_sample_unread(
 @router.post("/samples/read-all")
 async def mark_all_samples_read(
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.edit')),
 ):
     await db.execute(
         delete(SampleRequestRead).where(SampleRequestRead.user_id == current_user.id)
@@ -416,7 +416,7 @@ async def upload_completion_image(
     sample_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.edit')),
 ):
     result = await db.execute(select(SampleRequest).filter(SampleRequest.id == sample_id))
     sample = result.scalars().first()
@@ -444,7 +444,7 @@ async def upload_design_pdf(
     sample_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.edit')),
 ):
     result = await db.execute(select(SampleRequest).filter(SampleRequest.id == sample_id))
     sample = result.scalars().first()
@@ -469,7 +469,7 @@ async def upload_design_pdf(
 async def delete_sample(
     sample_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_permission('sample_request.delete')),
 ):
     result = await db.execute(select(SampleRequest).filter(SampleRequest.id == sample_id))
     sample = result.scalars().first()

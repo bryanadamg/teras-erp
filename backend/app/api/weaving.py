@@ -155,7 +155,7 @@ async def work_center_candidate_mos(
 async def create_weaving_run(
     payload: WeavingRunCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('weaving_monitor.start')),
 ):
     wc = await _get_wc(db, str(payload.work_center_id))
     mo_res = await db.execute(select(ManufacturingOrder).where(ManufacturingOrder.id == payload.mo_id))
@@ -190,7 +190,7 @@ async def update_weaving_run(
     run_id: str,
     payload: WeavingRunUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('work_order.edit')),
 ):
     res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
     run = res.scalars().first()
@@ -215,7 +215,7 @@ async def update_weaving_run(
 async def stop_weaving_run(
     run_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('weaving_monitor.stop')),
 ):
     res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
     run = res.scalars().first()
@@ -238,7 +238,7 @@ async def stop_weaving_run(
 async def delete_weaving_run(
     run_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('work_order.edit')),
 ):
     res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
     run = res.scalars().first()
@@ -584,7 +584,7 @@ async def update_calendar(
     wc_id: str,
     payload: WorkCenterCalendarUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('calendar.edit')),
 ):
     wc = await _get_wc(db, wc_id)
     wc.working_weekdays = sorted(set(int(d) for d in payload.working_weekdays if 0 <= int(d) <= 6))
@@ -635,7 +635,7 @@ async def update_group_calendar(
     group_id: str,
     payload: WorkCenterGroupCalendarUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('calendar.edit')),
 ):
     """Batch-set the production calendar for a whole group of machines.
 
@@ -692,7 +692,7 @@ async def add_holiday(
     wc_id: str,
     payload: WorkCenterHolidayCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('calendar.edit')),
 ):
     wc = await _get_wc(db, wc_id)
     existing = await db.execute(
@@ -719,7 +719,7 @@ async def import_national_holidays(
     wc_id: str,
     year: int = Query(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('calendar.edit')),
 ):
     wc = await _get_wc(db, wc_id)
     existing = await db.execute(
@@ -747,7 +747,7 @@ async def import_national_holidays(
 async def delete_holiday(
     holiday_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_permission('calendar.edit')),
 ):
     res = await db.execute(select(WorkCenterHoliday).where(WorkCenterHoliday.id == holiday_id))
     hol = res.scalars().first()

@@ -14,7 +14,7 @@ from app.models.work_order import WorkOrder
 from app.models.batch import Batch
 from app.models.stock_balance import StockBalance
 from app.models.packing import PackingOrder
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, user_has_permission
 from app.models.auth import User
 from app.services import audit_service, kpi_service, so_fulfilment_service
 from app.core.ws_manager import manager
@@ -70,7 +70,7 @@ def _populate_line(line: SalesOrderLine) -> None:
         line.labdip_status = line.labdip_item.status
 
 @router.post("", response_model=SalesOrderResponse)
-async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
+async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales_order.create'))):
     try:
         # Check duplicate PO
         result = await db.execute(select(SalesOrder).filter(SalesOrder.po_number == payload.po_number))
@@ -195,7 +195,7 @@ async def get_sales_order(
     return so
 
 @router.put("/{so_id}", response_model=SalesOrderResponse)
-async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
+async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales_order.edit'))):
     result = await db.execute(select(SalesOrder).filter(SalesOrder.id == so_id))
     so = result.scalars().first()
     if not so:
@@ -325,7 +325,7 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
     return so_refreshed
 
 @router.put("/{so_id}/status", response_model=SalesOrderResponse)
-async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
+async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales_order.edit'))):
     result = await db.execute(
         select(SalesOrder)
         .options(*_line_opts())
@@ -339,6 +339,9 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
     valid_statuses = ["PENDING", "READY", "PARTIAL", "SENT", "DELIVERED", "CANCELLED"]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
+
+    if status == "DELIVERED" and not user_has_permission(current_user, 'sales_order.close'):
+        raise HTTPException(status_code=403, detail="Missing permission: sales_order.close")
 
     so.status = status
     if status == "DELIVERED":
@@ -368,7 +371,7 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
     return so
 
 @router.delete("/{so_id}")
-async def delete_sales_order(so_id: uuid.UUID, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
+async def delete_sales_order(so_id: uuid.UUID, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales_order.delete'))):
     result = await db.execute(select(SalesOrder).filter(SalesOrder.id == so_id))
     so = result.scalars().first()
     if not so:

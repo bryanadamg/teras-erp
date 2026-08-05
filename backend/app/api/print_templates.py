@@ -59,7 +59,7 @@ async def save_print_template(
     doc_type: str,
     payload: PrintTemplateSave,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission("admin.access")),
+    current_user: User = Depends(require_permission("print_layout.edit")),
 ):
     """Upsert — the designer saves the whole layout, not a patch."""
     result = await db.execute(select(PrintTemplate).filter(PrintTemplate.doc_type == doc_type))
@@ -97,7 +97,7 @@ async def save_print_template(
 async def reset_print_template(
     doc_type: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission("admin.access")),
+    current_user: User = Depends(require_permission("print_layout.edit")),
 ):
     """Reset to the built-in default by dropping the customisation."""
     result = await db.execute(select(PrintTemplate).filter(PrintTemplate.doc_type == doc_type))
