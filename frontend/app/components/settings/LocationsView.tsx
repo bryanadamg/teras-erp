@@ -22,7 +22,7 @@ export default function LocationsView({
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
   const { hasPermission } = useUser();
-  const canManage = hasPermission('locations.manage');
+  const canManage = hasAnyPermission('location.create', 'location.edit', 'location.delete');
 
   const [selectedStore, setSelectedStore] = useState<string>(ALL);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);

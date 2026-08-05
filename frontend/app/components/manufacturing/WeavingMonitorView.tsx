@@ -30,7 +30,7 @@ export default function WeavingMonitorView() {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
     const { hasPermission } = useUser();
-    const canManage = hasPermission('work_order.manage');
+    const canManage = hasPermission('calendar.edit');
     const cls = uiStyle === 'classic';
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';

@@ -143,7 +143,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
-    const canManage = hasPermission('dyeing.manage');
+    const canManage = hasPermission('work_order.log');
 
     const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);

@@ -18,7 +18,7 @@ export default function ColorsPage() {
     const { showToast } = useToast();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { hasPermission } = useUser();
+    const { hasPermission, hasAnyPermission } = useUser();
     const searchParams = useSearchParams();
     const router = useRouter();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -119,7 +119,7 @@ export default function ColorsPage() {
     };
 
     // ── Colors variant (system_role='color' attribute values) ────────────────────
-    const canManageVariant = hasPermission('inventory.manage');
+    const canManageVariant = hasAnyPermission('color_variant.create', 'color_variant.edit', 'color_variant.delete');
     const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
     const colorValues = colorAttr?.values ?? [];
 

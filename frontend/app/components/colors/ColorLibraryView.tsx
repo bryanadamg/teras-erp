@@ -67,8 +67,8 @@ export default function ColorLibraryView({
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { hasPermission } = useUser();
-    const canManage = hasPermission('dyeing.manage');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = hasAnyPermission('color_code.create', 'color_code.edit', 'color_code.archive');
     const router = useRouter();
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 

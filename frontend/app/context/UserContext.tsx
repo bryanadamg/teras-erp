@@ -41,6 +41,7 @@ interface UserContextType {
     users: User[];
     setCurrentUser: (user: User) => void;
     hasPermission: (permissionCode: string) => boolean;
+    hasAnyPermission: (...permissionCodes: string[]) => boolean;
     hasWorkCenterScope: (centerType?: string | null) => boolean;
     hasCategoryScope: (categoryId?: string | null) => boolean;
     hasLocationScope: (locationId?: string | null) => boolean;
@@ -148,6 +149,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return false;
     };
 
+    const hasAnyPermission = (...permissionCodes: string[]): boolean => {
+        return permissionCodes.some(hasPermission);
+    };
+
     const hasWorkCenterScope = (centerType?: string | null): boolean => {
         const allowed = currentUser?.role?.allowed_work_center_types;
         if (!allowed || allowed.length === 0 || !centerType) return true;
@@ -167,7 +172,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, hasWorkCenterScope, hasCategoryScope, hasLocationScope, refreshUsers, login, logout, loading }}>
+        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, hasAnyPermission, hasWorkCenterScope, hasCategoryScope, hasLocationScope, refreshUsers, login, logout, loading }}>
             {children}
         </UserContext.Provider>
     );

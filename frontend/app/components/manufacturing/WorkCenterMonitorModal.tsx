@@ -46,10 +46,10 @@ interface Props {
 export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, authFetch, apiBase }: Props) {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
-    const { hasPermission } = useUser();
+    const { hasPermission, hasAnyPermission } = useUser();
     const { locations } = useData();
     const { showToast } = useToast();
-    const canManage = hasPermission('work_order.manage');
+    const canManage = hasAnyPermission('weaving_monitor.start', 'calendar.edit', 'beam.unmount');
     const cls = uiStyle === 'classic';
 
     // Stock lives only in leaf locations — same filter/label the PR modal uses.

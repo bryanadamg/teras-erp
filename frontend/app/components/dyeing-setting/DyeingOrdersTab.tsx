@@ -152,7 +152,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const { formatCustom: tzFmt } = useTimezone();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
-    const canManage = hasPermission('dyeing.manage');
+    const canManage = hasPermission('work_order.log');
     const xpInput = makeInput(classic);
     const xpBtn = makeBtn(classic);
     const xpPrimaryBtn = makePrimaryBtn(classic);

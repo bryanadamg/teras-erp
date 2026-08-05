@@ -174,8 +174,8 @@ export default function LabDipRequestView({
     const { uiStyle } = useTheme();
     const { formatDate: tzDate, formatDateTime: tzDateTime } = useTimezone();
     const classic = uiStyle === 'classic';
-    const { hasPermission } = useUser();
-    const canManage = hasPermission('dyeing.manage');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = hasAnyPermission('lab_dip_request.create', 'lab_dip_request.edit', 'lab_dip_request.delete');
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
     const [searchTerm, setSearchTerm] = useState('');

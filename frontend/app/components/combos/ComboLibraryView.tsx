@@ -38,8 +38,8 @@ export default function ComboLibraryView({
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { hasPermission } = useUser();
-    const canManage = hasPermission('inventory.manage');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = hasAnyPermission('combo_library.create', 'combo_library.edit', 'combo_library.delete');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);

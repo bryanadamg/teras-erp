@@ -36,8 +36,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
-    const { hasPermission } = useUser();
-    const canEntry = hasPermission('stock.entry');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canEntry = hasAnyPermission('stock_on_hand.create', 'stock_on_hand.adjust', 'stock_on_hand.move');
     const canRebuild = hasPermission('admin.access');
     const classic = uiStyle === 'classic';
 

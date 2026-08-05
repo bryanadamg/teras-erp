@@ -112,8 +112,8 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     const { uiStyle } = useTheme();
     const router = useRouter();
     const classic = uiStyle === 'classic';
-    const { hasPermission } = useUser();
-    const canManage = hasPermission('dyeing.manage');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = hasAnyPermission('dye_recipe.create', 'dye_recipe.edit', 'dye_recipe.delete');
     const [recipes, setRecipes] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);

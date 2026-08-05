@@ -26,76 +26,78 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Sales', i18nKey: 'sales', icon: 'bi-graph-up', accent: 'green',
-        permissions: ['sales.manage'],
+        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage'],
         items: [
-            { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales.manage' },
+            { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales_order.view' },
+            // Packing Orders / Pick Lists are a separate feature not covered by the
+            // Permissions config spreadsheet — still gated on the legacy blob code.
             { tab: 'packing', label: 'Packing Orders', icon: 'bi-box2', permission: 'sales.manage' },
             { tab: 'pick-lists', label: 'Pick Lists', icon: 'bi-clipboard-check', permission: 'sales.manage' },
-            { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'sales.manage' },
-            { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask', permission: 'sales.manage' },
+            { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'customer.view' },
+            { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask', permission: 'sample_request.view' },
         ],
     },
     {
         key: 'procurement', label: 'Procurement', i18nKey: 'procurement', icon: 'bi-cart3', accent: 'amber',
-        permissions: ['purchasing.manage'],
+        permissions: ['purchase_order.view', 'supplier.view'],
         items: [
-            { tab: 'purchase-orders', label: 'Purchase Orders', i18nKey: 'purchase_orders', icon: 'bi-bag', permission: 'purchasing.manage' },
-            { tab: 'suppliers', label: 'Suppliers', i18nKey: 'suppliers', icon: 'bi-truck', permission: 'purchasing.manage' },
+            { tab: 'purchase-orders', label: 'Purchase Orders', i18nKey: 'purchase_orders', icon: 'bi-bag', permission: 'purchase_order.view' },
+            { tab: 'suppliers', label: 'Suppliers', i18nKey: 'suppliers', icon: 'bi-truck', permission: 'supplier.view' },
         ],
     },
     {
         key: 'inventory', label: 'Inventory', i18nKey: 'inventory', icon: 'bi-box-seam', accent: 'blue',
-        permissions: ['inventory.manage', 'locations.manage'],
+        permissions: ['item.view', 'stock_on_hand.view', 'lot.view', 'location.view', 'combo_library.view', 'booking_stock.view'],
         items: [
-            { tab: 'inventory', label: 'Item Inventory', i18nKey: 'item_inventory', icon: 'bi-list-check', permission: 'inventory.manage' },
-            { tab: 'item-metadata', label: 'Attributes', i18nKey: 'attributes', icon: 'bi-tag', permission: 'inventory.manage' },
-            { tab: 'combos', label: 'Combo Library', icon: 'bi-grid-3x3-gap', permission: 'inventory.manage' },
-            { tab: 'batches', label: 'Lot', icon: 'bi-upc-scan', permission: 'inventory.manage' },
+            { tab: 'inventory', label: 'Item Inventory', i18nKey: 'item_inventory', icon: 'bi-list-check', permission: 'item.view' },
+            { tab: 'item-metadata', label: 'Attributes', i18nKey: 'attributes', icon: 'bi-tag', permission: 'attribute.view' },
+            { tab: 'combos', label: 'Combo Library', icon: 'bi-grid-3x3-gap', permission: 'combo_library.view' },
+            { tab: 'batches', label: 'Lot', icon: 'bi-upc-scan', permission: 'lot.view' },
             // Stock entry/transfer/adjust duties were merged into Stock On-Hand
             // (commit e6f38da) — /stock (StockEntryView) is desktop-deprecated.
             // Its mobile branch (bottom-tab "Stock") is a separate, still-live
             // read-only browse view — don't add a desktop nav leaf here.
-            { tab: 'stock-on-hand', label: 'Stock On-Hand', i18nKey: 'stock_on_hand', icon: 'bi-boxes', permission: 'inventory.manage' },
-            { tab: 'booking-stock', label: 'Booking Stock', i18nKey: 'booking_stock', icon: 'bi-bookmark-check', permission: 'inventory.manage' },
-            { tab: 'locations', label: 'Locations', i18nKey: 'locations', icon: 'bi-geo-alt', permission: 'locations.manage' },
+            { tab: 'stock-on-hand', label: 'Stock On-Hand', i18nKey: 'stock_on_hand', icon: 'bi-boxes', permission: 'stock_on_hand.view' },
+            { tab: 'booking-stock', label: 'Booking Stock', i18nKey: 'booking_stock', icon: 'bi-bookmark-check', permission: 'booking_stock.view' },
+            { tab: 'locations', label: 'Locations', i18nKey: 'locations', icon: 'bi-geo-alt', permission: 'location.view' },
         ],
     },
     {
         key: 'engineering', label: 'Engineering', i18nKey: 'engineering', icon: 'bi-gear', accent: 'blue',
-        permissions: ['manufacturing.manage', 'work_order.manage'],
+        permissions: ['bom.view', 'routing.view', 'production_run.view', 'manufacturing_order.view', 'work_order.view', 'weaving_monitor.view'],
         items: [
-            { tab: 'bom', label: 'BOM', i18nKey: 'bom', icon: 'bi-diagram-3', permission: 'manufacturing.manage' },
-            { tab: 'routing', label: 'Routing', i18nKey: 'routing', icon: 'bi-shuffle', permission: 'manufacturing.manage' },
-            { tab: 'production-runs', label: 'Production Runs', icon: 'bi-collection-play', permission: 'work_order.manage' },
-            { tab: 'manufacturing-orders', label: 'Manufacturing Orders', i18nKey: 'manufacturing_orders', icon: 'bi-list-task', permission: 'work_order.manage' },
-            { tab: 'work-orders', label: 'Work Orders', i18nKey: 'work_orders', icon: 'bi-tools', permission: 'work_order.manage' },
-            { tab: 'weaving-monitor', label: 'Weaving Monitor', i18nKey: 'weaving_monitor', icon: 'bi-speedometer2', permission: 'work_order.manage' },
+            { tab: 'bom', label: 'BOM', i18nKey: 'bom', icon: 'bi-diagram-3', permission: 'bom.view' },
+            { tab: 'routing', label: 'Routing', i18nKey: 'routing', icon: 'bi-shuffle', permission: 'routing.view' },
+            { tab: 'production-runs', label: 'Production Runs', icon: 'bi-collection-play', permission: 'production_run.view' },
+            { tab: 'manufacturing-orders', label: 'Manufacturing Orders', i18nKey: 'manufacturing_orders', icon: 'bi-list-task', permission: 'manufacturing_order.view' },
+            { tab: 'work-orders', label: 'Work Orders', i18nKey: 'work_orders', icon: 'bi-tools', permission: 'work_order.view' },
+            { tab: 'weaving-monitor', label: 'Weaving Monitor', i18nKey: 'weaving_monitor', icon: 'bi-speedometer2', permission: 'weaving_monitor.view' },
         ],
     },
     {
         key: 'dyeing', label: 'Dyeing & Setting', icon: 'bi-droplet-half', accent: 'blue',
-        permissions: ['dyeing.manage'],
+        permissions: ['dye_recipe.view', 'color_code.view', 'lab_dip_request.view', 'yarn_lab_dip.view'],
         items: [
-            { tab: 'dyeing-setting', label: 'Dyeing & Setting', icon: 'bi-palette', permission: 'dyeing.manage' },
-            { tab: 'colors', label: 'Colors', icon: 'bi-palette2', permission: 'dyeing.manage' },
-            { tab: 'lab-dips', label: 'Lab Dip Requests', icon: 'bi-droplet', permission: 'dyeing.manage' },
-            { tab: 'lab-dips-yarn', label: 'Yarn Lab Dips', icon: 'bi-droplet-half', permission: 'dyeing.manage' },
+            { tab: 'dyeing-setting', label: 'Dyeing & Setting', icon: 'bi-palette', permission: 'dye_recipe.view' },
+            { tab: 'colors', label: 'Colors', icon: 'bi-palette2', permission: 'color_code.view' },
+            { tab: 'lab-dips', label: 'Lab Dip Requests', icon: 'bi-droplet', permission: 'lab_dip_request.view' },
+            { tab: 'lab-dips-yarn', label: 'Yarn Lab Dips', icon: 'bi-droplet-half', permission: 'yarn_lab_dip.view' },
         ],
     },
     {
         key: 'reports', label: 'Reports', i18nKey: 'reports', icon: 'bi-bar-chart', accent: 'grey',
-        permissions: ['reports.view'],
+        permissions: ['stock_ledger.view', 'reports.view', 'audit_log.view'],
         items: [
-            { tab: 'reports', label: 'Stock Ledger', i18nKey: 'stock_ledger', icon: 'bi-journal-text' },
+            { tab: 'reports', label: 'Stock Ledger', i18nKey: 'stock_ledger', icon: 'bi-journal-text', permission: 'stock_ledger.view' },
             { tab: 'machine-report', label: 'Machine Output', i18nKey: 'machine_report', icon: 'bi-cpu', permission: 'reports.view' },
-            { tab: 'audit-logs', label: 'Audit Logs', icon: 'bi-clipboard-check', permission: 'admin.access' },
+            { tab: 'audit-logs', label: 'Audit Logs', icon: 'bi-clipboard-check', permission: 'audit_log.view' },
         ],
     },
     {
         key: 'administration', label: 'Administration', i18nKey: 'administration', icon: 'bi-sliders', accent: 'grey',
-        permissions: ['admin.access'],
+        permissions: ['print_layout.edit', 'admin.access'],
         items: [
-            { tab: 'print-designer', label: 'Print Layouts', i18nKey: 'print_designer', icon: 'bi-printer', permission: 'admin.access' },
+            { tab: 'print-designer', label: 'Print Layouts', i18nKey: 'print_designer', icon: 'bi-printer', permission: 'print_layout.edit' },
         ],
     },
 ];

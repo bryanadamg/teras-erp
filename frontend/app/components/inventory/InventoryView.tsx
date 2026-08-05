@@ -132,9 +132,9 @@ RowActionMenu.displayName = 'RowActionMenu';
 
 // Memoized Row Component
 const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, classic }: any) => {
-    const { hasPermission } = useUser();
-    const canManage = hasPermission('inventory.manage');
-    const canDelete = hasPermission('inventory.delete');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = hasAnyPermission('item.create', 'item.edit');
+    const canDelete = hasPermission('item.delete');
     const rowBg = classic
         ? (isSelected ? '#316ac5' : isEditing ? '#fff8cc' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee')
         : undefined;
@@ -338,9 +338,9 @@ export default function InventoryView({
   const router = useRouter();
 
   const { categories, locations, filters: { categoryL1, setCategoryL1, categoryL2, setCategoryL2, categoryL3, setCategoryL3, itemSearch, setItemSearch } } = useData();
-  const { hasPermission } = useUser();
-  const canManage = hasPermission('inventory.manage');
-  const canDelete = hasPermission('inventory.delete');
+  const { hasPermission, hasAnyPermission } = useUser();
+  const canManage = hasAnyPermission('item.create', 'item.edit');
+  const canDelete = hasPermission('item.delete');
   // UI State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);

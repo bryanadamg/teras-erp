@@ -55,8 +55,10 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
 
     const classic = currentStyle === 'classic';
     const typeLabel = type === 'CUSTOMER' ? 'Customer' : 'Supplier';
-    const { hasPermission } = useUser();
-    const canManage = hasPermission(type === 'CUSTOMER' ? 'sales.manage' : 'purchasing.manage');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = type === 'CUSTOMER'
+        ? hasAnyPermission('customer.create', 'customer.edit', 'customer.delete')
+        : hasAnyPermission('supplier.create', 'supplier.edit', 'supplier.delete');
 
     // Button/input/cell/label chrome sourced from the shared lv* helpers (pinned to
     // classic=true — this constant is only ever used inside `classic ? ... : undefined`

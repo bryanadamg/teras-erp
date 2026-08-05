@@ -43,7 +43,11 @@ export default function ItemMetadataView({
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
-    const canManage = hasPermission('inventory.manage');
+    const canManage = hasAnyPermission(
+        'attribute.create', 'attribute.edit', 'attribute.delete',
+        'category.create', 'category.edit', 'category.delete',
+        'uom.create', 'uom.edit', 'uom.delete',
+    );
 
     const [tab, setTab] = useState<Tab>('attributes');
 

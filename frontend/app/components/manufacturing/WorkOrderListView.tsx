@@ -120,8 +120,8 @@ export default function WorkOrderListView({
     const router = useRouter();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { hasPermission } = useUser();
-    const canManage = hasPermission('work_order.manage');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = hasAnyPermission('work_order.edit', 'work_order.delete', 'work_order.print_card', 'work_order.stage');
     const { formatCustom: tzFmt } = useTimezone();
     const fmtDate = (v: any) => {
         if (!v) return '—';

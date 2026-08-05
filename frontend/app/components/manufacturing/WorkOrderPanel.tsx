@@ -144,10 +144,9 @@ export default function WorkOrderPanel({
     const { showToast } = useToast();
     const { operations: opMaster } = useData() as any;
     const { hasPermission, hasWorkCenterScope } = useUser();
-    const canManage = hasPermission('work_order.manage');
-    const canCreate = canManage || hasPermission('work_order.create');
-    const canLogBase = canManage || hasPermission('work_order.log');
-    const canEditBase = canManage || hasPermission('work_order.edit');
+    const canCreate = hasPermission('work_order.create');
+    const canLogBase = hasPermission('work_order.log');
+    const canEditBase = hasPermission('work_order.edit');
     const canLog = (wo: any) => canLogBase && hasWorkCenterScope(wo.work_center_type);
     const canEdit = (wo: any) => canEditBase && hasWorkCenterScope(wo.work_center_type);
     // Scan-to-stage is for dyeing, where the greige substrate arrives as many

@@ -55,8 +55,11 @@ export default function ManufacturingView({
   const router = useRouter();
   const { t } = useLanguage();
   const { authFetch, companyProfile, pagination, itemIndex } = useData();
-  const { hasPermission } = useUser();
-  const canManage = hasPermission('work_order.manage');
+  const { hasPermission, hasAnyPermission } = useUser();
+  const canManage = hasAnyPermission(
+    'manufacturing_order.create', 'manufacturing_order.edit', 'manufacturing_order.delete',
+    'production_run.create', 'production_run.edit', 'production_run.delete',
+  );
   const { moSearch, setMoSearch, prSearch: prSearchCtx, setPrSearch: setPrSearchCtx } = pagination;
   const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;

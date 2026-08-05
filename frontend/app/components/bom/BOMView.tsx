@@ -92,8 +92,8 @@ export default function BOMView({
     const { itemIndex } = useData();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
-    const { hasPermission } = useUser();
-    const canManage = hasPermission('manufacturing.manage');
+    const { hasPermission, hasAnyPermission } = useUser();
+    const canManage = hasAnyPermission('bom.create', 'bom.edit', 'bom.delete');
 
     const [isDesignerOpen, setIsDesignerOpen] = useState(false);
     const [editingBOM, setEditingBOM] = useState<any>(null);

@@ -54,7 +54,7 @@ export default function CategoriesView({
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
     const { hasPermission } = useUser();
-    const canManage = hasPermission('inventory.manage');
+    const canManage = hasAnyPermission('category.create', 'category.edit', 'category.delete');
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [search, setSearch] = useState('');

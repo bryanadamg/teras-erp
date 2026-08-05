@@ -111,8 +111,8 @@ type TabKey = 'work_centers' | 'operations';
 
 export default function RoutingView({ workCenters, operations, locations, onCreateWorkCenter, onUpdateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation }: any) {
   const { t } = useLanguage();
-  const { hasPermission } = useUser();
-  const canManage = hasPermission('manufacturing.manage');
+  const { hasPermission, hasAnyPermission } = useUser();
+  const canManage = hasAnyPermission('routing.create', 'routing.edit', 'routing.delete');
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
 
