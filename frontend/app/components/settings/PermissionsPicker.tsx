@@ -123,11 +123,11 @@ export default function PermissionsPicker({
                                         <div
                                             key={r.resource}
                                             style={{
-                                                display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap',
+                                                display: 'flex', alignItems: 'flex-start', gap: 10,
                                                 padding: classic ? '3px 8px 3px 22px' : '4px 12px 4px 28px',
                                             }}
                                         >
-                                            <span style={{ ...fontStyle, minWidth: 120, color: '#555' }}>
+                                            <span style={{ ...fontStyle, flex: '0 0 120px', color: '#555', paddingTop: 2 }}>
                                                 {r.label}
                                                 {r.scope && (
                                                     <span style={{ marginLeft: 4, fontStyle: 'italic', color: '#999' }}>
@@ -135,26 +135,28 @@ export default function PermissionsPicker({
                                                     </span>
                                                 )}
                                             </span>
-                                            {rowActions.map(({ action, id }) => (
-                                                <label
-                                                    key={id}
-                                                    style={{
-                                                        ...fontStyle, display: 'flex', alignItems: 'center', gap: 3,
-                                                        color: disabledSet.has(id) ? '#888' : '#000',
-                                                        cursor: disabledSet.has(id) ? 'default' : 'pointer',
-                                                    }}
-                                                    title={permissionCode(r.resource, action.code)}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedSet.has(id) || disabledSet.has(id)}
-                                                        disabled={disabledSet.has(id)}
-                                                        onChange={() => toggle(id)}
-                                                        style={{ cursor: disabledSet.has(id) ? 'default' : 'pointer' }}
-                                                    />
-                                                    {action.label}
-                                                </label>
-                                            ))}
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px', flex: 1 }}>
+                                                {rowActions.map(({ action, id }) => (
+                                                    <label
+                                                        key={id}
+                                                        style={{
+                                                            ...fontStyle, display: 'flex', alignItems: 'center', gap: 3,
+                                                            color: disabledSet.has(id) ? '#888' : '#000',
+                                                            cursor: disabledSet.has(id) ? 'default' : 'pointer',
+                                                        }}
+                                                        title={permissionCode(r.resource, action.code)}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedSet.has(id) || disabledSet.has(id)}
+                                                            disabled={disabledSet.has(id)}
+                                                            onChange={() => toggle(id)}
+                                                            style={{ cursor: disabledSet.has(id) ? 'default' : 'pointer' }}
+                                                        />
+                                                        {action.label}
+                                                    </label>
+                                                ))}
+                                            </div>
                                         </div>
                                     );
                                 })}
