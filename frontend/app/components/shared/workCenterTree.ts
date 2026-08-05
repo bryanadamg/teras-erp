@@ -22,6 +22,24 @@ export const childrenOfWC = (workCenters: any[], parentId: string, level?: WCNod
     (workCenters || []).filter((wc: any) =>
         String(wc.parent_id || '') === String(parentId) && (!level || wcNodeType(wc) === level));
 
+/**
+ * The center type a node runs under. Machines usually carry their own `center_type`,
+ * but rows created through the tree UI can leave it blank and inherit it from the
+ * GROUP/TYPE above — so walk up until one is found. Returns '' when nothing declares it.
+ */
+export function centerTypeOfWC(workCenters: any[], wc: any): string {
+    const byId = new Map((workCenters || []).map((w: any) => [String(w.id), w]));
+    let node: any = wc;
+    const seen = new Set<string>();
+    while (node && !seen.has(String(node.id))) {
+        seen.add(String(node.id));
+        const t = String(node.center_type || '').toUpperCase();
+        if (t) return t;
+        node = node.parent_id ? byId.get(String(node.parent_id)) : null;
+    }
+    return '';
+}
+
 /** Every MACHINE under a node, at any depth (a TYPE's machines may sit behind a GROUP). */
 export function machinesUnderWC(workCenters: any[], rootId: string): any[] {
     const out: any[] = [];

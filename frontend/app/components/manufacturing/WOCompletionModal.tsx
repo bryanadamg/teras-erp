@@ -10,6 +10,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
 import { ProgressBar, LegendPanel } from '../shared/xpTheme';
 import { LotChips } from '../shared/LotChips';
+import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -377,9 +378,30 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const bagSeqById: Record<string, number> = {};
     woBags.forEach((c: any, i: number) => { bagSeqById[String(c.id)] = i + 1; });
 
-    const wcOptions = (workCenters || []).map((wc: any) => ({
-        value: wc.id, label: wc.name, subLabel: wc.code,
-    }));
+    // Machine picker is scoped to the WO's process, not the whole plant: a WEAVING WO
+    // may only be logged on a loom. Preferred scope is the subtree of the WO's own work
+    // center (a TYPE/GROUP row when the WO was cut without a machine) — that's exactly
+    // the bank the planner locked it to. Falls back to every machine of the same center
+    // type when the WO already names a machine or its row is missing.
+    // `label` rides along so the badge always names the scope actually applied, not the
+    // one that was tried first.
+    const { list: machineScope, label: machineScopeLabel } = React.useMemo(() => {
+        const all = (workCenters || []).filter((wc: any) => isMachineWC(wc));
+        const type = woWcType || String(workOrder?.work_center_type || '').toUpperCase();
+        if (woWc && isContainerWC(woWc)) {
+            const under = machinesUnderWC(workCenters || [], woWc.id);
+            if (under.length) return { list: under, label: woWc.name || type };
+        }
+        if (!type) return { list: all, label: '' };
+        const matching = all.filter((wc: any) => centerTypeOfWC(workCenters || [], wc) === type);
+        // Never hand back an empty list — an unfilterable picker beats an unusable one.
+        return matching.length ? { list: matching, label: type } : { list: all, label: '' };
+    }, [workCenters, woWc, woWcType, workOrder?.work_center_type]);
+
+    const wcOptions = machineScope
+        .slice()
+        .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' }))
+        .map((wc: any) => ({ value: wc.id, label: wc.name, subLabel: wc.code }));
     const itemOptions = itemResults.map(itemToOption);
 
     return (
@@ -594,6 +616,15 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             <div>
                                 <label style={{ ...xpLabel, ...(needsMachine ? { fontWeight: 'bold', color: '#900' } : {}) }}>
                                     Work Center / Machine{needsMachine ? ' (required — assigns stock locations)' : ''}
+                                    {machineScopeLabel && (
+                                        <span style={{
+                                            marginLeft: 5, fontSize: 9, fontWeight: 'bold',
+                                            background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',
+                                            padding: '0 4px',
+                                        }}>
+                                            {machineScopeLabel}
+                                        </span>
+                                    )}
                                 </label>
                                 <SearchableSelect
                                     options={wcOptions}
