@@ -87,6 +87,7 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: ['reports.view'],
         items: [
             { tab: 'reports', label: 'Stock Ledger', i18nKey: 'stock_ledger', icon: 'bi-journal-text' },
+            { tab: 'machine-report', label: 'Machine Output', i18nKey: 'machine_report', icon: 'bi-cpu', permission: 'reports.view' },
             { tab: 'audit-logs', label: 'Audit Logs', icon: 'bi-clipboard-check', permission: 'admin.access' },
         ],
     },
