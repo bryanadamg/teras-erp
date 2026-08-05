@@ -32,7 +32,6 @@ export default function SettingsUsersTab() {
 
     const [roles, setRoles] = useState<any[]>([]);
     const [allPermissions, setAllPermissions] = useState<any[]>([]);
-    const [allCategories, setAllCategories] = useState<any[]>([]);
 
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [formUser, setFormUser] = useState<User | undefined>(undefined);
@@ -46,11 +45,9 @@ export default function SettingsUsersTab() {
         Promise.all([
             fetch(`${API_BASE}/roles`, { headers: authHeaders }).then(res => res.ok ? res.json() : []),
             fetch(`${API_BASE}/permissions`, { headers: authHeaders }).then(res => res.ok ? res.json() : []),
-            fetch(`${API_BASE}/categories`, { headers: authHeaders }).then(res => res.ok ? res.json() : []),
-        ]).then(([rolesData, permsData, catsData]) => {
+        ]).then(([rolesData, permsData]) => {
             setRoles(rolesData);
             setAllPermissions(permsData);
-            setAllCategories(catsData);
         }).catch(err => console.error("Failed to fetch auth data", err));
 
         refreshUsers();
@@ -228,7 +225,6 @@ export default function SettingsUsersTab() {
                                 <th style={classic ? xpThCell : undefined}>Full Name</th>
                                 <th style={classic ? xpThCell : undefined}>Role</th>
                                 <th style={classic ? xpThCell : undefined}>Permissions</th>
-                                <th style={classic ? xpThCell : undefined}>Allowed Categories</th>
                                 <th style={classic ? xpThCell : undefined}>Last Login</th>
                                 <th style={classic ? xpThCell : undefined}>Status</th>
                                 <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
@@ -267,29 +263,6 @@ export default function SettingsUsersTab() {
                                                 directPermissions={user.permissions || []}
                                                 classic={classic}
                                             />
-                                        </td>
-                                        <td style={classic ? tdBase : undefined}>
-                                            <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
-                                                {user.allowed_categories && user.allowed_categories.length > 0 ? (
-                                                    user.allowed_categories.map((c: string) => (
-                                                        classic ? (
-                                                            <span key={c} style={{ background: '#fff8e1', border: '1px solid #c77800', color: '#4a3000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>
-                                                                {c}
-                                                            </span>
-                                                        ) : (
-                                                            <span key={c} className="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25" style={{fontSize: '0.65rem'}}>
-                                                                {c}
-                                                            </span>
-                                                        )
-                                                    ))
-                                                ) : (
-                                                    classic ? (
-                                                        <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>All Categories</span>
-                                                    ) : (
-                                                        <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>All Categories</span>
-                                                    )
-                                                )}
-                                            </div>
                                         </td>
                                         <td style={classic ? { ...tdBase, fontSize: 9, whiteSpace: 'nowrap' as const } : undefined} className={classic ? '' : 'small text-muted'}>
                                             {formatLastLogin(user.last_login_at)}
@@ -375,7 +348,6 @@ export default function SettingsUsersTab() {
                 user={formUser}
                 roles={roles}
                 allPermissions={allPermissions}
-                allCategories={allCategories}
                 classic={classic}
                 onSubmit={(payload) => formMode === 'create' ? submitCreate(payload) : submitEdit(formUser!.id, payload)}
             />

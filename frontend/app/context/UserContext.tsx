@@ -13,6 +13,8 @@ interface Role {
     name: string;
     permissions: Permission[];
     allowed_work_center_types?: string[] | null;
+    allowed_categories?: string[] | null;
+    allowed_locations?: string[] | null;
 }
 
 export interface User {
@@ -27,7 +29,6 @@ export interface User {
 
     permissions: Permission[]; // Direct granular permissions
 
-    allowed_categories?: string[];
     avatar_id?: string | null;
     is_active: boolean;
     last_login_at?: string | null;
@@ -41,6 +42,8 @@ interface UserContextType {
     setCurrentUser: (user: User) => void;
     hasPermission: (permissionCode: string) => boolean;
     hasWorkCenterScope: (centerType?: string | null) => boolean;
+    hasCategoryScope: (categoryId?: string | null) => boolean;
+    hasLocationScope: (locationId?: string | null) => boolean;
     refreshUsers: () => Promise<void>;
     login: (username: string, password: string) => Promise<boolean | 'network_error'>;
     logout: () => void;
@@ -151,8 +154,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return allowed.includes(centerType);
     };
 
+    const hasCategoryScope = (categoryId?: string | null): boolean => {
+        const allowed = currentUser?.role?.allowed_categories;
+        if (!allowed || allowed.length === 0 || !categoryId) return true;
+        return allowed.includes(categoryId);
+    };
+
+    const hasLocationScope = (locationId?: string | null): boolean => {
+        const allowed = currentUser?.role?.allowed_locations;
+        if (!allowed || allowed.length === 0 || !locationId) return true;
+        return allowed.includes(locationId);
+    };
+
     return (
-        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, hasWorkCenterScope, refreshUsers, login, logout, loading }}>
+        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, hasWorkCenterScope, hasCategoryScope, hasLocationScope, refreshUsers, login, logout, loading }}>
             {children}
         </UserContext.Provider>
     );

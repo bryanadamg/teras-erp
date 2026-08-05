@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { useData } from '../../context/DataContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { xpBtn } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
@@ -14,6 +15,7 @@ export default function SettingsRolesTab() {
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { users } = useUser();
+    const { categories, locations } = useData();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
 
@@ -21,6 +23,17 @@ export default function SettingsRolesTab() {
     const [allPermissions, setAllPermissions] = useState<any[]>([]);
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [formRole, setFormRole] = useState<RoleLike | undefined>(undefined);
+
+    const categoryName = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const c of categories) m.set(c.id, (c.path_names || [c.name]).join(' / '));
+        return m;
+    }, [categories]);
+    const locationName = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const l of locations) m.set(l.id, l.full_path || l.name);
+        return m;
+    }, [locations]);
 
     const authHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('access_token')}` });
 
@@ -143,7 +156,7 @@ export default function SettingsRolesTab() {
                                 <th style={classic ? xpThCell : undefined} className={classic ? '' : 'ps-4'}>Name</th>
                                 <th style={classic ? xpThCell : undefined}>Description</th>
                                 <th style={classic ? xpThCell : undefined}>Permissions</th>
-                                <th style={classic ? xpThCell : undefined}>Station Scope</th>
+                                <th style={classic ? xpThCell : undefined}>Scope</th>
                                 <th style={classic ? { ...xpThCell, width: 90, textAlign: 'center' as const } : undefined}>Users</th>
                                 <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
                             </tr>
@@ -183,19 +196,32 @@ export default function SettingsRolesTab() {
                                             )}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>
-                                            {role.allowed_work_center_types && role.allowed_work_center_types.length > 0 ? (
-                                                <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
-                                                    {role.allowed_work_center_types.map(t => (
-                                                        classic ? (
-                                                            <span key={t} style={{ background: '#fff3d6', border: '1px solid #c8a04a', color: '#5e3000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{t}</span>
-                                                        ) : (
-                                                            <span key={t} className="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25" style={{ fontSize: '0.65rem' }}>{t}</span>
-                                                        )
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>All stations</span>
-                                            )}
+                                            <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
+                                                {(role.allowed_work_center_types || []).map(t => (
+                                                    classic ? (
+                                                        <span key={`wc-${t}`} style={{ background: '#fff3d6', border: '1px solid #c8a04a', color: '#5e3000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{t}</span>
+                                                    ) : (
+                                                        <span key={`wc-${t}`} className="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25" style={{ fontSize: '0.65rem' }}>{t}</span>
+                                                    )
+                                                ))}
+                                                {(role.allowed_categories || []).map(id => (
+                                                    classic ? (
+                                                        <span key={`cat-${id}`} style={{ background: '#e6f0ff', border: '1px solid #6a8fc8', color: '#0a2a5e', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{categoryName.get(id) || id}</span>
+                                                    ) : (
+                                                        <span key={`cat-${id}`} className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style={{ fontSize: '0.65rem' }}>{categoryName.get(id) || id}</span>
+                                                    )
+                                                ))}
+                                                {(role.allowed_locations || []).map(id => (
+                                                    classic ? (
+                                                        <span key={`loc-${id}`} style={{ background: '#f0e6ff', border: '1px solid #8f6ac8', color: '#2a0a5e', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{locationName.get(id) || id}</span>
+                                                    ) : (
+                                                        <span key={`loc-${id}`} className="badge bg-purple bg-opacity-10 border" style={{ fontSize: '0.65rem', color: '#5e2ac8', borderColor: 'rgba(94,42,200,.25)' }}>{locationName.get(id) || id}</span>
+                                                    )
+                                                ))}
+                                                {!(role.allowed_work_center_types?.length || role.allowed_categories?.length || role.allowed_locations?.length) && (
+                                                    <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>Unrestricted</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'text-center'}>
                                             {classic ? (

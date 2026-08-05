@@ -21,13 +21,12 @@ export interface UserFormPayload {
     full_name: string;
     role_id: string | null;
     permission_ids: string[];
-    allowed_categories: string[] | null;
     avatar_id: string;
     password?: string;
 }
 
 export default function UserFormModal({
-    isOpen, onClose, mode, user, roles, allPermissions, allCategories, classic, onSubmit,
+    isOpen, onClose, mode, user, roles, allPermissions, classic, onSubmit,
 }: {
     isOpen: boolean;
     onClose: () => void;
@@ -35,7 +34,6 @@ export default function UserFormModal({
     user?: User;
     roles: any[];
     allPermissions: PermissionOption[];
-    allCategories: any[];
     classic: boolean;
     onSubmit: (payload: UserFormPayload) => Promise<{ ok: boolean; error?: string }>;
 }) {
@@ -43,7 +41,6 @@ export default function UserFormModal({
     const [fullName, setFullName] = useState('');
     const [roleId, setRoleId] = useState('');
     const [permissionIds, setPermissionIds] = useState<string[]>([]);
-    const [allowedCategories, setAllowedCategories] = useState<string[]>([]);
     const [avatarId, setAvatarId] = useState('1');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(mode === 'create');
@@ -57,7 +54,6 @@ export default function UserFormModal({
         setFullName(user?.full_name || '');
         setRoleId(user?.role?.id || '');
         setPermissionIds(user?.permissions?.map(p => p.id) || []);
-        setAllowedCategories(user?.allowed_categories || []);
         setAvatarId(user?.avatar_id || '1');
         setPassword('');
         setShowPassword(mode === 'create');
@@ -70,10 +66,6 @@ export default function UserFormModal({
         const role = roles.find(r => r.id === roleId);
         return role?.permissions?.map((p: any) => p.id) || [];
     }, [roles, roleId]);
-
-    const toggleCategory = (catName: string) => {
-        setAllowedCategories(prev => prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]);
-    };
 
     const handleGeneratePassword = () => {
         const pw = generatePassword();
@@ -96,7 +88,6 @@ export default function UserFormModal({
             username, full_name: fullName,
             role_id: roleId || null,
             permission_ids: permissionIds,
-            allowed_categories: allowedCategories.length > 0 ? allowedCategories : null,
             avatar_id: avatarId,
         };
         if (mode === 'create' || (showPassword && password)) payload.password = password;
@@ -250,39 +241,8 @@ export default function UserFormModal({
                     disabledIds={rolePermissionIds}
                 />
                 <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
-                    Greyed-out permissions are already granted by the selected role.
-                </small>
-            </div>
-
-            <div className="mb-1">
-                <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Allowed Categories</label>
-                <div
-                    style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 4, padding: '4px 6px', background: '#ffffff', border: '1px solid #b0a898', maxHeight: 120, overflowY: 'auto' as const } : { maxHeight: 120, overflowY: 'auto' as const }}
-                    className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-white'}
-                >
-                    {allCategories.map(c => (
-                        <div key={c.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 3 } : undefined} className={classic ? '' : 'form-check m-0'}>
-                            <input
-                                style={classic ? { cursor: 'pointer' } : undefined}
-                                className={classic ? '' : 'form-check-input'}
-                                type="checkbox"
-                                checked={allowedCategories.includes(c.name)}
-                                onChange={() => toggleCategory(c.name)}
-                                id={`user-form-cat-${c.id}`}
-                            />
-                            <label
-                                style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#000', cursor: 'pointer' } : undefined}
-                                className={classic ? '' : 'form-check-label small'}
-                                htmlFor={`user-form-cat-${c.id}`}
-                            >{c.name}</label>
-                        </div>
-                    ))}
-                    {allCategories.length === 0 && (
-                        <small style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#888' } : undefined} className={classic ? '' : 'text-muted'}>No categories defined</small>
-                    )}
-                </div>
-                <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
-                    Uncheck all for access to every category.
+                    Greyed-out permissions are already granted by the selected role. Category/location/station
+                    scoping is configured on the Role, not per user.
                 </small>
             </div>
         </ModalWrapper>
