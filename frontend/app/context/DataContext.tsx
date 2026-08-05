@@ -298,7 +298,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/categories`, { headers })); requestTypes.push('categories');
                 requests.push(fetch(`${API_BASE}/uoms`, { headers })); requestTypes.push('uoms');
                 requests.push(fetch(`${API_BASE}/sizes`, { headers })); requestTypes.push('sizes');
-                requests.push(fetch(`${API_BASE}/work-centers`, { headers })); requestTypes.push('work-centers');
+                // limit is explicit: every machine picker walks the whole tree client-side,
+                // so a partial page hides machines instead of paging them.
+                requests.push(fetch(`${API_BASE}/work-centers?limit=2000`, { headers })); requestTypes.push('work-centers');
                 requests.push(fetch(`${API_BASE}/operations`, { headers })); requestTypes.push('operations');
                 requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
                 requests.push(fetch(`${API_BASE}/settings/company`, { headers })); requestTypes.push('company-profile');
@@ -606,7 +608,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
             const [wcRes, opRes, locRes] = await Promise.all([
-                fetch(`${API_BASE}/work-centers`, { headers, cache: 'no-store' }),
+                fetch(`${API_BASE}/work-centers?limit=2000`, { headers, cache: 'no-store' }),
                 fetch(`${API_BASE}/operations`, { headers, cache: 'no-store' }),
                 fetch(`${API_BASE}/locations`, { headers, cache: 'no-store' }),
             ]);

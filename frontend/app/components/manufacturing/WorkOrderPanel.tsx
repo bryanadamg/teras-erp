@@ -12,6 +12,7 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
+import SearchableSelect from '../shared/SearchableSelect';
 import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -207,18 +208,42 @@ export default function WorkOrderPanel({
         return `${op.sequence != null ? op.sequence + '. ' : ''}${name}`;
     };
 
+    // Machine names carry embedded numbers (JB 02, JB 10) — numeric collation keeps
+    // 10 after 2 instead of sorting it right after 1.
+    const byName = (a: any, b: any) =>
+        String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+
     // Selectable containers: the TYPE roots plus any GROUP under them, so a WO can be
-    // narrowed to a loom bank and not just "WEAVING".
-    const availableGroups = useMemo(() =>
-        workCenters.filter((wc: any) => isContainerWC(wc)),
-        [workCenters]
-    );
+    // narrowed to a loom bank and not just "WEAVING". Sorted per-tier (types A-Z, each
+    // type's groups A-Z under it) so the ↳ indent still reads as a hierarchy.
+    const availableGroups = useMemo(() => {
+        const containers = workCenters.filter((wc: any) => isContainerWC(wc));
+        const types = containers.filter((wc: any) => isTypeWC(wc)).sort(byName);
+        const out: any[] = [];
+        for (const t of types) {
+            out.push(t);
+            out.push(...containers.filter((c: any) => String(c.parent_id || '') === String(t.id)).sort(byName));
+        }
+        // Groups whose type is missing from the list would otherwise vanish.
+        const placed = new Set(out.map((wc: any) => String(wc.id)));
+        out.push(...containers.filter((wc: any) => !placed.has(String(wc.id))).sort(byName));
+        return out;
+    }, [workCenters]);
 
     const availableMachines = useMemo(() => {
         const gid = lockedGroupId || form.group_id;
         if (!gid) return [];
-        return machinesUnderWC(workCenters, gid);
+        return machinesUnderWC(workCenters, gid).sort(byName);
     }, [workCenters, lockedGroupId, form.group_id]);
+
+    // Every machine in the plant — the "next destination" picker isn't scoped to a group.
+    const allMachines = useMemo(() =>
+        workCenters.filter((wc: any) => isMachineWC(wc)).sort(byName),
+        [workCenters]
+    );
+
+    const machineOptions = (list: any[]) =>
+        list.map((wc: any) => ({ value: String(wc.id), label: wc.name, subLabel: wc.code || undefined }));
 
     const resetForm = () => {
         setForm({ ...emptyForm });
@@ -530,18 +555,15 @@ export default function WorkOrderPanel({
                                                 ))}
                                             </select>
                                         )}
-                                        <select
-                                            style={{ ...xpInput, minWidth: 120 }}
-                                            value={form.work_center_id}
-                                            onChange={e => handleWCChange(e.target.value)}
-                                            disabled={!lockedGroupId && !form.group_id}
-                                            autoFocus={!!lockedGroupId}
-                                        >
-                                            <option value="">— Machine —</option>
-                                            {availableMachines.map((wc: any) => (
-                                                <option key={wc.id} value={wc.id}>{wc.name}</option>
-                                            ))}
-                                        </select>
+                                        <div style={{ width: 170 }}>
+                                            <SearchableSelect
+                                                options={machineOptions(availableMachines)}
+                                                value={form.work_center_id}
+                                                onChange={handleWCChange}
+                                                placeholder="— Machine —"
+                                                disabled={!lockedGroupId && !form.group_id}
+                                            />
+                                        </div>
                                         <input
                                             type="number" min="0" step="0.5"
                                             style={{ ...xpInput, width: 52 }}
@@ -603,12 +625,15 @@ export default function WorkOrderPanel({
                                                 {locationList.map((l: any) => <option key={l.id} value={l.id}>Out: {l.code}</option>)}
                                             </select>
                                             <span style={{ fontSize: 9, color: '#444', fontWeight: 'bold', alignSelf: 'center' }}>Tujuan:</span>
-                                            <select style={{ ...xpInput, minWidth: 110, fontSize: 10 }} value={form.next_destination_work_center_id} onChange={e => setForm(f => ({ ...f, next_destination_work_center_id: e.target.value }))}>
-                                                <option value="">— Mesin —</option>
-                                                {workCenters.filter((wc: any) => isMachineWC(wc)).map((wc: any) => (
-                                                    <option key={wc.id} value={wc.id}>{wc.name}</option>
-                                                ))}
-                                            </select>
+                                            <div style={{ width: 160 }}>
+                                                <SearchableSelect
+                                                    options={machineOptions(allMachines)}
+                                                    value={form.next_destination_work_center_id}
+                                                    onChange={v => setForm(f => ({ ...f, next_destination_work_center_id: v }))}
+                                                    placeholder="— Mesin —"
+                                                    size="sm"
+                                                />
+                                            </div>
                                             <select style={{ ...xpInput, minWidth: 100, fontSize: 10 }} value={form.next_destination_location_id} onChange={e => setForm(f => ({ ...f, next_destination_location_id: e.target.value }))}>
                                                 <option value="">— Lokasi —</option>
                                                 {locationList.map((l: any) => (
@@ -821,19 +846,16 @@ export default function WorkOrderPanel({
                                     </select>
                                 )}
 
-                                {/* Machine select */}
-                                <select
-                                    style={{ ...xpInput, minWidth: 120 }}
-                                    value={form.work_center_id}
-                                    onChange={e => handleWCChange(e.target.value)}
-                                    disabled={!lockedGroupId && !form.group_id}
-                                    autoFocus={!!lockedGroupId}
-                                >
-                                    <option value="">— Machine —</option>
-                                    {availableMachines.map((wc: any) => (
-                                        <option key={wc.id} value={wc.id}>{wc.name}</option>
-                                    ))}
-                                </select>
+                                {/* Machine select — searchable: a loom bank runs to 100+ machines */}
+                                <div style={{ width: 190 }}>
+                                    <SearchableSelect
+                                        options={machineOptions(availableMachines)}
+                                        value={form.work_center_id}
+                                        onChange={handleWCChange}
+                                        placeholder="— Machine —"
+                                        disabled={!lockedGroupId && !form.group_id}
+                                    />
+                                </div>
 
                                 <label style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>
                                     Planned hrs:
@@ -909,17 +931,15 @@ export default function WorkOrderPanel({
                             )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#555', paddingLeft: 4, marginTop: 2 }}>
                                 <span style={{ color: '#444', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Tujuan Berikutnya:</span>
-                                <select
-                                    style={{ ...xpInput, minWidth: 110, fontSize: 10 }}
-                                    value={form.next_destination_work_center_id}
-                                    onChange={e => setForm(f => ({ ...f, next_destination_work_center_id: e.target.value }))}
-                                    title="Next work center this WO's output goes to"
-                                >
-                                    <option value="">— Mesin —</option>
-                                    {workCenters.filter((wc: any) => isMachineWC(wc)).map((wc: any) => (
-                                        <option key={wc.id} value={wc.id}>{wc.name}</option>
-                                    ))}
-                                </select>
+                                <div style={{ width: 160 }} title="Next work center this WO's output goes to">
+                                    <SearchableSelect
+                                        options={machineOptions(allMachines)}
+                                        value={form.next_destination_work_center_id}
+                                        onChange={v => setForm(f => ({ ...f, next_destination_work_center_id: v }))}
+                                        placeholder="— Mesin —"
+                                        size="sm"
+                                    />
+                                </div>
                                 <select
                                     style={{ ...xpInput, minWidth: 100, fontSize: 10 }}
                                     value={form.next_destination_location_id}
@@ -1032,7 +1052,7 @@ export default function WorkOrderPanel({
                         ends: l.qty != null ? Number(l.qty) : null,
                     }))}
                     locations={locationList.map((l: any) => ({ id: l.id, code: l.code, name: l.name }))}
-                    nextWorkCenters={workCenters.filter((wc: any) => isMachineWC(wc)).map((wc: any) => ({ id: wc.id, name: wc.name }))}
+                    nextWorkCenters={allMachines.map((wc: any) => ({ id: wc.id, name: wc.name }))}
                     onClose={() => setBeamPlanOpen(false)}
                 />
             )}

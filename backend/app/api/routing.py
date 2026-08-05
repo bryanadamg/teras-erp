@@ -80,8 +80,11 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
     return _with_effective_locations(db, wc)
 
 @router.get("/work-centers", response_model=list[WorkCenterResponse])
-def get_work_centers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    rows = db.query(WorkCenter).offset(skip).limit(limit).all()
+def get_work_centers(skip: int = 0, limit: int = 2000, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # The whole tree is a picker source (machine selects walk it client-side), so a
+    # 100-row default silently hid machines on plants with >100 looms. Order by name
+    # so every consumer gets a stable, readable list instead of heap order.
+    rows = db.query(WorkCenter).order_by(WorkCenter.name).offset(skip).limit(limit).all()
     # Resolve against the whole tree, not just the page — an ancestor may be on
     # another page (or outside the limit entirely).
     work_center_service.decorate_effective_locations(rows, work_center_service.location_map_sync(db))
