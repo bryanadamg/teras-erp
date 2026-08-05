@@ -90,9 +90,15 @@ async def get_stock_ledger(
     elif direction == "out":
         conditions.append(StockLedger.qty_change < 0)
     if search and search.strip():
-        term = f"%{search.strip()}%"
-        item_sub = select(Item.id).where(or_(Item.name.ilike(term), Item.code.ilike(term)))
-        conditions.append(or_(StockLedger.reference_id.ilike(term), StockLedger.item_id.in_(item_sub)))
+        # Tokenised: every whitespace-separated token must match somewhere
+        # (item name/code or reference). Typing "BEAM 1" has to find
+        # "BEAM  150 - 90" even when the stored name carries a double space or a
+        # non-breaking space — those render identically in HTML, so a literal
+        # substring match silently returns nothing.
+        for tok in search.split():
+            term = f"%{tok}%"
+            item_sub = select(Item.id).where(or_(Item.name.ilike(term), Item.code.ilike(term)))
+            conditions.append(or_(StockLedger.reference_id.ilike(term), StockLedger.item_id.in_(item_sub)))
 
     total = (await db.execute(
         select(func.count(StockLedger.id)).where(*conditions)
