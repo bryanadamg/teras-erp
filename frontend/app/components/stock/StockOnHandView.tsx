@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, XPLoading, XPActionButton } from '../shared/xpTheme';
+import { useSortable, SortMark, XPLoading, XPActionButton, FormSection, FieldLabel } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -475,6 +475,46 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
     };
 
+    // Identity block every stock modal opens with: which item/lot/location is being
+    // touched, and how much of it is there right now.
+    const stockContextSection = (bal: any, locPrefix: string, qtyLabel: string) => (
+        <FormSection title="Stock" classic={classic}>
+            <div style={{ fontWeight: 'bold' }}>{bal.item_name}</div>
+            <div style={{ fontSize: 10, color: '#666' }}>
+                {locPrefix}: {bal.location_name || getLocationName(bal.location_id)}
+                {bal.batch_key ? ` · Lot: ${bal.batch_number || bal.batch_key}` : ''}
+                {' · '}{qtyLabel}: {bal.qty} {bal.item_uom || ''}
+            </div>
+        </FormSection>
+    );
+
+    // Packaging tallies (cones/boxes/drums) are independent counts, never UOM conversions —
+    // so the unit has to stay readable AFTER a number is typed. A placeholder alone vanishes
+    // on the first keystroke and leaves three unlabelled boxes; every kind gets a real label.
+    const packagingInputs = (rows: [string, string, (v: string) => void][], allowNegative = false) => (
+        <div style={{ display: 'flex', gap: 6 }}>
+            {rows.map(([lbl, val, set]) => (
+                <div key={lbl} style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                        style={classic
+                            ? { fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#2b2822', marginBottom: 1 }
+                            : undefined}
+                        className={classic ? '' : 'form-label small fw-semibold mb-0'}
+                    >
+                        {lbl}
+                    </div>
+                    <input
+                        type="number" step="1" min={allowNegative ? undefined : '0'} placeholder="0" title={lbl}
+                        style={classic ? { ...xpInput, width: '100%' } : undefined}
+                        className={classic ? '' : 'form-control form-control-sm'}
+                        value={val}
+                        onChange={e => set(e.target.value)}
+                    />
+                </div>
+            ))}
+        </div>
+    );
+
     const renderRow = (bal: any, i: number) => {
         const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '-';
         // QC-rejected/disposed lots sit in the same bin as good stock — tint the row
@@ -712,58 +752,38 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             </>}
         >
             <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
-                <div style={{ marginBottom: 8 }}>
-                    <strong>{transferTarget.item_name}</strong>
-                    <div style={{ fontSize: 10, color: '#666' }}>
-                        From: {transferTarget.location_name || getLocationName(transferTarget.location_id)}
-                        {transferTarget.batch_key ? ` · Lot: ${transferTarget.batch_number || transferTarget.batch_key}` : ''}
-                        {' · '}Available: {transferTarget.qty} {transferTarget.item_uom || ''}
+                {stockContextSection(transferTarget, 'From', 'Available')}
+                <FormSection title="Move" classic={classic}>
+                    <div style={{ marginBottom: 8 }}>
+                        <FieldLabel classic={classic}>Destination</FieldLabel>
+                        <TreeSelect
+                            options={buildLocationPickerTree(locations, transferTarget.location_id)}
+                            value={transferToLoc}
+                            onChange={setTransferToLoc}
+                            placeholder="— select location —"
+                            style={{ width: '100%' }}
+                            size="sm"
+                        />
                     </div>
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Destination</label>
-                    <TreeSelect
-                        options={buildLocationPickerTree(locations, transferTarget.location_id)}
-                        value={transferToLoc}
-                        onChange={setTransferToLoc}
-                        placeholder="— select location —"
-                        style={{ width: '100%' }}
-                        size="sm"
-                    />
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity</label>
-                    <input
-                        type="number" min="0.0001" step="any"
-                        style={classic ? { ...xpInput, width: '100%' } : undefined}
-                        className={classic ? '' : 'form-control form-control-sm'}
-                        value={transferQty}
-                        onChange={e => setTransferQty(e.target.value)}
-                    />
-                </div>
-                <div style={{ marginBottom: 4 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                        Packaging to move <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                    </label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        {([
-                            ['Cones', transferCones, setTransferCones],
-                            ['Boxes', transferBoxes, setTransferBoxes],
-                            ['Drums', transferDrums, setTransferDrums],
-                        ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
-                            <div key={lbl} style={{ flex: 1 }}>
-                                <input
-                                    type="number" min="0" step="1" placeholder={lbl}
-                                    title={lbl}
-                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                    className={classic ? '' : 'form-control form-control-sm'}
-                                    value={val}
-                                    onChange={e => set(e.target.value)}
-                                />
-                            </div>
-                        ))}
+                    <div>
+                        <FieldLabel classic={classic}>Quantity{transferTarget.item_uom ? ` (${transferTarget.item_uom})` : ''}</FieldLabel>
+                        <input
+                            type="number" min="0.0001" step="any"
+                            style={classic ? { ...xpInput, width: '100%' } : undefined}
+                            className={classic ? '' : 'form-control form-control-sm'}
+                            value={transferQty}
+                            onChange={e => setTransferQty(e.target.value)}
+                        />
                     </div>
-                </div>
+                </FormSection>
+                <FormSection title="Packaging to move" classic={classic}>
+                    <FieldLabel classic={classic} hint="Optional — how many of each container moves with the quantity above.">Containers</FieldLabel>
+                    {packagingInputs([
+                        ['Cones', transferCones, setTransferCones],
+                        ['Boxes', transferBoxes, setTransferBoxes],
+                        ['Drums', transferDrums, setTransferDrums],
+                    ])}
+                </FormSection>
             </div>
         </ModalWrapper>
     );
@@ -800,78 +820,60 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 </>}
             >
                 <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
-                    <div style={{ marginBottom: 8 }}>
-                        <strong>{t.item_name}</strong>
-                        <div style={{ fontSize: 10, color: '#666' }}>
-                            {t.location_name || getLocationName(t.location_id)}
-                            {t.batch_key ? ` · Lot: ${t.batch_number || t.batch_key}` : ''}
-                            {' · '}On hand: {t.qty} {t.item_uom || ''}
+                    {stockContextSection(t, 'Location', 'On hand')}
+                    <FormSection title="Adjustment" classic={classic}>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                            {modeBtn('set', 'Set to (count)')}
+                            {modeBtn('delta', 'Adjust by (+/-)')}
                         </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                        {modeBtn('set', 'Set to (count)')}
-                        {modeBtn('delta', 'Adjust by (+/-)')}
-                    </div>
-                    <div style={{ marginBottom: 8 }}>
-                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                            {adjustMode === 'set' ? 'Counted quantity' : 'Quantity change (+/-)'}
-                        </label>
-                        <input
-                            type="number" step="any"
-                            style={classic ? { ...xpInput, width: '100%' } : undefined}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={adjustQty}
-                            onChange={e => setAdjustQty(e.target.value)}
-                        />
-                        <div style={{ fontSize: 10, color: delta < 0 ? '#c00000' : '#2d7a2d', marginTop: 2 }}>
-                            New on hand: <b>{newQty}</b> {t.item_uom || ''} ({delta >= 0 ? '+' : ''}{delta})
+                        <div>
+                            <FieldLabel classic={classic}>
+                                {adjustMode === 'set' ? 'Counted quantity' : 'Quantity change (+/-)'}
+                                {t.item_uom ? ` (${t.item_uom})` : ''}
+                            </FieldLabel>
+                            <input
+                                type="number" step="any"
+                                style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-control form-control-sm'}
+                                value={adjustQty}
+                                onChange={e => setAdjustQty(e.target.value)}
+                            />
+                            <div style={{ fontSize: 10, color: delta < 0 ? '#c00000' : '#2d7a2d', marginTop: 2 }}>
+                                New on hand: <b>{newQty}</b> {t.item_uom || ''} ({delta >= 0 ? '+' : ''}{delta})
+                            </div>
                         </div>
-                    </div>
-                    <div style={{ marginBottom: 8 }}>
-                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                            {pkgLabel} <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                        </label>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                            {([
-                                ['Cones', adjustCones, setAdjustCones],
-                                ['Boxes', adjustBoxes, setAdjustBoxes],
-                                ['Drums', adjustDrums, setAdjustDrums],
-                            ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
-                                <div key={lbl} style={{ flex: 1 }}>
-                                    <input
-                                        type="number" step="1" placeholder={lbl} title={lbl}
-                                        style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                        className={classic ? '' : 'form-control form-control-sm'}
-                                        value={val}
-                                        onChange={e => set(e.target.value)}
-                                    />
-                                </div>
-                            ))}
+                    </FormSection>
+                    <FormSection title={pkgLabel} classic={classic}>
+                        <FieldLabel classic={classic} hint={adjustMode === 'set' ? 'Optional — counted containers, blank to leave untouched.' : 'Optional — container change, may be negative.'}>Containers</FieldLabel>
+                        {packagingInputs([
+                            ['Cones', adjustCones, setAdjustCones],
+                            ['Boxes', adjustBoxes, setAdjustBoxes],
+                            ['Drums', adjustDrums, setAdjustDrums],
+                        ], adjustMode === 'delta')}
+                    </FormSection>
+                    <FormSection title="Why" classic={classic}>
+                        <div style={{ marginBottom: 8 }}>
+                            <FieldLabel classic={classic}>Reason</FieldLabel>
+                            <select
+                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-select form-select-sm'}
+                                value={adjustReason}
+                                onChange={e => setAdjustReason(e.target.value)}
+                            >
+                                {ADJUST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                            </select>
                         </div>
-                    </div>
-                    <div style={{ marginBottom: 8 }}>
-                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
-                        <select
-                            style={classic ? { ...xpSelect, width: '100%' } : undefined}
-                            className={classic ? '' : 'form-select form-select-sm'}
-                            value={adjustReason}
-                            onChange={e => setAdjustReason(e.target.value)}
-                        >
-                            {ADJUST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                    </div>
-                    <div style={{ marginBottom: 4 }}>
-                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                            Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                        </label>
-                        <input
-                            type="text" placeholder="e.g. spoiled in transit"
-                            style={classic ? { ...xpInput, width: '100%' } : undefined}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={adjustNote}
-                            onChange={e => setAdjustNote(e.target.value)}
-                        />
-                    </div>
+                        <div>
+                            <FieldLabel classic={classic} hint="Optional">Note</FieldLabel>
+                            <input
+                                type="text" placeholder="e.g. spoiled in transit"
+                                style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-control form-control-sm'}
+                                value={adjustNote}
+                                onChange={e => setAdjustNote(e.target.value)}
+                            />
+                        </div>
+                    </FormSection>
                 </div>
             </ModalWrapper>
         );
@@ -892,95 +894,87 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             </>}
         >
             <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
-                <div style={{ marginBottom: 8 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Item</label>
-                    <SearchableSelect
-                        options={items.map((it: any) => ({ value: it.code, label: it.name, subLabel: it.code }))}
-                        onSearch={onSearchItems}
-                        value={newItemCode}
-                        onChange={(code: string) => { setNewItemCode(code); setNewAttrIds([]); }}
-                        placeholder="Search item..."
-                        size="sm"
-                    />
-                </div>
-                {newBoundAttrs.map((attr: any) => (
-                    <div key={attr.id} style={{ marginBottom: 6 }}>
-                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>{attr.name}</label>
+                <FormSection title="Item" classic={classic}>
+                    <div style={{ marginBottom: newBoundAttrs.length ? 8 : 0 }}>
+                        <FieldLabel classic={classic}>Item</FieldLabel>
+                        <SearchableSelect
+                            options={items.map((it: any) => ({ value: it.code, label: it.name, subLabel: it.code }))}
+                            onSearch={onSearchItems}
+                            value={newItemCode}
+                            onChange={(code: string) => { setNewItemCode(code); setNewAttrIds([]); }}
+                            placeholder="Search item..."
+                            size="sm"
+                        />
+                    </div>
+                    {newBoundAttrs.map((attr: any, i: number) => (
+                        <div key={attr.id} style={{ marginBottom: i === newBoundAttrs.length - 1 ? 0 : 6 }}>
+                            <FieldLabel classic={classic}>{attr.name}</FieldLabel>
+                            <select
+                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-select form-select-sm'}
+                                value={newAttrIds.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
+                                onChange={e => setNewAttrValue(e.target.value, attr.id)}
+                            >
+                                <option value="">Select {attr.name}...</option>
+                                {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                            </select>
+                        </div>
+                    ))}
+                </FormSection>
+                <FormSection title="Quantity" classic={classic}>
+                    <div style={{ marginBottom: 8 }}>
+                        <FieldLabel classic={classic}>Location</FieldLabel>
+                        <TreeSelect
+                            options={locPickerTreeOptions}
+                            value={newLocId}
+                            onChange={setNewLocId}
+                            placeholder="— select location —"
+                            style={{ width: '100%' }}
+                            size="sm"
+                        />
+                    </div>
+                    <div>
+                        <FieldLabel classic={classic} hint="Negative to subtract">Quantity</FieldLabel>
+                        <input
+                            type="number" step="any"
+                            style={classic ? { ...xpInput, width: '100%' } : undefined}
+                            className={classic ? '' : 'form-control form-control-sm'}
+                            value={newQty}
+                            onChange={e => setNewQty(e.target.value)}
+                        />
+                    </div>
+                </FormSection>
+                <FormSection title="Packaging" classic={classic}>
+                    <FieldLabel classic={classic} hint="Optional — container tallies booked alongside the quantity.">Containers</FieldLabel>
+                    {packagingInputs([
+                        ['Cones', newCones, setNewCones],
+                        ['Boxes', newBoxes, setNewBoxes],
+                        ['Drums', newDrums, setNewDrums],
+                    ], true)}
+                </FormSection>
+                <FormSection title="Why" classic={classic}>
+                    <div style={{ marginBottom: 8 }}>
+                        <FieldLabel classic={classic}>Reason</FieldLabel>
                         <select
                             style={classic ? { ...xpSelect, width: '100%' } : undefined}
                             className={classic ? '' : 'form-select form-select-sm'}
-                            value={newAttrIds.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
-                            onChange={e => setNewAttrValue(e.target.value, attr.id)}
+                            value={newReason}
+                            onChange={e => setNewReason(e.target.value)}
                         >
-                            <option value="">Select {attr.name}...</option>
-                            {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                            {NEW_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                     </div>
-                ))}
-                <div style={{ marginBottom: 8 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Location</label>
-                    <TreeSelect
-                        options={locPickerTreeOptions}
-                        value={newLocId}
-                        onChange={setNewLocId}
-                        placeholder="— select location —"
-                        style={{ width: '100%' }}
-                        size="sm"
-                    />
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity <span style={{ color: '#888', fontWeight: 'normal' }}>(negative to subtract)</span></label>
-                    <input
-                        type="number" step="any"
-                        style={classic ? { ...xpInput, width: '100%' } : undefined}
-                        className={classic ? '' : 'form-control form-control-sm'}
-                        value={newQty}
-                        onChange={e => setNewQty(e.target.value)}
-                    />
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                        Packaging <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                    </label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        {([
-                            ['Cones', newCones, setNewCones],
-                            ['Boxes', newBoxes, setNewBoxes],
-                            ['Drums', newDrums, setNewDrums],
-                        ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
-                            <div key={lbl} style={{ flex: 1 }}>
-                                <input
-                                    type="number" step="1" placeholder={lbl} title={lbl}
-                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                    className={classic ? '' : 'form-control form-control-sm'}
-                                    value={val}
-                                    onChange={e => set(e.target.value)}
-                                />
-                            </div>
-                        ))}
+                    <div>
+                        <FieldLabel classic={classic} hint="Optional">Note</FieldLabel>
+                        <input
+                            type="text"
+                            style={classic ? { ...xpInput, width: '100%' } : undefined}
+                            className={classic ? '' : 'form-control form-control-sm'}
+                            value={newNote}
+                            onChange={e => setNewNote(e.target.value)}
+                        />
                     </div>
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
-                    <select
-                        style={classic ? { ...xpSelect, width: '100%' } : undefined}
-                        className={classic ? '' : 'form-select form-select-sm'}
-                        value={newReason}
-                        onChange={e => setNewReason(e.target.value)}
-                    >
-                        {NEW_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                </div>
-                <div style={{ marginBottom: 4 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span></label>
-                    <input
-                        type="text"
-                        style={classic ? { ...xpInput, width: '100%' } : undefined}
-                        className={classic ? '' : 'form-control form-control-sm'}
-                        value={newNote}
-                        onChange={e => setNewNote(e.target.value)}
-                    />
-                </div>
+                </FormSection>
             </div>
         </ModalWrapper>
     );
