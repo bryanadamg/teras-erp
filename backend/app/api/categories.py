@@ -59,7 +59,7 @@ async def list_categories(
 async def create_category(
     data: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('category.create')),
 ):
     if data.parent_id:
         parent = await _get_or_404(db, data.parent_id)
@@ -78,7 +78,7 @@ async def rename_category(
     category_id: uuid.UUID,
     data: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('category.edit')),
 ):
     cat = await _get_or_404(db, category_id)
     if cat.is_system:
@@ -94,7 +94,7 @@ async def rename_category(
 async def delete_category(
     category_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('category.delete')),
 ):
     cat = await _get_or_404(db, category_id)
     if cat.is_system:

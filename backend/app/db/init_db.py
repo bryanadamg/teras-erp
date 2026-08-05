@@ -265,21 +265,168 @@ def seed_system_locations(db):
 
 def seed_rbac(db):
     try:
+        # One permission per resource.action row in the Permissions config
+        # spreadsheet. Legacy broad codes (inventory.manage, sales.manage, etc.)
+        # are intentionally NOT re-seeded here — the one-time Alembic migration
+        # (2afd23590ae8) already granted every Role holding a legacy code the
+        # matching superset of these granular codes, so nothing lost access.
         perms_data = [
-            ("inventory.manage", "Manage Items, Attributes, Categories"),
-            ("inventory.delete", "Delete Inventory Data"),
-            ("locations.manage", "Manage Locations"),
-            ("manufacturing.manage", "Manage BOMs and Routing"),
-            ("work_order.manage", "Create and Update Work Orders (legacy full access)"),
-            ("work_order.create", "Create Work Orders"),
-            ("work_order.log", "Log Work Order Production (fill completions/status)"),
-            ("work_order.edit", "Edit, Stage, Reject, and Delete Work Orders"),
-            ("stock.entry", "Record Stock Movements"),
-            ("reports.view", "View Reports"),
             ("admin.access", "Full System Access"),
-            ("sales.manage", "Manage Sales Orders, Packaging, Customers, Samples"),
-            ("purchasing.manage", "Manage Purchase Orders and Suppliers"),
-            ("dyeing.manage", "Manage Dyeing, Setting, Lab Dips, and Colors"),
+            ("reports.view", "View Reports"),
+            # Sales Order
+            ("sales_order.create", "Create Sales Orders"),
+            ("sales_order.edit", "Edit Sales Orders"),
+            ("sales_order.delete", "Delete Sales Orders"),
+            ("sales_order.create_pr", "Create Production Run from Sales Order"),
+            ("sales_order.print", "Print Sales Orders"),
+            ("sales_order.view", "View Sales Orders"),
+            ("sales_order.close", "Close Sales Orders"),
+            # Customer
+            ("customer.create", "Add Customers"),
+            ("customer.edit", "Edit Customers"),
+            ("customer.delete", "Delete Customers"),
+            ("customer.view", "View Customers"),
+            # Supplier
+            ("supplier.create", "Add Suppliers"),
+            ("supplier.edit", "Edit Suppliers"),
+            ("supplier.delete", "Delete Suppliers"),
+            ("supplier.view", "View Suppliers"),
+            # Sample Request
+            ("sample_request.create", "Create Sample Requests"),
+            ("sample_request.edit", "Edit Sample Requests"),
+            ("sample_request.delete", "Delete Sample Requests"),
+            ("sample_request.update_status", "Update Sample Request Status"),
+            ("sample_request.print", "Print Sample Requests"),
+            ("sample_request.view", "View Sample Requests"),
+            # Purchase Order
+            ("purchase_order.create", "Create Purchase Orders"),
+            ("purchase_order.edit", "Edit Purchase Orders"),
+            ("purchase_order.delete", "Delete Purchase Orders"),
+            ("purchase_order.receive_goods", "Receive Goods against Purchase Orders"),
+            ("purchase_order.print", "Print Purchase Orders"),
+            ("purchase_order.view", "View Purchase Orders"),
+            ("purchase_order.close", "Close Purchase Orders"),
+            # Item Inventory (scoped by Role.allowed_categories)
+            ("item.create", "Create Items"),
+            ("item.edit", "Edit Items"),
+            ("item.delete", "Delete Items"),
+            ("item.import", "Import Items"),
+            ("item.view", "View Items"),
+            # Attribute
+            ("attribute.create", "Create Attributes"),
+            ("attribute.edit", "Edit Attributes"),
+            ("attribute.delete", "Delete Attributes"),
+            ("attribute.view", "View Attributes"),
+            # Categorie
+            ("category.create", "Create Categories"),
+            ("category.edit", "Edit Categories"),
+            ("category.delete", "Delete Categories"),
+            ("category.view", "View Categories"),
+            # Unit Of Measure
+            ("uom.create", "Create Units of Measure"),
+            ("uom.edit", "Edit Units of Measure"),
+            ("uom.delete", "Delete Units of Measure"),
+            ("uom.view", "View Units of Measure"),
+            # Combo Library
+            ("combo_library.create", "Create Combos"),
+            ("combo_library.edit", "Edit Combos"),
+            ("combo_library.delete", "Delete Combos"),
+            ("combo_library.view", "View Combo Library"),
+            # Lot Management (scoped by Role.allowed_locations)
+            ("lot.create", "Create Lots"),
+            ("lot.split", "Split Lots"),
+            ("lot.delete", "Delete Lots"),
+            ("lot.qc_reject", "QC Reject Lots"),
+            ("lot.view", "View Lots"),
+            # Stock In Hand (scoped by Role.allowed_categories)
+            ("stock_on_hand.create", "Create Stock Entries"),
+            ("stock_on_hand.adjust", "Adjust Stock On Hand"),
+            ("stock_on_hand.move", "Move Stock On Hand"),
+            ("stock_on_hand.view", "View Stock On Hand"),
+            # Booking Stock
+            ("booking_stock.view", "View Booking Stock"),
+            # Location
+            ("location.create", "Create Locations"),
+            ("location.edit", "Edit Locations"),
+            ("location.delete", "Delete Locations"),
+            ("location.view", "View Locations"),
+            # Bill of Material
+            ("bom.create", "Create BOMs"),
+            ("bom.edit", "Edit BOMs"),
+            ("bom.delete", "Delete BOMs"),
+            ("bom.view", "View BOMs"),
+            # Routing and Ops
+            ("routing.create", "Create Work Centers/Operations"),
+            ("routing.edit", "Edit Work Centers/Operations"),
+            ("routing.delete", "Delete Work Centers/Operations"),
+            ("routing.view", "View Routing and Work Centers"),
+            # Production Run
+            ("production_run.create", "Create Production Runs"),
+            ("production_run.edit", "Edit/Cancel Production Runs"),
+            ("production_run.delete", "Delete Production Runs"),
+            ("production_run.print", "Print Production Runs"),
+            ("production_run.view", "View Production Runs"),
+            # Manufacture Order
+            ("manufacturing_order.create", "Create Manufacture Orders"),
+            ("manufacturing_order.edit", "Edit Manufacture Orders"),
+            ("manufacturing_order.delete", "Delete Manufacture Orders"),
+            ("manufacturing_order.print", "Print Manufacture Orders"),
+            ("manufacturing_order.view", "View Manufacture Orders"),
+            ("manufacturing_order.close", "Close Manufacture Orders"),
+            # Work Order (scoped by Role.allowed_work_center_types)
+            ("work_order.create", "Create Work Orders"),
+            ("work_order.log", "Log Work Order Production"),
+            ("work_order.edit", "Edit Work Orders"),
+            ("work_order.delete", "Delete Work Orders"),
+            ("work_order.print_card", "Print Kartu Kerja"),
+            ("work_order.print_label", "Print Work Order Labels"),
+            ("work_order.view", "View Work Orders"),
+            ("work_order.stage", "Stage Work Order Materials"),
+            # Weaving Monitor
+            ("weaving_monitor.start", "Start Weaving Runs"),
+            ("weaving_monitor.stop", "Stop Weaving Runs"),
+            ("weaving_monitor.view", "View Weaving Monitor"),
+            # Calender
+            ("calendar.edit", "Edit Work Center Calendars"),
+            ("calendar.view", "View Work Center Calendars"),
+            # Beam
+            ("beam.unmount", "Unmount Beams"),
+            ("beam.view", "View Beams"),
+            # Dye Recipe
+            ("dye_recipe.create", "Create Dye Recipes"),
+            ("dye_recipe.edit", "Edit Dye Recipes"),
+            ("dye_recipe.delete", "Delete Dye Recipes"),
+            ("dye_recipe.print", "Print Dye Recipes"),
+            ("dye_recipe.view", "View Dye Recipes"),
+            # Dye Order / Setting Order (view-only floor status)
+            ("dye_order.view", "View Dye Orders"),
+            ("setting_order.view", "View Setting Orders"),
+            # Color
+            ("color_code.create", "Create Color Codes"),
+            ("color_code.edit", "Edit Color Codes"),
+            ("color_code.archive", "Archive Color Codes"),
+            ("color_code.create_recipe", "Create Dyeing Recipe from Color Code"),
+            ("color_code.view", "View Color Codes"),
+            ("color_variant.create", "Create Color Variants"),
+            ("color_variant.edit", "Edit Color Variants"),
+            ("color_variant.delete", "Delete Color Variants"),
+            # Lab Dip Request
+            ("lab_dip_request.create", "Create Lab Dip Requests"),
+            ("lab_dip_request.edit", "Edit Lab Dip Requests"),
+            ("lab_dip_request.delete", "Delete Lab Dip Requests"),
+            ("lab_dip_request.update_status", "Update Lab Dip Request Status"),
+            ("lab_dip_request.print", "Print Lab Dip Requests"),
+            ("lab_dip_request.view", "View Lab Dip Requests"),
+            # Yarn Lab Dip
+            ("yarn_lab_dip.view", "View Yarn Lab Dips"),
+            # Platform
+            ("stock_ledger.print", "Print Stock Ledger"),
+            ("stock_ledger.view", "View Stock Ledger"),
+            ("audit_log.view", "View Audit Log"),
+            ("print_layout.edit", "Edit Print Layouts"),
+            ("system_admin.create", "Create System Admin Records"),
+            ("system_admin.edit", "Edit System Admin Records"),
+            ("system_admin.delete", "Delete System Admin Records"),
         ]
 
         db_perms = {}
@@ -293,10 +440,48 @@ def seed_rbac(db):
             db_perms[code] = perm
 
         roles_data = {
-            "Administrator": ["admin.access", "inventory.manage", "inventory.delete", "locations.manage", "manufacturing.manage", "work_order.manage", "stock.entry", "reports.view", "sales.manage", "purchasing.manage", "dyeing.manage"],
-            "Store Manager": ["inventory.manage", "stock.entry", "reports.view", "purchasing.manage"],
-            "Production Manager": ["manufacturing.manage", "work_order.manage", "reports.view", "dyeing.manage"],
-            "Operator": ["work_order.manage"],
+            # admin.access short-circuits every check — no need to also list every code.
+            "Administrator": ["admin.access"],
+            "Store Manager": [
+                "item.create", "item.edit", "item.delete", "item.import", "item.view",
+                "attribute.create", "attribute.edit", "attribute.delete", "attribute.view",
+                "category.create", "category.edit", "category.delete", "category.view",
+                "uom.create", "uom.edit", "uom.delete", "uom.view",
+                "combo_library.create", "combo_library.edit", "combo_library.delete", "combo_library.view",
+                "lot.create", "lot.split", "lot.delete", "lot.qc_reject", "lot.view",
+                "stock_on_hand.create", "stock_on_hand.adjust", "stock_on_hand.move", "stock_on_hand.view",
+                "booking_stock.view",
+                "location.create", "location.edit", "location.delete", "location.view",
+                "purchase_order.create", "purchase_order.edit", "purchase_order.delete",
+                "purchase_order.receive_goods", "purchase_order.print", "purchase_order.view", "purchase_order.close",
+                "supplier.create", "supplier.edit", "supplier.delete", "supplier.view",
+                "stock_ledger.print", "stock_ledger.view",
+                "reports.view",
+            ],
+            "Production Manager": [
+                "bom.create", "bom.edit", "bom.delete", "bom.view",
+                "routing.create", "routing.edit", "routing.delete", "routing.view",
+                "production_run.create", "production_run.edit", "production_run.delete",
+                "production_run.print", "production_run.view",
+                "manufacturing_order.create", "manufacturing_order.edit", "manufacturing_order.delete",
+                "manufacturing_order.print", "manufacturing_order.view", "manufacturing_order.close",
+                "work_order.create", "work_order.log", "work_order.edit", "work_order.delete",
+                "work_order.print_card", "work_order.print_label", "work_order.view", "work_order.stage",
+                "weaving_monitor.start", "weaving_monitor.stop", "weaving_monitor.view",
+                "calendar.edit", "calendar.view", "beam.unmount", "beam.view",
+                "dye_recipe.create", "dye_recipe.edit", "dye_recipe.delete", "dye_recipe.print", "dye_recipe.view",
+                "dye_order.view", "setting_order.view",
+                "color_code.create", "color_code.edit", "color_code.archive", "color_code.create_recipe", "color_code.view",
+                "color_variant.create", "color_variant.edit", "color_variant.delete",
+                "lab_dip_request.create", "lab_dip_request.edit", "lab_dip_request.delete",
+                "lab_dip_request.update_status", "lab_dip_request.print", "lab_dip_request.view",
+                "yarn_lab_dip.view",
+                "stock_ledger.view", "reports.view",
+            ],
+            # Floor operator: log/stage/view only — not the full Edit/Delete access
+            # "work_order.manage" used to imply. Tighten via the Roles page if a
+            # site actually wants operators editing/deleting WOs.
+            "Operator": ["work_order.log", "work_order.view", "work_order.stage", "weaving_monitor.view"],
         }
 
         for role_name, perm_codes in roles_data.items():

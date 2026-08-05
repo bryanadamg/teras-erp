@@ -198,7 +198,7 @@ async def generate_batch_number(db: AsyncSession, prefix: str = "BAT") -> str:
 async def create_batch(
     payload: BatchCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('lot.create')),
 ):
     item_result = await db.execute(select(Item).filter(Item.id == payload.item_id))
     item = item_result.scalars().first()
@@ -443,7 +443,7 @@ async def get_batch(
 async def delete_batch(
     batch_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.delete')),
+    current_user: User = Depends(require_permission('lot.delete')),
 ):
     result = await db.execute(select(Batch).filter(Batch.id == batch_id))
     batch = result.scalars().first()
@@ -534,7 +534,7 @@ async def split_batch(
     batch_id: uuid.UUID,
     payload: BatchSplit,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('lot.split')),
 ):
     """Peel ``qty`` off a GOOD lot into a new GOOD sub-lot (``{orig}-S{n}``) at the
     same location/variant, leaving the original with the remainder. Both stay
@@ -596,7 +596,7 @@ async def reject_batch(
     batch_id: uuid.UUID,
     payload: BatchReject,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('lot.qc_reject')),
 ):
     """QC-reject a lot. The lot stays physically in stock but is flagged
     REJECTED — excluded from good-stock netting and consumption pickers. If
@@ -750,7 +750,7 @@ async def dispose_batch(
     batch_id: uuid.UUID,
     payload: BatchDispose | None = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('lot.delete')),
 ):
     """Dispose/scrap a REJECTED lot: physically write off its remaining stock
     (posts every balance row OUT so the qty leaves stock-on-hand) and mark the

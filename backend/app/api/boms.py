@@ -202,7 +202,7 @@ async def resolve_bom_codes(
 
 
 @router.post("/boms", response_model=BOMResponse)
-async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
+async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('bom.create'))):
     _validate_line_percentages(payload.lines)
     _validate_steps_assigned(payload.operations, payload.lines)
 
@@ -553,7 +553,7 @@ async def upload_bom_sample_photo(
     bom_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('manufacturing.manage')),
+    current_user: User = Depends(require_permission('bom.edit')),
 ):
     result = await db.execute(select(BOM).filter(BOM.id == bom_id))
     bom = result.scalars().first()
@@ -577,7 +577,7 @@ async def upload_bom_design_file(
     bom_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('manufacturing.manage')),
+    current_user: User = Depends(require_permission('bom.edit')),
 ):
     result = await db.execute(select(BOM).filter(BOM.id == bom_id))
     bom = result.scalars().first()
@@ -614,7 +614,7 @@ async def update_bom(
     bom_id: str,
     payload: BOMUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('manufacturing.manage')),
+    current_user: User = Depends(require_permission('bom.edit')),
 ):
     result = await db.execute(
         select(BOM).options(*_bom_eager_options()).filter(BOM.id == bom_id)
@@ -835,7 +835,7 @@ async def _find_shared_sub_boms(db: AsyncSession, all_ids: set, sub_ids: list, c
 
 
 @router.delete("/boms/{bom_id}")
-async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
+async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('bom.delete'))):
     result = await db.execute(select(BOM).filter(BOM.id == bom_id))
     bom = result.scalars().first()
     if not bom:

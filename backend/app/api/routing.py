@@ -53,7 +53,7 @@ def _with_effective_locations(db: Session, wc: WorkCenter) -> WorkCenter:
 
 # --- Work Centers ---
 @router.post("/work-centers", response_model=WorkCenterResponse)
-def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
+def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('routing.create'))):
     if db.query(WorkCenter).filter(WorkCenter.code == payload.code).first():
         raise HTTPException(status_code=400, detail="Work Center Code already exists")
 
@@ -91,7 +91,7 @@ def get_work_centers(skip: int = 0, limit: int = 2000, db: Session = Depends(get
     return rows
 
 @router.put("/work-centers/{wc_id}", response_model=WorkCenterResponse)
-def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
+def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('routing.edit'))):
     wc = db.query(WorkCenter).filter(WorkCenter.id == wc_id).first()
     if not wc:
         raise HTTPException(status_code=404, detail="Work Center not found")
@@ -125,7 +125,7 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     return _with_effective_locations(db, wc)
 
 @router.delete("/work-centers/{wc_id}")
-def delete_work_center(wc_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
+def delete_work_center(wc_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('routing.delete'))):
     wc = db.query(WorkCenter).filter(WorkCenter.id == wc_id).first()
     if not wc:
         raise HTTPException(status_code=404, detail="Work Center not found")
@@ -138,7 +138,7 @@ def delete_work_center(wc_id: str, db: Session = Depends(get_db), current_user: 
 
 # --- Operations ---
 @router.post("/operations", response_model=OperationResponse)
-def create_operation(payload: OperationCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
+def create_operation(payload: OperationCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('routing.create'))):
     if db.query(Operation).filter(Operation.code == payload.code).first():
         raise HTTPException(status_code=400, detail="Operation Code already exists")
 
@@ -159,7 +159,7 @@ def get_operations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     return db.query(Operation).offset(skip).limit(limit).all()
 
 @router.delete("/operations/{op_id}")
-def delete_operation(op_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
+def delete_operation(op_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('routing.delete'))):
     op = db.query(Operation).filter(Operation.id == op_id).first()
     if not op:
         raise HTTPException(status_code=404, detail="Operation not found")

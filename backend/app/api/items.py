@@ -9,7 +9,7 @@ from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, 
 from app.models.location import Location
 from app.models.category import Category
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, category_scope_ok
 from sqlalchemy import select
 from app.core.ws_manager import manager
 from app.services import kpi_service
@@ -86,11 +86,14 @@ def _populate_source_info(item) -> None:
 
 
 @router.post("/items", response_model=ItemResponse)
-async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.manage'))):
+async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('item.create'))):
     db_item = await item_service.get_item_by_code(db, code=payload.code)
     if db_item:
         raise HTTPException(status_code=400, detail="Item already exists")
-    
+
+    if not category_scope_ok(current_user, payload.category_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this category")
+
     item = await item_service.create_item(
         db,
         code=payload.code,
@@ -180,7 +183,12 @@ async def get_items_api(
     }
 
 @router.put("/items/{item_id}", response_model=ItemResponse)
-async def update_item_api(item_id: str, payload: ItemUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.manage'))):
+async def update_item_api(item_id: str, payload: ItemUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('item.edit'))):
+    from app.models.item import Item as _Item
+    existing = (await db.execute(select(_Item.category_id).filter(_Item.id == item_id))).first()
+    if existing and not category_scope_ok(current_user, existing[0]):
+        raise HTTPException(status_code=403, detail="Not authorized for this category")
+
     item = await item_service.update_item(db, item_id, payload.model_dump(exclude_unset=True))
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -199,7 +207,7 @@ async def update_item_api(item_id: str, payload: ItemUpdate, db: AsyncSession = 
     return item
 
 @router.post("/items/stock")
-async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('stock.entry'))):
+async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('stock_on_hand.create'))):
     # Resolve Item
     item = await item_service.get_item_by_code(db, payload.item_code)
     if not item:
@@ -256,7 +264,7 @@ async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(ge
     return {"status": "success", "message": "Stock recorded"}
 
 @router.post("/items/import")
-async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.manage'))):
+async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('item.import'))):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
     
@@ -269,13 +277,16 @@ async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(
     return {"status": "success", "imported": results["success"]}
 
 @router.delete("/items/{item_id}")
-async def delete_item(item_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.delete'))):
+async def delete_item(item_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('item.delete'))):
     from app.models.item import Item
     result = await db.execute(select(Item).filter(Item.id == item_id))
     item = result.scalars().first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    
+
+    if not category_scope_ok(current_user, item.category_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this category")
+
     item_code = item.code
     item_name = item.name
     details = f"Deleted item {item_code} ({item_name})"

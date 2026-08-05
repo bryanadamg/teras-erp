@@ -7,7 +7,7 @@ from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
 from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission, get_current_admin
+from app.api.auth import get_current_user, require_permission, get_current_admin, category_scope_ok
 from app.models.item import Item
 from app.models.location import Location
 from app.models.stock_balance import StockBalance
@@ -219,12 +219,15 @@ async def get_stock_ledger(
 async def create_stock_entry(
     payload: StockEntryCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('stock.entry'))
+    current_user: User = Depends(require_permission('stock_on_hand.adjust'))
 ):
     item_result = await db.execute(select(Item).filter(Item.code == payload.item_code))
     item = item_result.scalars().first()
     if not item:
         raise HTTPException(status_code=404, detail=f"Item '{payload.item_code}' not found")
+
+    if not category_scope_ok(current_user, item.category_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this category")
 
     loc_result = await db.execute(select(Location).filter(Location.code == payload.location_code))
     location = loc_result.scalars().first()
@@ -276,7 +279,7 @@ async def create_stock_entry(
 async def transfer_stock(
     payload: StockTransferCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('stock.entry')),
+    current_user: User = Depends(require_permission('stock_on_hand.move')),
 ):
     if payload.qty <= 0:
         raise HTTPException(status_code=400, detail="qty must be positive")
@@ -287,6 +290,9 @@ async def transfer_stock(
     item = item_result.scalars().first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+
+    if not category_scope_ok(current_user, item.category_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this category")
 
     loc_result = await db.execute(
         select(Location).filter(Location.id.in_([payload.from_location_id, payload.to_location_id]))

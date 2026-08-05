@@ -51,7 +51,7 @@ def _compute_full_path(loc_id, id_to_name: dict, id_to_parent: dict) -> str:
 
 
 @router.post("/locations", response_model=LocationResponse)
-def create_location(payload: LocationCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('locations.manage'))):
+def create_location(payload: LocationCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('location.create'))):
     if db.query(Location).filter(Location.code == payload.code).first():
         raise HTTPException(status_code=400, detail="Location code already exists")
     loc_type = _assert_parent_ok(db, payload.parent_id)
@@ -92,7 +92,7 @@ def get_locations(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db
 
 
 @router.patch("/locations/{location_id}", response_model=LocationResponse)
-def update_location(location_id: str, payload: LocationUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('locations.manage'))):
+def update_location(location_id: str, payload: LocationUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('location.edit'))):
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -113,7 +113,7 @@ def update_location(location_id: str, payload: LocationUpdate, db: Session = Dep
 
 
 @router.delete("/locations/{location_id}")
-def delete_location(location_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('locations.manage'))):
+def delete_location(location_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('location.delete'))):
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Location not found")

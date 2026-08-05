@@ -183,7 +183,7 @@ async def list_colors(
 async def create_color(
     payload: ColorCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('color_code.create')),
 ):
     existing = await db.execute(select(Color).filter(Color.code == payload.code))
     if existing.scalars().first():
@@ -239,7 +239,7 @@ async def update_color(
     color_id: str,
     payload: ColorUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('color_code.edit')),
 ):
     result = await db.execute(
         select(Color).options(joinedload(Color.attribute_value)).filter(Color.id == color_id)
@@ -281,7 +281,7 @@ async def update_color(
 async def delete_color(
     color_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('dyeing.manage')),
+    current_user: User = Depends(require_permission('color_code.archive')),
 ):
     result = await db.execute(select(Color).filter(Color.id == color_id))
     c = result.scalars().first()

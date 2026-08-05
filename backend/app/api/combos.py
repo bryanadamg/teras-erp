@@ -113,7 +113,7 @@ async def list_combos(
 async def create_combo(
     payload: ComboCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('combo_library.create')),
 ):
     existing = await db.execute(select(Combo).filter(Combo.code == payload.code))
     if existing.scalars().first():
@@ -148,7 +148,7 @@ async def update_combo(
     combo_id: str,
     payload: ComboUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('combo_library.edit')),
 ):
     result = await db.execute(select(Combo).filter(Combo.id == combo_id))
     c = result.scalars().first()
@@ -189,7 +189,7 @@ async def update_combo(
 async def delete_combo(
     combo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('combo_library.delete')),
 ):
     result = await db.execute(select(Combo).filter(Combo.id == combo_id))
     c = result.scalars().first()

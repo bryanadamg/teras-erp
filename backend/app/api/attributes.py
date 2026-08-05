@@ -11,7 +11,7 @@ from app.api.auth import get_current_user, require_permission
 router = APIRouter()
 
 @router.post("/attributes", response_model=AttributeResponse)
-def create_attribute(payload: AttributeCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
+def create_attribute(payload: AttributeCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('attribute.create'))):
     db_attr = db.query(Attribute).filter(Attribute.name == payload.name).first()
     if db_attr:
         raise HTTPException(status_code=400, detail="Attribute already exists")
@@ -35,7 +35,7 @@ def get_attributes(db: Session = Depends(get_db), current_user: User = Depends(g
     return db.query(Attribute).all()
 
 @router.put("/attributes/{attribute_id}", response_model=AttributeResponse)
-def update_attribute(attribute_id: str, payload: AttributeUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
+def update_attribute(attribute_id: str, payload: AttributeUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('attribute.edit'))):
     attribute = db.query(Attribute).filter(Attribute.id == attribute_id).first()
     if not attribute:
         raise HTTPException(status_code=404, detail="Attribute not found")
@@ -48,7 +48,7 @@ def update_attribute(attribute_id: str, payload: AttributeUpdate, db: Session = 
     return attribute
 
 @router.delete("/attributes/{attribute_id}")
-def delete_attribute(attribute_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
+def delete_attribute(attribute_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('attribute.delete'))):
     attribute = db.query(Attribute).filter(Attribute.id == attribute_id).first()
     if not attribute:
         raise HTTPException(status_code=404, detail="Attribute not found")
@@ -68,7 +68,7 @@ def delete_attribute(attribute_id: str, db: Session = Depends(get_db), current_u
     return {"status": "success", "message": "Attribute deleted"}
 
 @router.post("/attributes/{attribute_id}/values", response_model=AttributeValueResponse)
-def add_attribute_value(attribute_id: str, payload: AttributeValueCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
+def add_attribute_value(attribute_id: str, payload: AttributeValueCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('attribute.create'))):
     attribute = db.query(Attribute).filter(Attribute.id == attribute_id).first()
     if not attribute:
         raise HTTPException(status_code=404, detail="Attribute not found")
@@ -82,7 +82,7 @@ def add_attribute_value(attribute_id: str, payload: AttributeValueCreate, db: Se
     return attr_val
 
 @router.put("/attributes/values/{value_id}", response_model=AttributeValueResponse)
-def update_attribute_value(value_id: str, payload: AttributeValueUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
+def update_attribute_value(value_id: str, payload: AttributeValueUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('attribute.edit'))):
     val = db.query(AttributeValue).filter(AttributeValue.id == value_id).first()
     if not val:
         raise HTTPException(status_code=404, detail="Attribute Value not found")
@@ -96,7 +96,7 @@ def update_attribute_value(value_id: str, payload: AttributeValueUpdate, db: Ses
     return val
 
 @router.delete("/attributes/values/{value_id}")
-def delete_attribute_value(value_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
+def delete_attribute_value(value_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('attribute.delete'))):
     val = db.query(AttributeValue).filter(AttributeValue.id == value_id).first()
     if not val:
         raise HTTPException(status_code=404, detail="Attribute Value not found")
