@@ -10,7 +10,7 @@ import { xpBtn, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import RoleFormModal, { RoleFormPayload, RoleLike } from './RoleFormModal';
 import { API_BASE } from '../shared/apiBase';
-import { PERMISSION_MATRIX } from '../shared/permissionMatrix';
+import { groupPermissionsBySection } from '../shared/permissionMatrix';
 
 export default function SettingsRolesTab() {
     const { showToast } = useToast();
@@ -34,29 +34,7 @@ export default function SettingsRolesTab() {
         });
     };
 
-    // Resource (permission code prefix) -> section label, so the collapsed
-    // permissions column can regroup a role's flat permission list the same
-    // way RoleFormModal's PermissionsPicker groups the full matrix.
-    const sectionOf = useMemo(() => {
-        const m = new Map<string, string>();
-        for (const sec of PERMISSION_MATRIX) {
-            for (const r of sec.resources) m.set(r.resource, sec.section);
-        }
-        return m;
-    }, []);
-
-    const groupedPermissions = (role: RoleLike) => {
-        const bySection = new Map<string, typeof role.permissions>();
-        for (const p of role.permissions) {
-            const section = sectionOf.get(p.code.split('.')[0]) || 'Other';
-            if (!bySection.has(section)) bySection.set(section, []);
-            bySection.get(section)!.push(p);
-        }
-        const order = [...PERMISSION_MATRIX.map(s => s.section), 'Other'];
-        return order
-            .filter(s => bySection.has(s))
-            .map(s => ({ section: s, permissions: bySection.get(s)! }));
-    };
+    const groupedPermissions = (role: RoleLike) => groupPermissionsBySection(role.permissions);
 
     const categoryName = useMemo(() => {
         const m = new Map<string, string>();

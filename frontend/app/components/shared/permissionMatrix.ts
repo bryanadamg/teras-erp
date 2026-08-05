@@ -142,3 +142,23 @@ export const RESOURCE_ACTIONS: Record<string, PermissionMatrixAction[]> = {
 export function permissionCode(resource: string, actionCode: string): string {
     return `${resource}.${actionCode}`;
 }
+
+// Resource (permission code prefix) -> section label, for regrouping a flat
+// permission list the same way the matrix organizes it.
+const RESOURCE_SECTION: Map<string, string> = new Map(
+    PERMISSION_MATRIX.flatMap(sec => sec.resources.map(r => [r.resource, sec.section] as const))
+);
+
+/** Buckets a flat permission list into PERMISSION_MATRIX section order (unmatched codes fall into "Other"). */
+export function groupPermissionsBySection<T extends { code: string }>(permissions: T[]): { section: string; permissions: T[] }[] {
+    const bySection = new Map<string, T[]>();
+    for (const p of permissions) {
+        const section = RESOURCE_SECTION.get(p.code.split('.')[0]) || 'Other';
+        if (!bySection.has(section)) bySection.set(section, []);
+        bySection.get(section)!.push(p);
+    }
+    const order = [...PERMISSION_MATRIX.map(s => s.section), 'Other'];
+    return order
+        .filter(s => bySection.has(s))
+        .map(s => ({ section: s, permissions: bySection.get(s)! }));
+}
