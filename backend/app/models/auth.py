@@ -41,6 +41,10 @@ class Role(Base):
 
     # Work-center-type restriction for work_order.* actions (If Null, allow all types).
     allowed_work_center_types: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # Category-id restriction for item.*/stock_on_hand.* actions (If Null, allow all categories).
+    allowed_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # Location-id restriction for lot.* actions (If Null, allow all locations).
+    allowed_locations: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     permissions = relationship("Permission", secondary=role_permissions)
 
@@ -58,8 +62,6 @@ class User(Base):
         UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True
     )
 
-    # Category-based restriction (If Null, allow all. If set, allow only these categories)
-    allowed_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     avatar_id: Mapped[str | None] = mapped_column(String(4), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

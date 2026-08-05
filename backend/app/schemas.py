@@ -1893,6 +1893,8 @@ class RoleBase(BaseModel):
     name: str
     description: str | None = None
     allowed_work_center_types: list[str] | None = None
+    allowed_categories: list[str] | None = None
+    allowed_locations: list[str] | None = None
 
 class RoleCreate(RoleBase):
     permission_ids: list[UUID] = []
@@ -1902,6 +1904,8 @@ class RoleUpdate(BaseModel):
     description: Optional[str] = None
     permission_ids: Optional[list[UUID]] = None
     allowed_work_center_types: Optional[list[str]] = None
+    allowed_categories: Optional[list[str]] = None
+    allowed_locations: Optional[list[str]] = None
 
 class RoleResponse(RoleBase):
     id: UUID
@@ -1917,7 +1921,6 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     permission_ids: list[UUID] = []
-    allowed_categories: list[str] | None = None
     avatar_id: str | None = None
 
 class UserUpdate(BaseModel):
@@ -1925,7 +1928,6 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role_id: Optional[UUID] = None
     permission_ids: Optional[list[UUID]] = None
-    allowed_categories: Optional[list[str]] = None
     password: Optional[str] = None
     avatar_id: Optional[str] = None
 
@@ -1933,7 +1935,6 @@ class UserResponse(UserBase):
     id: UUID
     role: RoleResponse | None = None
     permissions: list[PermissionResponse] = []
-    allowed_categories: list[str] | None = None
     avatar_id: str | None = None
     is_active: bool = True
     last_login_at: datetime | None = None

@@ -66,6 +66,22 @@ def wo_scope_ok(user: User, center_type: str | None) -> bool:
         return True
     return center_type in allowed
 
+def category_scope_ok(user: User, category_id) -> bool:
+    """Role.allowed_categories restricts item.*/stock_on_hand.* actions to matching
+    Category ids. None/empty list = unrestricted. No category context is never restricted."""
+    allowed = user.role.allowed_categories if user.role else None
+    if not allowed or not category_id:
+        return True
+    return str(category_id) in allowed
+
+def location_scope_ok(user: User, location_id) -> bool:
+    """Role.allowed_locations restricts lot.* actions to matching Location ids.
+    None/empty list = unrestricted. No location context is never restricted."""
+    allowed = user.role.allowed_locations if user.role else None
+    if not allowed or not location_id:
+        return True
+    return str(location_id) in allowed
+
 def require_any_permission(*codes: str):
     """Dependency factory: 403s unless the current user has at least one of `codes`."""
     def _dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
@@ -138,6 +154,8 @@ def create_role(payload: RoleCreate, db: Session = Depends(get_db), current_user
     role = Role(
         name=payload.name, description=payload.description, permissions=perms,
         allowed_work_center_types=payload.allowed_work_center_types,
+        allowed_categories=payload.allowed_categories,
+        allowed_locations=payload.allowed_locations,
     )
     db.add(role)
     db.commit()
@@ -165,6 +183,12 @@ def update_role(role_id: str, payload: RoleUpdate, db: Session = Depends(get_db)
 
     if payload.allowed_work_center_types is not None:
         role.allowed_work_center_types = payload.allowed_work_center_types or None
+
+    if payload.allowed_categories is not None:
+        role.allowed_categories = payload.allowed_categories or None
+
+    if payload.allowed_locations is not None:
+        role.allowed_locations = payload.allowed_locations or None
 
     db.commit()
     db.refresh(role)
@@ -206,7 +230,6 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db), current_user
         hashed_password=get_password_hash(payload.password),
         role_id=role.id if role else None,
         permissions=perms,
-        allowed_categories=payload.allowed_categories,
         avatar_id=payload.avatar_id,
     )
     db.add(user)
@@ -227,8 +250,8 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
     if not is_self and not is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Only admins may change role, granular permissions, or category restrictions
-    if not is_admin and (payload.role_id is not None or payload.permission_ids is not None or payload.allowed_categories is not None):
+    # Only admins may change role or granular permissions
+    if not is_admin and (payload.role_id is not None or payload.permission_ids is not None):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     if payload.username is not None and payload.username != user.username:
@@ -257,9 +280,6 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
         from app.models.auth import Permission
         perms = db.query(Permission).filter(Permission.id.in_(payload.permission_ids)).all()
         user.permissions = perms
-
-    if payload.allowed_categories is not None:
-        user.allowed_categories = payload.allowed_categories
 
     if payload.avatar_id is not None:
         user.avatar_id = payload.avatar_id
