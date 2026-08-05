@@ -11,6 +11,8 @@ export interface RoleFormPayload {
     description: string | null;
     permission_ids: string[];
     allowed_work_center_types: string[] | null;
+    allowed_categories: string[] | null;
+    allowed_locations: string[] | null;
 }
 
 export interface RoleLike {
@@ -19,6 +21,8 @@ export interface RoleLike {
     description?: string | null;
     permissions: PermissionOption[];
     allowed_work_center_types?: string[] | null;
+    allowed_categories?: string[] | null;
+    allowed_locations?: string[] | null;
 }
 
 export default function RoleFormModal({
@@ -32,11 +36,13 @@ export default function RoleFormModal({
     classic: boolean;
     onSubmit: (payload: RoleFormPayload) => Promise<{ ok: boolean; error?: string }>;
 }) {
-    const { workCenters } = useData();
+    const { workCenters, categories, locations } = useData();
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [permissionIds, setPermissionIds] = useState<string[]>([]);
     const [allowedWcTypes, setAllowedWcTypes] = useState<string[]>([]);
+    const [allowedCategories, setAllowedCategories] = useState<string[]>([]);
+    const [allowedLocations, setAllowedLocations] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -46,6 +52,8 @@ export default function RoleFormModal({
         setDescription(role?.description || '');
         setPermissionIds(role?.permissions?.map(p => p.id) || []);
         setAllowedWcTypes(role?.allowed_work_center_types || []);
+        setAllowedCategories(role?.allowed_categories || []);
+        setAllowedLocations(role?.allowed_locations || []);
         setError('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, role?.id]);
@@ -58,13 +66,36 @@ export default function RoleFormModal({
         return Array.from(types).sort();
     }, [workCenters]);
 
-    const hasWorkOrderPerm = useMemo(() => {
+    const selectedCodes = useMemo(() => {
         const selected = new Set(permissionIds);
-        return allPermissions.some(p => selected.has(p.id) && p.code.startsWith('work_order.'));
+        return new Set(allPermissions.filter(p => selected.has(p.id)).map(p => p.code));
     }, [permissionIds, allPermissions]);
+
+    const hasWorkOrderPerm = useMemo(() => {
+        for (const c of selectedCodes) if (c.startsWith('work_order.')) return true;
+        return false;
+    }, [selectedCodes]);
+
+    const hasCategoryScopedPerm = useMemo(() => {
+        for (const c of selectedCodes) if (c.startsWith('item.') || c.startsWith('stock_on_hand.')) return true;
+        return false;
+    }, [selectedCodes]);
+
+    const hasLocationScopedPerm = useMemo(() => {
+        for (const c of selectedCodes) if (c.startsWith('lot.')) return true;
+        return false;
+    }, [selectedCodes]);
 
     const toggleWcType = (t: string) => {
         setAllowedWcTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+    };
+
+    const toggleCategory = (id: string) => {
+        setAllowedCategories(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const toggleLocation = (id: string) => {
+        setAllowedLocations(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     };
 
     const handleSubmit = async () => {
@@ -79,6 +110,8 @@ export default function RoleFormModal({
             description: description.trim() || null,
             permission_ids: permissionIds,
             allowed_work_center_types: allowedWcTypes.length ? allowedWcTypes : null,
+            allowed_categories: allowedCategories.length ? allowedCategories : null,
+            allowed_locations: allowedLocations.length ? allowedLocations : null,
         });
         setSubmitting(false);
         if (res.ok) {
@@ -158,6 +191,40 @@ export default function RoleFormModal({
                             <label key={t} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
                                 <input type="checkbox" checked={allowedWcTypes.includes(t)} onChange={() => toggleWcType(t)} />
                                 {t}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {hasCategoryScopedPerm && categories.length > 0 && (
+                <div className="mt-3">
+                    <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Item/Stock Category Scope</label>
+                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
+                        Leave all unchecked to allow Item/Stock actions on any category. Check one or more to restrict.
+                    </div>
+                    <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6, maxHeight: 160, overflowY: 'auto' as const } : { maxHeight: 160, overflowY: 'auto' as const }} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
+                        {categories.map((c: any) => (
+                            <label key={c.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
+                                <input type="checkbox" checked={allowedCategories.includes(c.id)} onChange={() => toggleCategory(c.id)} />
+                                {(c.path_names || [c.name]).join(' / ')}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {hasLocationScopedPerm && locations.length > 0 && (
+                <div className="mt-3">
+                    <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Lot Management Location Scope</label>
+                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
+                        Leave all unchecked to allow Lot actions at any location. Check one or more to restrict.
+                    </div>
+                    <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6, maxHeight: 160, overflowY: 'auto' as const } : { maxHeight: 160, overflowY: 'auto' as const }} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
+                        {locations.map((l: any) => (
+                            <label key={l.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
+                                <input type="checkbox" checked={allowedLocations.includes(l.id)} onChange={() => toggleLocation(l.id)} />
+                                {l.full_path || l.name}
                             </label>
                         ))}
                     </div>
