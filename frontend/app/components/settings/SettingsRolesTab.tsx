@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn } from '../shared/xpTheme';
+import { xpBtn, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import RoleFormModal, { RoleFormPayload, RoleLike } from './RoleFormModal';
 import { API_BASE } from '../shared/apiBase';
+import { PERMISSION_MATRIX } from '../shared/permissionMatrix';
 
 export default function SettingsRolesTab() {
     const { showToast } = useToast();
@@ -23,6 +24,39 @@ export default function SettingsRolesTab() {
     const [allPermissions, setAllPermissions] = useState<any[]>([]);
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [formRole, setFormRole] = useState<RoleLike | undefined>(undefined);
+    const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
+
+    const toggleExpanded = (roleId: string) => {
+        setExpandedRoles(prev => {
+            const next = new Set(prev);
+            next.has(roleId) ? next.delete(roleId) : next.add(roleId);
+            return next;
+        });
+    };
+
+    // Resource (permission code prefix) -> section label, so the collapsed
+    // permissions column can regroup a role's flat permission list the same
+    // way RoleFormModal's PermissionsPicker groups the full matrix.
+    const sectionOf = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const sec of PERMISSION_MATRIX) {
+            for (const r of sec.resources) m.set(r.resource, sec.section);
+        }
+        return m;
+    }, []);
+
+    const groupedPermissions = (role: RoleLike) => {
+        const bySection = new Map<string, typeof role.permissions>();
+        for (const p of role.permissions) {
+            const section = sectionOf.get(p.code.split('.')[0]) || 'Other';
+            if (!bySection.has(section)) bySection.set(section, []);
+            bySection.get(section)!.push(p);
+        }
+        const order = [...PERMISSION_MATRIX.map(s => s.section), 'Other'];
+        return order
+            .filter(s => bySection.has(s))
+            .map(s => ({ section: s, permissions: bySection.get(s)! }));
+    };
 
     const categoryName = useMemo(() => {
         const m = new Map<string, string>();
@@ -165,8 +199,11 @@ export default function SettingsRolesTab() {
                             {roles.map((role, rowIndex) => {
                                 const count = userCountByRole.get(role.id) || 0;
                                 const isAdminRole = role.permissions.some(p => p.code === 'admin.access');
+                                const isExpanded = expandedRoles.has(role.id);
+                                const sections = isAdminRole ? [] : groupedPermissions(role);
                                 return (
-                                    <tr key={role.id} style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}>
+                                    <Fragment key={role.id}>
+                                    <tr style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' } : undefined}>
                                         <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold ps-4'}>{role.name}</td>
                                         <td style={classic ? tdBase : undefined} className={classic ? '' : 'text-muted small'}>{role.description || '-'}</td>
                                         <td style={classic ? tdBase : undefined}>
@@ -176,23 +213,20 @@ export default function SettingsRolesTab() {
                                                 ) : (
                                                     <span className="badge bg-dark bg-opacity-75">All Permissions</span>
                                                 )
+                                            ) : role.permissions.length === 0 ? (
+                                                <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>None</span>
                                             ) : (
-                                                <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
-                                                    {role.permissions.map(p => (
-                                                        classic ? (
-                                                            <span key={p.id} title={p.code} style={{ background: '#dde8f5', border: '1px solid #7f9db9', color: '#00006e', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>
-                                                                {p.description}
-                                                            </span>
-                                                        ) : (
-                                                            <span key={p.id} title={p.code} className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{ fontSize: '0.65rem' }}>
-                                                                {p.description}
-                                                            </span>
-                                                        )
-                                                    ))}
-                                                    {role.permissions.length === 0 && (
-                                                        <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>None</span>
-                                                    )}
-                                                </div>
+                                                <button
+                                                    onClick={() => toggleExpanded(role.id)}
+                                                    style={classic ? {
+                                                        background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                                                        fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#00006e',
+                                                        display: 'flex', alignItems: 'center', gap: 4,
+                                                    } : { background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.8rem', color: '#0d6efd', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                >
+                                                    <i className={`bi ${isExpanded ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}`} style={{ fontSize: 8 }} />
+                                                    {role.permissions.length} permission{role.permissions.length !== 1 ? 's' : ''}
+                                                </button>
                                             )}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>
@@ -266,6 +300,38 @@ export default function SettingsRolesTab() {
                                             )}
                                         </td>
                                     </tr>
+                                    {isExpanded && sections.length > 0 && (
+                                        <tr style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}>
+                                            <td colSpan={6} style={classic ? { padding: '0 12px 8px 12px', border: 'none' } : undefined} className={classic ? '' : 'pb-3 px-4'}>
+                                                <SunkenPanel classic={classic}>
+                                                    <SunkenPanelBody classic={classic}>
+                                                        {sections.map(({ section, permissions }) => (
+                                                            <div key={section} style={{ marginBottom: 6 }}>
+                                                                <div style={classic
+                                                                    ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', fontWeight: 'bold', color: '#333', marginBottom: 3 }
+                                                                    : { fontSize: '0.7rem', fontWeight: 'bold', color: '#333', marginBottom: 3 }}
+                                                                >{section}</div>
+                                                                <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
+                                                                    {permissions.map(p => (
+                                                                        classic ? (
+                                                                            <span key={p.id} title={p.code} style={{ background: '#dde8f5', border: '1px solid #7f9db9', color: '#00006e', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>
+                                                                                {p.description}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span key={p.id} title={p.code} className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{ fontSize: '0.65rem' }}>
+                                                                                {p.description}
+                                                                            </span>
+                                                                        )
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </SunkenPanelBody>
+                                                </SunkenPanel>
+                                            </td>
+                                        </tr>
+                                    )}
+                                    </Fragment>
                                 );
                             })}
                             {roles.length === 0 && (
