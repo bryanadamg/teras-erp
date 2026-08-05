@@ -22,7 +22,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
   const { t } = useLanguage();
   const { itemIndex, loading: dataLoading } = useData();
   const { formatDate: tzDate } = useTimezone();
-  const { hasPermission } = useUser();
+  const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('purchase_order.create', 'purchase_order.edit', 'purchase_order.delete', 'purchase_order.close');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPOId, setEditingPOId] = useState<string | null>(null);

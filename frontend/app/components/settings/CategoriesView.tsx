@@ -53,7 +53,7 @@ export default function CategoriesView({
 }: CategoriesViewProps) {
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
-    const { hasPermission } = useUser();
+    const { hasPermission, hasAnyPermission } = useUser();
     const canManage = hasAnyPermission('category.create', 'category.edit', 'category.delete');
 
     const [selectedId, setSelectedId] = useState<string | null>(null);

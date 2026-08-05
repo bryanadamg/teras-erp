@@ -24,7 +24,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const { showToast } = useToast();
   const { t } = useLanguage();
   const { formatDate: tzDate } = useTimezone();
-  const { hasPermission } = useUser();
+  const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('sample_request.create', 'sample_request.edit', 'sample_request.delete');
 
   const handleApproveColor = (sampleId: string, colorId: string, colorName: string) => {

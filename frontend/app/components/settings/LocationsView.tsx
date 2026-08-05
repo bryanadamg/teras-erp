@@ -21,7 +21,7 @@ export default function LocationsView({
   const { t } = useLanguage();
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
-  const { hasPermission } = useUser();
+  const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('location.create', 'location.edit', 'location.delete');
 
   const [selectedStore, setSelectedStore] = useState<string>(ALL);

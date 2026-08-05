@@ -35,7 +35,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const [soPage, setSoPage] = useState(1);
   const { uiStyle: currentStyle } = useTheme();
   const { companyProfile, uoms, authFetch, itemIndex, loading: dataLoading } = useData();
-  const { hasPermission } = useUser();
+  const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('sales_order.create', 'sales_order.edit', 'sales_order.delete', 'sales_order.close');
 
   // Floating "more actions" menu (Edit / Print / Delete)

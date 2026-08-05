@@ -42,7 +42,7 @@ export default function ItemMetadataView({
 }: Props) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { hasPermission } = useUser();
+    const { hasPermission, hasAnyPermission } = useUser();
     const canManage = hasAnyPermission(
         'attribute.create', 'attribute.edit', 'attribute.delete',
         'category.create', 'category.edit', 'category.delete',

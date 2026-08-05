@@ -240,7 +240,7 @@ LEGACY_GRANT_MAP = {
     ],
     "dyeing.manage": [
         "dye_recipe.create", "dye_recipe.edit", "dye_recipe.delete", "dye_recipe.print", "dye_recipe.view",
-        "dye_order.view", "setting_order.view",
+        "dye_order.view", "setting_order.view", "work_order.log",
         "color_code.create", "color_code.edit", "color_code.archive", "color_code.create_recipe", "color_code.view",
         "color_variant.create", "color_variant.edit", "color_variant.delete",
         "lab_dip_request.create", "lab_dip_request.edit", "lab_dip_request.delete",
