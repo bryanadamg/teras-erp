@@ -101,10 +101,17 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     // backend can assign locations onto the WO before consuming/producing stock.
     const woInputLocId = workOrder?.input_location_id || workOrder?.input_location?.id;
     const woOutputLocId = workOrder?.output_location_id || workOrder?.output_location?.id;
-    const needsMachine = !!workOrder && (!woInputLocId || !woOutputLocId);
+    const woWc = (workCenters || []).find((wc: any) => wc.id === workOrder?.work_center_id);
+    // A WO cut before its group carried locations has blank ones, but its work
+    // center still resolves them (own value, else group's/type's) — the backend
+    // backfills on log, so don't demand a machine pick in that case.
+    const needsMachine = !!workOrder && (
+        !(woInputLocId || woWc?.effective_input_location_id || woWc?.input_location_id)
+        || !(woOutputLocId || woWc?.effective_output_location_id || woWc?.output_location_id)
+    );
 
     // Lot output: WO produces a beam (Beam category / BEAM- code / BEAMING work center) or a lot-tracked item
-    const woWcType = ((workCenters || []).find((wc: any) => wc.id === workOrder?.work_center_id)?.center_type || '').toUpperCase();
+    const woWcType = (woWc?.center_type || '').toUpperCase();
     const isBeamOutput = !!workOrder
         && (isBeamItem(mo.item_id) || (mo.item_code || '').startsWith('BEAM-') || woWcType === 'BEAMING');
     // Greige (weaving) and dyed (dyeing) output are always traceable lots on the

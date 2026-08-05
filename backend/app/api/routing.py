@@ -46,6 +46,11 @@ def _validate_placement(db: Session, node_type: str, parent_id, *, self_id=None)
         raise HTTPException(status_code=422, detail="Cannot move a work center under one of its own children")
 
 
+def _with_effective_locations(db: Session, wc: WorkCenter) -> WorkCenter:
+    work_center_service.decorate_effective_locations([wc], work_center_service.location_map_sync(db))
+    return wc
+
+
 # --- Work Centers ---
 @router.post("/work-centers", response_model=WorkCenterResponse)
 def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
@@ -72,11 +77,15 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
     db.refresh(wc)
     db.add(AuditLog(user_id=current_user.id, action="CREATE", entity_type="work_center", entity_id=str(wc.id), details=f"Created work center {wc.code}"))
     db.commit()
-    return wc
+    return _with_effective_locations(db, wc)
 
 @router.get("/work-centers", response_model=list[WorkCenterResponse])
 def get_work_centers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(WorkCenter).offset(skip).limit(limit).all()
+    rows = db.query(WorkCenter).offset(skip).limit(limit).all()
+    # Resolve against the whole tree, not just the page — an ancestor may be on
+    # another page (or outside the limit entirely).
+    work_center_service.decorate_effective_locations(rows, work_center_service.location_map_sync(db))
+    return rows
 
 @router.put("/work-centers/{wc_id}", response_model=WorkCenterResponse)
 def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
@@ -110,7 +119,7 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     db.add(AuditLog(user_id=current_user.id, action="UPDATE", entity_type="work_center", entity_id=str(wc.id), details=f"Updated work center {wc.code}"))
     db.commit()
     db.refresh(wc)
-    return wc
+    return _with_effective_locations(db, wc)
 
 @router.delete("/work-centers/{wc_id}")
 def delete_work_center(wc_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('manufacturing.manage'))):

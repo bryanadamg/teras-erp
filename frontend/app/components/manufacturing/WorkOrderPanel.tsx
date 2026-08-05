@@ -227,16 +227,27 @@ export default function WorkOrderPanel({
     };
 
     const handleGroupChange = (groupId: string) => {
-        setForm(f => ({ ...f, group_id: groupId, work_center_id: '', input_location_id: '', output_location_id: '' }));
+        // No machine yet, but the group itself may carry the locations its machines
+        // inherit — show those instead of blanks.
+        const grp = workCenters.find((w: any) => w.id === groupId);
+        setForm(f => ({
+            ...f,
+            group_id: groupId,
+            work_center_id: '',
+            input_location_id: grp?.effective_input_location_id || '',
+            output_location_id: grp?.effective_output_location_id || '',
+        }));
     };
 
     const handleWCChange = (wcId: string) => {
         const wc = workCenters.find((w: any) => w.id === wcId);
+        // effective_* is the machine's own location or the one it inherits from its
+        // group/type — machines only carry their own when they override the group.
         setForm(f => ({
             ...f,
             work_center_id: wcId,
-            input_location_id: wc?.input_location_id || '',
-            output_location_id: wc?.output_location_id || '',
+            input_location_id: wc?.effective_input_location_id || wc?.input_location_id || '',
+            output_location_id: wc?.effective_output_location_id || wc?.output_location_id || '',
         }));
     };
 

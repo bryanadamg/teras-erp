@@ -23,7 +23,7 @@ from app.schemas import (
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
 from app.api.batches import generate_batch_number
-from app.services import audit_service, stock_service, beam_service
+from app.services import audit_service, stock_service, beam_service, work_center_service
 from app.core.ws_manager import manager
 from datetime import datetime
 import uuid
@@ -157,14 +157,17 @@ async def create_work_order(
 
     sequence = payload.sequence if payload.sequence and payload.sequence > 1 else wo_seq_num
 
-    # Inherit locations from work center unless caller explicitly provided them
+    # Inherit locations from work center unless caller explicitly provided them.
+    # "From the work center" means its effective value — a machine with no own
+    # locations takes its GROUP's (then its TYPE's), so groups are configured once.
     input_location_id = payload.input_location_id
     output_location_id = payload.output_location_id
     if wc:
+        wc_in, wc_out = await work_center_service.resolve_locations(db, wc.id)
         if input_location_id is None:
-            input_location_id = wc.input_location_id
+            input_location_id = wc_in
         if output_location_id is None:
-            output_location_id = wc.output_location_id
+            output_location_id = wc_out
 
     wo = WorkOrder(
         manufacturing_order_id=payload.manufacturing_order_id,
@@ -279,8 +282,7 @@ async def update_work_order(
         wc_result = await db.execute(select(WorkCenter).filter(WorkCenter.id == payload.work_center_id))
         wc_upd = wc_result.scalars().first()
         if wc_upd:
-            wo.input_location_id = wc_upd.input_location_id
-            wo.output_location_id = wc_upd.output_location_id
+            wo.input_location_id, wo.output_location_id = await work_center_service.resolve_locations(db, wc_upd.id)
     else:
         wo.input_location_id = None
         wo.output_location_id = None
@@ -462,6 +464,7 @@ async def create_work_orders_bulk(
 
     wc_ids = {p.work_center_id for p in payloads if p.work_center_id}
     wc_cache: dict = {}
+    wc_loc_map = await work_center_service.location_map(db) if wc_ids else {}
     if wc_ids:
         wc_result = await db.execute(select(WorkCenter).filter(WorkCenter.id.in_(wc_ids)))
         for wc_row in wc_result.scalars().all():
@@ -486,10 +489,11 @@ async def create_work_orders_bulk(
         input_location_id = payload.input_location_id
         output_location_id = payload.output_location_id
         if wc:
+            wc_in, wc_out = work_center_service.resolve_locations_from_map(wc_loc_map, wc.id)[:2]
             if input_location_id is None:
-                input_location_id = wc.input_location_id
+                input_location_id = wc_in
             if output_location_id is None:
-                output_location_id = wc.output_location_id
+                output_location_id = wc_out
 
         wo = WorkOrder(
             manufacturing_order_id=mo_id,
@@ -562,11 +566,28 @@ async def create_work_orders_bulk(
 # netting (source store) and consumption (input loc) reference the same stock.
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def _backfill_wo_locations(db: AsyncSession, wo: WorkOrder) -> None:
+    """Fill a WO's blank locations from its work center's effective ones.
+
+    WOs snapshot locations at creation, so a WO cut before its group had staging
+    areas set (or before location inheritance existed) carries NULLs and would
+    refuse to stage. Re-resolve here instead of forcing the floor to re-cut the WO.
+    Caller commits — read paths just get the in-memory value."""
+    if not wo.work_center_id or (wo.input_location_id and wo.output_location_id):
+        return
+    wc_in, wc_out = await work_center_service.resolve_locations(db, wo.work_center_id)
+    if not wo.input_location_id and wc_in:
+        wo.input_location_id = wc_in
+    if not wo.output_location_id and wc_out:
+        wo.output_location_id = wc_out
+
+
 async def _load_wo_and_mo(db: AsyncSession, wo_id: str):
     res = await db.execute(select(WorkOrder).filter(WorkOrder.id == wo_id))
     wo = res.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
+    await _backfill_wo_locations(db, wo)
     mo_res = await db.execute(
         select(ManufacturingOrder)
         .options(selectinload(ManufacturingOrder.planned_components))
@@ -723,14 +744,21 @@ async def get_mo_putaway_suggestion(
         root_id = item_default_res.scalar()
         item_default_used = root_id is not None
     if not root_id and mo.bom_id:
+        # Walk the routing backwards and take the first step whose work center
+        # resolves an output location — its own or one inherited from its group.
         op_res = await db.execute(
-            select(WorkCenter.output_location_id)
-            .join(BOMOperation, BOMOperation.work_center_id == WorkCenter.id)
-            .where(BOMOperation.bom_id == mo.bom_id, WorkCenter.output_location_id.isnot(None))
+            select(BOMOperation.work_center_id)
+            .where(BOMOperation.bom_id == mo.bom_id, BOMOperation.work_center_id.isnot(None))
             .order_by(BOMOperation.sequence.desc())
-            .limit(1)
         )
-        root_id = op_res.scalar()
+        op_wc_ids = [r[0] for r in op_res.all()]
+        if op_wc_ids:
+            wc_loc_map = await work_center_service.location_map(db)
+            for wc_id in op_wc_ids:
+                _, out_id, _, _ = work_center_service.resolve_locations_from_map(wc_loc_map, wc_id)
+                if out_id:
+                    root_id = out_id
+                    break
     if not root_id:
         wo_res = await db.execute(
             select(WorkOrder.output_location_id)

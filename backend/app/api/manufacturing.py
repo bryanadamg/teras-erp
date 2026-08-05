@@ -1149,6 +1149,12 @@ async def add_mo_completion(
         # WOs created without a machine have no input/output location, so
         # completions would silently skip stock movement. Force the operator
         # to pick a machine here and persist its locations onto the WO.
+        if (not wo.input_location_id or not wo.output_location_id) and wo.work_center_id:
+            # WO already has a machine: its locations may just be a stale NULL from
+            # before the group carried them. Re-resolve before asking the operator.
+            wo_in, wo_out = await work_center_service.resolve_locations(db, wo.work_center_id)
+            wo.input_location_id = wo.input_location_id or wo_in
+            wo.output_location_id = wo.output_location_id or wo_out
         if not wo.input_location_id or not wo.output_location_id:
             if not payload.work_center_id:
                 raise HTTPException(
@@ -1159,14 +1165,16 @@ async def add_mo_completion(
             wc = wc_result.scalars().first()
             if not wc:
                 raise HTTPException(status_code=404, detail="Work center not found")
-            if not wc.input_location_id or not wc.output_location_id:
+            # Effective locations: the machine's own, else its group's / type's.
+            wc_in, wc_out = await work_center_service.resolve_locations(db, wc.id)
+            if not wc_in or not wc_out:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Machine '{wc.name}' has no input/output location configured — set it on the Work Center first.",
+                    detail=f"Machine '{wc.name}' has no input/output location — set it on the machine or on its group first.",
                 )
             wo.work_center_id = wc.id
-            wo.input_location_id = wc.input_location_id
-            wo.output_location_id = wc.output_location_id
+            wo.input_location_id = wc_in
+            wo.output_location_id = wc_out
             wo_machine_assigned = wc.name
 
     if mo.status == "PENDING":

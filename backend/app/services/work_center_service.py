@@ -77,3 +77,81 @@ async def group_of(db: AsyncSession, wc: WorkCenter) -> Optional[WorkCenter]:
         if (a.node_type or "").upper() == "GROUP":
             return a
     return None
+
+
+# --- Input/output location inheritance -------------------------------------
+# Staging areas are a property of the *area*, not of each machine: every loom in
+# a hall feeds from the same supply bin. So a machine's input/output location is
+# its own value when set, otherwise the nearest ancestor's (GROUP, then TYPE).
+# Nothing reads WorkCenter.input_location_id/output_location_id raw — the column
+# only holds an override, and a blank machine is normal, not misconfigured.
+
+_LOC_COLS = (
+    WorkCenter.id,
+    WorkCenter.parent_id,
+    WorkCenter.input_location_id,
+    WorkCenter.output_location_id,
+)
+
+
+def _to_loc_map(rows) -> dict:
+    return {str(r[0]): (r[1], r[2], r[3]) for r in rows}
+
+
+async def location_map(db: AsyncSession) -> dict:
+    """One-shot {wc_id: (parent_id, input_id, output_id)} for resolving inherited
+    locations without a query per tree level. work_centers is a small master table."""
+    res = await db.execute(select(*_LOC_COLS))
+    return _to_loc_map(res.all())
+
+
+def location_map_sync(db: Session) -> dict:
+    return _to_loc_map(db.execute(select(*_LOC_COLS)).all())
+
+
+def resolve_locations_from_map(loc_map: dict, wc_id) -> tuple:
+    """(input_location_id, output_location_id) — own value first, then walk up.
+    The two fields resolve independently: a machine may override only its output."""
+    in_id = out_id = None
+    src_in = src_out = None
+    seen: set[str] = set()
+    cur = wc_id
+    while cur is not None and str(cur) not in seen:
+        seen.add(str(cur))
+        row = loc_map.get(str(cur))
+        if row is None:
+            break
+        parent_id, own_in, own_out = row
+        if in_id is None and own_in is not None:
+            in_id, src_in = own_in, cur
+        if out_id is None and own_out is not None:
+            out_id, src_out = own_out, cur
+        if in_id is not None and out_id is not None:
+            break
+        cur = parent_id
+    return in_id, out_id, src_in, src_out
+
+
+async def resolve_locations(db: AsyncSession, wc_id, loc_map: dict | None = None) -> tuple:
+    """Effective (input_location_id, output_location_id) for a work center.
+    Pass a cached `loc_map` when resolving many centers in one request."""
+    lm = loc_map if loc_map is not None else await location_map(db)
+    in_id, out_id, _, _ = resolve_locations_from_map(lm, wc_id)
+    return in_id, out_id
+
+
+def resolve_locations_sync(db: Session, wc_id, loc_map: dict | None = None) -> tuple:
+    lm = loc_map if loc_map is not None else location_map_sync(db)
+    in_id, out_id, _, _ = resolve_locations_from_map(lm, wc_id)
+    return in_id, out_id
+
+
+def decorate_effective_locations(wcs, loc_map: dict) -> None:
+    """Stamp effective_* / *_inherited onto WorkCenter instances for the API
+    response, so the UI can show a blank machine's inherited area."""
+    for wc in wcs:
+        in_id, out_id, src_in, src_out = resolve_locations_from_map(loc_map, wc.id)
+        wc.effective_input_location_id = in_id
+        wc.effective_output_location_id = out_id
+        wc.input_location_inherited = in_id is not None and str(src_in) != str(wc.id)
+        wc.output_location_inherited = out_id is not None and str(src_out) != str(wc.id)

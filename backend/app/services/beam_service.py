@@ -43,7 +43,7 @@ from app.models.item import Item
 from app.models.category import Category
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption, BeamMount
-from app.services import stock_service
+from app.services import stock_service, work_center_service
 
 WEAVING_TYPES = {"WEAVING", "TENUN"}
 
@@ -145,10 +145,13 @@ async def mount_beam(
     wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == work_center_id))).scalars().first()
     if not wc:
         raise HTTPException(status_code=404, detail="Work center not found")
-    if not wc.input_location_id:
+    # Effective supply area: the loom's own input location, else the one inherited
+    # from its group / type — machines in a hall share one supply bin.
+    loom_input_loc, _ = await work_center_service.resolve_locations(db, wc.id)
+    if not loom_input_loc:
         raise HTTPException(
             status_code=422,
-            detail=f"Machine '{wc.code or wc.name}' has no supply area — set its input location first",
+            detail=f"Machine '{wc.code or wc.name}' has no supply area — set an input location on it or on its group",
         )
 
     existing = (
@@ -188,7 +191,7 @@ async def mount_beam(
     moved = 0.0
     want = float(qty) if qty and float(qty) > 0 else None
     for loc_id, bal in rows:
-        if str(loc_id) == str(wc.input_location_id):
+        if str(loc_id) == str(loom_input_loc):
             moved += float(bal)   # already at the loom
             continue
         take = float(bal) if want is None else min(float(bal), max(0.0, want - moved))
@@ -202,7 +205,7 @@ async def mount_beam(
             attribute_value_ids=[], batch_id=batch_id,
         )
         await stock_service.add_stock_entry(
-            db, item_id=batch.item_id, location_id=wc.input_location_id, qty_change=take,
+            db, item_id=batch.item_id, location_id=loom_input_loc, qty_change=take,
             reference_type="Beam Mount", reference_id=str(work_center_id),
             attribute_value_ids=[], batch_id=batch_id,
         )
@@ -212,7 +215,7 @@ async def mount_beam(
         batch_id=batch_id,
         work_center_id=work_center_id,
         item_id=batch.item_id,
-        location_id=wc.input_location_id,
+        location_id=loom_input_loc,
         qty_mounted=moved,
         source_wo_id=source_wo_id,
         mounted_by=user,

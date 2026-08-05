@@ -32,10 +32,32 @@ const nodeTypeOf = (w: any): string =>
 const LEVEL_DEPTH: Record<string, number> = { TYPE: 0, GROUP: 1, MACHINE: 2 };
 const LEVEL_ICONS: Record<string, string> = { TYPE: 'bi-folder2', GROUP: 'bi-collection', MACHINE: 'bi-cpu' };
 const LEVEL_HINTS: Record<string, string> = {
-    TYPE: 'A top-level process family (WEAVING, DYEING…). Holds groups and machines; no locations of its own.',
-    GROUP: 'A set of machines inside one type — e.g. a loom hall. Lets you set one production calendar for all of them at once.',
-    MACHINE: 'A physical station. Work orders, BOM routing steps and the monitors all point at machines.',
+    TYPE: 'A top-level process family (WEAVING, DYEING…). Holds groups and machines, and can carry the default input/output locations they inherit.',
+    GROUP: 'A set of machines inside one type — e.g. a loom hall. Set one production calendar and one pair of input/output locations for all of them at once.',
+    MACHINE: 'A physical station. Work orders, BOM routing steps and the monitors all point at machines. Leave its locations blank to use its group\'s.',
 };
+const LOC_FIELDS = ['input_location_id', 'output_location_id'] as const;
+type LocField = typeof LOC_FIELDS[number];
+
+// Input/output locations cascade down the tree: a machine with no own value uses
+// its group's, then its type's. Mirrors work_center_service.resolve_locations on
+// the backend — a blank machine is normal config, not a missing setup.
+function inheritedLoc(wcs: any[], fromId: any, field: LocField): { id: string; from: any } | null {
+    const byId = new Map(wcs.map((w: any) => [String(w.id), w]));
+    let cur = fromId ? byId.get(String(fromId)) : undefined;
+    const seen = new Set<string>();
+    while (cur && !seen.has(String(cur.id))) {
+        seen.add(String(cur.id));
+        if (cur[field]) return { id: String(cur[field]), from: cur };
+        cur = cur.parent_id ? byId.get(String(cur.parent_id)) : undefined;
+    }
+    return null;
+}
+// Effective value for a row: its own override, else whatever it inherits.
+function effectiveLoc(wcs: any[], wc: any, field: LocField): { id: string; from: any } | null {
+    if (wc?.[field]) return { id: String(wc[field]), from: wc };
+    return inheritedLoc(wcs, wc?.parent_id, field);
+}
 // Beam positions on a loom: how many warp beams must be mounted for a weaving WO
 // to count as beam-ready. Machine config, not per-order — see beam_service.py.
 const beamSlots = (v: any) => Math.max(1, parseInt(String(v ?? 1), 10) || 1);
@@ -158,6 +180,22 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
       return loc ? loc.code : '—';
   };
 
+  // "— from GROUP-A (SUPPLY-1) —" in an empty picker, so a blank field reads as
+  // inherited-and-fine rather than unset. Falls back to plain none at the root.
+  const locEmptyLabel = (wc: any, field: LocField) => {
+      const inh = inheritedLoc(wcList, wc?.parent_id, field);
+      return inh ? `— from ${inh.from.code} (${getLocName(inh.id)}) —` : '— none —';
+  };
+  const locEditHint = (wc: any, field: LocField) => {
+      const inh = inheritedLoc(wcList, wc?.parent_id, field);
+      if (!inh) return null;
+      return (
+          <span style={{ marginLeft: 4, fontWeight: 'normal', color: classic ? '#666' : '#64748b' }}>
+              (blank = {getLocName(inh.id)} from {inh.from.code})
+          </span>
+      );
+  };
+
   // Parent chosen in the create panel, and the center type it forces. Everything under
   // a type shares that type (the backend cascades it on change), so letting the user
   // pick a different one here would only create a row that contradicts its own parent.
@@ -198,8 +236,9 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
       onCreateWorkCenter({
           ...newWorkCenter,
           center_type: effectiveNewType,
-          input_location_id: newWorkCenter.node_type === 'MACHINE' ? (newWorkCenter.input_location_id || null) : null,
-          output_location_id: newWorkCenter.node_type === 'MACHINE' ? (newWorkCenter.output_location_id || null) : null,
+          // Containers keep locations too — machines under them inherit these.
+          input_location_id: newWorkCenter.input_location_id || null,
+          output_location_id: newWorkCenter.output_location_id || null,
           parent_id: newWorkCenter.node_type === 'TYPE' ? null : (newWorkCenter.parent_id || null),
           node_type: newWorkCenter.node_type,
           beam_slots: beamSlots(newWorkCenter.beam_slots),
@@ -325,17 +364,18 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               </div>
                           )}
                       </div>
-                      {isMachine && (
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
+                      {/* Locations apply at every level: a container's value is the
+                          default its machines inherit when they leave theirs blank. */}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                               <div style={{ flex: 1, minWidth: 160 }}>
-                                  <label style={lvLabel(classic)}>Input Location</label>
-                                  <TreeSelect options={locPickerTreeOptions} value={editingWC.input_location_id || ''} onChange={id => setEditingWC({ ...editingWC, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
+                                  <label style={lvLabel(classic)}>Input Location{locEditHint(editingWC, 'input_location_id')}</label>
+                                  <TreeSelect options={locPickerTreeOptions} value={editingWC.input_location_id || ''} onChange={id => setEditingWC({ ...editingWC, input_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(editingWC, 'input_location_id')} size="sm" style={{ width: '100%' }} />
                               </div>
                               <div style={{ flex: 1, minWidth: 160 }}>
-                                  <label style={lvLabel(classic)}>Output Location</label>
-                                  <TreeSelect options={locPickerTreeOptions} value={editingWC.output_location_id || ''} onChange={id => setEditingWC({ ...editingWC, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
+                                  <label style={lvLabel(classic)}>Output Location{locEditHint(editingWC, 'output_location_id')}</label>
+                                  <TreeSelect options={locPickerTreeOptions} value={editingWC.output_location_id || ''} onChange={id => setEditingWC({ ...editingWC, output_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(editingWC, 'output_location_id')} size="sm" style={{ width: '100%' }} />
                               </div>
-                              {['WEAVING', 'TENUN'].includes((editingWC.center_type || '').toUpperCase()) && (
+                              {isMachine && ['WEAVING', 'TENUN'].includes((editingWC.center_type || '').toUpperCase()) && (
                                   <div style={{ width: 120 }}>
                                       <label style={lvLabel(classic)}>Beam Slots</label>
                                       <input
@@ -347,8 +387,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                       />
                                   </div>
                               )}
-                          </div>
-                      )}
+                      </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                           <button type="submit" style={lvPrimaryBtn(classic)}>Save</button>
                           <button type="button" style={lvBtn(classic)} onClick={() => setEditingWC(null)}>Cancel</button>
@@ -430,8 +469,26 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                       <td style={lvTd(classic)}>
                                           <span style={{ padding: '1px 6px', borderRadius: classic ? 2 : 6, fontSize: classic ? 10 : 11, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span>
                                       </td>
-                                      <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isContainer ? getLocName(wc.input_location_id) : ''}</td>
-                                      <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isContainer ? getLocName(wc.output_location_id) : ''}</td>
+                                      {LOC_FIELDS.map(field => {
+                                          // Show what actually applies, italic when it comes from an
+                                          // ancestor — a blank machine is inheriting, not unconfigured.
+                                          const eff = effectiveLoc(wcList, wc, field);
+                                          const own = !!wc[field];
+                                          return (
+                                              <td
+                                                  key={field}
+                                                  title={eff && !own ? `Inherited from ${eff.from.code}` : undefined}
+                                                  style={{
+                                                      ...lvTd(classic),
+                                                      color: classic ? (own ? '#444' : '#777') : (own ? '#64748b' : '#94a3b8'),
+                                                      fontStyle: eff && !own ? 'italic' : 'normal',
+                                                      whiteSpace: 'nowrap',
+                                                  }}
+                                              >
+                                                  {getLocName(eff?.id || null)}
+                                              </td>
+                                          );
+                                      })}
                                       <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                                           {canManage && <MenuTriggerButton classic={classic} onClick={e => wcMenuToggle(wc.id, e)} />}
                                       </td>
@@ -715,32 +772,50 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                   </div>
               </FormSection>
 
-              {newWorkCenter.node_type === 'MACHINE' && (
-                  <FormSection classic={classic} title={<><i className="bi bi-cpu me-1" />Machine setup</>}>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                          <div style={{ flex: 1 }}>
-                              <FieldLabel classic={classic} hint="Where staged material is moved to.">Input Location</FieldLabel>
-                              <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
-                          </div>
-                          <div style={{ flex: 1 }}>
-                              <FieldLabel classic={classic} hint="Where finished output is put away.">Output Location</FieldLabel>
-                              <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
-                          </div>
+              {/* Locations live at every level. A group holds the pair its machines
+                  inherit, so a machine only fills these in to override its group. */}
+              <FormSection
+                  classic={classic}
+                  title={<><i className={`bi ${newWorkCenter.node_type === 'MACHINE' ? 'bi-cpu' : 'bi-geo-alt'} me-1`} />
+                      {newWorkCenter.node_type === 'MACHINE' ? 'Machine setup' : 'Default locations'}</>}
+              >
+                  <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                          <FieldLabel
+                              classic={classic}
+                              hint={newWorkCenter.node_type === 'MACHINE'
+                                  ? 'Where staged material is moved to. Leave blank to use the group\'s.'
+                                  : 'Where staged material is moved to — every machine inside inherits this.'}
+                          >
+                              Input Location
+                          </FieldLabel>
+                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(newWorkCenter, 'input_location_id')} size="sm" style={{ width: '100%' }} />
                       </div>
-                      {['WEAVING', 'TENUN'].includes((effectiveNewType || '').toUpperCase()) && (
-                          <div style={{ width: 140, marginTop: 8 }}>
-                              <FieldLabel classic={classic} hint="Beam positions on this loom.">Beam Slots</FieldLabel>
-                              <input
-                                  type="number" min={1} step={1}
-                                  style={{ ...lvInput(classic), width: '100%' }}
-                                  value={newWorkCenter.beam_slots}
-                                  onChange={e => setNewWorkCenter({ ...newWorkCenter, beam_slots: beamSlots(e.target.value) })}
-                                  title="A weaving WO is beam-ready when this many beams are mounted"
-                              />
-                          </div>
-                      )}
-                  </FormSection>
-              )}
+                      <div style={{ flex: 1 }}>
+                          <FieldLabel
+                              classic={classic}
+                              hint={newWorkCenter.node_type === 'MACHINE'
+                                  ? 'Where finished output is put away. Leave blank to use the group\'s.'
+                                  : 'Where finished output is put away — every machine inside inherits this.'}
+                          >
+                              Output Location
+                          </FieldLabel>
+                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(newWorkCenter, 'output_location_id')} size="sm" style={{ width: '100%' }} />
+                      </div>
+                  </div>
+                  {newWorkCenter.node_type === 'MACHINE' && ['WEAVING', 'TENUN'].includes((effectiveNewType || '').toUpperCase()) && (
+                      <div style={{ width: 140, marginTop: 8 }}>
+                          <FieldLabel classic={classic} hint="Beam positions on this loom.">Beam Slots</FieldLabel>
+                          <input
+                              type="number" min={1} step={1}
+                              style={{ ...lvInput(classic), width: '100%' }}
+                              value={newWorkCenter.beam_slots}
+                              onChange={e => setNewWorkCenter({ ...newWorkCenter, beam_slots: beamSlots(e.target.value) })}
+                              title="A weaving WO is beam-ready when this many beams are mounted"
+                          />
+                      </div>
+                  )}
+              </FormSection>
           </form>
       </ModalWrapper>
       </>

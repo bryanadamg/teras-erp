@@ -1295,6 +1295,14 @@ class WorkCenterResponse(BaseModel):
     node_type: str = "MACHINE"
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
+    # Locations are inherited down the tree: a machine with no own value uses its
+    # GROUP's (then its TYPE's). input_location_id/output_location_id above are the
+    # raw override on this row; these are what actually applies. Set by
+    # work_center_service.decorate_effective_locations, not columns.
+    effective_input_location_id: UUID | None = None
+    effective_output_location_id: UUID | None = None
+    input_location_inherited: bool = False
+    output_location_inherited: bool = False
     working_weekdays: list[int] | None = None
     beam_slots: int = 1
 
