@@ -27,6 +27,11 @@ export function getChipStyle(centerType?: string | null): React.CSSProperties {
     return workCenterChipStyle(centerType);
 }
 
+// Machine names carry embedded numbers (JB 02, JB 10) — numeric collation keeps 10
+// after 2 instead of sorting it straight after 1.
+const byName = (a: any, b: any) =>
+    String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+
 // Lot-producing work centers — these WOs emit weighed bags (one bag = one lot),
 // so bag labels apply to them. Others only ever print a Kartu Kerja card.
 const LOT_WC_TYPES = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING'];
@@ -185,7 +190,7 @@ export default function WorkOrderPanel({
     // Walks the whole subtree — a machine can sit one level deeper, behind a GROUP.
     const beamingMachines = useMemo(() => {
         if (!bomWcGroup || (bomWcGroup.center_type || '').toUpperCase() !== 'BEAMING') return [];
-        return machinesUnderWC(workCenters, bomWcGroup.id);
+        return machinesUnderWC(workCenters, bomWcGroup.id).sort(byName);
     }, [workCenters, bomWcGroup]);
 
     const locationList = locations || [];
@@ -207,11 +212,6 @@ export default function WorkOrderPanel({
             || op.work_center_type || 'Step';
         return `${op.sequence != null ? op.sequence + '. ' : ''}${name}`;
     };
-
-    // Machine names carry embedded numbers (JB 02, JB 10) — numeric collation keeps
-    // 10 after 2 instead of sorting it right after 1.
-    const byName = (a: any, b: any) =>
-        String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true, sensitivity: 'base' });
 
     // Selectable containers: the TYPE roots plus any GROUP under them, so a WO can be
     // narrowed to a loom bank and not just "WEAVING". Sorted per-tier (types A-Z, each
@@ -1045,7 +1045,9 @@ export default function WorkOrderPanel({
                         uom: parentMO.uom,
                         ends: parentMO.item_ends ?? parentMO.bom?.qty,
                     }}
-                    machines={beamingMachines.map((wc: any) => ({ id: wc.id, name: wc.name }))}
+                    machines={beamingMachines.map((wc: any) => ({ id: wc.id, name: wc.name, code: wc.code }))}
+                    groupId={bomWcGroup?.id ? String(bomWcGroup.id) : undefined}
+                    groupName={bomWcGroup?.name}
                     components={(parentMO.bom?.lines || []).map((l: any) => ({
                         name: l.item_name || l.item_code || '—',
                         code: l.item_code,

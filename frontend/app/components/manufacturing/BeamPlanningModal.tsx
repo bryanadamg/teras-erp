@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
+import SearchableSelect from '../shared/SearchableSelect';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -24,7 +25,10 @@ interface BeamRow {
 
 interface Props {
     mo: { id: string; code: string; qty: number; item_name?: string; uom?: string; ends?: number };
-    machines: Array<{ id: string; name: string }>;
+    machines: Array<{ id: string; name: string; code?: string }>;
+    /** Work-center group the BOM locks these WOs to — the WO row's blue badge. */
+    groupId?: string;
+    groupName?: string;
     components?: Array<{ name: string; code?: string; ends: number | null }>;
     centerLabel?: string;
     locations?: Array<{ id: string; code?: string; name: string }>;
@@ -37,13 +41,23 @@ function makeRow(defaultWcId = '', defaultEnds = ''): BeamRow {
     return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', ends: defaultEnds, notes: '', repeat: '1', next_destination_work_center_id: '', next_destination_location_id: '', target_start_date: '', target_end_date: '' };
 }
 
-export default function BeamPlanningModal({ mo, machines, components = [], centerLabel = 'Beaming', locations = [], nextWorkCenters = [], onClose }: Props) {
+export default function BeamPlanningModal({ mo, machines, groupId, groupName, components = [], centerLabel = 'Beaming', locations = [], nextWorkCenters = [], onClose }: Props) {
     const { authFetch, fetchData } = useData();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    const defaultWcId = machines[0]?.id || '';
+    // Machine is optional, same as the WO row: leaving it blank pegs the WO to the
+    // group badge instead, so beams can be planned before the loom is decided.
+    const defaultWcId = '';
     const defaultEnds = mo.ends != null ? String(mo.ends) : '';
+    const machineOptions = useMemo(
+        () => machines.map(m => ({ value: String(m.id), label: m.name, subLabel: m.code || undefined })),
+        [machines]
+    );
+    const nextWcOptions = useMemo(
+        () => nextWorkCenters.map(wc => ({ value: String(wc.id), label: wc.name })),
+        [nextWorkCenters]
+    );
     const [rows, setRows] = useState<BeamRow[]>([makeRow(defaultWcId, defaultEnds)]);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -72,7 +86,9 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                 const count = Math.max(1, parseInt(r.repeat) || 1);
                 return Array.from({ length: count }, () => ({
                     manufacturing_order_id: mo.id,
-                    work_center_id: r.work_center_id || undefined,
+                    // No machine picked -> peg to the group. A WO with no work center at
+                    // all is invisible to every center-type tab (see WorkOrderPanel).
+                    work_center_id: r.work_center_id || groupId || undefined,
                     qty: parseFloat(r.qty),
                     ends: r.ends ? parseInt(r.ends) : undefined,
                     notes: r.notes || undefined,
@@ -193,11 +209,27 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
 
             {/* Rows table */}
             <div style={{ overflowX: 'auto', border: '1px solid #c0bdb5' }}>
-            <table style={{ width: '100%', minWidth: 980, tableLayout: 'fixed', borderCollapse: 'collapse', background: 'white', marginBottom: 0 }}>
+            <table style={{ width: '100%', minWidth: 1060, tableLayout: 'fixed', borderCollapse: 'collapse', background: 'white', marginBottom: 0 }}>
                 <thead>
                     <tr>
                         <th style={{ ...thStyle('#'), width: 26 }}>{'#'}</th>
-                        {machines.length > 1 && <th style={{ ...thStyle('Machine'), width: 110 }}>Machine</th>}
+                        {/* Machine stays optional — the group badge carries the center type
+                            when no loom is chosen, mirroring the WO row's locked-group badge. */}
+                        <th style={{ ...thStyle('Machine'), width: 170 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                {groupName && (
+                                    <span style={{
+                                        fontFamily: xpFont, fontSize: 9, padding: '0 5px',
+                                        display: 'inline-flex', alignItems: 'center',
+                                        background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',
+                                        fontWeight: 'bold', whiteSpace: 'nowrap',
+                                    }}>
+                                        {groupName}
+                                    </span>
+                                )}
+                                <span>Machine (optional)</span>
+                            </div>
+                        </th>
                         <th style={{ ...thStyle('Qty'), width: 80 }}>Qty / Beam</th>
                         <th style={{ ...thStyle('Ends'), width: 90 }}>Qty / Ends (Utas)</th>
                         <th style={{ ...thStyle('Repeat'), width: 50 }}>Repeat</th>
@@ -212,20 +244,14 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                     {rows.map((row, idx) => (
                         <tr key={row.localId} style={{ background: idx % 2 === 1 ? '#f8f7f2' : 'white' }}>
                             <td style={tdStyle({ width: 28, textAlign: 'center', color: '#666', fontWeight: 'bold' })}>{idx + 1}</td>
-                            {machines.length > 1 && (
-                                <td style={tdStyle({})}>
-                                    <select
-                                        style={{ ...xpInput, width: '100%' }}
-                                        value={row.work_center_id}
-                                        onChange={e => update(row.localId, 'work_center_id', e.target.value)}
-                                    >
-                                        <option value="">— machine —</option>
-                                        {machines.map(m => (
-                                            <option key={m.id} value={m.id}>{m.name}</option>
-                                        ))}
-                                    </select>
-                                </td>
-                            )}
+                            <td style={tdStyle({})}>
+                                <SearchableSelect
+                                    options={machineOptions}
+                                    value={row.work_center_id}
+                                    onChange={v => update(row.localId, 'work_center_id', v)}
+                                    placeholder="— Machine —"
+                                />
+                            </td>
                             <td style={tdStyle({ width: 90 })}>
                                 <input
                                     type="number" min="0" step="any"
@@ -282,16 +308,13 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                                 {(nextWorkCenters.length > 0 || locations.length > 0) ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                         {nextWorkCenters.length > 0 && (
-                                            <select
-                                                style={{ ...xpInput, width: '100%', fontSize: 10 }}
+                                            <SearchableSelect
+                                                options={nextWcOptions}
                                                 value={row.next_destination_work_center_id}
-                                                onChange={e => update(row.localId, 'next_destination_work_center_id', e.target.value)}
-                                            >
-                                                <option value="">— Mesin —</option>
-                                                {nextWorkCenters.map(wc => (
-                                                    <option key={wc.id} value={wc.id}>{wc.name}</option>
-                                                ))}
-                                            </select>
+                                                onChange={v => update(row.localId, 'next_destination_work_center_id', v)}
+                                                placeholder="— Mesin —"
+                                                size="sm"
+                                            />
                                         )}
                                         {locations.length > 0 && (
                                             <select
