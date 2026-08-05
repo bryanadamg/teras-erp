@@ -90,9 +90,12 @@ function PODocument({
 
     const lineTotal = (line: any) => (Number(line.qty) || 0) * (Number(line.unit_price) || 0);
     const subtotal = po.lines.reduce((s: number, l: any) => s + lineTotal(l), 0);
+    // vat_percent === null means the PO was saved with the VAT checkbox off — no VAT
+    // row on the document at all. An explicit 0 is still a VAT line (rate 0%).
+    const hasVat = po.vat_percent != null;
     const vatPercent = Number(po.vat_percent) || 0;
     const discount = Number(po.discount) || 0;
-    const vat = (subtotal - discount) * vatPercent / 100;
+    const vat = hasVat ? (subtotal - discount) * vatPercent / 100 : 0;
     const total = subtotal - discount + vat;
 
     const paddedLines = [
@@ -232,7 +235,7 @@ function PODocument({
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginTop: -1 }}>
                 <tbody>
                     <tr>
-                        <td style={{ ...cell, width: '58%', verticalAlign: 'top' }} rowSpan={4}>
+                        <td style={{ ...cell, width: '58%', verticalAlign: 'top' }} rowSpan={hasVat ? 4 : 3}>
                             <div style={{ fontWeight: 'bold' }}>Notes</div>
                             <div style={{ whiteSpace: 'pre-line', marginTop: 2 }}>{po.notes || ''}</div>
                         </td>
@@ -243,10 +246,12 @@ function PODocument({
                         <td style={{ ...cell, fontWeight: 'bold' }}>Discount</td>
                         <td style={{ ...cell, textAlign: 'right' as const }}>Rp&nbsp;&nbsp;{discount ? money(discount) : ''}</td>
                     </tr>
-                    <tr>
-                        <td style={{ ...cell, fontWeight: 'bold' }}>VAT {vatPercent}%</td>
-                        <td style={{ ...cell, textAlign: 'right' as const }}>Rp&nbsp;&nbsp;{money(vat)}</td>
-                    </tr>
+                    {hasVat && (
+                        <tr>
+                            <td style={{ ...cell, fontWeight: 'bold' }}>VAT {vatPercent}%</td>
+                            <td style={{ ...cell, textAlign: 'right' as const }}>Rp&nbsp;&nbsp;{money(vat)}</td>
+                        </tr>
+                    )}
                     <tr>
                         <td style={{ ...cell, fontWeight: 'bold' }}>Total</td>
                         <td style={{ ...cell, textAlign: 'right' as const, fontWeight: 'bold' }}>Rp&nbsp;&nbsp;{money(total)}</td>
