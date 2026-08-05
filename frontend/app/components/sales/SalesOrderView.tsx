@@ -1275,18 +1275,24 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                </div>
                                                );
                                            }
-                                           const opts = attr.values || [];
+                                           // Plain (non-combo) variant attrs — Colors included. `GET /attributes`
+                                           // returns every attribute with its full `values` list (no pagination),
+                                           // so the whole set is in memory: filter client-side, no onSearch.
+                                           const opts = [...(attr.values || [])].sort((a: any, b: any) =>
+                                               String(a.value).localeCompare(String(b.value), undefined, { numeric: true, sensitivity: 'base' }));
+                                           const options = [
+                                               { value: '', label: `Any ${attr.name}` },
+                                               ...opts.map((v: any) => ({ value: v.id, label: v.value })),
+                                           ];
                                            return (
                                            <div key={attr.id} className="col-md-4">
-                                               <select
-                                                   className="form-select form-select-sm"
-                                                   style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none'} : undefined}
+                                               <SearchableSelect
+                                                   options={options}
                                                    value={newLine.attribute_value_ids.find(vid => opts.some((v: any) => v.id === vid)) || ''}
-                                                   onChange={e => handleValueChange(e.target.value, attr.id)}
-                                               >
-                                                   <option value="">Any {attr.name}</option>
-                                                   {opts.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
-                                               </select>
+                                                   onChange={val => handleValueChange(val, attr.id)}
+                                                   placeholder={`Any ${attr.name}`}
+                                                   size="sm"
+                                               />
                                            </div>
                                            );
                                        })}
