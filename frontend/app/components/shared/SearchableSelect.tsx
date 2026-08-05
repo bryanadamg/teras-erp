@@ -30,6 +30,13 @@ const DROPDOWN_MAX_HEIGHT = 280;
 // the user how many are hidden so beyond-cap entries aren't silently unreachable.
 const RENDER_CAP = 100;
 
+// A code shown next to the name it duplicates is noise, not information — the
+// Combo Library stores name == code for most rows, so the pair rendered the same
+// string twice and the fixed-width code squeezed the name into an ellipsis.
+const norm = (s?: string) => (s || '').trim().toLowerCase();
+const subIsRedundant = (o: Option) =>
+    !o.subLabel || !o.label || norm(o.subLabel) === norm(o.label);
+
 export default function SearchableSelect({
     options, value, onChange, placeholder, disabled, className,
     required, categories, testId, onSearch, size = 'md',
@@ -206,6 +213,11 @@ export default function SearchableSelect({
                 ) : (
                     filteredOptions.map(option => {
                         const selected = option.value === value;
+                        // A row must never show the same string twice, and the label
+                        // must never be starved to an ellipsis by a long subLabel
+                        // (combos carry name == code, which did both).
+                        const label = option.label || option.subLabel || '';
+                        const sub = subIsRedundant(option) ? undefined : option.subLabel;
                         return (
                             <div
                                 key={option.value}
@@ -224,16 +236,19 @@ export default function SearchableSelect({
                                 onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = '#d0e4f8'; }}
                                 onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'white'; }}
                             >
-                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {option.label}
+                                <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {label}
                                 </span>
-                                {option.subLabel && (
+                                {sub && (
                                     <span style={{
                                         fontFamily: '"Courier New", monospace', fontSize: 9,
                                         color: selected ? 'rgba(255,255,255,0.75)' : '#555',
-                                        flexShrink: 0,
+                                        // Shrinkable and capped: a long code trims itself
+                                        // instead of pushing the name out of the row.
+                                        flex: '0 1 auto', minWidth: 0, maxWidth: '45%',
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                     }}>
-                                        {option.subLabel}
+                                        {sub}
                                     </span>
                                 )}
                                 {option.category && (
@@ -297,10 +312,10 @@ export default function SearchableSelect({
                     color: selectedOption ? '#000' : '#888',
                 }}
             >
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {selectedOption ? selectedOption.label : (placeholder || 'Select...')}
+                <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedOption ? (selectedOption.label || selectedOption.subLabel) : (placeholder || 'Select...')}
                 </span>
-                {selectedOption?.subLabel && (
+                {selectedOption && !subIsRedundant(selectedOption) && (
                     <span style={{
                         fontFamily: '"Courier New", monospace', fontSize: 9, color: '#555',
                         marginLeft: 5, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80,
