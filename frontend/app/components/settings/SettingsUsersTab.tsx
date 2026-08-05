@@ -18,7 +18,15 @@ const USERS_PAGE_SIZE = 10;
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
-export default function SettingsUsersTab() {
+export default function SettingsUsersTab({
+    roles, allPermissions, roleFilter, onClearRoleFilter,
+}: {
+    roles: any[];
+    allPermissions: any[];
+    /** Set when the roles panel above filtered this list to one role. */
+    roleFilter: string | null;
+    onClearRoleFilter: () => void;
+}) {
     const { formatCustom: tzFmt } = useTimezone();
     const formatLastLogin = (value?: string | null): string => {
         if (!value) return 'Never';
@@ -30,9 +38,6 @@ export default function SettingsUsersTab() {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
 
-    const [roles, setRoles] = useState<any[]>([]);
-    const [allPermissions, setAllPermissions] = useState<any[]>([]);
-
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [formUser, setFormUser] = useState<User | undefined>(undefined);
 
@@ -41,15 +46,6 @@ export default function SettingsUsersTab() {
     const [page, setPage] = useState(1);
 
     useEffect(() => {
-        const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` };
-        Promise.all([
-            fetch(`${API_BASE}/roles`, { headers: authHeaders }).then(res => res.ok ? res.json() : []),
-            fetch(`${API_BASE}/permissions`, { headers: authHeaders }).then(res => res.ok ? res.json() : []),
-        ]).then(([rolesData, permsData]) => {
-            setRoles(rolesData);
-            setAllPermissions(permsData);
-        }).catch(err => console.error("Failed to fetch auth data", err));
-
         refreshUsers();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -57,18 +53,21 @@ export default function SettingsUsersTab() {
     const filteredUsers = useMemo(() => {
         const term = search.trim().toLowerCase();
         return users.filter(u => {
+            if (roleFilter && u.role?.id !== roleFilter) return false;
             if (statusFilter === 'active' && !u.is_active) return false;
             if (statusFilter === 'inactive' && u.is_active) return false;
             if (term && !u.username.toLowerCase().includes(term) && !u.full_name.toLowerCase().includes(term)) return false;
             return true;
         });
-    }, [users, search, statusFilter]);
+    }, [users, search, statusFilter, roleFilter]);
+
+    const roleFilterName = roleFilter ? (roles.find(r => r.id === roleFilter)?.name || 'Unknown role') : null;
 
     const pageCount = Math.max(1, Math.ceil(filteredUsers.length / USERS_PAGE_SIZE));
     const clampedPage = Math.min(page, pageCount);
     const pagedUsers = filteredUsers.slice((clampedPage - 1) * USERS_PAGE_SIZE, clampedPage * USERS_PAGE_SIZE);
 
-    useEffect(() => { setPage(1); }, [search, statusFilter]);
+    useEffect(() => { setPage(1); }, [search, statusFilter, roleFilter]);
 
     const submitCreate = async (payload: UserFormPayload): Promise<{ ok: boolean; error?: string }> => {
         try {
@@ -144,7 +143,7 @@ export default function SettingsUsersTab() {
         <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0'}>
             {classic ? (
                 <div style={{ ...xpTitleBar('linear-gradient(to right, #8e0000 0%, #c84040 100%)', '#4a0000'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span><i className="bi bi-shield-lock" style={{ marginRight: 6 }}></i>User Management (Admin)</span>
+                    <span><i className="bi bi-shield-lock" style={{ marginRight: 6 }}></i>Users</span>
                     <button
                         style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', padding: '2px 10px' })}
                         onClick={() => { setFormUser(undefined); setFormMode('create'); }}
@@ -152,7 +151,7 @@ export default function SettingsUsersTab() {
                 </div>
             ) : (
                 <div className="card-header bg-danger bg-opacity-10 text-danger-emphasis d-flex justify-content-between align-items-center">
-                    <h5 className="card-title mb-0"><i className="bi bi-shield-lock me-2"></i>User Management (Admin)</h5>
+                    <h5 className="card-title mb-0"><i className="bi bi-shield-lock me-2"></i>Users</h5>
                     <button
                         className="btn btn-sm btn-success"
                         onClick={() => { setFormUser(undefined); setFormMode('create'); }}
@@ -179,6 +178,20 @@ export default function SettingsUsersTab() {
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
+                    {roleFilterName && (
+                        <button
+                            onClick={onClearRoleFilter}
+                            title="Clear role filter"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+                                background: '#dde8f5', border: '1px solid #7f9db9', color: '#00006e',
+                                padding: '1px 5px', fontSize: 10, fontFamily: 'Tahoma, Arial, sans-serif',
+                            }}
+                        >
+                            Role: {roleFilterName}
+                            <i className="bi bi-x-lg" style={{ fontSize: 8 }} />
+                        </button>
+                    )}
                     <div style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#555' }}>
                         {filteredUsers.length} of {users.length} user{users.length !== 1 ? 's' : ''}
                     </div>
@@ -205,7 +218,20 @@ export default function SettingsUsersTab() {
                                 <option value="inactive">Inactive</option>
                             </select>
                         </div>
-                        <div className="col-md-4 text-md-end small text-muted">
+                        {roleFilterName && (
+                            <div className="col-auto">
+                                <button
+                                    className="btn btn-sm btn-primary d-flex align-items-center gap-2 py-0"
+                                    onClick={onClearRoleFilter}
+                                    title="Clear role filter"
+                                    style={{ fontSize: '0.75rem' }}
+                                >
+                                    Role: {roleFilterName}
+                                    <i className="bi bi-x-lg" style={{ fontSize: 9 }} />
+                                </button>
+                            </div>
+                        )}
+                        <div className="col text-md-end small text-muted">
                             {filteredUsers.length} of {users.length} user{users.length !== 1 ? 's' : ''}
                         </div>
                     </div>

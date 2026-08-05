@@ -8,7 +8,7 @@ export const usersPage: DocPage = {
     sections: [
         {
             heading: 'Users',
-            body: 'Each person who accesses Teras ERP has a user account with a unique username and password. Administrators can create, edit, deactivate, and delete user accounts from Settings → Users. Deactivating a user prevents login without deleting their history.',
+            body: 'Each person who accesses Teras ERP has a user account with a unique username and password. Administrators can create, edit, deactivate, and delete user accounts from the Users panel on Settings → Access Control. Deactivating a user prevents login without deleting their history.',
         },
         {
             heading: 'Authentication',
@@ -16,7 +16,7 @@ export const usersPage: DocPage = {
         },
         {
             heading: 'Roles',
-            body: 'Roles are named collections of permissions (e.g. "Warehouse Operator", "Sales Manager", "Admin"). Assigning a role to a user grants all permissions contained in that role. Roles can be created and edited from the Users panel.',
+            body: 'Roles are named collections of permissions (e.g. "Warehouse Operator", "Sales Manager", "Admin"). Assigning a role to a user grants all permissions contained in that role. Roles can be created and edited from the Roles panel on Settings → Access Control, directly above the Users panel — a role\'s user count there filters the Users panel to that role.',
         },
         {
             heading: 'Granular Permissions',

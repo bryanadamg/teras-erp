@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -12,7 +12,16 @@ import RoleFormModal, { RoleFormPayload, RoleLike } from './RoleFormModal';
 import { API_BASE } from '../shared/apiBase';
 import { groupPermissionsBySection } from '../shared/permissionMatrix';
 
-export default function SettingsRolesTab() {
+export default function SettingsRolesTab({
+    roles, allPermissions, reload, roleFilter, onFilterUsers,
+}: {
+    roles: RoleLike[];
+    allPermissions: any[];
+    reload: () => void;
+    /** Role whose users the sibling users panel is currently filtered to, if any. */
+    roleFilter: string | null;
+    onFilterUsers: (roleId: string) => void;
+}) {
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { users } = useUser();
@@ -20,8 +29,6 @@ export default function SettingsRolesTab() {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
 
-    const [roles, setRoles] = useState<RoleLike[]>([]);
-    const [allPermissions, setAllPermissions] = useState<any[]>([]);
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [formRole, setFormRole] = useState<RoleLike | undefined>(undefined);
     const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
@@ -49,18 +56,6 @@ export default function SettingsRolesTab() {
 
     const authHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('access_token')}` });
 
-    const loadData = () => {
-        Promise.all([
-            fetch(`${API_BASE}/roles`, { headers: authHeaders() }).then(res => res.ok ? res.json() : []),
-            fetch(`${API_BASE}/permissions`, { headers: authHeaders() }).then(res => res.ok ? res.json() : []),
-        ]).then(([rolesData, permsData]) => {
-            setRoles(rolesData);
-            setAllPermissions(permsData);
-        }).catch(err => console.error("Failed to fetch roles/permissions", err));
-    };
-
-    useEffect(() => { loadData(); }, []);
-
     const userCountByRole = useMemo(() => {
         const counts = new Map<string, number>();
         for (const u of users) {
@@ -78,7 +73,7 @@ export default function SettingsRolesTab() {
             });
             if (res.ok) {
                 showToast('Role created successfully!', 'success');
-                loadData();
+                reload();
                 return { ok: true };
             }
             const err = await res.json();
@@ -98,7 +93,7 @@ export default function SettingsRolesTab() {
             });
             if (res.ok) {
                 showToast('Role updated successfully!', 'success');
-                loadData();
+                reload();
                 return { ok: true };
             }
             const err = await res.json();
@@ -126,7 +121,7 @@ export default function SettingsRolesTab() {
             const res = await fetch(`${API_BASE}/roles/${role.id}`, { method: 'DELETE', headers: authHeaders() });
             if (res.ok || res.status === 204) {
                 showToast('Role deleted', 'success');
-                loadData();
+                reload();
             } else {
                 const err = await res.json();
                 showToast(`Failed: ${err.detail}`, 'danger');
@@ -141,7 +136,7 @@ export default function SettingsRolesTab() {
         <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0'}>
             {classic ? (
                 <div style={{ ...xpTitleBar('linear-gradient(to right, #8e5000 0%, #c87c00 100%)', '#5e3000'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span><i className="bi bi-diagram-3" style={{ marginRight: 6 }}></i>Roles &amp; Permissions (Admin)</span>
+                    <span><i className="bi bi-diagram-3" style={{ marginRight: 6 }}></i>Roles</span>
                     <button
                         style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', padding: '2px 10px' })}
                         onClick={() => { setFormRole(undefined); setFormMode('create'); }}
@@ -149,7 +144,7 @@ export default function SettingsRolesTab() {
                 </div>
             ) : (
                 <div className="card-header bg-warning bg-opacity-10 text-warning-emphasis d-flex justify-content-between align-items-center">
-                    <h5 className="card-title mb-0"><i className="bi bi-diagram-3 me-2"></i>Roles &amp; Permissions (Admin)</h5>
+                    <h5 className="card-title mb-0"><i className="bi bi-diagram-3 me-2"></i>Roles</h5>
                     <button
                         className="btn btn-sm btn-success"
                         onClick={() => { setFormRole(undefined); setFormMode('create'); }}
@@ -178,6 +173,7 @@ export default function SettingsRolesTab() {
                                 const count = userCountByRole.get(role.id) || 0;
                                 const isAdminRole = role.permissions.some(p => p.code === 'admin.access');
                                 const isExpanded = expandedRoles.has(role.id);
+                                const isFiltered = roleFilter === role.id;
                                 const sections = isAdminRole ? [] : groupedPermissions(role);
                                 return (
                                     <Fragment key={role.id}>
@@ -236,10 +232,25 @@ export default function SettingsRolesTab() {
                                             </div>
                                         </td>
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'text-center'}>
-                                            {classic ? (
-                                                <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10 }}>{count}</span>
+                                            {count === 0 ? (
+                                                classic ? (
+                                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#888' }}>0</span>
+                                                ) : (
+                                                    <span className="badge bg-light text-muted border">0</span>
+                                                )
                                             ) : (
-                                                <span className="badge bg-light text-dark border">{count}</span>
+                                                /* Filters the users panel below to this role — the count was a dead end before. */
+                                                <button
+                                                    title={isFiltered ? 'Clear filter on the users list below' : 'Show these users in the list below'}
+                                                    onClick={() => onFilterUsers(role.id)}
+                                                    style={classic ? {
+                                                        fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer',
+                                                        background: isFiltered ? '#dde8f5' : 'none',
+                                                        border: `1px solid ${isFiltered ? '#7f9db9' : 'transparent'}`,
+                                                        color: '#00006e', padding: '0 5px', textDecoration: isFiltered ? 'none' : 'underline',
+                                                    } : undefined}
+                                                    className={classic ? '' : `btn btn-sm py-0 px-2 ${isFiltered ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                                >{count}</button>
                                             )}
                                         </td>
                                         <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>

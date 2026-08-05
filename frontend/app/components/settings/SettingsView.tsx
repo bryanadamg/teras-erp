@@ -9,10 +9,9 @@ import { xpBevel as sharedXpBevel } from '../shared/shellTheme';
 import SettingsGeneralTab from './SettingsGeneralTab';
 import SettingsAccountTab from './SettingsAccountTab';
 import SettingsDatabaseTab from './SettingsDatabaseTab';
-import SettingsUsersTab from './SettingsUsersTab';
-import SettingsRolesTab from './SettingsRolesTab';
+import SettingsAccessTab from './SettingsAccessTab';
 
-type TabKey = 'general' | 'account' | 'database' | 'roles' | 'users';
+type TabKey = 'general' | 'account' | 'database' | 'access';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -32,8 +31,7 @@ export default function SettingsView({
         { key: 'account', label: 'My Account', icon: 'bi-person-fill' },
         ...(isAdmin ? [
             { key: 'database' as TabKey, label: 'Database & Backups', icon: 'bi-database-fill-gear' },
-            { key: 'roles' as TabKey, label: 'Roles & Permissions', icon: 'bi-diagram-3' },
-            { key: 'users' as TabKey, label: 'User Management', icon: 'bi-shield-lock' },
+            { key: 'access' as TabKey, label: 'Access Control', icon: 'bi-shield-lock' },
         ] : []),
     ];
 
@@ -105,12 +103,8 @@ export default function SettingsView({
                                 <SettingsDatabaseTab />
                             </div>
 
-                            <div style={{ display: activeTab === 'roles' ? 'block' : 'none' }}>
-                                <SettingsRolesTab />
-                            </div>
-
-                            <div style={{ display: activeTab === 'users' ? 'block' : 'none' }}>
-                                <SettingsUsersTab />
+                            <div style={{ display: activeTab === 'access' ? 'block' : 'none' }}>
+                                <SettingsAccessTab />
                             </div>
                         </>
                     )}
