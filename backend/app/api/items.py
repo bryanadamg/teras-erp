@@ -19,7 +19,7 @@ router = APIRouter()
 
 @router.get("/items/lookup")
 async def get_items_lookup(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
-    """Lightweight id/code/name/uom/lot_tracked/variant_type/attribute_ids list of ALL items.
+    """Lightweight id/code/name/uom/lot_tracked/variant_type/attribute_ids/category list of ALL items.
 
     Declared BEFORE any dynamic GET /items/{item_id} route so 'lookup' is not
     captured as an item_id path param. Columns only — no eager loads, no pagination.
@@ -28,21 +28,50 @@ async def get_items_lookup(db: AsyncSession = Depends(get_async_db), current_use
     association table (grouped in Python), not an ORM eager load — the BOM
     designer resolves its variant dropdowns (Colors/Combo) from this index, and
     the paginated /items page it used to read only covers the first 50 items.
+
+    `category_path` is built the same way (flat SELECT over categories, walked in
+    Python) rather than via Category.path_names, which needs the loaded `parent`
+    chain. Consumers classify items by category for off-page rows — goods receipt
+    decides whether a PO line gets a Cones or Drums input from it.
     """
     from app.models.item import Item, item_attributes
     result = await db.execute(
-        select(Item.id, Item.code, Item.name, Item.uom, Item.lot_tracked, Item.ends, Item.variant_type)
+        select(Item.id, Item.code, Item.name, Item.uom, Item.lot_tracked, Item.ends,
+               Item.variant_type, Item.category_id)
     )
     attr_rows = await db.execute(select(item_attributes.c.item_id, item_attributes.c.attribute_id))
     attrs_by_item: dict[str, list[str]] = {}
     for item_id, attribute_id in attr_rows.all():
         attrs_by_item.setdefault(str(item_id), []).append(str(attribute_id))
+
+    cat_rows = await db.execute(select(Category.id, Category.name, Category.parent_id))
+    cats = {str(c.id): (c.name, str(c.parent_id) if c.parent_id else None) for c in cat_rows.all()}
+    path_cache: dict[str, list[str]] = {}
+
+    def cat_path(cat_id: str | None) -> list[str]:
+        if not cat_id or cat_id not in cats:
+            return []
+        if cat_id in path_cache:
+            return path_cache[cat_id]
+        names: list[str] = []
+        cur, seen = cat_id, set()
+        while cur and cur in cats and cur not in seen:  # seen guards a cyclic parent chain
+            seen.add(cur)
+            name, parent = cats[cur]
+            names.append(name)
+            cur = parent
+        path = list(reversed(names))
+        path_cache[cat_id] = path
+        return path
+
     return [
         {
             "id": str(row.id), "name": row.name, "code": row.code, "uom": row.uom,
             "lot_tracked": row.lot_tracked, "ends": row.ends,
             "variant_type": row.variant_type,
             "attribute_ids": attrs_by_item.get(str(row.id), []),
+            "category_id": str(row.category_id) if row.category_id else None,
+            "category_path": cat_path(str(row.category_id) if row.category_id else None),
         }
         for row in result.all()
     ]

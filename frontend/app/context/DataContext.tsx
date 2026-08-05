@@ -18,6 +18,8 @@ const LOADING_KEY: Record<string, string> = {
 // One entry of the full item index (/items/lookup — EVERY item, not the paginated
 // `items` page). attribute_ids/variant_type are here so variant-aware UI (the BOM
 // designer's Colors/Combo dropdowns) works for items outside the current page.
+// category_path is here for the same reason — goods receipt classifies a PO line
+// (Cones vs Drums) by category, and PO lines routinely point at off-page items.
 export interface ItemIndexEntry {
     name: string;
     code: string;
@@ -26,6 +28,8 @@ export interface ItemIndexEntry {
     ends?: number | null;
     variant_type?: string | null;
     attribute_ids?: string[];
+    category_id?: string | null;
+    category_path?: string[];
 }
 
 // Kinds of debounced live (WebSocket) event a page can be told about. One alias

@@ -341,16 +341,21 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
   const getItemCode = (id: string) => resolveItem(id)?.code || itemIndex?.[String(id)]?.code || id;
   const getItem = (id: string) => resolveItem(id);
   const getItemUom = (id: string) => getItem(id)?.uom || '';
-  // Classify by seeded system categories: "Raw Material", "Chemical", "Dye"
+  // Classify by seeded system categories: "Raw Material", "Chemical", "Dye".
+  // Falls back to itemIndex (/items/lookup, EVERY item) — resolveItem only covers
+  // the current /items page + search results, so PO lines on off-page items used
+  // to classify as null and silently lose their Cones/Drums receipt input.
+  const getItemCatPath = (id: string): string[] =>
+      getItem(id)?.category_path || itemIndex?.[String(id)]?.category_path || [];
   const getItemCatType = (id: string): 'raw' | 'chemical' | 'dye' | null => {
-      const path = (getItem(id)?.category_path || []).map((s: string) => s.toLowerCase());
+      const path = getItemCatPath(id).map((s: string) => s.toLowerCase());
       if (path.some((p: string) => p.includes('dye'))) return 'dye';
       if (path.some((p: string) => p.includes('chemical'))) return 'chemical';
       if (path.some((p: string) => p.includes('raw material'))) return 'raw';
       return null;
   };
   const getItemCatLabel = (id: string) => {
-      const path = getItem(id)?.category_path || [];
+      const path = getItemCatPath(id);
       return path.length ? path[path.length - 1] : '';
   };
 
