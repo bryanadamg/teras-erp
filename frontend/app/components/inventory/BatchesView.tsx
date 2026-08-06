@@ -50,6 +50,7 @@ interface Batch {
   location_path: string[] | null;  // root-first [store, zone, bin]
   quality_status?: string;   // GOOD | REJECTED | REJECT_USABLE | DISPOSED
   // Production origin (beam batches)
+  wo_code: string | null;
   mo_id: string | null;
   mo_code: string | null;
   production_run_code: string | null;
@@ -426,7 +427,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     lot:       (b: Batch) => b.batch_number,
     product:   (b: Batch) => batchItemCode(b),
     origin:    (b: Batch) => b.sales_order_code || b.po_number || null,
-    mopr:      (b: Batch) => b.mo_code || b.production_run_code || null,
+    mopr:      (b: Batch) => b.wo_code || b.mo_code || b.production_run_code || null,
     location:  (b: Batch) => (b.location_path && b.location_path.join(' / ')) || b.location_name || null,
     remaining: (b: Batch) => b.remaining ?? null,
     ends:      (b: Batch) => b.ends ?? null,
@@ -472,9 +473,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
   };
 
-  // MO / PR — internal production origin, as small chips.
+  // WO / MO / PR — internal production origin, as small chips. The WO is the floor
+  // unit that actually minted the lot (source_wo_id), so it leads the chain.
   const moPrCell = (b: Batch) => {
     const chips: React.ReactNode[] = [];
+    if (b.wo_code) chips.push(chip(b.wo_code, '#1d5c2e', '#e4f2e6', '#a8ccb0', { mono: true, title: `Work Order: ${b.wo_code}` }));
     if (b.mo_code) chips.push(chip(b.mo_code, '#444', '#eceae2', '#c4c2ba', { mono: true }));
     if (b.production_run_code) chips.push(chip(`PR ${b.production_run_code}`, '#5a4499', '#efeaff', '#cabbec', { mono: true }));
     return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
@@ -831,7 +834,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                   <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
                   <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
                   <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">MO/PR<SortMark sort={sort} colKey="mopr" /></th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">WO/MO/PR<SortMark sort={sort} colKey="mopr" /></th>
                   <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
                   <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
                   <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
@@ -957,7 +960,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">MO/PR<SortMark sort={sort} colKey="mopr" /></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">WO/MO/PR<SortMark sort={sort} colKey="mopr" /></th>
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
                   <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
                   <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
