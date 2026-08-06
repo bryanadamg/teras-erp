@@ -96,6 +96,7 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
                 qty=float(bal.qty) if bal else 0.0,
                 location_id=bal.location_id if bal else None,
                 packing_order_id=batch.packing_order_id,
+                packing_completion_id=batch.packing_completion_id,
                 packed_for_so_id=batch.packed_for_so_id,
                 quality_status=batch.quality_status,
                 created_at=batch.created_at,

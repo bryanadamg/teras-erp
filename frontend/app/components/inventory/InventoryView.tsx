@@ -360,7 +360,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], variant_type: '' as string, weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, is_decoupling_point: false, min_stock_level: '' as string | number, default_source_location_id: '' as string, default_putaway_location_id: '' as string });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], variant_type: '' as string, weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, is_decoupling_point: false, min_stock_level: '' as string | number, default_source_location_id: '' as string, default_putaway_location_id: '' as string, default_reject_location_id: '' as string });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
@@ -544,6 +544,7 @@ export default function InventoryView({
       if (payload.min_stock_level === '' || payload.min_stock_level === null || payload.min_stock_level === undefined) { delete payload.min_stock_level; } else { payload.min_stock_level = parseFloat(payload.min_stock_level); }
       if (!payload.default_source_location_id) { delete payload.default_source_location_id; }
       if (!payload.default_putaway_location_id) { delete payload.default_putaway_location_id; }
+      if (!payload.default_reject_location_id) { delete payload.default_reject_location_id; }
       if (!payload.variant_type) delete payload.variant_type;
 
       const res = await onCreateItem(payload);
@@ -584,7 +585,7 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], variant_type: '', weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, is_decoupling_point: false, min_stock_level: '', default_source_location_id: '', default_putaway_location_id: '' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], variant_type: '', weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, is_decoupling_point: false, min_stock_level: '', default_source_location_id: '', default_putaway_location_id: '', default_reject_location_id: '' });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamEnds('');
@@ -616,6 +617,7 @@ export default function InventoryView({
           min_stock_level: (editingItem.min_stock_level === '' || editingItem.min_stock_level === null || editingItem.min_stock_level === undefined) ? null : parseFloat(editingItem.min_stock_level),
           default_source_location_id: editingItem.default_source_location_id || null,
           default_putaway_location_id: editingItem.default_putaway_location_id || null,
+          default_reject_location_id: editingItem.default_reject_location_id || null,
       };
 
       onUpdateItem(editingItem.id, payload);
@@ -1077,6 +1079,19 @@ export default function InventoryView({
                       options={locPickerTreeOptions}
                       value={newItem.default_putaway_location_id}
                       onChange={id => setNewItem({ ...newItem, default_putaway_location_id: id })}
+                      allowEmpty
+                      emptyLabel="— None —"
+                      size="sm"
+                      style={{ width: '100%' }}
+                  />
+              </div>
+
+              <div className="mb-1">
+                  <FieldLabel classic={classic} hint="Defect store for QC-rejected stock of this item — used when the producing work centre has no reject location of its own">Default reject location</FieldLabel>
+                  <TreeSelect
+                      options={locPickerTreeOptions}
+                      value={newItem.default_reject_location_id}
+                      onChange={id => setNewItem({ ...newItem, default_reject_location_id: id })}
                       allowEmpty
                       emptyLabel="— None —"
                       size="sm"
@@ -1724,6 +1739,19 @@ export default function InventoryView({
                           options={locPickerTreeOptions}
                           value={editingItem.default_putaway_location_id ?? ''}
                           onChange={id => setEditingItem({ ...editingItem, default_putaway_location_id: id || null })}
+                          allowEmpty
+                          emptyLabel="— None —"
+                          size="sm"
+                          style={{ width: '100%' }}
+                        />
+                    </div>
+
+                    <div className="mb-1">
+                        <FieldLabel classic={classic} hint="Defect store for QC-rejected stock of this item — used when the producing work centre has no reject location of its own">Default reject location</FieldLabel>
+                        <TreeSelect
+                          options={locPickerTreeOptions}
+                          value={editingItem.default_reject_location_id ?? ''}
+                          onChange={id => setEditingItem({ ...editingItem, default_reject_location_id: id || null })}
                           allowEmpty
                           emptyLabel="— None —"
                           size="sm"

@@ -17,7 +17,7 @@ const OP_PAGE_SIZE = 20;
 
 const CENTER_TYPES = ['GENERAL', 'BEAMING', 'WARPING', 'WEAVING', 'DYEING', 'SETTING', 'FINISHING', 'CUTTING'];
 
-const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '', parent_id: '', node_type: 'MACHINE', beam_slots: 1 };
+const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '', reject_location_id: '', parent_id: '', node_type: 'MACHINE', beam_slots: 1 };
 
 // 3-level tree: TYPE (root) → GROUP (optional) → MACHINE (leaf, what WO/BOM point
 // at). Depth can't be read off parent_id since a group and a machine both have one,
@@ -36,12 +36,17 @@ const LEVEL_HINTS: Record<string, string> = {
     GROUP: 'A set of machines inside one type — e.g. a loom hall. Set one production calendar and one pair of input/output locations for all of them at once.',
     MACHINE: 'A physical station. Work orders, BOM routing steps and the monitors all point at machines. Leave its locations blank to use its group\'s.',
 };
-const LOC_FIELDS = ['input_location_id', 'output_location_id'] as const;
+const LOC_FIELDS = ['input_location_id', 'output_location_id', 'reject_location_id'] as const;
 type LocField = typeof LOC_FIELDS[number];
+// Code + name + type + one column per location field + the actions column. Derived
+// so adding a location field can't leave a stale colSpan behind.
+const WC_COL_COUNT = 3 + LOC_FIELDS.length + 1;
 
-// Input/output locations cascade down the tree: a machine with no own value uses
-// its group's, then its type's. Mirrors work_center_service.resolve_locations on
-// the backend — a blank machine is normal config, not a missing setup.
+// Input/output/reject locations cascade down the tree: a machine with no own value
+// uses its group's, then its type's. Mirrors work_center_service on the backend —
+// a blank machine is normal config, not a missing setup. Each field resolves
+// independently, so a loom can override only its output and still inherit the
+// hall's defect store.
 function inheritedLoc(wcs: any[], fromId: any, field: LocField): { id: string; from: any } | null {
     const byId = new Map(wcs.map((w: any) => [String(w.id), w]));
     let cur = fromId ? byId.get(String(fromId)) : undefined;
@@ -239,6 +244,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           // Containers keep locations too — machines under them inherit these.
           input_location_id: newWorkCenter.input_location_id || null,
           output_location_id: newWorkCenter.output_location_id || null,
+          reject_location_id: newWorkCenter.reject_location_id || null,
           parent_id: newWorkCenter.node_type === 'TYPE' ? null : (newWorkCenter.parent_id || null),
           node_type: newWorkCenter.node_type,
           beam_slots: beamSlots(newWorkCenter.beam_slots),
@@ -267,6 +273,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           center_type: editingWC.center_type,
           input_location_id: editingWC.input_location_id || null,
           output_location_id: editingWC.output_location_id || null,
+          reject_location_id: editingWC.reject_location_id || null,
           parent_id: level === 'TYPE' ? null : (editingWC.parent_id || null),
           node_type: level,
           beam_slots: beamSlots(editingWC.beam_slots),
@@ -375,6 +382,12 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                   <label style={lvLabel(classic)}>Output Location{locEditHint(editingWC, 'output_location_id')}</label>
                                   <TreeSelect options={locPickerTreeOptions} value={editingWC.output_location_id || ''} onChange={id => setEditingWC({ ...editingWC, output_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(editingWC, 'output_location_id')} size="sm" style={{ width: '100%' }} />
                               </div>
+                              <div style={{ flex: 1, minWidth: 160 }}>
+                                  <label style={lvLabel(classic)} title="Defect store — QC-rejected output from this centre is moved here instead of staying on the good shelf">
+                                      Reject Location{locEditHint(editingWC, 'reject_location_id')}
+                                  </label>
+                                  <TreeSelect options={locPickerTreeOptions} value={editingWC.reject_location_id || ''} onChange={id => setEditingWC({ ...editingWC, reject_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(editingWC, 'reject_location_id')} size="sm" style={{ width: '100%' }} />
+                              </div>
                               {isMachine && ['WEAVING', 'TENUN'].includes((editingWC.center_type || '').toUpperCase()) && (
                                   <div style={{ width: 120 }}>
                                       <label style={lvLabel(classic)}>Beam Slots</label>
@@ -433,6 +446,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           <th style={{ ...lvTh(classic), width: 90 }}>Type</th>
                           <th style={{ ...lvTh(classic), width: 100 }}>In Loc</th>
                           <th style={{ ...lvTh(classic), width: 100 }}>Out Loc</th>
+                          <th style={{ ...lvTh(classic), width: 100 }} title="Defect store for QC-rejected output">Reject Loc</th>
                           <th style={{ ...lvTh(classic), width: 40, textAlign: 'right', borderRight: 'none' }}></th>
                       </tr>
                   </thead>
@@ -443,7 +457,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           const expanded = expandedGroupIds.has(wc.id);
                           const step = classic ? 20 : 26;
                           return editingWC?.id === wc.id
-                              ? <React.Fragment key={wc.id}>{renderEditRow(6)}</React.Fragment>
+                              ? <React.Fragment key={wc.id}>{renderEditRow(WC_COL_COUNT)}</React.Fragment>
                               : (
                                   <tr
                                       key={wc.id}
@@ -496,7 +510,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               );
                       })}
                       {filteredWCRows.length === 0 && (
-                          <tr><td colSpan={6} style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'center', padding: 20, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No work centers defined</td></tr>
+                          <tr><td colSpan={WC_COL_COUNT} style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'center', padding: 20, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No work centers defined</td></tr>
                       )}
                   </tbody>
               </table>
@@ -801,6 +815,17 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               Output Location
                           </FieldLabel>
                           <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(newWorkCenter, 'output_location_id')} size="sm" style={{ width: '100%' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                          <FieldLabel
+                              classic={classic}
+                              hint={newWorkCenter.node_type === 'MACHINE'
+                                  ? 'Defect store for QC-rejected output. Leave blank to use the group\'s.'
+                                  : 'Defect store for QC-rejected output — e.g. Gd Greige BS for weaving, Gd WiP Beam Reject for beaming.'}
+                          >
+                              Reject Location
+                          </FieldLabel>
+                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.reject_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, reject_location_id: id })} allowEmpty emptyLabel={locEmptyLabel(newWorkCenter, 'reject_location_id')} size="sm" style={{ width: '100%' }} />
                       </div>
                   </div>
                   {newWorkCenter.node_type === 'MACHINE' && ['WEAVING', 'TENUN'].includes((effectiveNewType || '').toUpperCase()) && (

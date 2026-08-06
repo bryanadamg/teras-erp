@@ -13,10 +13,14 @@ import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
+import { isRejectGrade } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
 const DISPOSE_TITLE = 'Dispose rejected lot — physically write off its remaining stock (deducts from on-hand)';
+
+// Either reject grade blocks split/re-reject and allows dispose — the grade only
+// changes whether pickers still offer the lot (see components/shared/rejectDisplay).
 
 interface Batch {
   id: string;
@@ -44,7 +48,7 @@ interface Batch {
   location_id: string | null;
   location_name: string | null;
   location_path: string[] | null;  // root-first [store, zone, bin]
-  quality_status?: string;   // GOOD | REJECTED
+  quality_status?: string;   // GOOD | REJECTED | REJECT_USABLE | DISPOSED
   // Production origin (beam batches)
   mo_id: string | null;
   mo_code: string | null;
@@ -129,6 +133,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const [rejectReason, setRejectReason] = useState('');
   const [rejectQty, setRejectQty] = useState('');
   const [rejectLocId, setRejectLocId] = useState('');
+  // Reject grade: false = REJECTED (scrap-bound, out of every picker), true =
+  // REJECT_USABLE (quarantined and out of availability, still pickable).
+  const [rejectUsable, setRejectUsable] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
   // Rejected stock is quarantined, so the picker is a leaf-selectable location tree.
@@ -316,8 +323,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           reason: rejectReason.trim() || null,
           qty: partial ? q : null,
           // Defect store: the rejected stock is transferred there so it never sits
-          // on the good-stock shelf. Blank = leave it in its current location.
+          // on the good-stock shelf. Blank = the server routes it (producing work
+          // centre's reject location, then the item master default).
           location_id: rejectLocId || null,
+          // Downgrade rather than scrap — the lot stays pickable for consumption
+          // (a rejected warp beam still weaves certain items).
+          usable: rejectUsable,
         }),
       });
       if (!res.ok) {
@@ -327,10 +338,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
       const destName = rejectLocId
         ? ((locations || []).find((l: any) => String(l.id) === rejectLocId)?.name || '')
         : '';
-      showToast(`Lot ${rejectBatch.batch_number} rejected${destName ? ` — moved to ${destName}` : ''}`, 'success');
+      showToast(
+        `Lot ${rejectBatch.batch_number} rejected${rejectUsable ? ' (usable)' : ''}${destName ? ` — moved to ${destName}` : ''}`,
+        'success',
+      );
       setRejectBatch(null);
       setRejectReason('');
       setRejectLocId('');
+      setRejectUsable(false);
       fetchBatches();
     } catch (err: any) {
       showToast(err.message, 'danger');
@@ -848,6 +863,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                         {b.quality_status === 'REJECTED' && (
                           <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fbe4e4', padding: '0 3px' }}>REJECTED</span>
                         )}
+                        {b.quality_status === 'REJECT_USABLE' && (
+                          <span
+                            style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#663300', border: '1px solid #d9b06a', background: '#fdf3e0', padding: '0 3px' }}
+                            title="Rejected but still usable — out of availability planning, still offered in consumption pickers"
+                          >REJECT · USABLE</span>
+                        )}
                         {b.quality_status === 'DISPOSED' && (
                           <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', border: '1px solid #aaa', background: '#eee', padding: '0 3px' }}>DISPOSED</span>
                         )}
@@ -862,13 +883,13 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{createdCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                          {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                          {!isRejectGrade(b.quality_status) && (b.remaining ?? 0) > 0 && (
                             <XPActionButton classic tone="neutral" icon="bi-scissors" title={SPLIT_TITLE} onClick={() => openSplit(b)} />
                           )}
-                          {b.quality_status !== 'REJECTED' && b.quality_status !== 'DISPOSED' && (
+                          {!isRejectGrade(b.quality_status) && b.quality_status !== 'DISPOSED' && (
                             <XPActionButton classic tone="warning" icon="bi-slash-circle" title={REJECT_TITLE} onClick={() => openReject(b)} />
                           )}
-                          {b.quality_status === 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                          {isRejectGrade(b.quality_status) && (b.remaining ?? 0) > 0 && (
                             <XPActionButton classic tone="danger" icon="bi-trash" title={DISPOSE_TITLE} onClick={() => handleDispose(b)} />
                           )}
                           <MenuTriggerButton classic onClick={e => toggle(b.id, e)} />
@@ -963,6 +984,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       <td>
                         <strong>{b.batch_number}</strong>
                         {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}
+                        {b.quality_status === 'REJECT_USABLE' && (
+                          <span
+                            className="badge bg-warning text-dark ms-1"
+                            title="Rejected but still usable — out of availability planning, still offered in consumption pickers"
+                          >REJECT · USABLE</span>
+                        )}
                         {b.quality_status === 'DISPOSED' && <span className="badge bg-secondary ms-1">DISPOSED</span>}
                       </td>
                       <td>{productCell(b)}</td>
@@ -975,13 +1002,13 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       <td>{createdCell(b)}</td>
                       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                         <div className="d-inline-flex align-items-center gap-1 justify-content-end">
-                          {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                          {!isRejectGrade(b.quality_status) && (b.remaining ?? 0) > 0 && (
                             <XPActionButton classic={false} tone="neutral" icon="bi-scissors" title={SPLIT_TITLE} onClick={() => openSplit(b)} />
                           )}
-                          {b.quality_status !== 'REJECTED' && b.quality_status !== 'DISPOSED' && (
+                          {!isRejectGrade(b.quality_status) && b.quality_status !== 'DISPOSED' && (
                             <XPActionButton classic={false} tone="warning" icon="bi-slash-circle" title={REJECT_TITLE} onClick={() => openReject(b)} />
                           )}
-                          {b.quality_status === 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                          {isRejectGrade(b.quality_status) && (b.remaining ?? 0) > 0 && (
                             <XPActionButton classic={false} tone="danger" icon="bi-trash" title={DISPOSE_TITLE} onClick={() => handleDispose(b)} />
                           )}
                           <MenuTriggerButton classic={false} onClick={e => toggle(b.id, e)} />
@@ -1099,7 +1126,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                 value={rejectLocId}
                 onChange={setRejectLocId}
                 allowEmpty
-                emptyLabel="Leave in current location"
+                emptyLabel="Auto (routed by work centre / item)"
                 size="sm"
                 style={classic ? { width: '100%' } : undefined}
               />
@@ -1107,7 +1134,18 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
             <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
               {rejectLocId
                 ? `Rejected stock is transferred out of ${rejectBatch.location_name || 'its current location'} into the selected store.`
-                : `Rejected stock stays in ${rejectBatch.location_name || 'its current location'} — it will show on stock on-hand there, flagged REJECTED.`}
+                : 'Routed automatically: the producing work centre’s reject location (inherited from its group/type), then the item’s default. With none configured the stock stays put, flagged.'}
+            </div>
+          </div>
+          <div className="mb-3">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, ...(classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}) }}>
+              <input type="checkbox" checked={rejectUsable} onChange={e => setRejectUsable(e.target.checked)} />
+              Still usable (downgrade, not scrap)
+            </label>
+            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+              {rejectUsable
+                ? 'Quarantined and out of availability planning, but still offered in consumption and staging pickers — a rejected beam can be re-mounted for certain items.'
+                : 'Scrap-bound: excluded from availability and from every consumption picker.'}
             </div>
           </div>
           <div className="mb-3" style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#663300' } : { fontSize: 13, color: '#664d03' }}>

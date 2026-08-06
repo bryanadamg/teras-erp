@@ -31,12 +31,21 @@ export const reportsPage: DocPage = {
             body: 'The Reports section provides pre-built tabular reports. Available reports include stock movement history, production output summary, sales performance by customer or item, and purchase history by supplier. Reports support filtering by date range, location, item category, and partner.',
         },
         {
+            heading: 'Production Output & QC Reject',
+            body: 'The Production Output report answers "what did we make, and how much was rejected". Four views share one date range: Per Machine and Per Group roll output up the work-centre tree; Per Work Order is the result sheet for a finished order (target, hasil, QC reject, reject % of hasil) with a "Completed WOs only" filter; Packing reports the same columns per packing order, since packing rejects have no machine to peg to. Expanding any row lists its reject events — quantity, reason, who rejected it, and the defect store the scrap was moved into. Everything exports to CSV.',
+        },
+        {
+            heading: 'Reject Locations',
+            body: 'QC-rejected stock never stays on the good shelf: it is transferred to a defect store. The bin is routed, not typed in — the producing work centre\'s Reject Location (set on the type or group and inherited by its machines, e.g. weaving to Gd Greige BS, beaming to Gd WiP Beam Reject), otherwise the item master\'s Default reject location. Reject can also be a downgrade rather than scrap: a lot marked "still usable" is quarantined and drops out of availability planning, but stays selectable in consumption pickers — which is how a rejected warp beam gets re-mounted for another item.',
+        },
+        {
             heading: 'Key Actions',
             items: [
                 'Monitor live KPIs from the Dashboard without refreshing',
                 'Read Smart Advisor recommendations for stock shortages, overdue orders, and production readiness',
                 'View the production calendar to track scheduled and active runs',
                 'Run pre-built tabular reports for stock, production, sales, and purchasing',
+                'Report output and QC reject per machine, per work order, or per packing order',
                 'Filter all reports by date range, location, category, or partner',
             ],
         },

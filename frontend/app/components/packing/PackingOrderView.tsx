@@ -567,6 +567,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const [selectedLots, setSelectedLots] = useState<string[]>([]);
     const [logging, setLogging] = useState(false);
 
+    // QC reject of an already-logged pack event. Same split as a WO completion
+    // reject: whole event by default, or name cartons for a partial. The rejected
+    // qty leaves qty_packed and the cartons move to the defect store.
+    const [rejectComp, setRejectComp] = useState<any>(null);
+    const [rejectReason, setRejectReason] = useState('');
+    const [rejectUsable, setRejectUsable] = useState(false);
+    const [rejectUnitIds, setRejectUnitIds] = useState<string[]>([]);
+    const [rejecting, setRejecting] = useState(false);
+
     const useLotPicker = !!it?.lot_tracked;
     const outputLocName = locationById?.[String(po.output_location_id)]?.name || null;
     const sourceLocName = locationById?.[String(po.source_location_id)]?.name || null;
@@ -698,6 +707,48 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const units = po.packed_units || [];
     const completions = po.completions ? [...po.completions].reverse() : [];
 
+    // Good cartons of one pack event — the choices for a partial reject.
+    const goodUnitsOf = (compId: string) => units.filter((u: any) =>
+        String(u.packing_completion_id || '') === String(compId)
+        && u.quality_status !== 'REJECTED' && u.quality_status !== 'REJECT_USABLE' && u.quality_status !== 'DISPOSED');
+
+    const openReject = (c: any) => {
+        setRejectComp(c);
+        setRejectReason('');
+        setRejectUsable(false);
+        setRejectUnitIds([]);   // empty = whole event
+    };
+
+    const submitReject = async () => {
+        if (!rejectComp) return;
+        setRejecting(true);
+        try {
+            const res = await authFetch(`${API_BASE}/packing/${po.id}/completions/${rejectComp.id}/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reason: rejectReason.trim() || null,
+                    packed_unit_ids: rejectUnitIds,
+                    usable: rejectUsable,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Reject failed');
+            }
+            const fresh = await res.json();
+            setPo(fresh);
+            setRejectComp(null);
+            showToast(
+                `QC rejected ${rejectUnitIds.length || goodUnitsOf(rejectComp.id).length || rejectComp.package_count} ${po.package_label.toLowerCase()}(s)`,
+                'success',
+            );
+            await onChanged();
+        } catch (e: any) {
+            showToast(e.message, 'danger');
+        } finally { setRejecting(false); }
+    };
+
     return (
         <ModalWrapper
             isOpen onClose={onClose}
@@ -738,6 +789,12 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                         <div style={{ fontSize: 10, color: '#555', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                             <span>Remaining: <strong style={{ color: '#b46a00' }}>{remaining.toFixed(2)}</strong></span>
                             <span>{po.package_label}s: <strong>{po.package_count || 0}</strong></span>
+                            {num(po.qty_rejected) > 0 && (
+                                <span title="QC-rejected cartons — quarantined in the defect store, not part of packed qty">
+                                    QC reject: <strong style={{ color: '#a00000' }}>{num(po.qty_rejected).toFixed(2)}</strong>
+                                    {po.package_count_rejected ? ` (${po.package_count_rejected})` : ''}
+                                </span>
+                            )}
                             <span>{po.sales_order_code ? <>SO: <strong>{po.sales_order_code}</strong></> : 'to stock'}</span>
                             {po.color_name && <span>Colour: <strong>{po.color_name}</strong></span>}
                             <StatusChip status={po.status} tint />
@@ -953,22 +1010,42 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{po.package_label}s</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>QC Reject</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Operator</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Notes</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Time</th>
+                                            {!readOnly && <th style={{ padding: '2px 6px', borderBottom: '1px solid #aca899', width: 26 }} />}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {completions.map((c: any, i: number) => (
-                                            <tr key={c.id} style={{ background: i % 2 === 0 ? '#fff' : '#f5f4ee' }}>
-                                                <td style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold' }}>{num(c.qty).toFixed(2)}</td>
+                                            <tr key={c.id} style={{ background: c.rejected ? '#fbeaea' : i % 2 === 0 ? '#fff' : '#f5f4ee', opacity: c.rejected ? 0.75 : 1 }}>
+                                                <td style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', textDecoration: c.rejected ? 'line-through' : undefined }}>
+                                                    {num(c.qty).toFixed(2)}
+                                                </td>
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>{c.package_count}</td>
+                                                <td style={{ padding: '2px 6px', textAlign: 'right', color: num(c.qty_rejected) ? '#a00000' : '#aaa', fontWeight: num(c.qty_rejected) ? 'bold' : 'normal' }}
+                                                    title={c.reject_reason || undefined}>
+                                                    {num(c.qty_rejected) ? num(c.qty_rejected).toFixed(2) : '—'}
+                                                    {c.package_count_rejected ? <span style={{ fontWeight: 'normal', fontSize: 9 }}> ({c.package_count_rejected})</span> : null}
+                                                </td>
                                                 <td style={{ padding: '2px 6px', color: '#555', fontFamily: c.source_batch_number ? 'monospace' : undefined }}>
                                                     {c.source_batch_number || '—'}
                                                 </td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.notes || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.completed_at ? tzDateTime(c.completed_at) : '—'}</td>
+                                                {!readOnly && (
+                                                    <td style={{ padding: '2px 4px', textAlign: 'right' }}>
+                                                        {!c.rejected && goodUnitsOf(c.id).length > 0 && (
+                                                            <XPActionButton
+                                                                classic tone="warning" icon="bi-slash-circle"
+                                                                title="QC reject cartons from this pack event"
+                                                                onClick={() => openReject(c)}
+                                                            />
+                                                        )}
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -976,6 +1053,67 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                             </div>
                         </LegendPanel>
                     )}
+
+                    {/* QC reject of a logged pack event — modeless panel, same shape as
+                        the lot reject on the Lot Management page. */}
+                    {rejectComp && (() => {
+                        const candidates = goodUnitsOf(rejectComp.id);
+                        const partial = rejectUnitIds.length > 0 && rejectUnitIds.length < candidates.length;
+                        const rejectingCount = rejectUnitIds.length || candidates.length;
+                        return (
+                            <LegendPanel title={`QC Reject — ${num(rejectComp.qty).toFixed(2)} packed ${rejectComp.completed_at ? `on ${tzDateTime(rejectComp.completed_at)}` : ''}`}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 10 }}>
+                                    <div style={{ color: '#555' }}>
+                                        Rejecting <strong>{rejectingCount}</strong> of {candidates.length} {po.package_label.toLowerCase()}(s).
+                                        {partial
+                                            ? ' The log stays active for its good cartons.'
+                                            : ' The whole pack event drops out of packed qty.'}
+                                        {' '}Cartons move to the defect store routed from this item&apos;s default reject location.
+                                    </div>
+                                    <div style={{ maxHeight: 96, overflowY: 'auto', border: '1px solid #aca899', background: '#fff', padding: 4 }}>
+                                        {candidates.length === 0 ? (
+                                            <div style={{ color: '#888' }}>No good cartons left on this event.</div>
+                                        ) : candidates.map((u: any) => (
+                                            <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '1px 0' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={rejectUnitIds.includes(String(u.id))}
+                                                    onChange={e => setRejectUnitIds(prev => e.target.checked
+                                                        ? [...prev, String(u.id)]
+                                                        : prev.filter(x => x !== String(u.id)))}
+                                                />
+                                                <span style={{ fontFamily: 'monospace' }}>{u.batch_number}</span>
+                                                <span style={{ color: '#777' }}>{num(u.qty).toFixed(2)} {uom}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <div style={{ color: '#666' }}>Leave every box unticked to reject the whole event.</div>
+                                    <input
+                                        type="text"
+                                        style={{ ...xpInput, width: '100%' }}
+                                        value={rejectReason}
+                                        onChange={e => setRejectReason(e.target.value)}
+                                        placeholder="Reason — crushed carton, wrong count, damp..."
+                                    />
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        <input type="checkbox" checked={rejectUsable} onChange={e => setRejectUsable(e.target.checked)} />
+                                        Still usable (downgrade, not scrap)
+                                    </label>
+                                    <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end' }}>
+                                        <button type="button" style={xpBtn()} onClick={() => setRejectComp(null)}>Cancel</button>
+                                        <button
+                                            type="button"
+                                            style={{ ...xpBtn({ background: 'linear-gradient(to bottom, #f0b0b0, #d87070)', color: '#500', fontWeight: 'bold' }), opacity: rejecting ? 0.6 : 1 }}
+                                            disabled={rejecting || candidates.length === 0}
+                                            onClick={submitReject}
+                                        >
+                                            {rejecting ? 'Rejecting...' : partial ? 'Reject Selected' : 'Reject Whole Entry'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </LegendPanel>
+                        );
+                    })()}
                 </div>
             </form>
         </ModalWrapper>

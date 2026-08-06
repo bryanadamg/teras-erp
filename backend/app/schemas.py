@@ -2479,6 +2479,9 @@ class PackedUnitResponse(BaseModel):
     location_name: str | None = None
     packing_order_id: UUID | None = None
     packing_order_code: str | None = None
+    # Which pack event minted this carton — lets the QC reject flow offer the
+    # cartons of one log entry instead of the whole order's.
+    packing_completion_id: UUID | None = None
     # Soft tag: what this carton was packed for. Any pick list may still take it.
     packed_for_so_id: UUID | None = None
     quality_status: str = "GOOD"

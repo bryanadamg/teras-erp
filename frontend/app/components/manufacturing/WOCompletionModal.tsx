@@ -11,6 +11,7 @@ import BagLabelPrintModal from './BagLabelPrintModal';
 import { ProgressBar, LegendPanel } from '../shared/xpTheme';
 import { LotChips } from '../shared/LotChips';
 import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
+import { rejectTitle } from '../shared/rejectDisplay';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -852,7 +853,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                         {/* Partial reject already trimmed qty_completed — show what was scrapped. */}
                                                         {!c.rejected && (c.qty_rejected ?? 0) > 0 && (
                                                             <span
-                                                                title={c.reject_reason ? `Partially rejected: ${c.reject_reason}` : 'Partially rejected'}
+                                                                title={rejectTitle(c, 'Partially rejected')}
                                                                 style={{ marginLeft: 4, fontSize: 9, fontWeight: 700, color: '#900' }}
                                                             >
                                                                 (-{Number(c.qty_rejected).toFixed(2)})
@@ -873,7 +874,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                     <td style={{ padding: '2px 4px', textAlign: 'center' }}>
                                                         {/* QC disposition lives on the Lot Management page — read-only marker here */}
                                                         {c.rejected ? (
-                                                            <span style={{ fontSize: 9, fontWeight: 'bold', color: '#900' }} title={c.reject_reason || 'Rejected'}>
+                                                            <span style={{ fontSize: 9, fontWeight: 'bold', color: '#900' }} title={rejectTitle(c, 'Rejected')}>
                                                                 REJECTED
                                                             </span>
                                                         ) : bagSeqById[String(c.id)] ? (

@@ -261,6 +261,9 @@ async def machine_output_report(
             ManufacturingOrder.code.label("mo_code"),
             ManufacturingOrder.item_id.label("item_id"),
         )
+        # Anchor the FROM explicitly: this select's first column is the COALESCE, so
+        # leaving the left side to inference would be at the mercy of join order.
+        .select_from(MOCompletion)
         .outerjoin(Location, MOCompletion.reject_location_id == Location.id)
         .outerjoin(Batch, MOCompletion.output_batch_id == Batch.id)
     ).where(func.coalesce(MOCompletion.qty_rejected, 0) > 0)

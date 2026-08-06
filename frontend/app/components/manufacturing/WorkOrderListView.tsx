@@ -19,6 +19,7 @@ import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
+import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -529,7 +530,7 @@ export default function WorkOrderListView({
                                                             <td style={{ padding: '2px 5px', color: '#666', whiteSpace: 'nowrap' }}>{fmtDateTime(c.created_at)}</td>
                                                             <td
                                                                 style={{ padding: '2px 5px', fontWeight: 'bold', color: c.rejected ? '#900' : '#000080', textAlign: 'right', textDecoration: c.rejected ? 'line-through' : 'none' }}
-                                                                title={c.rejected ? (c.reject_reason ? `Rejected: ${c.reject_reason}` : 'Rejected') : undefined}
+                                                                title={c.rejected ? rejectTitle(c, 'Rejected') : undefined}
                                                             >
                                                                 +{parseFloat(c.qty_completed).toFixed(2)}
                                                             </td>
@@ -540,7 +541,7 @@ export default function WorkOrderListView({
                                                                     so the scrapped amount only shows as its own marker. */}
                                                                 {!c.rejected && (c.qty_rejected ?? 0) > 0 && (
                                                                     <span
-                                                                        title={c.reject_reason ? `Partially rejected: ${c.reject_reason}` : 'Partially rejected'}
+                                                                        title={rejectTitle(c, 'Partially rejected')}
                                                                         style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}
                                                                     >
                                                                         -{Number(c.qty_rejected).toFixed(2)} REJ
