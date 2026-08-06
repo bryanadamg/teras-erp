@@ -451,13 +451,22 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
     // One active run. A loom carries one of these per WO, so everything inside is
     // keyed by run id — nothing here may read a "the run" singleton any more.
-    const RunPanel = ({ run }: { run: any }) => {
+    //
+    // `first` drives the divider: concurrent WOs on one loom are long panels of very
+    // similar-looking stats, and with only whitespace between them the eye reads two
+    // orders as one. The rule is where the next WO starts.
+    const RunPanel = ({ run, first }: { run: any; first?: boolean }) => {
         const onTarget = !!run.on_target;
         const effColor = onTarget ? GREEN : RED;
         const editingOverride = overrideRunId === run.id;
         const editingTarget = targetRunId === run.id;
         return (
-            <div style={{ marginBottom: 16 }}>
+            <div style={first
+                ? { marginBottom: 16 }
+                : {
+                    marginBottom: 16, marginTop: 16, paddingTop: 16,
+                    borderTop: `2px solid ${cls ? '#b0a898' : '#dee2e6'}`,
+                }}>
                 {/* Run header strip */}
                 <div style={cls
                     ? { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fbfbf7', border: '1px solid', borderColor: '#808080 #fff #fff #808080', padding: '6px 10px', marginBottom: 10 }
@@ -761,8 +770,9 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         </FormSection>
                     )}
 
-                    {/* One panel per RUNNING run — a loom carries one per WO. */}
-                    {runs.map((r: any) => <RunPanel key={r.id} run={r} />)}
+                    {/* One panel per RUNNING run — a loom carries one per WO, ruled off
+                        from the next so two concurrent orders never read as one. */}
+                    {runs.map((r: any, i: number) => <RunPanel key={r.id} run={r} first={i === 0} />)}
 
                     {/* History */}
                     {data?.history?.length > 0 && (

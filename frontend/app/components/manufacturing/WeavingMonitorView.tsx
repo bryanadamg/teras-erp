@@ -322,13 +322,22 @@ export default function WeavingMonitorView() {
         );
     };
 
-    const RunBody = ({ run }: { run: any }) => {
+    const RunBody = ({ run, index = 0, total = 1 }: { run: any; index?: number; total?: number }) => {
         const effColor = run.on_target ? GREEN : RED;
         return (
             <>
                 <div style={{ fontSize: cls ? 10 : 12, color: '#555', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {/* WO first: with several runs on one loom the WO is what tells them
                         apart on the floor — the MO is shared by every combo. */}
+                    {index > 0 && (
+                        <span style={{
+                            display: 'inline-block', marginRight: 4, padding: '0 4px',
+                            background: cls ? '#d4d0c8' : '#eceef0', color: '#555',
+                            fontSize: 9, fontWeight: 700, borderRadius: cls ? 0 : 3,
+                        }}>
+                            {index}/{total}
+                        </span>
+                    )}
                     {run.wo_code && <b style={{ color: BLUE }}>{run.wo_code} · </b>}
                     <b>{run.mo_code}</b>{run.item_code ? ` · ${run.item_code}` : ''}
                 </div>
@@ -352,16 +361,18 @@ export default function WeavingMonitorView() {
         );
     };
 
-    // Several WOs on one loom stack in the card, separated by a rule. Each keeps its
-    // own line count, dates and warning — they are different orders, not one run
-    // averaged together.
+    // Several WOs on one loom stack in the card, ruled off from each other. Each keeps
+    // its own line count, dates and warning — they are different orders, not one run
+    // averaged together, and a dashed hairline was not enough separation to say so at
+    // card density. Solid rule + a per-run index chip, so the reader can see at a
+    // glance that they are looking at 1 of 2.
     const RunStack = ({ runs }: { runs: any[] }) => (
         <>
             {runs.map((r: any, i: number) => (
                 <div key={r.id} style={i === 0 ? undefined : {
-                    marginTop: 6, paddingTop: 6, borderTop: `1px dashed ${cls ? '#c8c4b8' : '#e3e3e3'}`,
+                    marginTop: 7, paddingTop: 7, borderTop: `2px solid ${cls ? '#b0a898' : '#d0d0d0'}`,
                 }}>
-                    <RunBody run={r} />
+                    <RunBody run={r} index={runs.length > 1 ? i + 1 : 0} total={runs.length} />
                 </div>
             ))}
         </>
