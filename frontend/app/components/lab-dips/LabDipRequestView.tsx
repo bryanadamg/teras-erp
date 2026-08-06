@@ -180,6 +180,9 @@ export default function LabDipRequestView({
 
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    // Created-date range (inclusive both ends), filtered client-side like search/status.
+    const [createdFrom, setCreatedFrom] = useState('');
+    const [createdTo, setCreatedTo] = useState('');
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
@@ -366,8 +369,37 @@ export default function LabDipRequestView({
             (r.color_standard && r.color_standard.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (r.customer_article_code && r.customer_article_code.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
-        return matchSearch && matchStatus;
+        // created_at is a UTC timestamp; compare its date part against the raw yyyy-mm-dd
+        // the date inputs emit. Both ends inclusive.
+        const createdDay = r.created_at ? String(r.created_at).slice(0, 10) : '';
+        const matchFrom = !createdFrom || (createdDay && createdDay >= createdFrom);
+        const matchTo = !createdTo || (createdDay && createdDay <= createdTo);
+        return matchSearch && matchStatus && matchFrom && matchTo;
     });
+
+    const hasActiveFilter = !!searchTerm || statusFilter !== 'ALL' || !!createdFrom || !!createdTo;
+    const clearFilters = () => {
+        setSearchTerm('');
+        setStatusFilter('ALL');
+        setCreatedFrom('');
+        setCreatedTo('');
+    };
+
+    // Footer tallies run at VARIANT grain, not request grain — a request is a bag of
+    // per-color variants each approved/rejected on its own, so a request-level count
+    // hides the real progress. Counted over `filtered` so the numbers track the filters.
+    const variantStats = useMemo(() => {
+        const acc = { total: 0, PENDING: 0, IN_PROGRESS: 0, APPROVED: 0, REJECTED: 0 } as Record<string, number>;
+        for (const r of filtered) {
+            for (const it of (r.items || [])) {
+                acc.total++;
+                const st = it.status || 'PENDING';
+                if (st in acc) acc[st]++;
+            }
+        }
+        return acc;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filtered]);
 
     // Sortable columns for the request list. Default sort = most-recently-updated first,
     // so a freshly rejected/reopened request (its parent updated_at is bumped on any item
@@ -383,7 +415,7 @@ export default function LabDipRequestView({
     const { sorted, sort, toggle: toggleSort } = useSortable(filtered, sortCols, { key: 'updated', dir: -1 });
 
     // Search/filter change → reset to page 1
-    React.useEffect(() => { setPage(1); }, [searchTerm, statusFilter]);
+    React.useEffect(() => { setPage(1); }, [searchTerm, statusFilter, createdFrom, createdTo]);
     const totalPages = Math.max(1, Math.ceil(sorted.length / LABDIP_PAGE_SIZE));
     const clampedPage = Math.min(page, totalPages);
     const paged = sorted.slice((clampedPage - 1) * LABDIP_PAGE_SIZE, clampedPage * LABDIP_PAGE_SIZE);
@@ -396,6 +428,8 @@ export default function LabDipRequestView({
         if (idx === -1) return;
         setStatusFilter('ALL');
         setSearchTerm('');
+        setCreatedFrom('');
+        setCreatedTo('');
         setExpandedIds(prev => new Set(prev).add(openRequestId));
         setPage(Math.floor(idx / LABDIP_PAGE_SIZE) + 1);
         const t = setTimeout(() => {
@@ -476,6 +510,26 @@ export default function LabDipRequestView({
                         {s}
                     </button>
                 ))}
+                <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
+                <span style={classic ? { fontSize: 11, color: '#333' } : { fontSize: 12, color: '#64748b' }}>Created</span>
+                <input
+                    type="date"
+                    style={{ ...xpInput(classic), width: 130 }}
+                    value={createdFrom}
+                    onChange={e => setCreatedFrom(e.target.value)}
+                    title="Created from"
+                />
+                <span style={classic ? { fontSize: 11, color: '#333' } : { fontSize: 12, color: '#64748b' }}>–</span>
+                <input
+                    type="date"
+                    style={{ ...xpInput(classic), width: 130 }}
+                    value={createdTo}
+                    onChange={e => setCreatedTo(e.target.value)}
+                    title="Created to"
+                />
+                {hasActiveFilter && (
+                    <button style={xpBtn(classic)} onClick={clearFilters} title="Clear all filters">Clear</button>
+                )}
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>{filtered.length} item{filtered.length !== 1 ? 's' : ''}</span>
                 {canManage && (
                     <>
@@ -507,7 +561,7 @@ export default function LabDipRequestView({
                     </thead>
                     <tbody>
                         {filtered.length === 0 && (
-                            <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>{isYarn ? 'No yarn lab dip requests yet.' : 'No lab dip requests yet.'}</td></tr>
+                            <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>{hasActiveFilter ? 'No requests match the current filter.' : isYarn ? 'No yarn lab dip requests yet.' : 'No lab dip requests yet.'}</td></tr>
                         )}
                         {paged.map((r: any, idx: number) => {
                             const approved = (r.items || []).filter((it: any) => it.status === 'APPROVED').length;
@@ -738,6 +792,24 @@ export default function LabDipRequestView({
                 </table>
             </div>
             <Pager page={clampedPage} total={filtered.length} pageSize={LABDIP_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+
+            {/* ── Status bar: variant-grain tallies over the filtered set ── */}
+            <div style={classic
+                ? { background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', display: 'flex', gap: 12, fontFamily: xpFont, fontSize: 10, color: '#333', flexShrink: 0 }
+                : { background: '#f7f9fc', borderTop: '1px solid #dbe1ea', padding: '5px 10px', display: 'flex', gap: 12, fontFamily: modernFont, fontSize: 12, color: '#64748b', flexShrink: 0 }}>
+                <span>{filtered.length} request{filtered.length !== 1 ? 's' : ''}</span>
+                <span>|</span>
+                <span>{variantStats.total} variant{variantStats.total !== 1 ? 's' : ''}</span>
+                <span>|</span>
+                <span>{variantStats.PENDING} pending</span>
+                <span>|</span>
+                <span>{variantStats.IN_PROGRESS} in progress</span>
+                <span>|</span>
+                <span style={{ color: classic ? '#0f5a22' : '#15803d', fontWeight: 'bold' }}>{variantStats.APPROVED} approved</span>
+                <span>|</span>
+                <span style={{ color: classic ? '#8b0000' : '#dc2626', fontWeight: 'bold' }}>{variantStats.REJECTED} rejected</span>
+                {hasActiveFilter && <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>filtered</span>}
+            </div>
 
             {/* ── Row ⋯ menu: Edit / Delete ── */}
             {menuOpenId && (() => {
