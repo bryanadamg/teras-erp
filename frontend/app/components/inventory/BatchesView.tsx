@@ -458,8 +458,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     </span>
   );
 
+  // Chips stay on one line — the table scrolls horizontally instead of growing
+  // rows taller, so every row keeps a uniform height.
   const chipRow = (children: React.ReactNode) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>{children}</div>
+    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', whiteSpace: 'nowrap' }}>{children}</div>
   );
 
   const emDash = <span style={{ color: '#ccc' }}>—</span>;
@@ -547,6 +549,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
       </div>
     );
   };
+
+  // Notes — single line, ellipsised. Free text would otherwise stretch the
+  // (now nowrap) table arbitrarily wide; full text stays on hover.
+  const notesCell = (b: Batch) => (
+    b.notes
+      ? <span title={b.notes} style={{ display: 'block', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.notes}</span>
+      : '-'
+  );
 
   // Remaining — value with the green (or gray, if depleted) status dot pinned to
   // the far right so every row's dot aligns in a column.
@@ -651,6 +661,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
         background: classic ? '#f0ede4' : '#f8f9fa',
         borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
         padding: '12px 14px',
+        whiteSpace: 'normal',   // table rows are nowrap; lineage boxes wrap normally
         ...fnt,
       }}>
         <div style={{ fontWeight: 'bold', color: '#555', fontSize: classic ? 9 : 11, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 }}>
@@ -763,9 +774,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     padding: '1px 6px', background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
   } : {};
 
+  // minWidth + nowrap: cells never wrap, the table scrolls sideways instead. Keeps
+  // multi-chip rows (Product / WO-MO-PR / Location) one line tall.
+  const TABLE_MIN_W = 1500;
+
   const xpTable: React.CSSProperties = classic ? {
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', width: '100%', borderCollapse: 'collapse',
-  } : { width: '100%' };
+    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', width: '100%', minWidth: TABLE_MIN_W,
+    borderCollapse: 'collapse', whiteSpace: 'nowrap',
+  } : { width: '100%', minWidth: TABLE_MIN_W, whiteSpace: 'nowrap' };
 
   const xpTh: React.CSSProperties = classic ? {
     background: 'linear-gradient(to bottom, #f0ede4, #d8d4c8)', border: '1px solid #9090a0',
@@ -801,6 +817,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           </div>
           {/* ── Filter/search bar ── */}
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
+            <input
+              style={{ ...xpInput, width: 240 }}
+              placeholder="Search lot, item, WO/MO/PR, SO..."
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+            />
             <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Item:</span>
             <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
@@ -822,11 +844,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               <option value="depleted">Depleted</option>
               <option value="">All</option>
             </select>
-            <input style={{ ...xpInput, width: 160 }} placeholder="Search..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
           </div>
 
           {/* ── Table ── */}
-          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, background: '#ffffff', scrollbarGutter: 'stable' } as React.CSSProperties}>
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', minHeight: 0, background: '#ffffff', scrollbarGutter: 'stable' } as React.CSSProperties}>
             <table style={xpTable}>
               <thead>
                 <tr>
@@ -882,7 +903,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{locationCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined, whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.ends ?? '-'}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{notesCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{createdCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
@@ -929,6 +950,13 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           </div>
           {/* ── Filter/search bar ── */}
           <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
+            <input
+              className="form-control form-control-sm"
+              style={{ width: 260 }}
+              placeholder="Search lot, item, WO/MO/PR, SO..."
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+            />
             <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
@@ -948,12 +976,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               <option value="depleted">Depleted</option>
               <option value="">All statuses</option>
             </select>
-            <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search lots..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
           </div>
 
           {/* ── Table ── */}
           <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0, scrollbarGutter: 'stable' } as React.CSSProperties}>
-            <table className="table table-sm table-hover table-bordered mb-0">
+            <table className="table table-sm table-hover table-bordered mb-0" style={xpTable}>
               <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
                   <th style={{ width: 24 }}></th>
@@ -1001,7 +1028,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       <td>{locationCell(b)}</td>
                       <td className="text-end" style={{ whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
                       <td className="text-end">{b.ends ?? '-'}</td>
-                      <td>{b.notes || '-'}</td>
+                      <td>{notesCell(b)}</td>
                       <td>{createdCell(b)}</td>
                       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                         <div className="d-inline-flex align-items-center gap-1 justify-content-end">

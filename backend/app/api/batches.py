@@ -376,6 +376,25 @@ async def list_batches_paginated(
             filters.append(Batch.id.not_in(active_keys))
     if search:
         pattern = f"%{search.strip()}%"
+        # Production-origin codes: a lot's WO / MO / PR / SO identity is derived
+        # (source_wo_id → WO → MO → PR/SO), not stored on the row, so match them
+        # through the same chain _resolve_batch_origins displays.
+        s_mo_so = aliased(SalesOrder)
+        s_pr_so = aliased(SalesOrder)
+        origin_wo_ids = (
+            select(WorkOrder.id)
+            .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+            .outerjoin(ProductionRun, ProductionRun.id == ManufacturingOrder.production_run_id)
+            .outerjoin(s_mo_so, s_mo_so.id == ManufacturingOrder.sales_order_id)
+            .outerjoin(s_pr_so, s_pr_so.id == ProductionRun.sales_order_id)
+            .filter(
+                WorkOrder.code.ilike(pattern)
+                | ManufacturingOrder.code.ilike(pattern)
+                | ProductionRun.code.ilike(pattern)
+                | s_mo_so.po_number.ilike(pattern)
+                | s_pr_so.po_number.ilike(pattern)
+            )
+        )
         filters.append(
             Batch.id.in_(
                 select(Batch.id)
@@ -387,6 +406,7 @@ async def list_batches_paginated(
                     | Item.name.ilike(pattern)
                 )
             )
+            | Batch.source_wo_id.in_(origin_wo_ids)
         )
 
     count_query = select(func.count()).select_from(Batch)
