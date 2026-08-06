@@ -755,7 +755,7 @@ async def get_mo_putaway_suggestion(
         if op_wc_ids:
             wc_loc_map = await work_center_service.location_map(db)
             for wc_id in op_wc_ids:
-                _, out_id, _, _ = work_center_service.resolve_locations_from_map(wc_loc_map, wc_id)
+                out_id = work_center_service.resolve_locations_from_map(wc_loc_map, wc_id)[1]
                 if out_id:
                     root_id = out_id
                     break

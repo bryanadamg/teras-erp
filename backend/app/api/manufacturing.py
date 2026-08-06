@@ -13,7 +13,7 @@ from app.models.location import Location
 from app.models.color import Color
 from app.services import (
     stock_service, audit_service, kpi_service, beam_service, mrp_service,
-    work_center_service, so_fulfilment_service,
+    work_center_service, so_fulfilment_service, reject_service,
 )
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
@@ -1590,9 +1590,18 @@ async def reject_mo_completion(
 ):
     """QC reject of a produced lot. The completion stops counting toward MO/WO
     progress (MO reopens if it had auto-completed) and the output lot is marked
-    REJECTED — it stays physically in stock but drops out of good-stock netting
-    and consumption pickers. Rework is a NEW work order created manually for the
-    shortfall; this endpoint does not touch the original WO."""
+    REJECTED (or REJECT_USABLE when `usable` is set — a rejected beam that can
+    still be re-mounted), so it drops out of good-stock netting.
+
+    The scrap is also physically quarantined: it moves out of the bin it was
+    booked to and into the defect store resolved by `reject_service`
+    (payload override → work center's reject location, inherited down the WC tree
+    → item master default). With nothing configured anywhere the stock stays put
+    for a lotted reject and is written off for an un-lotted one, which is the
+    pre-routing behaviour.
+
+    Rework is a NEW work order created manually for the shortfall; this endpoint
+    does not touch the original WO."""
     result = await db.execute(
         select(ManufacturingOrder)
         .filter(ManufacturingOrder.id == mo_id)
@@ -1635,29 +1644,48 @@ async def reject_mo_completion(
     # reject, but only qty_rejected survives if the lot is later disposed.
     comp.qty_rejected = float(comp.qty_rejected or 0) + float(comp.qty_completed)
 
+    wo = next((w for w in mo.work_orders if str(w.id) == str(comp.work_order_id)), None)
+    # Defect store: the WO's work center owns the routing (BEAMING → beam-reject
+    # store, WEAVING → greige BS), with the operator's own completion work center
+    # as the fallback for MO-level logs.
+    reject_loc = await reject_service.resolve_reject_location(
+        db,
+        item_id=mo.item_id,
+        work_center_id=(wo.work_center_id if wo else None) or comp.work_center_id,
+        explicit=payload.reject_location_id,
+    )
+    relocated = 0.0
+
     if batch:
-        # Lot stays in stock, flagged — netting/pickers exclude REJECTED lots.
-        batch.quality_status = "REJECTED"
+        # Lot stays lotted, flagged, and moves to the defect store. REJECT_USABLE
+        # keeps it pickable (a rejected beam still runs on some items).
+        batch.quality_status = reject_service.normalize_grade(payload.usable)
         if not comp.output_batch_id:
             comp.output_batch_id = batch.id
+        relocated = await reject_service.quarantine_lot(
+            db, item_id=mo.item_id, batch_id=batch.id,
+            location_id=reject_loc, reference_id=batch.batch_number,
+        )
     else:
-        # Un-lotted output can't be flagged — pull it back out of the location it
+        # Un-lotted output can't be flagged — transfer it out of the location it
         # was actually booked to (putaway bin recorded on the completion; WO
-        # output location for legacy rows) so it stops counting as good stock.
-        wo = next((w for w in mo.work_orders if str(w.id) == str(comp.work_order_id)), None)
+        # output location for legacy rows) into the defect store, so it stops
+        # counting as good stock but is still visible as reject on-hand.
         out_loc = comp.output_location_id or (wo.output_location_id if wo else None)
-        if out_loc:
-            await stock_service.add_stock_entry(
-                db,
-                item_id=mo.item_id,
-                location_id=out_loc,
-                qty_change=-float(comp.qty_completed),
-                reference_type="Reject",
-                reference_id=mo.code,
-                attribute_value_ids=[v.id for v in mo.attribute_values],
-                color_id=mo.color_id,
-                batch_id=None,
-            )
+        moved = await reject_service.move_unlotted_reject(
+            db,
+            item_id=mo.item_id,
+            qty=float(comp.qty_completed),
+            from_location_id=out_loc,
+            to_location_id=reject_loc,
+            reference_id=mo.code,
+            attribute_value_ids=[v.id for v in mo.attribute_values],
+            color_id=mo.color_id,
+        )
+        relocated = float(comp.qty_completed) if moved else 0.0
+        if not moved:
+            reject_loc = None    # written off, not quarantined — don't claim a bin
+    comp.reject_location_id = reject_loc if relocated else None
 
     # Progress returns to the MO: reopen if the reject drops it below target.
     total_result = await db.execute(
@@ -1670,10 +1698,13 @@ async def reject_mo_completion(
         mo.actual_end_date = None
 
     await db.commit()
+    reject_loc_name = await reject_service.location_name(db, comp.reject_location_id)
     await audit_service.log_activity(
         db, current_user.id, "REJECT", "ManufacturingOrder", mo_id,
         f"Rejected completion of {float(comp.qty_completed):g}"
         + (f" (lot {batch.batch_number})" if batch else "")
+        + (" [usable]" if payload.usable else "")
+        + (f" → moved {relocated:g} to {reject_loc_name}" if reject_loc_name and relocated else "")
         + (f": {comp.reject_reason}" if comp.reject_reason else "")
         + f" — good total {total_good:g}/{mo.qty}",
     )

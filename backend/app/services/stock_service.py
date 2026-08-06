@@ -207,6 +207,37 @@ async def add_stock_entry(
     # completions, staging, dispatch) apply atomically in one transaction.
     await db.flush()
 
+async def relocate_batch_stock(db: AsyncSession, *, item_id, batch_id, location_id, reference_type: str, reference_id: str) -> float:
+    """Move every on-hand row of one lot into ``location_id``, keeping the lot and
+    its variant intact. Two-sided per source row (OUT at the old location, IN at
+    the new one) so the balance table stays consistent — same shape as a stock
+    transfer, but lot-scoped. Used to quarantine QC-rejected stock in a defect
+    store (lot reject, WO-completion reject, packing reject). Returns qty moved.
+    Caller commits."""
+    rows = (await db.execute(
+        select(StockBalance)
+        .filter(StockBalance.batch_key == str(batch_id), StockBalance.qty > 0)
+    )).scalars().all()
+    moved = 0.0
+    for r in rows:
+        if str(r.location_id) == str(location_id):
+            continue    # already in the defect store
+        portion = float(r.qty)
+        ids, cid = _parse_variant_key(r.variant_key)
+        await add_stock_entry(
+            db, item_id=item_id, location_id=r.location_id, qty_change=-portion,
+            reference_type=reference_type, reference_id=reference_id,
+            attribute_value_ids=ids, color_id=cid, batch_id=batch_id,
+        )
+        await add_stock_entry(
+            db, item_id=item_id, location_id=location_id, qty_change=portion,
+            reference_type=reference_type, reference_id=reference_id,
+            attribute_value_ids=ids, color_id=cid, batch_id=batch_id,
+        )
+        moved += portion
+    return moved
+
+
 async def get_stock_entries(db: AsyncSession, skip: int = 0, limit: int = 100) -> tuple[list[StockLedger], int]:
     # Count total
     count_result = await db.execute(select(func.count()).select_from(StockLedger))

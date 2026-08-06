@@ -253,11 +253,18 @@ class MOCompletion(Base):
     reject_reason: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     rejected_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    # Defect store the scrap was quarantined into (resolved through
+    # services/reject_service at reject time). Null = the reject predates routing,
+    # or the output was un-lotted and simply posted out of the good bin.
+    reject_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
 
     mo = relationship("ManufacturingOrder", back_populates="completions")
     work_order: Mapped[Optional["WorkOrder"]] = relationship("WorkOrder", back_populates="completions")
     work_center: Mapped[Optional["WorkCenter"]] = relationship("WorkCenter", lazy="joined")
     output_batch = relationship("Batch", foreign_keys=[output_batch_id], lazy="joined")
+    reject_location = relationship("Location", foreign_keys=[reject_location_id], lazy="joined")
     actual_items: Mapped[List["MOCompletionItem"]] = relationship(
         "MOCompletionItem", back_populates="completion", cascade="all, delete-orphan", lazy="joined"
     )

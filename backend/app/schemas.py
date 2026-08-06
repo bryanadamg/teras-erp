@@ -393,8 +393,13 @@ class BatchReject(BaseModel):
     qty: float | None = None
     # Defect store to move the rejected stock into. Rejected goods stay physically
     # on-hand until disposed, so quarantining them in a separate location is what
-    # keeps them off the good-stock shelf. None = leave the stock where it is.
+    # keeps them off the good-stock shelf. Omit to let reject_service resolve it
+    # from the producing work center (inherited down the WC tree) or the item
+    # master default; only a lot with no routing at all stays where it is.
     location_id: UUID | None = None
+    # Downgrade instead of scrap: quarantined and out of availability, but still
+    # selectable for consumption (a rejected warp beam re-mounts on some items).
+    usable: bool = False
 
 class BatchSplit(BaseModel):
     """Split a GOOD lot: move `qty` off into a new GOOD sub-lot (same item,
@@ -414,6 +419,13 @@ class MOCompletionReject(BaseModel):
     reason: str | None = None
     # Legacy completions (pre output_batch_id link) can name the lot explicitly
     output_batch_id: UUID | None = None
+    # Defect store override. Omit to let reject_service resolve it: work center's
+    # reject location (inherited down the WC tree) → item master default.
+    reject_location_id: UUID | None = None
+    # Downgrade instead of scrap: the lot is quarantined and drops out of
+    # availability, but stays selectable for consumption (a rejected warp beam can
+    # be re-mounted for some items). Stores quality_status=REJECT_USABLE.
+    usable: bool = False
 
 class ManufacturingOrderCreate(BaseModel):
     code: str

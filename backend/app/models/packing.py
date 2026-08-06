@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric, Integer, Table, Column
+from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric, Integer, Boolean, Table, Column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -100,12 +100,23 @@ class PackingOrder(Base):
 
     @property
     def qty_packed(self) -> float:
-        """Rolled up from completions rather than stored — one source of truth."""
-        return float(sum(float(c.qty or 0) for c in (self.completions or [])))
+        """Rolled up from completions rather than stored — one source of truth.
+        QC-rejected logs don't count as packed output (mirrors MO progress)."""
+        return float(sum(float(c.qty or 0) for c in (self.completions or []) if not c.rejected))
 
     @property
     def package_count(self) -> int:
-        return int(sum(int(c.package_count or 0) for c in (self.completions or [])))
+        return int(sum(int(c.package_count or 0) for c in (self.completions or []) if not c.rejected))
+
+    @property
+    def qty_rejected(self) -> float:
+        """Scrap across ALL completions — a partial reject leaves its log active
+        with the rejected cartons' qty moved onto qty_rejected."""
+        return float(sum(float(c.qty_rejected or 0) for c in (self.completions or [])))
+
+    @property
+    def package_count_rejected(self) -> int:
+        return int(sum(int(c.package_count_rejected or 0) for c in (self.completions or [])))
 
 
 class PackingOrderMaterial(Base):
@@ -165,7 +176,22 @@ class PackingCompletion(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     completed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # QC reject — same split as MOCompletion: `rejected` drops the log out of
+    # packed progress, `qty_rejected` is the durable scrap record that survives
+    # disposal of the carton. A partial reject (some cartons of the event) keeps
+    # `rejected` false and moves only the rejected cartons' qty across.
+    rejected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    qty_rejected: Mapped[float] = mapped_column(Numeric(14, 4), default=0, server_default="0")
+    package_count_rejected: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reject_reason: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rejected_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    reject_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
+
     source_batch = relationship("Batch", foreign_keys=[source_batch_id])
+    reject_location = relationship("Location", foreign_keys=[reject_location_id], lazy="joined")
     materials = relationship("PackingCompletionMaterial", backref="completion", cascade="all, delete-orphan")
 
     @property

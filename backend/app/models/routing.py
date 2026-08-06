@@ -19,6 +19,11 @@ class WorkCenter(Base):
     center_type: Mapped[str] = mapped_column(String(16), default="GENERAL")
     input_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
     output_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
+    # Defect store for output this center rejects (e.g. WEAVING → "Gd Greige BS",
+    # BEAMING → "Gd WiP Beam Reject"). Inherited down the tree: a MACHINE with no
+    # value of its own uses its GROUP's, then its TYPE's. First hit in
+    # services/reject_service.resolve_reject_location wins over the item default.
+    reject_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
 
     parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True, index=True)
 
@@ -42,6 +47,7 @@ class WorkCenter(Base):
 
     input_location: Mapped[Optional["Location"]] = relationship("Location", foreign_keys=[input_location_id], lazy="joined")
     output_location: Mapped[Optional["Location"]] = relationship("Location", foreign_keys=[output_location_id], lazy="joined")
+    reject_location: Mapped[Optional["Location"]] = relationship("Location", foreign_keys=[reject_location_id], lazy="joined")
     parent: Mapped[Optional["WorkCenter"]] = relationship("WorkCenter", back_populates="children", remote_side="WorkCenter.id", foreign_keys=[parent_id])
     children: Mapped[list["WorkCenter"]] = relationship("WorkCenter", back_populates="parent", foreign_keys=[parent_id])
 

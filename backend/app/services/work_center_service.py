@@ -91,16 +91,18 @@ _LOC_COLS = (
     WorkCenter.parent_id,
     WorkCenter.input_location_id,
     WorkCenter.output_location_id,
+    WorkCenter.reject_location_id,
 )
 
 
 def _to_loc_map(rows) -> dict:
-    return {str(r[0]): (r[1], r[2], r[3]) for r in rows}
+    return {str(r[0]): (r[1], r[2], r[3], r[4]) for r in rows}
 
 
 async def location_map(db: AsyncSession) -> dict:
-    """One-shot {wc_id: (parent_id, input_id, output_id)} for resolving inherited
-    locations without a query per tree level. work_centers is a small master table."""
+    """One-shot {wc_id: (parent_id, input_id, output_id, reject_id)} for resolving
+    inherited locations without a query per tree level. work_centers is a small
+    master table."""
     res = await db.execute(select(*_LOC_COLS))
     return _to_loc_map(res.all())
 
@@ -110,10 +112,11 @@ def location_map_sync(db: Session) -> dict:
 
 
 def resolve_locations_from_map(loc_map: dict, wc_id) -> tuple:
-    """(input_location_id, output_location_id) — own value first, then walk up.
-    The two fields resolve independently: a machine may override only its output."""
-    in_id = out_id = None
-    src_in = src_out = None
+    """(input, output, reject, src_input, src_output, src_reject) — own value first,
+    then walk up. The fields resolve independently: a machine may override only its
+    output and still inherit the group's defect store."""
+    in_id = out_id = rej_id = None
+    src_in = src_out = src_rej = None
     seen: set[str] = set()
     cur = wc_id
     while cur is not None and str(cur) not in seen:
@@ -121,37 +124,52 @@ def resolve_locations_from_map(loc_map: dict, wc_id) -> tuple:
         row = loc_map.get(str(cur))
         if row is None:
             break
-        parent_id, own_in, own_out = row
+        parent_id, own_in, own_out, own_rej = row
         if in_id is None and own_in is not None:
             in_id, src_in = own_in, cur
         if out_id is None and own_out is not None:
             out_id, src_out = own_out, cur
-        if in_id is not None and out_id is not None:
+        if rej_id is None and own_rej is not None:
+            rej_id, src_rej = own_rej, cur
+        if in_id is not None and out_id is not None and rej_id is not None:
             break
         cur = parent_id
-    return in_id, out_id, src_in, src_out
+    return in_id, out_id, rej_id, src_in, src_out, src_rej
 
 
 async def resolve_locations(db: AsyncSession, wc_id, loc_map: dict | None = None) -> tuple:
     """Effective (input_location_id, output_location_id) for a work center.
-    Pass a cached `loc_map` when resolving many centers in one request."""
+    Pass a cached `loc_map` when resolving many centers in one request.
+    The defect store resolves through `resolve_reject_location` instead."""
     lm = loc_map if loc_map is not None else await location_map(db)
-    in_id, out_id, _, _ = resolve_locations_from_map(lm, wc_id)
+    in_id, out_id = resolve_locations_from_map(lm, wc_id)[:2]
     return in_id, out_id
 
 
 def resolve_locations_sync(db: Session, wc_id, loc_map: dict | None = None) -> tuple:
     lm = loc_map if loc_map is not None else location_map_sync(db)
-    in_id, out_id, _, _ = resolve_locations_from_map(lm, wc_id)
+    in_id, out_id = resolve_locations_from_map(lm, wc_id)[:2]
     return in_id, out_id
+
+
+async def resolve_reject_location(db: AsyncSession, wc_id, loc_map: dict | None = None):
+    """Effective defect store for a work center — own value, else inherited from
+    its GROUP/TYPE. Returns None when nothing is configured anywhere up the tree
+    (the caller then falls back to the item master)."""
+    if not wc_id:
+        return None
+    lm = loc_map if loc_map is not None else await location_map(db)
+    return resolve_locations_from_map(lm, wc_id)[2]
 
 
 def decorate_effective_locations(wcs, loc_map: dict) -> None:
     """Stamp effective_* / *_inherited onto WorkCenter instances for the API
     response, so the UI can show a blank machine's inherited area."""
     for wc in wcs:
-        in_id, out_id, src_in, src_out = resolve_locations_from_map(loc_map, wc.id)
+        in_id, out_id, rej_id, src_in, src_out, src_rej = resolve_locations_from_map(loc_map, wc.id)
         wc.effective_input_location_id = in_id
         wc.effective_output_location_id = out_id
+        wc.effective_reject_location_id = rej_id
         wc.input_location_inherited = in_id is not None and str(src_in) != str(wc.id)
         wc.output_location_inherited = out_id is not None and str(src_out) != str(wc.id)
+        wc.reject_location_inherited = rej_id is not None and str(src_rej) != str(wc.id)
