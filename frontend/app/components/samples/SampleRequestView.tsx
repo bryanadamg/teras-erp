@@ -521,6 +521,21 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       return matchSearch && matchStatus && matchCategory && matchFrom && matchTo;
   });
 
+  // Footer tallies run at COLOR grain, not request grain — a request is a bag of colors
+  // each approved/rejected on its own, so "12 approved" at request level hides the real
+  // progress. Counted over filteredSamples so the numbers track whatever filter is on.
+  const colorStats = useMemo(() => {
+      const acc = { total: 0, PENDING: 0, IN_PRODUCTION: 0, SENT: 0, APPROVED: 0, REJECTED: 0 } as Record<string, number>;
+      for (const s of filteredSamples) {
+          for (const c of (s.colors || [])) {
+              acc.total++;
+              const st = c.status || 'PENDING';
+              if (st in acc) acc[st]++;
+          }
+      }
+      return acc;
+  }, [filteredSamples]);
+
   const hasActiveFilter = !!searchTerm || statusFilter !== 'ALL' || categoryFilter !== 'ALL' || !!createdFrom || !!createdTo;
   const clearFilters = () => {
       setSearchTerm('');
@@ -1772,11 +1787,20 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    fontSize: '10px',
                    color: '#333',
                }}>
-                   <span>{samples.length} total</span>
+                   <span>{filteredSamples.length} request{filteredSamples.length !== 1 ? 's' : ''}</span>
                    <span>|</span>
-                   <span>{samples.filter((s: any) => s.status === 'APPROVED').length} approved</span>
+                   <span>{colorStats.total} color{colorStats.total !== 1 ? 's' : ''}</span>
                    <span>|</span>
-                   <span>{samples.filter((s: any) => s.status === 'IN_PRODUCTION').length} in production</span>
+                   <span>{colorStats.PENDING} pending</span>
+                   <span>|</span>
+                   <span>{colorStats.IN_PRODUCTION} in production</span>
+                   <span>|</span>
+                   <span>{colorStats.SENT} sent</span>
+                   <span>|</span>
+                   <span style={{ color: '#1b5e20', fontWeight: 'bold' }}>{colorStats.APPROVED} approved</span>
+                   <span>|</span>
+                   <span style={{ color: '#8b0000', fontWeight: 'bold' }}>{colorStats.REJECTED} rejected</span>
+                   {hasActiveFilter && <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>filtered</span>}
                </div>
            )}
        </ShellWindow>
