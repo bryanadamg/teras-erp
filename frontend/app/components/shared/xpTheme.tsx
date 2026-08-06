@@ -22,6 +22,10 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     PARTIAL: 'amber', RECEIVING: 'amber', ON_HOLD: 'amber',
     CONFIRMED: 'blue', IN_PROGRESS: 'blue', READY: 'blue', SENT: 'blue',
     IN_PRODUCTION: 'blue', STAGED: 'blue',
+    // Loom prep walk (weaving monitor): STAGED (warp up) → DRAW_IN → TUNING → the
+    // run itself. All three are prep-in-flight, so all three read blue; IDLE falls
+    // through to gray via PENDING and a live run shows RUNNING/IN_PROGRESS green-ish.
+    DRAW_IN: 'blue', TUNING: 'blue', IDLE: 'gray',
     // DELIVERED is blue, not green: on an MO it means "planned qty met, order still
     // open for logging". Green is reserved for closed/terminal.
     DELIVERED: 'blue',

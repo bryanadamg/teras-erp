@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, cast, String, func, update, delete
 from sqlalchemy.orm import selectinload
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
 from math import ceil
 import uuid
 
@@ -21,9 +21,12 @@ from app.api.auth import get_current_user, require_permission
 from app.schemas import (
     WeavingRunCreate, WeavingRunUpdate, WeavingRunResponse,
     WorkCenterHolidayCreate, WorkCenterHolidayResponse, WorkCenterCalendarUpdate,
-    WorkCenterGroupCalendarUpdate,
+    WorkCenterGroupCalendarUpdate, LoomPrepUpdate,
 )
-from app.services import audit_service, weaving_service, id_holidays, work_center_service, stock_service
+from app.services import (
+    audit_service, weaving_service, id_holidays, work_center_service, stock_service,
+    beam_service,
+)
 from app.core.ws_manager import manager
 
 router = APIRouter()
@@ -58,6 +61,17 @@ async def _run_actual_kg(db: AsyncSession, run: WeavingRun) -> float:
 
 
 CLOSED_MO_STATUSES = ("COMPLETED", "CANCELLED")
+
+
+async def _loom_status(db: AsyncSession, wc: WorkCenter) -> str:
+    """Derived prep state of one loom — same definition as the monitor grid."""
+    has_run = bool((await db.execute(
+        select(WeavingRun.id)
+        .where(WeavingRun.work_center_id == wc.id, WeavingRun.status == "RUNNING")
+        .limit(1)
+    )).first())
+    pcs = await beam_service.mounted_pcs(db, wc.id)
+    return weaving_service.derive_loom_status(wc.prep_status, pcs, wc.beam_slots, has_run)
 
 
 def _mo_variant_labels(mo: Optional[ManufacturingOrder]) -> dict:
@@ -163,6 +177,17 @@ async def create_weaving_run(
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
+    # Start is the LAST step of the floor sequence: warp staged → Draw-in → Tuning →
+    # Start. Gated only once prep has actually begun (the loom is staged), so a
+    # machine whose warp is not tracked in the ERP still starts as before.
+    prep = await _loom_status(db, wc)
+    if prep in (weaving_service.LOOM_STATUS_STAGED, weaving_service.LOOM_STATUS_DRAW_IN):
+        pending = "Draw-in" if prep == weaving_service.LOOM_STATUS_STAGED else "Tuning"
+        raise HTTPException(
+            status_code=422,
+            detail=f"Loom is {prep}: complete {pending} before starting the run",
+        )
+
     run = WeavingRun(
         work_center_id=payload.work_center_id,
         mo_id=payload.mo_id,
@@ -174,6 +199,12 @@ async def create_weaving_run(
         status="RUNNING",
     )
     db.add(run)
+    # The prep walk is spent once the run starts: clear it so that when this run
+    # stops the loom reports its warp state again (STAGED / IDLE), not a stale
+    # "Tuning" from the previous shift.
+    wc.prep_status = None
+    wc.prep_status_at = datetime.utcnow()
+    wc.prep_status_by = current_user.username
     await db.commit()
     await db.refresh(run)
 
@@ -252,6 +283,50 @@ async def delete_weaving_run(
     )
     await manager.broadcast({"type": "weaving_run", "action": "delete", "work_center_id": wc_id})
     return {"status": "success"}
+
+
+# ── Loom prep steps (Draw-in / Tuning) ──────────────────────────────────────
+
+@router.post("/work-centers/{wc_id}/loom-prep")
+async def set_loom_prep(
+    wc_id: str,
+    payload: LoomPrepUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('weaving_monitor.start')),
+):
+    """Advance a loom through the manual prep steps: STAGED → DRAW_IN → TUNING.
+
+    Only these two steps are stored; STAGED/IDLE/RUNNING are derived, so the
+    transition is validated against the derived state, not against the column.
+    `status: null` resets a loom back to STAGED after a mis-click.
+    """
+    wc = await _get_wc(db, wc_id)
+    target = (payload.status or "").strip().upper() or None
+    current = await _loom_status(db, wc)
+    err = weaving_service.prep_transition_error(target, current)
+    if err:
+        raise HTTPException(status_code=422, detail=err)
+
+    wc.prep_status = target
+    wc.prep_status_at = datetime.utcnow()
+    wc.prep_status_by = current_user.username
+    await db.commit()
+
+    new_status = await _loom_status(db, wc)
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "work_center_loom_prep", str(wc.id),
+        details=f"Loom {wc.code}: {current} → {new_status}",
+        changes={"prep_status": target},
+    )
+    await manager.broadcast({"type": "weaving_run", "action": "prep", "work_center_id": str(wc.id)})
+    return {
+        "work_center_id": str(wc.id),
+        "loom_status": new_status,
+        "next_loom_step": weaving_service.next_loom_step(new_status),
+        "prep_status": wc.prep_status,
+        "prep_status_at": wc.prep_status_at,
+        "prep_status_by": wc.prep_status_by,
+    }
 
 
 # ── Monitor grid (all weaving machines, at a glance) ────────────────────────
@@ -393,6 +468,15 @@ async def weaving_monitor(
         payload["mounted_beams"] = beams
         payload["mounted_pcs"] = sum(1 for b in beams if b["remaining"] > 1e-9)
         payload["mounted_kg"] = sum(b["remaining"] for b in beams)
+        # Card state: IDLE → STAGED (warp up) → DRAW_IN → TUNING → RUNNING. Derived
+        # from the batched data already loaded above — no extra query per loom.
+        payload["loom_status"] = weaving_service.derive_loom_status(
+            wc.prep_status, payload["mounted_pcs"], payload["beam_slots"], run is not None,
+        )
+        payload["next_loom_step"] = weaving_service.next_loom_step(payload["loom_status"])
+        payload["prep_status"] = wc.prep_status
+        payload["prep_status_at"] = wc.prep_status_at
+        payload["prep_status_by"] = wc.prep_status_by
         grp = group_for(wc)
         payload["group_id"] = str(grp.id) if grp else None
         payload["group_code"] = grp.code if grp else None

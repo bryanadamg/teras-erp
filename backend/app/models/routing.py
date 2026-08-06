@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Text, Numeric, Boolean, ForeignKey, JSON, Integer
+from sqlalchemy import String, Text, Numeric, Boolean, ForeignKey, JSON, Integer, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -44,6 +45,16 @@ class WorkCenter(Base):
     # many beams mounted. Per-run line count lives on WeavingRun.lines instead —
     # this is fixed machine config ("tergantung pengaturannya").
     beam_slots: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+    # Loom prep state between "warp is up" and "run started": the floor walks
+    # IDLE → STAGED → DRAW_IN → TUNING → RUNNING. Only the two MANUAL steps are
+    # stored here; IDLE/STAGED are derived from what is actually mounted and
+    # RUNNING from the active WeavingRun, so a dismount or a started run can never
+    # leave a stale prep state on the card. Read it through
+    # weaving_service.derive_loom_status(), never raw.
+    prep_status: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    prep_status_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    prep_status_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     input_location: Mapped[Optional["Location"]] = relationship("Location", foreign_keys=[input_location_id], lazy="joined")
     output_location: Mapped[Optional["Location"]] = relationship("Location", foreign_keys=[output_location_id], lazy="joined")

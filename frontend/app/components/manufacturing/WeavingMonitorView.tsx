@@ -8,6 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { xpFont, familyColor, ProgressBar, StatusChip, ToggleChip, XPLoading, XPEmptyState, XPActionButton } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
+import { useToast } from '../shared/Toast';
 import WorkCenterMonitorModal from './WorkCenterMonitorModal';
 import GroupCalendarModal from './GroupCalendarModal';
 
@@ -30,7 +31,10 @@ export default function WeavingMonitorView() {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
     const { hasPermission } = useUser();
+    const { showToast } = useToast();
     const canManage = hasPermission('calendar.edit');
+    // Prep steps are floor dispatch decisions, same gate as starting a run.
+    const canPrep = hasPermission('weaving_monitor.start');
     const cls = uiStyle === 'classic';
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -69,6 +73,44 @@ export default function WeavingMonitorView() {
 
     const closeModal = () => { setSelected(null); load(); };
     const machines: any[] = data?.machines || [];
+
+    // Loom prep walk: IDLE → STAGED (warp up) → DRAW_IN → TUNING → RUNNING. The
+    // backend derives the state (see weaving_service.derive_loom_status) — this view
+    // only names and colours it, so the card can never invent a state the API
+    // wouldn't accept a transition from.
+    const loomLabel = (s: string): string => ({
+        RUNNING: t('running'), STAGED: t('staged'), DRAW_IN: t('draw_in'), TUNING: t('tuning'),
+    } as Record<string, string>)[s] || t('idle');
+    // Strip gradient per state: green running, amber waiting on the floor's next
+    // click, blue prep in flight, gray nothing up.
+    const loomStrip = (s: string): string => ({
+        RUNNING: 'linear-gradient(to right, #1a6e1a, #3ab83a)',
+        STAGED: 'linear-gradient(to right, #9a6a06, #d99b1c)',
+        DRAW_IN: 'linear-gradient(to right, #0a3d91, #2f74d0)',
+        TUNING: 'linear-gradient(to right, #0a3d91, #2f74d0)',
+    } as Record<string, string>)[s] || 'linear-gradient(to right, #808080, #a8a8a8)';
+    // Chip family reuse: prep states are already in STATUS_FAMILY, so the modern
+    // card gets its colour from the same map every other list uses.
+    const loomChipStatus = (s: string): string => (s === 'RUNNING' ? 'IN_PROGRESS' : s === 'IDLE' ? 'PENDING' : s);
+
+    const [prepBusy, setPrepBusy] = useState<string | null>(null);
+    const setPrep = async (m: any, step: string | null) => {
+        setPrepBusy(m.id);
+        try {
+            const res = await authFetch(`${API_BASE}/work-centers/${m.id}/loom-prep`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: step }),
+            });
+            if (!res.ok) {
+                const d = await res.json().catch(() => null);
+                showToast(d?.detail || t('prep_failed'), 'danger');
+                return;
+            }
+            await load();
+        } finally {
+            setPrepBusy(null);
+        }
+    };
 
     // Looms are shown per work-center GROUP so a whole group's calendar can be set in
     // one go. Machines that sit straight under their TYPE node (the pre-group shape)
@@ -243,19 +285,74 @@ export default function WeavingMonitorView() {
         );
     };
 
-    const IdleBody = () => (
-        <div style={{ fontSize: cls ? 11 : 12, color: '#888', display: 'flex', gap: 6, alignItems: 'center', minHeight: cls ? 64 : 70 }}>
-            <i className="bi bi-pause-circle" style={{ fontSize: cls ? 16 : 18 }} />{t('no_active_run')}
-        </div>
-    );
+    // No run yet. Which prep step the loom is waiting on is the useful line here —
+    // "no active run" alone couldn't tell a supervisor whether the loom is dead or
+    // two clicks from producing.
+    const IdleBody = ({ status }: { status: string }) => {
+        const prep = status !== 'IDLE';
+        return (
+            <div style={{ fontSize: cls ? 11 : 12, color: prep ? '#555' : '#888', display: 'flex', flexDirection: 'column', gap: 3, justifyContent: 'center', minHeight: cls ? 64 : 70 }}>
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <i className={`bi ${prep ? 'bi-tools' : 'bi-pause-circle'}`} style={{ fontSize: cls ? 16 : 18 }} />
+                    {prep ? loomLabel(status) : t('no_active_run')}
+                </span>
+                {prep && <span style={{ fontSize: 10, color: '#888' }}>{t('loom_prep_hint')}</span>}
+            </div>
+        );
+    };
+
+    // Prep actions on the card. The floor confirms Draw-in, then Tuning, before a
+    // run may be started — so the button that moves the loom forward sits on the
+    // loom's own tile, not two clicks deep in the modal. The card itself opens the
+    // modal, hence stopPropagation on every control here.
+    const PrepRow = ({ m }: { m: any }) => {
+        const status: string = m.loom_status || 'IDLE';
+        const next: string | null = m.next_loom_step || null;
+        if (!canPrep || status === 'RUNNING' || status === 'IDLE') return null;
+        const busy = prepBusy === m.id;
+        const border = cls ? '#c8c4b8' : '#e3e3e3';
+        const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
+        return (
+            <div style={{ marginTop: 5, paddingTop: 5, borderTop: `1px solid ${border}`, display: 'flex', gap: 4, alignItems: 'center' }}>
+                {next && (
+                    <XPActionButton
+                        classic={cls}
+                        tone={next === 'TUNING' ? 'warning' : 'primary'}
+                        icon={next === 'TUNING' ? 'bi-sliders' : 'bi-arrows-collapse-vertical'}
+                        label={next === 'TUNING' ? t('tuning') : t('draw_in')}
+                        disabled={busy}
+                        onClick={stop(() => setPrep(m, next))}
+                    />
+                )}
+                {status !== 'STAGED' && (
+                    <XPActionButton
+                        classic={cls}
+                        tone="neutral"
+                        icon="bi-arrow-counterclockwise"
+                        title={t('prep_reset')}
+                        disabled={busy}
+                        onClick={stop(() => setPrep(m, null))}
+                    />
+                )}
+                {/* TUNING is the last prep step: nothing left to click here, the run is
+                    started from the machine modal's Start form. */}
+                {status === 'TUNING' && !next && (
+                    <span style={{ fontSize: 10, color: '#666', marginLeft: 'auto' }}>
+                        <i className="bi bi-play-circle" style={{ marginRight: 3 }} />{t('start_run')}
+                    </span>
+                )}
+            </div>
+        );
+    };
 
     // Loom card. Classic = XP raised tile with a status strip; modern = bootstrap
-    // card. Body content is shared (RunBody / IdleBody / BeamStrip).
+    // card. Body content is shared (RunBody / IdleBody / BeamStrip / PrepRow).
     const card = (m: any) => {
         const run = m.active_run;
+        const loomStatus: string = m.loom_status || (run ? 'RUNNING' : 'IDLE');
         if (cls) {
             const strip: React.CSSProperties = {
-                background: run ? 'linear-gradient(to right, #1a6e1a, #3ab83a)' : 'linear-gradient(to right, #808080, #a8a8a8)',
+                background: loomStrip(loomStatus),
                 color: '#fff', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
                 padding: '2px 7px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6,
                 borderBottom: '1px solid #00000033',
@@ -265,11 +362,12 @@ export default function WeavingMonitorView() {
                     style={{ border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff', background: '#ece9d8', cursor: 'pointer' }}>
                     <div style={strip}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.code} — {m.name}</span>
-                        <span style={{ fontSize: 9, flexShrink: 0 }}>{run ? t('running').toUpperCase() : t('idle').toUpperCase()}</span>
+                        <span style={{ fontSize: 9, flexShrink: 0 }}>{loomLabel(loomStatus).toUpperCase()}</span>
                     </div>
                     <div style={{ padding: '6px 8px', background: '#fff', fontFamily: xpFont }}>
-                        {run ? <RunBody run={run} /> : <IdleBody />}
+                        {run ? <RunBody run={run} /> : <IdleBody status={loomStatus} />}
                         <BeamStrip m={m} />
+                        <PrepRow m={m} />
                     </div>
                 </div>
             );
@@ -280,12 +378,13 @@ export default function WeavingMonitorView() {
                     <div className="d-flex align-items-center gap-2 mb-2">
                         <span style={{ fontWeight: 'bold', fontSize: 15 }}>{m.code}</span>
                         <span className="text-muted small text-truncate" style={{ flex: 1 }}>{m.name}</span>
-                        {/* Idle/running through the shared chip so the loom grid uses the
-                            same status vocabulary as every other list in the app. */}
-                        <StatusChip status={run ? 'IN_PROGRESS' : 'PENDING'} label={run ? t('running') : t('idle')} tint />
+                        {/* Loom state through the shared chip so the grid uses the same
+                            status vocabulary as every other list in the app. */}
+                        <StatusChip status={loomChipStatus(loomStatus)} label={loomLabel(loomStatus)} tint />
                     </div>
-                    {run ? <RunBody run={run} /> : <IdleBody />}
+                    {run ? <RunBody run={run} /> : <IdleBody status={loomStatus} />}
                     <BeamStrip m={m} />
+                    <PrepRow m={m} />
                 </div>
             </div>
         );

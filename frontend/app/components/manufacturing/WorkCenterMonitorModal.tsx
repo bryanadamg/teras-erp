@@ -166,6 +166,34 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         return () => { cancelled = true; };
     }, [isOpen, wcId, canManage, data?.active_run, moCandsAll, apiBase, authFetch]);
 
+    // Loom prep walk (STAGED → DRAW_IN → TUNING) — state comes from the beam-mounts
+    // call, which derives it server-side, so this panel and the monitor card always
+    // agree. Start is the last step and stays blocked until Tuning is confirmed.
+    const loomStatus: string = loom?.loom_status || 'IDLE';
+    const nextLoomStep: string | null = loom?.next_loom_step || null;
+    const prepBlocksStart = loomStatus === 'STAGED' || loomStatus === 'DRAW_IN';
+    const [prepBusy, setPrepBusy] = useState(false);
+    const stepLabel = (s: string | null): string =>
+        s === 'DRAW_IN' ? t('draw_in') : s === 'TUNING' ? t('tuning') : s === 'STAGED' ? t('staged') : t('idle');
+
+    const setPrep = async (step: string | null) => {
+        setPrepBusy(true);
+        try {
+            const res = await authFetch(`${apiBase}/work-centers/${wcId}/loom-prep`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: step }),
+            });
+            if (!res.ok) {
+                const d = await res.json().catch(() => null);
+                showToast(d?.detail || t('prep_failed'), 'danger');
+                return;
+            }
+            await load();
+        } finally {
+            setPrepBusy(false);
+        }
+    };
+
     const startRun = async () => {
         if (!moId) return;
         const res = await authFetch(`${apiBase}/weaving-runs`, {
@@ -178,7 +206,15 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 start_date: startDate,
             }),
         });
-        if (res.ok) { setMoId(''); load(); }
+        if (!res.ok) {
+            // The prep gate answers 422 here (warp staged but Draw-in/Tuning not
+            // confirmed). Surfacing it beats the old silent no-op.
+            const d = await res.json().catch(() => null);
+            showToast(d?.detail || t('prep_blocked_start'), 'danger');
+            return;
+        }
+        setMoId('');
+        load();
     };
     const stopRun = async (runId: string) => {
         const res = await authFetch(`${apiBase}/weaving-runs/${runId}/stop`, { method: 'POST' });
@@ -326,6 +362,43 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         <XPEmptyState icon="bi-stoplights" message={t('no_active_run')} />
                     )}
 
+                    {/* Prep walk. Shown only once warp is actually up on the loom
+                        (STAGED and later) — a machine with no beams tracked keeps the
+                        plain start form it always had. */}
+                    {!loading && !run && loomStatus !== 'IDLE' && (
+                        <FormSection title={<SecTitle icon="bi-tools">{t('loom_prep')}</SecTitle>} classic={cls}>
+                            <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <StatusChip status={loomStatus} label={stepLabel(loomStatus)} tint />
+                                <span style={{ fontSize: 11, color: '#666' }}>
+                                    {loom?.mounted_pcs ?? 0} / {loom?.beam_slots ?? 1} {t('pcs')}
+                                    {loom?.prep_status_by ? ` · ${loom.prep_status_by}` : ''}
+                                    {loom?.prep_status_at ? ` · ${fmtDate(loom.prep_status_at)}` : ''}
+                                </span>
+                                {canManage && nextLoomStep && (
+                                    <XPActionButton
+                                        classic={cls}
+                                        tone={nextLoomStep === 'TUNING' ? 'warning' : 'primary'}
+                                        icon={nextLoomStep === 'TUNING' ? 'bi-sliders' : 'bi-arrows-collapse-vertical'}
+                                        label={stepLabel(nextLoomStep)}
+                                        disabled={prepBusy}
+                                        onClick={() => setPrep(nextLoomStep)}
+                                    />
+                                )}
+                                {canManage && loomStatus !== 'STAGED' && (
+                                    <XPActionButton
+                                        classic={cls}
+                                        tone="neutral"
+                                        icon="bi-arrow-counterclockwise"
+                                        label={t('prep_reset')}
+                                        disabled={prepBusy}
+                                        onClick={() => setPrep(null)}
+                                    />
+                                )}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#777', marginTop: 4 }}>{t('loom_prep_hint')}</div>
+                        </FormSection>
+                    )}
+
                     {!loading && !run && canManage && (
                         <FormSection title={<SecTitle icon="bi-play-circle">{t('start_run')}</SecTitle>} classic={cls}>
                             {/* Top-align, not bottom: the MO column carries a helper line
@@ -377,7 +450,20 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     {/* Empty label so the button lines up with the date
                                         input beside it, not with that input's label. */}
                                     <FieldLabel classic={cls}>&nbsp;</FieldLabel>
-                                    <XPActionButton classic={cls} tone="success" icon="bi-play-fill" label={t('start')} onClick={startRun} disabled={!moId} />
+                                    <XPActionButton
+                                        classic={cls}
+                                        tone="success"
+                                        icon="bi-play-fill"
+                                        label={t('start')}
+                                        title={prepBlocksStart ? t('prep_blocked_start') : undefined}
+                                        onClick={startRun}
+                                        disabled={!moId || prepBlocksStart}
+                                    />
+                                    {prepBlocksStart && (
+                                        <span style={{ fontSize: 10, color: '#b5530a', marginLeft: 6 }}>
+                                            {t('prep_blocked_start')}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </FormSection>

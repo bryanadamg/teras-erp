@@ -13,6 +13,7 @@ from app.models.location import Location
 from app.models.batch import Batch, BeamMount
 from app.models.stock_ledger import StockLedger
 from app.models.stock_balance import StockBalance
+from app.models.weaving import WeavingRun
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import (
     WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
@@ -23,7 +24,10 @@ from app.schemas import (
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
 from app.api.batches import generate_batch_number
-from app.services import audit_service, stock_service, beam_service, work_center_service, reject_service
+from app.services import (
+    audit_service, stock_service, beam_service, work_center_service, reject_service,
+    weaving_service,
+)
 from app.core.ws_manager import manager
 from datetime import datetime
 import uuid
@@ -1208,13 +1212,29 @@ async def get_loom_beam_status(
     if not wc:
         raise HTTPException(status_code=404, detail="Work center not found")
     mounts = await beam_service.active_mounts(db, wc.id)
+    mounted_pcs = sum(1 for _, q in mounts if q > 1e-9)
+    # Prep state rides along with the warp: the monitor modal reads both from this
+    # one call, so its buttons and the loom card can't disagree about the state.
+    has_run = bool((await db.execute(
+        select(WeavingRun.id)
+        .where(WeavingRun.work_center_id == wc.id, WeavingRun.status == "RUNNING")
+        .limit(1)
+    )).first())
+    loom_status = weaving_service.derive_loom_status(
+        wc.prep_status, mounted_pcs, wc.beam_slots, has_run,
+    )
     return LoomBeamStatus(
         work_center_id=wc.id,
         work_center_code=wc.code or wc.name,
         beam_slots=max(1, int(wc.beam_slots or 1)),
-        mounted_pcs=sum(1 for _, q in mounts if q > 1e-9),
+        mounted_pcs=mounted_pcs,
         total_remaining=sum(q for _, q in mounts),
         mounts=[_mount_out(m, q) for m, q in mounts],
+        loom_status=loom_status,
+        next_loom_step=weaving_service.next_loom_step(loom_status),
+        prep_status=wc.prep_status,
+        prep_status_at=wc.prep_status_at,
+        prep_status_by=wc.prep_status_by,
     )
 
 

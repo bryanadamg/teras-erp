@@ -851,6 +851,18 @@ class LoomBeamStatus(BaseModel):
     mounted_pcs: int = 0
     total_remaining: float = 0.0
     mounts: list[BeamMountResponse] = []
+    # Prep state of the loom itself (IDLE/STAGED/DRAW_IN/TUNING/RUNNING) — derived
+    # server-side so the monitor card and this panel can never disagree.
+    loom_status: str = "IDLE"
+    next_loom_step: str | None = None
+    prep_status: str | None = None
+    prep_status_at: datetime | None = None
+    prep_status_by: str | None = None
+
+
+class LoomPrepUpdate(BaseModel):
+    """Manual loom prep step. None = reset back to STAGED."""
+    status: str | None = None
 
 
 class PutawayBinOption(BaseModel):

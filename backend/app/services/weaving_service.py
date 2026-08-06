@@ -22,6 +22,76 @@ MINUTES_PER_DAY = 24 * 60
 _MAX_PROJECT_DAYS = 3650  # 10y guard against runaway walks
 
 
+# ── Loom prep state machine ──────────────────────────────────────────────────
+# What the floor does to a loom between "warp is up" and "start the run":
+#   IDLE → STAGED → DRAW_IN → TUNING → RUNNING
+# IDLE/STAGED/RUNNING are DERIVED (from mounted beams and the active run) and
+# DRAW_IN/TUNING are the two manual button steps stored on WorkCenter.prep_status.
+# Deriving the ends is what keeps the card honest: dismount the warp mid-prep and
+# the loom drops straight back to IDLE with no stale "Tuning" left over.
+LOOM_STATUS_IDLE = "IDLE"
+LOOM_STATUS_STAGED = "STAGED"
+LOOM_STATUS_DRAW_IN = "DRAW_IN"
+LOOM_STATUS_TUNING = "TUNING"
+LOOM_STATUS_RUNNING = "RUNNING"
+
+# Manual steps only, in order. The step before DRAW_IN is the derived STAGED.
+LOOM_PREP_STEPS = (LOOM_STATUS_DRAW_IN, LOOM_STATUS_TUNING)
+# Predecessor each manual step may be advanced from.
+_PREP_PREDECESSOR = {
+    LOOM_STATUS_DRAW_IN: LOOM_STATUS_STAGED,
+    LOOM_STATUS_TUNING: LOOM_STATUS_DRAW_IN,
+}
+
+
+def derive_loom_status(prep_status: Optional[str], mounted_pcs: int, beam_slots: int,
+                       has_active_run: bool) -> str:
+    """The single definition of what a loom card shows.
+
+    A run beats everything (RUNNING). Otherwise the warp decides whether prep has
+    even begun: below the machine's beam_slots target the loom is not staged, so a
+    stored DRAW_IN/TUNING is ignored rather than trusted.
+    """
+    if has_active_run:
+        return LOOM_STATUS_RUNNING
+    staged = int(mounted_pcs or 0) >= max(1, int(beam_slots or 1))
+    if not staged:
+        return LOOM_STATUS_IDLE
+    if prep_status in LOOM_PREP_STEPS:
+        return prep_status
+    return LOOM_STATUS_STAGED
+
+
+def next_loom_step(current: str) -> Optional[str]:
+    """Manual step that may be taken from `current`, or None (nothing to click)."""
+    for step, predecessor in _PREP_PREDECESSOR.items():
+        if predecessor == current:
+            return step
+    return None
+
+
+def prep_transition_error(target: Optional[str], current: str) -> Optional[str]:
+    """Why `current → target` is not allowed, or None when it is.
+
+    `target=None` is the reset (back to plain STAGED) and is allowed from either
+    manual step, so a mis-click never traps a loom.
+    """
+    if target is None:
+        if current in LOOM_PREP_STEPS:
+            return None
+        return f"Nothing to reset: loom is {current}"
+    if target not in LOOM_PREP_STEPS:
+        return f"Unknown loom step '{target}'"
+    if current == LOOM_STATUS_RUNNING:
+        return "Loom is running; stop the run first"
+    if current == LOOM_STATUS_IDLE:
+        return "No warp staged on this loom yet"
+    expected = _PREP_PREDECESSOR[target]
+    if current != expected:
+        return f"{target} requires the loom to be {expected} (it is {current})"
+    return None
+
+
 # ── Calendar primitives ──────────────────────────────────────────────────────
 
 def _is_working_day(d: date, weekdays: set, holidays: set) -> bool:
