@@ -55,6 +55,7 @@ from app.models.production_run import ProductionRun
 from app.models.batch import Batch
 from app.models.bom import BOM, BOMLine
 from app.models.item import Item
+from app.services import reject_service
 from app.services.stock_service import _generate_variant_key
 from app.services.mrp_service import (
     _line_decoupled, _combo_attr_id, _line_combo_value_ids, active_sub_bom,
@@ -62,10 +63,12 @@ from app.services.mrp_service import (
 
 
 def rejected_batch_keys():
-    """Subquery of batch_keys whose lot is QC-REJECTED or DISPOSED — their stock
-    is physically present (rejected) or being written off (disposed) but must
-    never count as good/available."""
-    return select(cast(Batch.id, String)).where(Batch.quality_status.in_(("REJECTED", "DISPOSED")))
+    """Subquery of batch_keys whose lot is not good stock — QC-rejected (scrap or
+    downgraded-but-usable) or disposed. Their stock is physically present
+    (rejected) or being written off (disposed) but must never count as
+    good/available. REJECT_USABLE is excluded here too: a downgraded lot may be
+    picked deliberately, but it can't silently satisfy planned demand."""
+    return select(cast(Batch.id, String)).where(Batch.quality_status.in_(reject_service.NON_GOOD_GRADES))
 
 # Orders still open. DELIVERED = planned qty met but not closed; it contributes no
 # remaining demand or supply (outstanding <= 0 short-circuits below) but is included

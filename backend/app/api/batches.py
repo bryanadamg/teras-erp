@@ -520,7 +520,7 @@ async def split_batch(
     batch = result.scalars().first()
     if not batch:
         raise HTTPException(status_code=404, detail="Lot not found")
-    if batch.quality_status == "REJECTED":
+    if reject_service.is_reject_grade(batch.quality_status):
         raise HTTPException(status_code=400, detail="Cannot split a rejected lot")
 
     qty = float(payload.qty or 0)
@@ -719,6 +719,7 @@ async def reject_batch(
         db, current_user.id, "REJECT", "Batch", str(batch.id),
         details=(f"Rejected {reject_qty:g} of lot {batch.batch_number} → sub-lot {sub.batch_number}" if partial
                  else f"Rejected lot {batch.batch_number}")
+        + (" [usable]" if payload.usable else "")
         + (f" ({returned:g} returned to {mo.code})" if comp and mo and returned else "")
         + (f" → moved {relocated:g} to {defect_loc.name}" if defect_loc and relocated else "")
         + (f": {reason}" if reason else ""),
@@ -744,15 +745,16 @@ async def dispose_batch(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('lot.delete')),
 ):
-    """Dispose/scrap a REJECTED lot: physically write off its remaining stock
+    """Dispose/scrap a rejected lot: physically write off its remaining stock
     (posts every balance row OUT so the qty leaves stock-on-hand) and mark the
-    lot DISPOSED. Only rejected lots can be disposed — reject first. Mirrors the
-    consumed-beam write-off. Irreversible."""
+    lot DISPOSED. Only rejected lots can be disposed — reject first; a
+    REJECT_USABLE lot may be disposed too, once it's clear nothing will re-use it.
+    Mirrors the consumed-beam write-off. Irreversible."""
     result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
     batch = result.scalars().first()
     if not batch:
         raise HTTPException(status_code=404, detail="Lot not found")
-    if batch.quality_status != "REJECTED":
+    if not reject_service.is_reject_grade(batch.quality_status):
         raise HTTPException(status_code=400, detail="Only rejected lots can be disposed")
 
     reason = (payload.reason if payload else None) or None

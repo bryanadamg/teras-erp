@@ -2480,9 +2480,26 @@ class PackingCompletionResponse(BaseModel):
     operator: str | None = None
     notes: str | None = None
     completed_at: datetime
+    # QC reject — same split as MOCompletionResponse
+    rejected: bool = False
+    qty_rejected: float = 0
+    package_count_rejected: int = 0
+    reject_reason: str | None = None
+    rejected_at: datetime | None = None
+    rejected_by: str | None = None
+    reject_location_id: UUID | None = None
     materials: list[PackingCompletionMaterialResponse] = []
     class Config:
         from_attributes = True
+
+class PackingCompletionReject(BaseModel):
+    """QC-reject cartons off one pack event. Omit `packed_unit_ids` to reject the
+    whole event (every carton it minted); name cartons to reject only those."""
+    reason: str | None = None
+    packed_unit_ids: list[UUID] = []
+    # Defect store override; omitted = resolved from the FG item's default.
+    reject_location_id: UUID | None = None
+    usable: bool = False
 
 class PackingOrderResponse(BaseModel):
     id: UUID
@@ -2501,6 +2518,9 @@ class PackingOrderResponse(BaseModel):
     qty_target: float
     qty_packed: float = 0
     package_count: int = 0
+    # Scrap rolled up across completions (QC-rejected cartons)
+    qty_rejected: float = 0
+    package_count_rejected: int = 0
     pack_size: float | None = None
     package_label: str
     source_location_id: UUID | None = None

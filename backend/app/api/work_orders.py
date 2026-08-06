@@ -23,7 +23,7 @@ from app.schemas import (
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
 from app.api.batches import generate_batch_number
-from app.services import audit_service, stock_service, beam_service, work_center_service
+from app.services import audit_service, stock_service, beam_service, work_center_service, reject_service
 from app.core.ws_manager import manager
 from datetime import datetime
 import uuid
@@ -680,7 +680,7 @@ async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id)
     FIFO, still fully overridable in the staging picker."""
     batch_res = await db.execute(
         select(Batch)
-        .where(Batch.item_id == item_id, Batch.quality_status != "REJECTED")
+        .where(Batch.item_id == item_id, Batch.quality_status.notin_(reject_service.UNPICKABLE_GRADES))
         .order_by(Batch.created_at.asc())
     )
     candidates = batch_res.scalars().all()

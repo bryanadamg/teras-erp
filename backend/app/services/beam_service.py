@@ -43,7 +43,7 @@ from app.models.item import Item
 from app.models.category import Category
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption, BeamMount
-from app.services import stock_service, work_center_service
+from app.services import stock_service, work_center_service, reject_service
 
 WEAVING_TYPES = {"WEAVING", "TENUN"}
 
@@ -139,8 +139,11 @@ async def mount_beam(
     batch = (await db.execute(select(Batch).where(Batch.id == batch_id))).scalars().first()
     if not batch:
         raise HTTPException(status_code=404, detail="Beam not found")
-    if batch.quality_status == "REJECTED":
-        raise HTTPException(status_code=400, detail=f"Beam {batch.batch_number} is rejected")
+    # A REJECT_USABLE beam is deliberately allowed back on the loom — that grade
+    # exists because a rejected beam still weaves certain items. Only scrap-bound
+    # (REJECTED) and written-off (DISPOSED) beams are refused.
+    if str(batch.quality_status or "") in reject_service.UNPICKABLE_GRADES:
+        raise HTTPException(status_code=400, detail=f"Beam {batch.batch_number} is {batch.quality_status.lower()}")
 
     wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == work_center_id))).scalars().first()
     if not wc:
