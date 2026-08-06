@@ -1689,6 +1689,10 @@ async def reject_mo_completion(
     comp.reject_location_id = reject_loc if relocated else None
 
     # Progress returns to the MO: reopen if the reject drops it below target.
+    # Flush first — sessions run autoflush=False, so without this the aggregate
+    # below still counts the completion just flagged and a DELIVERED MO at 100%
+    # never reopens (the reject looks like it did nothing).
+    await db.flush()
     total_result = await db.execute(
         select(func.sum(MOCompletion.qty_completed))
         .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
