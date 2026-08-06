@@ -1589,6 +1589,7 @@ class SampleRequestCreate(BaseModel):
     internal_article_code: Optional[str] = None
     width: Optional[str] = None
     variant_type: str = "color"
+    category: str = "NEW_SAMPLE"
     colors: list[SampleColorCreate] = []
     main_material: Optional[str] = None
     middle_material: Optional[str] = None
@@ -1620,6 +1621,7 @@ class SampleRequestUpdate(BaseModel):
     internal_article_code: Optional[str] = None
     width: Optional[str] = None
     variant_type: str = "color"
+    category: str = "NEW_SAMPLE"
     colors: list[SampleColorUpdate] = []
     main_material: Optional[str] = None
     middle_material: Optional[str] = None
@@ -1643,6 +1645,7 @@ class SampleRequestResponse(BaseModel):
     version: int
     status: str
     variant_type: str = "color"
+    category: str = "NEW_SAMPLE"
     created_at: datetime
     is_unread: bool = False
     customer_id: Optional[UUID] = None

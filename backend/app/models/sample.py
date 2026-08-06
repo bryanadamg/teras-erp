@@ -69,6 +69,7 @@ class SampleRequest(Base):
     completion_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     variant_type: Mapped[str] = mapped_column(String(16), default="color")
+    category: Mapped[str] = mapped_column(String(16), default="NEW_SAMPLE", index=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(32), default="DRAFT", index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -20,6 +20,16 @@ import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 
 const SAMPLE_PAGE_SIZE = 50;
 
+// Request classification, chosen at create time. Closed set — a plain column on the
+// request header, not a system attribute (no variant meaning, never explodes into items).
+const SAMPLE_CATEGORIES = [
+    { value: 'NEW_SAMPLE', label: 'New Sample' },
+    { value: 'RE_SAMPLE', label: 'Re Sample' },
+    { value: 'YARDAGE', label: 'Yardage' },
+] as const;
+const categoryLabel = (v?: string) =>
+    SAMPLE_CATEGORIES.find(c => c.value === v)?.label ?? 'New Sample';
+
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
@@ -60,6 +70,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  // Created-date range (inclusive both ends), filtered client-side like every other filter here.
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   const [samplePage, setSamplePage] = useState(1);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [completionImageFile, setCompletionImageFile] = useState<File | null>(null);
@@ -149,6 +163,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           customer_article_code: sample.customer_article_code || '',
           internal_article_code: sample.internal_article_code || '',
           width: sample.width || '',
+          // Cloning a rejected color into a fresh request is a re-sample by definition.
+          category: 'RE_SAMPLE',
           variant_type: (sample.variant_type || 'color') as 'color' | 'combo',
           colors: [{ name: color.name, is_repeat: true }],
           main_material: sample.main_material || '',
@@ -268,6 +284,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       customer_article_code: '',
       internal_article_code: '',
       width: '',
+      category: 'NEW_SAMPLE',
       variant_type: 'color' as 'color' | 'combo',
       colors: [] as { id?: string; name: string; is_repeat: boolean }[],
       main_material: '',
@@ -380,6 +397,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           customer_article_code: sample.customer_article_code || '',
           internal_article_code: sample.internal_article_code || '',
           width: sample.width || '',
+          category: sample.category || 'NEW_SAMPLE',
           variant_type: (sample.variant_type || 'color') as 'color' | 'combo',
           colors: (sample.colors || []).map((c: any) => ({ id: c.id, name: c.name, is_repeat: c.is_repeat })),
           main_material: sample.main_material || '',
@@ -494,10 +512,25 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           (s.project && s.project.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (s.customer_article_code && s.customer_article_code.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchStatus = statusFilter === 'ALL' || s.status === statusFilter;
-      return matchSearch && matchStatus;
+      const matchCategory = categoryFilter === 'ALL' || (s.category || 'NEW_SAMPLE') === categoryFilter;
+      // created_at is a UTC timestamp; compare on its date part against the raw
+      // yyyy-mm-dd the date inputs emit. Both ends inclusive.
+      const createdDay = s.created_at ? String(s.created_at).slice(0, 10) : '';
+      const matchFrom = !createdFrom || (createdDay && createdDay >= createdFrom);
+      const matchTo = !createdTo || (createdDay && createdDay <= createdTo);
+      return matchSearch && matchStatus && matchCategory && matchFrom && matchTo;
   });
 
-  useEffect(() => { setSamplePage(1); }, [searchTerm, statusFilter]);
+  const hasActiveFilter = !!searchTerm || statusFilter !== 'ALL' || categoryFilter !== 'ALL' || !!createdFrom || !!createdTo;
+  const clearFilters = () => {
+      setSearchTerm('');
+      setStatusFilter('ALL');
+      setCategoryFilter('ALL');
+      setCreatedFrom('');
+      setCreatedTo('');
+  };
+
+  useEffect(() => { setSamplePage(1); }, [searchTerm, statusFilter, categoryFilter, createdFrom, createdTo]);
   // A ?highlight=<id> deep link must stay reachable even once paginated —
   // jump straight to whichever page contains the target row.
   useEffect(() => {
@@ -638,6 +671,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                           value={newSample.request_date} onChange={e => setNewSample({ ...newSample, request_date: e.target.value })} required />
                                </div>
                                <div style={{ gridColumn: '1 / -1' }}>
+                                   <label style={xpLbl}>Category <span style={{ fontWeight: 'normal', color: '#a00' }}>*</span></label>
+                                   <select style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const, height: 20 }}
+                                           value={newSample.category}
+                                           onChange={e => setNewSample({ ...newSample, category: e.target.value })}>
+                                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                   </select>
+                               </div>
+                               <div style={{ gridColumn: '1 / -1' }}>
                                    <label style={xpLbl}>Customer <span style={{ fontWeight: 'normal', color: '#888' }}>(Optional)</span></label>
                                    <SearchableSelect
                                        options={[{ value: '', label: 'No Customer (Internal/Prototype)' }, ...(customers || []).map((c: any) => ({ value: c.id, label: c.name }))]}
@@ -676,6 +717,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                <div className="col-md-6">
                                    <label className="form-label small text-muted">Request Date</label>
                                    <input type="date" className="form-control form-control-sm" value={newSample.request_date} onChange={e => setNewSample({ ...newSample, request_date: e.target.value })} required />
+                               </div>
+                               <div className="col-12">
+                                   <label className="form-label small text-muted">Category</label>
+                                   <select className="form-select form-select-sm"
+                                           value={newSample.category}
+                                           onChange={e => setNewSample({ ...newSample, category: e.target.value })}>
+                                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                   </select>
                                </div>
                                <div className="col-12">
                                    <label className="form-label small text-muted">Customer <span className="fw-normal">(Optional)</span></label>
@@ -1211,6 +1260,36 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        </button>
                    ))}
                    <div style={xpSep}></div>
+                   <select
+                       style={{ ...xpInput, width: 120 }}
+                       value={categoryFilter}
+                       onChange={e => setCategoryFilter(e.target.value)}
+                       title="Filter by category"
+                   >
+                       <option value="ALL">All Categories</option>
+                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                   </select>
+                   <div style={xpSep}></div>
+                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>Created</span>
+                   <input
+                       type="date"
+                       style={{ ...xpInput, width: 118 }}
+                       value={createdFrom}
+                       onChange={e => setCreatedFrom(e.target.value)}
+                       title="Created from"
+                   />
+                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>–</span>
+                   <input
+                       type="date"
+                       style={{ ...xpInput, width: 118 }}
+                       value={createdTo}
+                       onChange={e => setCreatedTo(e.target.value)}
+                       title="Created to"
+                   />
+                   {hasActiveFilter && (
+                       <button style={xpBtn()} onClick={clearFilters} title="Clear all filters">Clear</button>
+                   )}
+                   <div style={xpSep}></div>
                    <button
                        onClick={onMarkAllRead}
                        style={xpBtn({ display: 'inline-flex', alignItems: 'center', gap: 4 })}
@@ -1250,6 +1329,44 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                            </button>
                        ))}
                    </div>
+                   <select
+                       className="form-select form-select-sm"
+                       style={{ fontSize: 11, width: 'auto' }}
+                       value={categoryFilter}
+                       onChange={e => setCategoryFilter(e.target.value)}
+                       title="Filter by category"
+                   >
+                       <option value="ALL">All Categories</option>
+                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                   </select>
+                   <div className="d-flex align-items-center gap-1">
+                       <span className="small text-muted">Created</span>
+                       <input
+                           type="date"
+                           className="form-control form-control-sm"
+                           style={{ fontSize: 11, width: 'auto' }}
+                           value={createdFrom}
+                           onChange={e => setCreatedFrom(e.target.value)}
+                           title="Created from"
+                       />
+                       <span className="small text-muted">–</span>
+                       <input
+                           type="date"
+                           className="form-control form-control-sm"
+                           style={{ fontSize: 11, width: 'auto' }}
+                           value={createdTo}
+                           onChange={e => setCreatedTo(e.target.value)}
+                           title="Created to"
+                       />
+                   </div>
+                   {hasActiveFilter && (
+                       <button
+                           className="btn btn-sm btn-light border"
+                           style={{ fontSize: 11 }}
+                           onClick={clearFilters}
+                           title="Clear all filters"
+                       >Clear</button>
+                   )}
                    <button
                        className="btn btn-sm btn-outline-primary ms-auto"
                        style={{ fontSize: 11 }}
@@ -1282,6 +1399,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
                                <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-4'}>Request Code</th>
+                               <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Category</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Customer</th>
                                <th style={classic ? xpThCell : undefined}>Article / Project</th>
                                <th style={classic ? xpThCell : undefined}>Specs</th>
@@ -1328,6 +1446,12 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                </div>
                                            </div>
                                        </div>
+                                   </td>
+                                   <td style={classic ? tdBase : undefined}>
+                                       <span style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px' } : undefined}
+                                             className={classic ? '' : 'small'}>
+                                           {categoryLabel(s.category)}
+                                       </span>
                                    </td>
                                    <td style={classic ? tdBase : undefined}>
                                        {s.customer_id ? (
@@ -1541,6 +1665,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
                                    const sections: any[] = [
                                        { title: '① Identity & Specs', fields: [
+                                           { label: 'Category', value: categoryLabel(s.category) },
                                            { label: 'Customer', value: s.customer_id ? getCustomerName(s.customer_id) : <em style={{ color: '#555' }}>Internal</em> },
                                            { label: 'Project', value: s.project || '—' },
                                            { label: 'Customer Art.', value: s.customer_article_code || '—' },
@@ -1594,7 +1719,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            {/* position:relative + fixed height, with the panel absolutely positioned
                                                inside, keeps this colSpan cell out of the table's auto width calc — so
                                                expanding a row can't reflow the auto-width columns (e.g. Specs badges). */}
-                                           <td colSpan={7} style={{ padding: 0, borderBottom: classic ? '2px solid #9a9690' : '2px solid #dee2e6', position: 'relative', height: 300 }}>
+                                           <td colSpan={8} style={{ padding: 0, borderBottom: classic ? '2px solid #9a9690' : '2px solid #dee2e6', position: 'relative', height: 300 }}>
                                                <div style={{ position: 'absolute', inset: 0 }}>
                                                    <RequestDetailPanel
                                                        classic={classic}
@@ -1616,12 +1741,12 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                            {filteredSamples.length === 0 && (
                                <tr>
                                    <td
-                                       colSpan={7}
+                                       colSpan={8}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#555', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
                                        {dataLoading.samples ? <XPLoading label="Loading sample requests..." /> : (
-                                           searchTerm || statusFilter !== 'ALL'
+                                           hasActiveFilter
                                                ? 'No requests match the current filter.'
                                                : 'No sample requests found. Create one to get started.'
                                        )}
