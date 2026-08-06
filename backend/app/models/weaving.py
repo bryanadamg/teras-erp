@@ -9,14 +9,21 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.routing import WorkCenter
     from app.models.manufacturing import ManufacturingOrder
+    from app.models.work_order import WorkOrder
 
 
 class WeavingRun(Base):
-    """A tracked production run of one MO on one machine (work center).
+    """A tracked production run of one WO/MO on one machine (work center).
 
     Performance monitoring: faithful to the client's loom-efficiency formula.
     target_100_per_day_kg = (24*60) * rate_per_line_g_min * lines / 1000
     efficiency = actual_kg / (target_100_per_day_kg * elapsed_working_days)
+
+    A loom may carry SEVERAL concurrent runs: the same item is commonly woven for
+    two combos at once, each on its own WO with its own line count. So `lines` is a
+    per-run number and `work_order_id` says which WO the run belongs to. It stays
+    nullable — pre-WO runs and machines with no WO dispatched keep working, and the
+    run then reports at MO grain as it always did.
     """
     __tablename__ = "weaving_runs"
 
@@ -26,6 +33,9 @@ class WeavingRun(Base):
     )
     mo_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), index=True
+    )
+    work_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True, index=True
     )
     lines: Mapped[int] = mapped_column(Integer, default=1)
     rate_per_line_g_min: Mapped[float] = mapped_column(Numeric(10, 3), default=5)
@@ -39,6 +49,7 @@ class WeavingRun(Base):
 
     work_center: Mapped["WorkCenter"] = relationship("WorkCenter", lazy="noload")
     mo: Mapped["ManufacturingOrder"] = relationship("ManufacturingOrder", lazy="noload")
+    work_order: Mapped[Optional["WorkOrder"]] = relationship("WorkOrder", lazy="noload")
 
 
 class WorkCenterHoliday(Base):

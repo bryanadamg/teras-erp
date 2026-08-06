@@ -191,6 +191,46 @@ def target_100_per_day_kg(rate_per_line_g_min: float, lines: int) -> float:
     return MINUTES_PER_DAY * float(rate_per_line_g_min) * int(lines) / 1000.0
 
 
+def lateness(projected: Optional[date], wo_target: Optional[date], plan_target: Optional[date],
+             unreachable: bool = False) -> dict:
+    """Compare the reality-rate projection against the date the order promised.
+
+    Two baselines, in priority order:
+      * `wo_target` — WO.target_end_date, the date entered when the WO was created.
+        This is the promise; it is what the floor is judged against.
+      * `plan_target` — the date the run's own target rate would have hit, used only
+        when the WO carries no target date, so the warning still has something to
+        compare with.
+    A projection later than the baseline is the signal the client asked for: add a
+    machine, or add working days.
+
+    `unreachable` covers the worst case, which has no date at all: the loom has been
+    running for at least one working day and produced nothing (or too little to ever
+    reach the target), so the walk never lands. That must read as LATE — reporting a
+    dead loom as on schedule because there is no projected date to compare is exactly
+    backwards. `days_late` stays 0 there because "how late" is undefined.
+    """
+    baseline = wo_target or plan_target
+    basis = "WO" if wo_target else ("PLAN" if plan_target else None)
+    if projected is None:
+        late = bool(unreachable and baseline is not None)
+        return {
+            "baseline_date": baseline, "baseline_basis": basis,
+            "is_late": late, "days_late": 0, "reality_unreachable": bool(unreachable),
+        }
+    if baseline is None:
+        return {"baseline_date": None, "baseline_basis": None, "is_late": False,
+                "days_late": 0, "reality_unreachable": False}
+    days = (projected - baseline).days
+    return {
+        "baseline_date": baseline,
+        "baseline_basis": basis,
+        "is_late": days > 0,
+        "days_late": days if days > 0 else 0,
+        "reality_unreachable": False,
+    }
+
+
 def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date) -> dict:
     """All displayed numbers for one run. Pure — caller supplies actual_kg + calendar."""
     lines = int(run.lines or 0)

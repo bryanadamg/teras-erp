@@ -2659,7 +2659,10 @@ class PickListListResponse(BaseModel):
 
 class WeavingRunCreate(BaseModel):
     work_center_id: UUID
-    mo_id: UUID
+    # Either is enough: pass work_order_id and the MO is derived from it. mo_id
+    # alone still works for a loom with no WO dispatched (the pre-WO shape).
+    mo_id: UUID | None = None
+    work_order_id: UUID | None = None
     lines: int = 1
     rate_per_line_g_min: float = 5
     target_efficiency_pct: float = 50
@@ -2679,6 +2682,7 @@ class WeavingRunResponse(BaseModel):
     id: UUID
     work_center_id: UUID
     mo_id: UUID
+    work_order_id: UUID | None = None
     lines: int
     rate_per_line_g_min: float
     target_efficiency_pct: float

@@ -25,6 +25,18 @@ function fmt(n: any, d = 1): string {
     if (Number.isNaN(v)) return '—';
     return v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: d });
 }
+function fmtDate(s: any): string {
+    if (!s) return '—';
+    return String(s).slice(0, 10);
+}
+
+// Every RUNNING run on a loom. A loom weaving one item for two combos carries one
+// run per WO, so the card is a list — `active_run` is only the first of them and is
+// read here as the fallback for an older API response.
+function runsOf(m: any): any[] {
+    if (Array.isArray(m?.active_runs)) return m.active_runs;
+    return m?.active_run ? [m.active_run] : [];
+}
 
 export default function WeavingMonitorView() {
     const { authFetch, subscribeLiveEvents } = useData();
@@ -132,7 +144,7 @@ export default function WeavingMonitorView() {
         return [...byGroup.values()]
             .sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1) || (a.code || '').localeCompare(b.code || ''))
             .map(sec => {
-                const runs = sec.machines.map((m: any) => m.active_run).filter(Boolean);
+                const runs = sec.machines.flatMap((m: any) => runsOf(m));
                 // on_target is null until a run has an efficiency to judge (no elapsed
                 // working day yet) — only count a run that actually reports below.
                 const belowTarget = runs.filter((r: any) => r.on_target === false).length;
@@ -140,6 +152,10 @@ export default function WeavingMonitorView() {
                 return {
                     ...sec,
                     running: runs.length,
+                    // Projected past the date the WO promised. Separate alarm from
+                    // below-target: a loom can hold its efficiency and still miss the
+                    // date because the order needs more machines or more working days.
+                    late: runs.filter((r: any) => r.is_late).length,
                     belowTarget,
                     avgEff: effs.length ? effs.reduce((a: number, b: number) => a + Number(b), 0) / effs.length : null,
                 };
@@ -147,6 +163,7 @@ export default function WeavingMonitorView() {
     }, [machines]);
     const isGrouped = sections.some(s => !!s.id);
     const plantBelowTarget = sections.reduce((n, s) => n + s.belowTarget, 0);
+    const plantLate = sections.reduce((n, s) => n + s.late, 0);
 
     // Chip bar filters which sections render; it never changes what was measured, so
     // the counts on the chips stay plant-wide. A filter that matches nothing (the
@@ -250,10 +267,16 @@ export default function WeavingMonitorView() {
             {data.avg_efficiency_pct !== null && data.avg_efficiency_pct !== undefined && (
                 <span style={{ marginLeft: 12 }}>{t('avg_efficiency')}: <b>{fmt(data.avg_efficiency_pct, 1)}%</b></span>
             )}
-            {/* Plant-wide alarm count, always visible regardless of the group filter. */}
+            {/* Plant-wide alarm counts, always visible regardless of the group filter. */}
             {plantBelowTarget > 0 && (
                 <span style={{ marginLeft: 12 }}>
                     <b style={{ color: cls ? '#ffc9c9' : RED }}>{plantBelowTarget}</b> {t('below_target')}
+                </span>
+            )}
+            {plantLate > 0 && (
+                <span style={{ marginLeft: 12 }}>
+                    <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }} />
+                    <b style={{ color: cls ? '#ffc9c9' : RED }}>{plantLate}</b> {t('behind_schedule')}
                 </span>
             )}
         </>
@@ -262,11 +285,51 @@ export default function WeavingMonitorView() {
     // Run readout — ONE copy for both themes. This block used to be duplicated in
     // the classic and modern card renderers, which is how they drifted (a field
     // added to one went missing from the other). Only the chrome around it branches.
+    // The two completion dates side by side, plus the warning. `wo_target_end_date`
+    // is the date entered when the WO was created (the promise); `reality_...` is
+    // where today's actual rate lands. The gap between them is the decision — add a
+    // machine, or add working days.
+    const DueLine = ({ run }: { run: any }) => {
+        if (!run.wo_target_end_date && !run.reality_completion_date && !run.reality_unreachable) return null;
+        const late = !!run.is_late;
+        return (
+            <div style={{ marginTop: 4, fontSize: cls ? 10 : 11, lineHeight: 1.35 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ color: '#888' }}>{t('wo_due')}</span>
+                    <b>{fmtDate(run.wo_target_end_date || run.target_completion_date)}</b>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ color: '#888' }}>{t('projected_completion')}</span>
+                    <b style={{ color: late ? RED : GREEN }}>
+                        {run.reality_unreachable ? t('not_achievable') : fmtDate(run.reality_completion_date)}
+                    </b>
+                </div>
+                {late && (
+                    <div style={{
+                        marginTop: 3, padding: '1px 5px', background: cls ? '#ffe6e6' : '#fdecea',
+                        border: `1px solid ${RED}`, color: RED, fontWeight: 'bold',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                    }}>
+                        <i className="bi bi-exclamation-triangle-fill" />
+                        <span>
+                            {run.reality_unreachable
+                                ? t('no_output_yet')
+                                : `${t('late_by')} ${run.days_late} ${t('days')}`}
+                        </span>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const RunBody = ({ run }: { run: any }) => {
         const effColor = run.on_target ? GREEN : RED;
         return (
             <>
                 <div style={{ fontSize: cls ? 10 : 12, color: '#555', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {/* WO first: with several runs on one loom the WO is what tells them
+                        apart on the floor — the MO is shared by every combo. */}
+                    {run.wo_code && <b style={{ color: BLUE }}>{run.wo_code} · </b>}
                     <b>{run.mo_code}</b>{run.item_code ? ` · ${run.item_code}` : ''}
                 </div>
                 <div style={{ marginBottom: 4 }}><RunVariant run={run} /></div>
@@ -275,15 +338,34 @@ export default function WeavingMonitorView() {
                         {fmt(run.efficiency_pct, 1)}<span style={{ fontSize: cls ? 12 : 13 }}>%</span>
                     </span>
                     <span style={{ fontSize: cls ? 10 : 12, color: '#888' }}>{t('target')} {fmt(run.target_efficiency_pct, 0)}%</span>
+                    <span style={{ fontSize: cls ? 10 : 12, color: '#888', marginLeft: 'auto' }}>
+                        {run.lines} {t('lines')}
+                    </span>
                 </div>
                 <div style={{ margin: '4px 0' }}><EffBar eff={run.efficiency_pct} target={run.target_efficiency_pct} /></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: cls ? 10 : 12 }}>
                     <span><span style={{ color: '#888' }}>{t('actual')}:</span> <b>{fmt(run.actual_kg, 1)}</b> / {fmt(run.target_qty, 0)} kg</span>
                     <span style={{ color: '#666' }}>{fmt(run.actual_daily_rate_kg, 1)} kg/d</span>
                 </div>
+                <DueLine run={run} />
             </>
         );
     };
+
+    // Several WOs on one loom stack in the card, separated by a rule. Each keeps its
+    // own line count, dates and warning — they are different orders, not one run
+    // averaged together.
+    const RunStack = ({ runs }: { runs: any[] }) => (
+        <>
+            {runs.map((r: any, i: number) => (
+                <div key={r.id} style={i === 0 ? undefined : {
+                    marginTop: 6, paddingTop: 6, borderTop: `1px dashed ${cls ? '#c8c4b8' : '#e3e3e3'}`,
+                }}>
+                    <RunBody run={r} />
+                </div>
+            ))}
+        </>
+    );
 
     // No run yet. Which prep step the loom is waiting on is the useful line here —
     // "no active run" alone couldn't tell a supervisor whether the loom is dead or
@@ -348,8 +430,9 @@ export default function WeavingMonitorView() {
     // Loom card. Classic = XP raised tile with a status strip; modern = bootstrap
     // card. Body content is shared (RunBody / IdleBody / BeamStrip / PrepRow).
     const card = (m: any) => {
-        const run = m.active_run;
-        const loomStatus: string = m.loom_status || (run ? 'RUNNING' : 'IDLE');
+        const runs = runsOf(m);
+        const lateCount = runs.filter((r: any) => r.is_late).length;
+        const loomStatus: string = m.loom_status || (runs.length ? 'RUNNING' : 'IDLE');
         if (cls) {
             const strip: React.CSSProperties = {
                 background: loomStrip(loomStatus),
@@ -362,10 +445,14 @@ export default function WeavingMonitorView() {
                     style={{ border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff', background: '#ece9d8', cursor: 'pointer' }}>
                     <div style={strip}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.code} — {m.name}</span>
-                        <span style={{ fontSize: 9, flexShrink: 0 }}>{loomLabel(loomStatus).toUpperCase()}</span>
+                        <span style={{ fontSize: 9, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {lateCount > 0 && <i className="bi bi-exclamation-triangle-fill" title={t('behind_schedule')} />}
+                            {runs.length > 1 && <span>{runs.length} {t('wo_short')}</span>}
+                            {loomLabel(loomStatus).toUpperCase()}
+                        </span>
                     </div>
                     <div style={{ padding: '6px 8px', background: '#fff', fontFamily: xpFont }}>
-                        {run ? <RunBody run={run} /> : <IdleBody status={loomStatus} />}
+                        {runs.length ? <RunStack runs={runs} /> : <IdleBody status={loomStatus} />}
                         <BeamStrip m={m} />
                         <PrepRow m={m} />
                     </div>
@@ -380,9 +467,15 @@ export default function WeavingMonitorView() {
                         <span className="text-muted small text-truncate" style={{ flex: 1 }}>{m.name}</span>
                         {/* Loom state through the shared chip so the grid uses the same
                             status vocabulary as every other list in the app. */}
+                        {lateCount > 0 && (
+                            <i className="bi bi-exclamation-triangle-fill" style={{ color: RED }} title={t('behind_schedule')} />
+                        )}
+                        {runs.length > 1 && (
+                            <span className="text-muted" style={{ fontSize: 11 }}>{runs.length} {t('wo_short')}</span>
+                        )}
                         <StatusChip status={loomChipStatus(loomStatus)} label={loomLabel(loomStatus)} tint />
                     </div>
-                    {run ? <RunBody run={run} /> : <IdleBody status={loomStatus} />}
+                    {runs.length ? <RunStack runs={runs} /> : <IdleBody status={loomStatus} />}
                     <BeamStrip m={m} />
                     <PrepRow m={m} />
                 </div>
@@ -415,6 +508,9 @@ export default function WeavingMonitorView() {
                 )}
                 {sec.belowTarget > 0 && (
                     <StatusChip status="CANCELLED" label={`${sec.belowTarget} ${t('below_target')}`} tint />
+                )}
+                {sec.late > 0 && (
+                    <StatusChip status="CANCELLED" label={`${sec.late} ${t('behind_schedule')}`} tint />
                 )}
             </>
         );

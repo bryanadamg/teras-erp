@@ -69,22 +69,33 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [returnLoc, setReturnLoc] = useState('');
 
     const [moId, setMoId] = useState('');
+    // WO candidates: the run is started per WORK ORDER, because a loom weaves the
+    // same item for two combos side by side and each combo is its own WO with its
+    // own line count and its own promised end date.
+    const [woId, setWoId] = useState('');
+    const [woCands, setWoCands] = useState<any[]>([]);
+    const [woCandsLoading, setWoCandsLoading] = useState(false);
     // MO candidates come from the server scoped to this machine (MOs with a WO
     // dispatched here) — the global manufacturingOrders list is page-1 roots only
     // and misses consolidated component MOs, which is what weaving usually runs.
+    // Kept as the escape hatch for a loom with no WO dispatched to it yet.
+    const [moMode, setMoMode] = useState(false);
     const [moCands, setMoCands] = useState<any[]>([]);
     const [moCandsAll, setMoCandsAll] = useState(false);
     const [moCandsLoading, setMoCandsLoading] = useState(false);
+    const [startOpen, setStartOpen] = useState(false);
     const [lines, setLines] = useState('1');
     const [rate, setRate] = useState('5');
     const [eff, setEff] = useState('50');
     const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+    // Both inline editors are keyed by run id, not a boolean: a loom shows several
+    // runs at once and a shared flag would open the editor on every one of them.
     const [overrideVal, setOverrideVal] = useState('');
-    const [editingOverride, setEditingOverride] = useState(false);
+    const [overrideRunId, setOverrideRunId] = useState<string | null>(null);
 
     const [targetVal, setTargetVal] = useState('');
-    const [editingTarget, setEditingTarget] = useState(false);
+    const [targetRunId, setTargetRunId] = useState<string | null>(null);
 
     const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
     const [holidays, setHolidays] = useState<any[]>([]);
@@ -143,19 +154,39 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         if (isOpen && wcId) {
             setTab('performance');
             setUnmountingId(null);
-            setEditingOverride(false);
+            setOverrideRunId(null);
+            setTargetRunId(null);
             setCalRef(new Date());
             setMoCands([]);
+            setWoCands([]);
             setMoCandsAll(false);
+            setMoMode(false);
+            setStartOpen(false);
+            setWoId('');
+            setMoId('');
             load();
         }
     }, [isOpen, wcId, load]);
 
-    // MOs offered in the start-run picker: scoped to this machine's WOs, widened
-    // to every open MO only when the operator asks for it. The form itself is
-    // now shown as soon as there's no active run, so fetch as soon as that's true.
+    // WOs offered in the start-run picker. Fetched whenever the form can be opened —
+    // which is now always for a manager, since a loom already running one WO is
+    // exactly where a second one gets added.
     useEffect(() => {
-        if (!isOpen || !wcId || !canManage || data?.active_run) return;
+        if (!isOpen || !wcId || !canManage) return;
+        let cancelled = false;
+        setWoCandsLoading(true);
+        authFetch(`${apiBase}/work-centers/${wcId}/candidate-wos`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (!cancelled) setWoCands(d?.items || []); })
+            .catch(() => { if (!cancelled) setWoCands([]); })
+            .finally(() => { if (!cancelled) setWoCandsLoading(false); });
+        return () => { cancelled = true; };
+    }, [isOpen, wcId, canManage, data?.active_runs?.length, apiBase, authFetch]);
+
+    // MOs offered in the fallback picker: scoped to this machine's WOs, widened
+    // to every open MO only when the operator asks for it.
+    useEffect(() => {
+        if (!isOpen || !wcId || !canManage || !moMode) return;
         let cancelled = false;
         setMoCandsLoading(true);
         authFetch(`${apiBase}/work-centers/${wcId}/candidate-mos?include_all=${moCandsAll}`)
@@ -164,7 +195,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             .catch(() => { if (!cancelled) setMoCands([]); })
             .finally(() => { if (!cancelled) setMoCandsLoading(false); });
         return () => { cancelled = true; };
-    }, [isOpen, wcId, canManage, data?.active_run, moCandsAll, apiBase, authFetch]);
+    }, [isOpen, wcId, canManage, moMode, moCandsAll, apiBase, authFetch]);
 
     // Loom prep walk (STAGED → DRAW_IN → TUNING) — state comes from the beam-mounts
     // call, which derives it server-side, so this panel and the monitor card always
@@ -195,11 +226,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     };
 
     const startRun = async () => {
-        if (!moId) return;
+        if (!woId && !moId) return;
         const res = await authFetch(`${apiBase}/weaving-runs`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                work_center_id: wcId, mo_id: moId,
+                work_center_id: wcId,
+                // WO wins when one is picked — the backend derives the MO from it.
+                ...(woId ? { work_order_id: woId } : { mo_id: moId }),
                 lines: parseInt(lines) || 1,
                 rate_per_line_g_min: parseFloat(rate) || 0,
                 target_efficiency_pct: parseFloat(eff) || 0,
@@ -207,13 +240,16 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             }),
         });
         if (!res.ok) {
-            // The prep gate answers 422 here (warp staged but Draw-in/Tuning not
-            // confirmed). Surfacing it beats the old silent no-op.
+            // 422 = the prep gate (warp staged but Draw-in/Tuning not confirmed);
+            // 400 = this WO is already running here. Surfacing both beats the old
+            // silent no-op.
             const d = await res.json().catch(() => null);
             showToast(d?.detail || t('prep_blocked_start'), 'danger');
             return;
         }
         setMoId('');
+        setWoId('');
+        setStartOpen(false);
         load();
     };
     const stopRun = async (runId: string) => {
@@ -225,7 +261,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         const res = await authFetch(`${apiBase}/weaving-runs/${runId}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
-        if (res.ok) { setEditingOverride(false); load(); }
+        if (res.ok) { setOverrideRunId(null); load(); }
     };
     const saveTarget = async (runId: string) => {
         const v = parseFloat(targetVal);
@@ -233,7 +269,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         const res = await authFetch(`${apiBase}/weaving-runs/${runId}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_efficiency_pct: v }),
         });
-        if (res.ok) { setEditingTarget(false); load(); }
+        if (res.ok) { setTargetRunId(null); load(); }
     };
     const toggleWeekday = (d: number) => {
         setWeekdays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a, b) => a - b));
@@ -267,8 +303,23 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         subLabel: mo.qty ? `${fmt(mo.qty, 2)}` : undefined,
     }));
 
-    const run = data?.active_run;
-    const proj = data?.mo_projection;
+    // A WO already running here is dropped from the list rather than offered and then
+    // rejected by the duplicate guard on submit; the count is reported under the
+    // select so the operator can see where their WO went.
+    const woRunningHere = woCands.filter((wo: any) => wo.already_running).length;
+    const woOptions = woCands
+        .filter((wo: any) => !wo.already_running)
+        .map((wo: any) => ({
+            value: wo.id,
+            label: `${wo.code || wo.name}${wo.combo_label ? ' · ' + wo.combo_label : ''}${wo.item_code ? ' — ' + wo.item_code : ''}`,
+            subLabel: [
+                wo.qty ? `${fmt(wo.qty, 2)} kg` : null,
+                wo.target_end_date ? `${t('wo_due')} ${fmtDate(wo.target_end_date)}` : null,
+            ].filter(Boolean).join(' · ') || undefined,
+        }));
+
+    // Every RUNNING run on this loom, not just the newest.
+    const runs: any[] = data?.active_runs || (data?.active_run ? [data.active_run] : []);
 
     // ── Themed primitives ────────────────────────────────────────────────────
     const SecTitle = SectionTitle;
@@ -341,8 +392,189 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         </span>
     );
 
-    const onTarget = !!run?.on_target;
-    const effColor = onTarget ? GREEN : RED;
+    // The three dates the client asked for, side by side: what the WO promised when
+    // it was created, where the planned rate lands, and where the rate actually being
+    // achieved lands. The warning fires on the third vs the first.
+    const CompletionSection = ({ run }: { run: any }) => {
+        const proj = run.projection;
+        if (!proj) return null;
+        const late = !!run.is_late;
+        const woBasis = run.baseline_basis === 'WO';
+        return (
+            <FormSection
+                title={
+                    <SecTitle
+                        icon="bi-flag-fill"
+                        right={proj.machines && proj.machines.length > 1
+                            ? `${t('machines_on_mo')}: ${proj.machines.map((m: any) => m.work_center_code).join(', ')}`
+                            : undefined}
+                    >
+                        {t('mo_completion')} — {run.wo_code || proj.mo_code}
+                    </SecTitle>
+                }
+                classic={cls}
+            >
+                {late && (
+                    <div
+                        className={cls ? '' : 'alert alert-danger py-2 px-3 mb-2'}
+                        style={cls
+                            ? { background: '#ffe6e6', border: `1px solid ${RED}`, color: RED, fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '4px 8px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }
+                            : { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+                    >
+                        <i className="bi bi-exclamation-triangle-fill" />
+                        <span>
+                            {run.reality_unreachable
+                                ? <>{t('no_output_yet')}</>
+                                : <>{t('late_warning')} <b>{run.days_late} {t('days')}</b></>}
+                            {' — '}
+                            {woBasis ? t('late_basis_wo') : t('late_basis_plan')} {fmtDate(run.baseline_date)}
+                            {'. '}{t('late_action_hint')}
+                        </span>
+                    </div>
+                )}
+                <div style={grid(135)}>
+                    <Stat label={t('wo_due')} value={fmtDate(run.wo_target_end_date)} accent={BLUE} />
+                    <Stat label={t('target_completion')} value={fmtDate(proj.target_completion_date)} accent={GREEN} />
+                    <Stat
+                        label={t('projected_completion')}
+                        value={run.reality_unreachable ? t('not_achievable') : fmtDate(proj.reality_completion_date)}
+                        accent={late ? RED : GREEN}
+                    />
+                    <Stat label={t('target_qty')} value={fmt(proj.target_qty, 2)} unit="kg" />
+                    <Stat label={t('total_actual')} value={fmt(proj.total_actual_kg, 2)} unit="kg" />
+                    <Stat label={t('combined_target_rate')} value={fmt(proj.total_target_daily_kg, 2)} unit="kg" />
+                    <Stat label={t('target_working_days')} value={proj.target_working_days ?? '—'} />
+                </div>
+            </FormSection>
+        );
+    };
+
+    // One active run. A loom carries one of these per WO, so everything inside is
+    // keyed by run id — nothing here may read a "the run" singleton any more.
+    const RunPanel = ({ run }: { run: any }) => {
+        const onTarget = !!run.on_target;
+        const effColor = onTarget ? GREEN : RED;
+        const editingOverride = overrideRunId === run.id;
+        const editingTarget = targetRunId === run.id;
+        return (
+            <div style={{ marginBottom: 16 }}>
+                {/* Run header strip */}
+                <div style={cls
+                    ? { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fbfbf7', border: '1px solid', borderColor: '#808080 #fff #fff #808080', padding: '6px 10px', marginBottom: 10 }
+                    : { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <StatusChip status={run.status} />
+                    {run.wo_code && (
+                        <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold', color: BLUE }}>{run.wo_code}</span>
+                    )}
+                    <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold' }}>{run.mo_code}</span>
+                    <span><strong>{run.item_code}</strong> <span className="text-muted small">{run.item_name}</span></span>
+                    <VariantChips
+                        combo={run.combo_label}
+                        size={run.size_label}
+                        colorVariant={run.color_label}
+                        colorCode={run.color_code}
+                        colorName={run.color_name}
+                        colorHex={run.color_hex}
+                        labdipCode={run.labdip_variant_code}
+                        scale="sm"
+                    />
+                    <span className="text-muted small">
+                        {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('lines')} <strong>{run.lines}</strong> · {t('start_date')} {fmtDate(run.start_date)}
+                    </span>
+                    {run.is_late && (
+                        <StatusChip status="CANCELLED" label={`${t('behind_schedule')} ${run.days_late}d`} tint />
+                    )}
+                    {canManage && (
+                        <span style={{ marginLeft: 'auto' }}>
+                            <XPActionButton classic={cls} tone="danger" icon="bi-stop-fill" label={t('stop_run')} onClick={() => stopRun(run.id)} />
+                        </span>
+                    )}
+                </div>
+
+                {/* Hero: efficiency + actual + rate */}
+                <div style={{ display: 'grid', gridTemplateColumns: cls ? '1.4fr 1fr 1fr' : 'repeat(auto-fit,minmax(170px,1fr))', gap: 8, marginBottom: 12 }}>
+                    {/* Efficiency hero */}
+                    <CardBox pad="8px 12px">
+                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('efficiency')}</div>
+                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 30, fontWeight: 800, color: effColor, lineHeight: 1.1 }}>
+                            {fmt(run.efficiency_pct, 1)}<span style={{ fontSize: 15 }}>%</span>
+                        </div>
+                        {/* Efficiency vs target tick — same shared ProgressBar call as
+                            the loom card on the monitor grid, so the two agree. */}
+                        <div style={{ marginTop: 3 }}>
+                            <ProgressBar
+                                pct={Number(run.efficiency_pct) || 0}
+                                tone={onTarget ? 'green' : 'red'}
+                                markerPct={Number(run.target_efficiency_pct) || 0}
+                                markerTitle={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%`}
+                                height={9}
+                            />
+                        </div>
+                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#888', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {editingTarget ? (
+                                <div className="d-flex gap-1 align-items-center">
+                                    <input type="number" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 70, height: 22, fontSize: 10 }} value={targetVal} onChange={e => setTargetVal(e.target.value)} />
+                                    <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveTarget(run.id)} />
+                                    <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setTargetRunId(null)} />
+                                </div>
+                            ) : (
+                                <>
+                                    <span>{t('target')} {fmt(run.target_efficiency_pct, 0)}% · <span style={{ color: effColor, fontWeight: 'bold' }}>{onTarget ? t('on_target') : t('below_target')}</span></span>
+                                    {canManage && (
+                                        <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Edit target" onClick={() => { setTargetVal(String(run.target_efficiency_pct ?? '')); setTargetRunId(run.id); }} />
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </CardBox>
+
+                    {/* Actual produced (with override) */}
+                    <CardBox pad="8px 12px">
+                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase' }}>
+                            {t('actual_produced')}
+                            {run.actual_qty_override !== null && (
+                                <span style={{ marginLeft: 4 }}><StatusChip status="PARTIAL" label={t('manual')} tint /></span>
+                            )}
+                        </div>
+                        {editingOverride ? (
+                            <div className="d-flex gap-1 mt-1">
+                                <input type="number" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 100 }} value={overrideVal} placeholder={String(run.actual_kg)} onChange={e => setOverrideVal(e.target.value)} />
+                                <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveOverride(run.id)} />
+                                <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setOverrideRunId(null)} />
+                            </div>
+                        ) : (
+                            <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span>{fmt(run.actual_kg, 2)}<span style={{ fontSize: 11, color: '#888' }}> kg</span></span>
+                                <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Override" onClick={() => { setOverrideVal(run.actual_qty_override ?? ''); setOverrideRunId(run.id); }} />
+                            </div>
+                        )}
+                    </CardBox>
+
+                    {/* Actual rate */}
+                    <CardBox pad="8px 12px">
+                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase' }}>{t('actual_rate')}</div>
+                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 22, fontWeight: 700 }}>
+                            {fmt(run.actual_daily_rate_kg, 2)}<span style={{ fontSize: 11, color: '#888' }}> kg/day</span>
+                        </div>
+                    </CardBox>
+                </div>
+
+                {/* Targets */}
+                <FormSection title={<SecTitle icon="bi-sliders">{t('targets') || 'Targets'}</SecTitle>} classic={cls}>
+                    <div style={grid(118)}>
+                        <Stat label={t('lines')} value={run.lines} />
+                        <Stat label={t('rate_per_line')} value={fmt(run.rate_per_line_g_min, 2)} unit="g/min" />
+                        <Stat label={t('target_100_day')} value={fmt(run.target_100_per_day_kg, 2)} unit="kg" />
+                        <Stat label={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%/day`} value={fmt(run.target_eff_per_day_kg, 2)} unit="kg" accent={BLUE} />
+                        <Stat label={t('elapsed_days')} value={run.elapsed_working_days} />
+                        <Stat label={t('theoretical_100')} value={fmt(run.theoretical_100_kg, 2)} unit="kg" />
+                    </div>
+                </FormSection>
+
+                <CompletionSection run={run} />
+            </div>
+        );
+    };
 
     return (
         <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info" modeless bodyScroll={false}>
@@ -358,14 +590,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
                     {/* No run: read-only viewers get the shared empty state; managers go
                         straight to the start-run form — no extra click to get there. */}
-                    {!loading && !run && !canManage && (
+                    {!loading && !runs.length && !canManage && (
                         <XPEmptyState icon="bi-stoplights" message={t('no_active_run')} />
                     )}
 
                     {/* Prep walk. Shown only once warp is actually up on the loom
                         (STAGED and later) — a machine with no beams tracked keeps the
                         plain start form it always had. */}
-                    {!loading && !run && loomStatus !== 'IDLE' && (
+                    {!loading && !runs.length && loomStatus !== 'IDLE' && (
                         <FormSection title={<SecTitle icon="bi-tools">{t('loom_prep')}</SecTitle>} classic={cls}>
                             <div className="d-flex align-items-center gap-2 flex-wrap">
                                 <StatusChip status={loomStatus} label={stepLabel(loomStatus)} tint />
@@ -399,36 +631,91 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         </FormSection>
                     )}
 
-                    {!loading && !run && canManage && (
-                        <FormSection title={<SecTitle icon="bi-play-circle">{t('start_run')}</SecTitle>} classic={cls}>
-                            {/* Top-align, not bottom: the MO column carries a helper line
-                                under its select, and align-items-end pushed every other
-                                input down by that line's height instead of keeping the
-                                label/input baselines in a row. */}
+                    {/* Start a run. A loom runs one WO per combo at the same time, so
+                        this form stays reachable while runs are active — collapsed
+                        behind a button then, so the running WOs read first. */}
+                    {!loading && canManage && runs.length > 0 && !startOpen && (
+                        <div style={{ marginBottom: 10 }}>
+                            <XPActionButton
+                                classic={cls}
+                                tone="success"
+                                icon="bi-plus-lg"
+                                label={t('start_another_run')}
+                                onClick={() => setStartOpen(true)}
+                            />
+                        </div>
+                    )}
+
+                    {!loading && canManage && (runs.length === 0 || startOpen) && (
+                        <FormSection
+                            title={<SecTitle icon="bi-play-circle">{runs.length ? t('start_another_run') : t('start_run')}</SecTitle>}
+                            classic={cls}
+                        >
+                            {/* Top-align, not bottom: the order column carries a helper
+                                line under its select, and align-items-end pushed every
+                                other input down by that line's height instead of keeping
+                                the label/input baselines in a row. */}
                             <div className="row g-2 align-items-start">
                                 <div className="col-md-5">
-                                    <FieldLabel classic={cls}>{t('manufacturing_order')}</FieldLabel>
-                                    <SearchableSelect
-                                        options={moOptions}
-                                        value={moId}
-                                        onChange={setMoId}
-                                        placeholder={moCandsLoading ? 'Loading...' : (moOptions.length ? 'Select MO...' : 'No MO on this machine')}
-                                    />
-                                    <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
-                                        {moCandsAll
-                                            ? 'Showing all open MOs.'
-                                            : `On this machine${moCandsLoading ? '' : `: ${moOptions.length}`}`}
-                                        {!moCandsAll && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-link p-0 ms-1"
-                                                style={{ fontSize: 10, verticalAlign: 'baseline' }}
-                                                onClick={() => { setMoId(''); setMoCandsAll(true); }}
-                                            >
-                                                show all
-                                            </button>
-                                        )}
-                                    </div>
+                                    {moMode ? (
+                                        <>
+                                            <FieldLabel classic={cls}>{t('manufacturing_order')}</FieldLabel>
+                                            <SearchableSelect
+                                                options={moOptions}
+                                                value={moId}
+                                                onChange={setMoId}
+                                                placeholder={moCandsLoading ? 'Loading...' : (moOptions.length ? 'Select MO...' : 'No MO on this machine')}
+                                            />
+                                            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                                                {moCandsAll
+                                                    ? 'Showing all open MOs.'
+                                                    : `On this machine${moCandsLoading ? '' : `: ${moOptions.length}`}`}
+                                                {!moCandsAll && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-link p-0 ms-1"
+                                                        style={{ fontSize: 10, verticalAlign: 'baseline' }}
+                                                        onClick={() => { setMoId(''); setMoCandsAll(true); }}
+                                                    >
+                                                        show all
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-link p-0 ms-1"
+                                                    style={{ fontSize: 10, verticalAlign: 'baseline' }}
+                                                    onClick={() => { setMoId(''); setMoMode(false); }}
+                                                >
+                                                    {t('pick_wo_instead')}
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {/* WO, not MO: two combos of one item are two WOs
+                                                on this loom, each with its own line count and
+                                                its own promised end date. */}
+                                            <FieldLabel classic={cls}>{t('work_order')}</FieldLabel>
+                                            <SearchableSelect
+                                                options={woOptions}
+                                                value={woId}
+                                                onChange={setWoId}
+                                                placeholder={woCandsLoading ? 'Loading...' : (woOptions.length ? 'Select WO...' : t('no_wo_on_machine'))}
+                                            />
+                                            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                                                {woCandsLoading ? '' : `${woOptions.length} ${t('available')}`}
+                                                {woRunningHere > 0 ? ` · ${woRunningHere} ${t('already_running')}` : ''}
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-link p-0 ms-1"
+                                                    style={{ fontSize: 10, verticalAlign: 'baseline' }}
+                                                    onClick={() => { setWoId(''); setMoMode(true); }}
+                                                >
+                                                    {t('pick_mo_instead')}
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                                 <div className="col-md-2 col-4">
                                     <FieldLabel classic={cls}>{t('lines')}</FieldLabel>
@@ -457,8 +744,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                         label={t('start')}
                                         title={prepBlocksStart ? t('prep_blocked_start') : undefined}
                                         onClick={startRun}
-                                        disabled={!moId || prepBlocksStart}
+                                        disabled={(moMode ? !moId : !woId) || prepBlocksStart}
                                     />
+                                    {startOpen && (
+                                        <span style={{ marginLeft: 6 }}>
+                                            <XPActionButton classic={cls} tone="neutral" icon="bi-x" label={t('cancel')} onClick={() => setStartOpen(false)} />
+                                        </span>
+                                    )}
                                     {prepBlocksStart && (
                                         <span style={{ fontSize: 10, color: '#b5530a', marginLeft: 6 }}>
                                             {t('prep_blocked_start')}
@@ -469,134 +761,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         </FormSection>
                     )}
 
-                    {run && (
-                        <div>
-                            {/* Run header strip */}
-                            <div style={cls
-                                ? { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fbfbf7', border: '1px solid', borderColor: '#808080 #fff #fff #808080', padding: '6px 10px', marginBottom: 10 }
-                                : { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                                <StatusChip status={run.status} />
-                                <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold' }}>{run.mo_code}</span>
-                                <span><strong>{run.item_code}</strong> <span className="text-muted small">{run.item_name}</span></span>
-                                <VariantChips
-                                    combo={run.combo_label}
-                                    size={run.size_label}
-                                    colorVariant={run.color_label}
-                                    colorCode={run.color_code}
-                                    colorName={run.color_name}
-                                    colorHex={run.color_hex}
-                                    labdipCode={run.labdip_variant_code}
-                                    scale="sm"
-                                />
-                                <span className="text-muted small">
-                                    {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('start_date')} {fmtDate(run.start_date)}
-                                </span>
-                                {canManage && (
-                                    <span style={{ marginLeft: 'auto' }}>
-                                        <XPActionButton classic={cls} tone="danger" icon="bi-stop-fill" label={t('stop_run')} onClick={() => stopRun(run.id)} />
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Hero: efficiency + actual + rate */}
-                            <div style={{ display: 'grid', gridTemplateColumns: cls ? '1.4fr 1fr 1fr' : 'repeat(auto-fit,minmax(170px,1fr))', gap: 8, marginBottom: 12 }}>
-                                {/* Efficiency hero */}
-                                <CardBox pad="8px 12px">
-                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('efficiency')}</div>
-                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 30, fontWeight: 800, color: effColor, lineHeight: 1.1 }}>
-                                        {fmt(run.efficiency_pct, 1)}<span style={{ fontSize: 15 }}>%</span>
-                                    </div>
-                                    {/* Efficiency vs target tick — same shared ProgressBar call as
-                                        the loom card on the monitor grid, so the two agree. */}
-                                    <div style={{ marginTop: 3 }}>
-                                        <ProgressBar
-                                            pct={Number(run.efficiency_pct) || 0}
-                                            tone={onTarget ? 'green' : 'red'}
-                                            markerPct={Number(run.target_efficiency_pct) || 0}
-                                            markerTitle={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%`}
-                                            height={9}
-                                        />
-                                    </div>
-                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#888', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        {editingTarget ? (
-                                            <div className="d-flex gap-1 align-items-center">
-                                                <input type="number" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 70, height: 22, fontSize: 10 }} value={targetVal} onChange={e => setTargetVal(e.target.value)} />
-                                                <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveTarget(run.id)} />
-                                                <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setEditingTarget(false)} />
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <span>{t('target')} {fmt(run.target_efficiency_pct, 0)}% · <span style={{ color: effColor, fontWeight: 'bold' }}>{onTarget ? t('on_target') : t('below_target')}</span></span>
-                                                {canManage && (
-                                                    <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Edit target" onClick={() => { setTargetVal(String(run.target_efficiency_pct ?? '')); setEditingTarget(true); }} />
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                </CardBox>
-
-                                {/* Actual produced (with override) */}
-                                <CardBox pad="8px 12px">
-                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase' }}>
-                                        {t('actual_produced')}
-                                        {run.actual_qty_override !== null && (
-                                            <span style={{ marginLeft: 4 }}><StatusChip status="PARTIAL" label={t('manual')} tint /></span>
-                                        )}
-                                    </div>
-                                    {editingOverride ? (
-                                        <div className="d-flex gap-1 mt-1">
-                                            <input type="number" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 100 }} value={overrideVal} placeholder={String(run.actual_kg)} onChange={e => setOverrideVal(e.target.value)} />
-                                            <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveOverride(run.id)} />
-                                            <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setEditingOverride(false)} />
-                                        </div>
-                                    ) : (
-                                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <span>{fmt(run.actual_kg, 2)}<span style={{ fontSize: 11, color: '#888' }}> kg</span></span>
-                                            <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Override" onClick={() => { setOverrideVal(run.actual_qty_override ?? ''); setEditingOverride(true); }} />
-                                        </div>
-                                    )}
-                                </CardBox>
-
-                                {/* Actual rate */}
-                                <CardBox pad="8px 12px">
-                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase' }}>{t('actual_rate')}</div>
-                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 22, fontWeight: 700 }}>
-                                        {fmt(run.actual_daily_rate_kg, 2)}<span style={{ fontSize: 11, color: '#888' }}> kg/day</span>
-                                    </div>
-                                </CardBox>
-                            </div>
-
-                            {/* Targets */}
-                            <FormSection title={<SecTitle icon="bi-sliders">{t('targets') || 'Targets'}</SecTitle>} classic={cls}>
-                                <div style={grid(118)}>
-                                    <Stat label={t('lines')} value={run.lines} />
-                                    <Stat label={t('rate_per_line')} value={fmt(run.rate_per_line_g_min, 2)} unit="g/min" />
-                                    <Stat label={t('target_100_day')} value={fmt(run.target_100_per_day_kg, 2)} unit="kg" />
-                                    <Stat label={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%/day`} value={fmt(run.target_eff_per_day_kg, 2)} unit="kg" accent={BLUE} />
-                                    <Stat label={t('elapsed_days')} value={run.elapsed_working_days} />
-                                    <Stat label={t('theoretical_100')} value={fmt(run.theoretical_100_kg, 2)} unit="kg" />
-                                </div>
-                            </FormSection>
-
-                            {/* MO projection */}
-                            {proj && (
-                                <FormSection title={
-                                    <SecTitle icon="bi-flag-fill" right={proj.machines && proj.machines.length > 1 ? `${t('machines_on_mo')}: ${proj.machines.map((m: any) => m.work_center_code).join(', ')}` : undefined}>
-                                        {t('mo_completion')} — {proj.mo_code}
-                                    </SecTitle>
-                                } classic={cls}>
-                                    <div style={grid(135)}>
-                                        <Stat label={t('target_qty')} value={fmt(proj.target_qty, 2)} unit="kg" />
-                                        <Stat label={t('total_actual')} value={fmt(proj.total_actual_kg, 2)} unit="kg" />
-                                        <Stat label={t('combined_target_rate')} value={fmt(proj.total_target_daily_kg, 2)} unit="kg" />
-                                        <Stat label={t('target_working_days')} value={proj.target_working_days ?? '—'} />
-                                        <Stat label={t('target_completion')} value={fmtDate(proj.target_completion_date)} accent={GREEN} />
-                                        <Stat label={t('projected_completion')} value={fmtDate(proj.reality_completion_date)} accent="#b5530a" />
-                                    </div>
-                                </FormSection>
-                            )}
-                        </div>
-                    )}
+                    {/* One panel per RUNNING run — a loom carries one per WO. */}
+                    {runs.map((r: any) => <RunPanel key={r.id} run={r} />)}
 
                     {/* History */}
                     {data?.history?.length > 0 && (

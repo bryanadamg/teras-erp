@@ -163,6 +163,73 @@ async def work_center_candidate_mos(
     }
 
 
+CLOSED_WO_STATUSES = ("COMPLETED", "CANCELLED")
+
+
+@router.get("/work-centers/{wc_id}/candidate-wos")
+async def work_center_candidate_wos(
+    wc_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Open WOs dispatched to this machine — the natural unit to start a run on.
+
+    A loom commonly weaves the same item for two combos at the same time; those are
+    two WOs with two line counts and two promised end dates, so the picker offers
+    WOs, not MOs. `target_end_date` rides along because it is the baseline the
+    completion projection is warned against.
+    """
+    await _get_wc(db, wc_id)
+    res = await db.execute(
+        select(WorkOrder)
+        .options(
+            # item is required: MO.item_code/item_name are properties that read it,
+            # and a lazy load inside an async route raises MissingGreenlet.
+            selectinload(WorkOrder.manufacturing_order).selectinload(ManufacturingOrder.item),
+            selectinload(WorkOrder.manufacturing_order)
+            .selectinload(ManufacturingOrder.attribute_values)
+            .joinedload(AttributeValue.attribute),
+        )
+        .where(WorkOrder.work_center_id == wc_id)
+        .where(WorkOrder.status.notin_(CLOSED_WO_STATUSES))
+        .order_by(WorkOrder.created_at.desc())
+        .limit(200)
+    )
+    wos = res.scalars().all()
+
+    running = {
+        r[0] for r in (await db.execute(
+            select(WeavingRun.work_order_id)
+            .where(WeavingRun.work_center_id == wc_id)
+            .where(WeavingRun.status == "RUNNING")
+            .where(WeavingRun.work_order_id.is_not(None))
+        )).all()
+    }
+
+    return {
+        "work_center_id": wc_id,
+        "items": [
+            {
+                "id": str(wo.id),
+                "code": wo.code,
+                "name": wo.name,
+                "status": wo.status,
+                "qty": float(wo.qty) if wo.qty is not None else None,
+                "target_end_date": wo.target_end_date,
+                "mo_id": str(wo.manufacturing_order_id),
+                "mo_code": wo.manufacturing_order.code if wo.manufacturing_order else None,
+                "item_code": wo.manufacturing_order.item_code if wo.manufacturing_order else None,
+                "item_name": wo.manufacturing_order.item_name if wo.manufacturing_order else None,
+                # Already running here: the picker greys it out instead of letting the
+                # operator hit the duplicate guard on submit.
+                "already_running": wo.id in running,
+                **_mo_variant_labels(wo.manufacturing_order),
+            }
+            for wo in wos
+        ],
+    }
+
+
 # ── Weaving runs ─────────────────────────────────────────────────────────────
 
 @router.post("/weaving-runs", response_model=WeavingRunResponse)
@@ -171,15 +238,52 @@ async def create_weaving_run(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('weaving_monitor.start')),
 ):
+    # A loom runs several WOs of the same item side by side (one per combo), each
+    # with its own line count, so the run is keyed on the WO when one is given. The
+    # MO is derived from it — never taken on trust from the caller.
+    wo = None
+    mo_id = payload.mo_id
+    if payload.work_order_id:
+        wo_res = await db.execute(select(WorkOrder).where(WorkOrder.id == payload.work_order_id))
+        wo = wo_res.scalars().first()
+        if not wo:
+            raise HTTPException(status_code=404, detail="Work Order not found")
+        if wo.work_center_id and str(wo.work_center_id) != str(payload.work_center_id):
+            raise HTTPException(status_code=422, detail="Work Order is dispatched to another machine")
+        if mo_id and str(mo_id) != str(wo.manufacturing_order_id):
+            raise HTTPException(status_code=422, detail="Work Order does not belong to that manufacturing order")
+        mo_id = wo.manufacturing_order_id
+    if not mo_id:
+        raise HTTPException(status_code=422, detail="Pass a work_order_id or an mo_id")
+
     wc = await _get_wc(db, str(payload.work_center_id))
-    mo_res = await db.execute(select(ManufacturingOrder).where(ManufacturingOrder.id == payload.mo_id))
+    mo_res = await db.execute(select(ManufacturingOrder).where(ManufacturingOrder.id == mo_id))
     mo = mo_res.scalars().first()
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
+    # Parallel runs are the point, double-counting the same order is not: the same WO
+    # (or, WO-less, the same MO) may only be RUNNING once on a machine, else two runs
+    # would each claim the whole of that order's logged output.
+    dup_q = (
+        select(WeavingRun.id)
+        .where(WeavingRun.work_center_id == wc.id)
+        .where(WeavingRun.status == "RUNNING")
+    )
+    if wo:
+        dup_q = dup_q.where(WeavingRun.work_order_id == wo.id)
+    else:
+        dup_q = dup_q.where(WeavingRun.mo_id == mo_id, WeavingRun.work_order_id.is_(None))
+    if (await db.execute(dup_q.limit(1))).first():
+        raise HTTPException(
+            status_code=400,
+            detail=f"A run for {wo.code if wo else mo.code} is already active on {wc.code}",
+        )
+
     # Start is the LAST step of the floor sequence: warp staged → Draw-in → Tuning →
     # Start. Gated only once prep has actually begun (the loom is staged), so a
-    # machine whose warp is not tracked in the ERP still starts as before.
+    # machine whose warp is not tracked in the ERP still starts as before. A loom
+    # already RUNNING reports RUNNING, so adding a second WO to it is never gated.
     prep = await _loom_status(db, wc)
     if prep in (weaving_service.LOOM_STATUS_STAGED, weaving_service.LOOM_STATUS_DRAW_IN):
         pending = "Draw-in" if prep == weaving_service.LOOM_STATUS_STAGED else "Tuning"
@@ -190,7 +294,8 @@ async def create_weaving_run(
 
     run = WeavingRun(
         work_center_id=payload.work_center_id,
-        mo_id=payload.mo_id,
+        mo_id=mo_id,
+        work_order_id=wo.id if wo else None,
         lines=payload.lines,
         rate_per_line_g_min=payload.rate_per_line_g_min,
         target_efficiency_pct=payload.target_efficiency_pct,
@@ -210,7 +315,7 @@ async def create_weaving_run(
 
     await audit_service.log_activity(
         db, current_user.id, "CREATE", "weaving_run", str(run.id),
-        details=f"Start run {mo.code} on {wc.code} ({payload.lines} lines)",
+        details=f"Start run {wo.code if wo else mo.code} on {wc.code} ({payload.lines} lines)",
     )
     await manager.broadcast({"type": "weaving_run", "action": "start", "work_center_id": str(wc.id)})
     return run
@@ -331,25 +436,60 @@ async def set_loom_prep(
 
 # ── Monitor grid (all weaving machines, at a glance) ────────────────────────
 
-def _machine_payload(wc: WorkCenter, run: Optional[WeavingRun], actual: Optional[float], weekdays, holidays, today: date) -> dict:
-    payload = {"id": str(wc.id), "code": wc.code, "name": wc.name, "center_type": wc.center_type, "active_run": None}
-    if run:
-        m = weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today)
-        mo = run.mo
-        payload["active_run"] = {
-            "id": str(run.id),
-            "mo_code": mo.code if mo else None,
-            "item_code": mo.item_code if mo else None,
-            "item_name": mo.item_name if mo else None,
-            "target_qty": float(mo.qty) if mo else None,
-            "status": run.status,
-            **_mo_variant_labels(mo),
-            **{k: m[k] for k in (
-                "efficiency_pct", "target_efficiency_pct", "on_target", "actual_kg",
-                "theoretical_100_kg", "actual_daily_rate_kg", "elapsed_working_days", "lines",
-            )},
-        }
-    return payload
+def _run_card(run: WeavingRun, metrics: dict, projection: Optional[dict]) -> dict:
+    """One run as the grid and the modal both read it.
+
+    The completion dates are flattened onto the card (not left inside `projection`)
+    because the loom card shows the late warning without opening anything.
+    """
+    mo = run.mo
+    wo = run.work_order
+    proj = projection or {}
+    return {
+        "id": str(run.id),
+        "work_order_id": str(run.work_order_id) if run.work_order_id else None,
+        "wo_code": wo.code if wo else proj.get("wo_code"),
+        "mo_id": str(run.mo_id),
+        "mo_code": mo.code if mo else None,
+        "item_code": mo.item_code if mo else None,
+        "item_name": mo.item_name if mo else None,
+        "target_qty": float(mo.qty) if mo else None,
+        "wo_qty": proj.get("wo_qty"),
+        "status": run.status,
+        "start_date": run.start_date,
+        **_mo_variant_labels(mo),
+        **{k: metrics[k] for k in (
+            "efficiency_pct", "target_efficiency_pct", "on_target", "actual_kg",
+            "theoretical_100_kg", "actual_daily_rate_kg", "elapsed_working_days", "lines",
+        )},
+        # The three dates + the warning, straight on the card.
+        "wo_target_end_date": proj.get("wo_target_end_date"),
+        "target_completion_date": proj.get("target_completion_date"),
+        "reality_completion_date": proj.get("reality_completion_date"),
+        "baseline_date": proj.get("baseline_date"),
+        "baseline_basis": proj.get("baseline_basis"),
+        "is_late": bool(proj.get("is_late")),
+        "days_late": proj.get("days_late", 0),
+        "reality_unreachable": bool(proj.get("reality_unreachable")),
+        "projection": projection,
+    }
+
+
+def _machine_payload(wc: WorkCenter, runs: list, actuals: dict, weekdays, holidays,
+                     today: date, projections: dict) -> dict:
+    """A loom card. `active_runs` is a LIST — one loom commonly runs two combos at
+    once — and `active_run` stays as the first of them for callers that only show one.
+    """
+    cards = []
+    for run in runs:
+        m = weaving_service.compute_run_metrics(run, actuals.get(run.id, 0.0), weekdays, holidays, today)
+        cards.append(_run_card(run, m, projections.get(run.id)))
+    return {
+        "id": str(wc.id), "code": wc.code, "name": wc.name, "center_type": wc.center_type,
+        "active_runs": cards,
+        "active_run": cards[0] if cards else None,
+        "late_runs": sum(1 for c in cards if c["is_late"]),
+    }
 
 
 @router.get("/weaving/monitor")
@@ -404,22 +544,31 @@ async def weaving_monitor(
     for wc_id, hdate in hol_res.all():
         holidays_by_wc.setdefault(wc_id, []).append(hdate)
 
-    # Batch the active RUNNING run per machine in one query instead of one query
-    # per machine. Ordered so the first row seen per work_center_id is the most
-    # recently created one — matches the old per-machine ".first()" semantics.
+    # Batch the active RUNNING runs per machine in one query instead of one query
+    # per machine. ALL of them, not the newest: a loom weaving the same item for two
+    # combos has one run per WO, and hiding the second made the grid under-report
+    # what the floor is actually doing.
     run_res = await db.execute(
         select(WeavingRun)
         .options(
             selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item),
+            selectinload(WeavingRun.work_order),
             MO_VARIANT_LOADS,
         )
         .where(WeavingRun.work_center_id.in_(machine_ids))
         .where(WeavingRun.status == "RUNNING")
         .order_by(WeavingRun.work_center_id, WeavingRun.created_at.desc())
     )
-    active_run_by_wc: dict = {}
+    runs_by_wc: dict = {}
+    all_active_runs: list = []
     for run in run_res.scalars().all():
-        active_run_by_wc.setdefault(run.work_center_id, run)
+        runs_by_wc.setdefault(run.work_center_id, []).append(run)
+        all_active_runs.append(run)
+
+    # Actuals once per run, then reused by both the per-run metrics and the
+    # projection rollup below.
+    actuals = {run.id: await _run_actual_kg(db, run) for run in all_active_runs}
+    projections = await _project_runs(db, all_active_runs, today, actuals)
 
     # Warp up on each loom. A beam is a machine resource shared by every WO that
     # runs there, so "what is mounted" is a property of the machine and belongs on
@@ -460,9 +609,8 @@ async def weaving_monitor(
     for wc in machines:
         weekdays = wc.working_weekdays if wc.working_weekdays else DEFAULT_WEEKDAYS
         holidays = holidays_by_wc.get(wc.id, [])
-        run = active_run_by_wc.get(wc.id)
-        actual = await _run_actual_kg(db, run) if run else None
-        payload = _machine_payload(wc, run, actual, weekdays, holidays, today)
+        runs = runs_by_wc.get(wc.id, [])
+        payload = _machine_payload(wc, runs, actuals, weekdays, holidays, today, projections)
         beams = beams_by_wc.get(wc.id, [])
         payload["beam_slots"] = max(1, int(wc.beam_slots or 1))
         payload["mounted_beams"] = beams
@@ -471,7 +619,7 @@ async def weaving_monitor(
         # Card state: IDLE → STAGED (warp up) → DRAW_IN → TUNING → RUNNING. Derived
         # from the batched data already loaded above — no extra query per loom.
         payload["loom_status"] = weaving_service.derive_loom_status(
-            wc.prep_status, payload["mounted_pcs"], payload["beam_slots"], run is not None,
+            wc.prep_status, payload["mounted_pcs"], payload["beam_slots"], bool(runs),
         )
         payload["next_loom_step"] = weaving_service.next_loom_step(payload["loom_status"])
         payload["prep_status"] = wc.prep_status
@@ -494,10 +642,18 @@ async def weaving_monitor(
             groups.append({"id": m["group_id"], "code": m["group_code"], "name": m["group_name"]})
     groups.sort(key=lambda g: (g["code"] or ""))
 
-    running = sum(1 for m in out if m["active_run"])
-    effs = [m["active_run"]["efficiency_pct"] for m in out if m["active_run"] and m["active_run"]["efficiency_pct"] is not None]
+    # "running" counts LOOMS with something on them, not runs — it sits next to the
+    # machine total in the header. Runs and late runs are counted separately.
+    running = sum(1 for m in out if m["active_runs"])
+    run_cards = [c for m in out for c in m["active_runs"]]
+    effs = [c["efficiency_pct"] for c in run_cards if c["efficiency_pct"] is not None]
     avg_eff = round(sum(effs) / len(effs), 1) if effs else None
-    return {"machines": out, "total": len(out), "running": running, "groups": groups, "avg_efficiency_pct": avg_eff}
+    return {
+        "machines": out, "total": len(out), "running": running, "groups": groups,
+        "avg_efficiency_pct": avg_eff,
+        "active_runs": len(run_cards),
+        "late_runs": sum(1 for c in run_cards if c["is_late"]),
+    }
 
 
 @router.get("/weaving/id-holidays")
@@ -510,10 +666,13 @@ async def id_national_holidays(
 
 # ── Performance report ───────────────────────────────────────────────────────
 
-async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, today: date) -> dict:
+async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, today: date,
+                       projection: Optional[dict] = None) -> dict:
     actual = await _run_actual_kg(db, run)
     metrics = weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today)
     mo = run.mo
+    wo = run.work_order
+    proj = projection or {}
     return {
         "id": str(run.id),
         "work_center_id": str(run.work_center_id),
@@ -522,6 +681,18 @@ async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, to
         "item_code": mo.item_code if mo else None,
         "item_name": mo.item_name if mo else None,
         "target_qty": float(mo.qty) if mo else None,
+        "work_order_id": str(run.work_order_id) if run.work_order_id else None,
+        "wo_code": wo.code if wo else proj.get("wo_code"),
+        "wo_qty": float(wo.qty) if (wo and wo.qty is not None) else proj.get("wo_qty"),
+        "wo_target_end_date": proj.get("wo_target_end_date"),
+        "target_completion_date": proj.get("target_completion_date"),
+        "reality_completion_date": proj.get("reality_completion_date"),
+        "baseline_date": proj.get("baseline_date"),
+        "baseline_basis": proj.get("baseline_basis"),
+        "is_late": bool(proj.get("is_late")),
+        "days_late": proj.get("days_late", 0),
+        "reality_unreachable": bool(proj.get("reality_unreachable")),
+        "projection": projection,
         **_mo_variant_labels(mo),
         "start_date": run.start_date,
         "end_date": run.end_date,
@@ -546,6 +717,7 @@ async def work_center_performance(
         select(WeavingRun)
         .options(
             selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item),
+            selectinload(WeavingRun.work_order),
             MO_VARIANT_LOADS,
         )
         .where(WeavingRun.work_center_id == wc.id)
@@ -553,17 +725,18 @@ async def work_center_performance(
     )
     runs = res.scalars().all()
 
-    active = next((r for r in runs if r.status == "RUNNING"), None)
-    active_payload = None
-    mo_projection = None
-
-    if active:
-        active_payload = await _run_payload(db, active, weekdays, holidays, today)
-        mo_projection = await _project_mo(db, active.mo_id, today)
+    # Every RUNNING run, not the newest one: a loom carries one run per WO.
+    active = [r for r in runs if r.status == "RUNNING"]
+    projections = await _project_runs(db, active, today)
+    active_payloads = [
+        await _run_payload(db, r, weekdays, holidays, today, projections.get(r.id))
+        for r in active
+    ]
+    active_ids = {r.id for r in active}
 
     history = [
         await _run_payload(db, r, weekdays, holidays, today)
-        for r in runs if r.id != (active.id if active else None)
+        for r in runs if r.id not in active_ids
     ]
 
     hol_rows_res = await db.execute(
@@ -579,66 +752,158 @@ async def work_center_performance(
         "calendar": {"working_weekdays": weekdays, "holidays": [
             WorkCenterHolidayResponse.model_validate(h) for h in holiday_rows
         ]},
-        "active_run": active_payload,
-        "mo_projection": mo_projection,
+        "active_run": active_payloads[0] if active_payloads else None,
+        "active_runs": active_payloads,
+        # Kept for callers that only ever read one projection; it is the first active
+        # run's, and each entry of `active_runs` carries its own under `projection`.
+        "mo_projection": active_payloads[0]["projection"] if active_payloads else None,
         "history": history,
     }
 
 
-async def _project_mo(db: AsyncSession, mo_id, today: date) -> Optional[dict]:
-    """Project target & reality completion dates across ALL active runs of this MO."""
-    mo_res = await db.execute(
-        select(ManufacturingOrder).options(selectinload(ManufacturingOrder.item))
-        .where(ManufacturingOrder.id == mo_id)
-    )
-    mo = mo_res.scalars().first()
-    if not mo:
-        return None
-    target_qty = float(mo.qty)
+async def _project_runs(db: AsyncSession, runs: list, today: date, actual_by_run: Optional[dict] = None) -> dict:
+    """Completion projection for each of `runs`, keyed by run id.
 
-    runs_res = await db.execute(
-        select(WeavingRun).where(WeavingRun.mo_id == mo_id).where(WeavingRun.status == "RUNNING")
-    )
-    runs = runs_res.scalars().all()
+    Three dates, which is the whole ask: the WO's promised end date (entered when the
+    WO was created), the date the run's TARGET rate would land on, and the date the
+    rate actually being achieved lands on. Comparing the last against the first is
+    what tells a planner to add a machine or add working days — see
+    weaving_service.lateness.
+
+    An MO can be woven on several looms at once, so a run's projection combines every
+    RUNNING run of the same MO. Everything that walk needs is loaded in batch; doing
+    it per run with its own queries is what made the old `_project_mo` an N+1.
+    """
+    runs = [r for r in runs if r is not None]
     if not runs:
-        return None
+        return {}
 
-    target_machines, reality_machines = [], []
-    total_target_daily = 0.0
-    total_actual = 0.0
-    earliest_start = None
-    machines_meta = []
+    mo_ids = {r.mo_id for r in runs}
 
-    for run in runs:
-        wc = await _get_wc(db, str(run.work_center_id))
-        weekdays, holidays = await _load_calendar(db, wc)
-        actual = await _run_actual_kg(db, run)
-        m = weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today)
+    # Sibling runs of the same MOs (possibly on other looms), unioned with the runs
+    # asked about so a caller may pass a run that is no longer RUNNING.
+    sib_res = await db.execute(
+        select(WeavingRun).where(WeavingRun.mo_id.in_(mo_ids)).where(WeavingRun.status == "RUNNING")
+    )
+    all_runs = {r.id: r for r in sib_res.scalars().all()}
+    for r in runs:
+        all_runs.setdefault(r.id, r)
 
-        total_target_daily += m["target_eff_per_day_kg"]
-        total_actual += m["actual_kg"]
-        if earliest_start is None or run.start_date < earliest_start:
-            earliest_start = run.start_date
-
-        target_machines.append({"weekdays": weekdays, "holidays": holidays, "daily_kg": m["target_eff_per_day_kg"]})
-        reality_machines.append({"weekdays": weekdays, "holidays": holidays, "daily_kg": m["actual_daily_rate_kg"] or 0})
-        machines_meta.append({"work_center_code": wc.code, "work_center_name": wc.name})
-
-    target_working_days = ceil(target_qty / total_target_daily) if total_target_daily > 0 else None
-    target_completion = weaving_service.walk_to_target(target_machines, target_qty, earliest_start) if earliest_start else None
-    reality_completion = weaving_service.walk_to_target(reality_machines, target_qty, today, initial=total_actual)
-
-    return {
-        "mo_code": mo.code,
-        "item_code": mo.item_code,
-        "target_qty": target_qty,
-        "total_actual_kg": round(total_actual, 3),
-        "total_target_daily_kg": round(total_target_daily, 3),
-        "target_working_days": target_working_days,
-        "target_completion_date": target_completion,
-        "reality_completion_date": reality_completion,
-        "machines": machines_meta,
+    wc_ids = {r.work_center_id for r in all_runs.values()}
+    wcs = {
+        wc.id: wc for wc in (await db.execute(
+            select(WorkCenter).where(WorkCenter.id.in_(wc_ids))
+        )).scalars().all()
     }
+    hol_by_wc: dict = {}
+    for wc_id, hd in (await db.execute(
+        select(WorkCenterHoliday.work_center_id, WorkCenterHoliday.holiday_date)
+        .where(WorkCenterHoliday.work_center_id.in_(wc_ids))
+    )).all():
+        hol_by_wc.setdefault(wc_id, []).append(hd)
+
+    mos = {
+        mo.id: mo for mo in (await db.execute(
+            # item eager-loaded: MO.item_code is a property that reads it.
+            select(ManufacturingOrder)
+            .options(selectinload(ManufacturingOrder.item))
+            .where(ManufacturingOrder.id.in_(mo_ids))
+        )).scalars().all()
+    }
+
+    wo_ids = {r.work_order_id for r in runs if r.work_order_id}
+    wos = {
+        wo.id: wo for wo in (await db.execute(
+            select(WorkOrder).where(WorkOrder.id.in_(wo_ids))
+        )).scalars().all()
+    } if wo_ids else {}
+
+    # Per-run metrics first (actuals reuse the caller's cache when it already has
+    # them — the monitor grid computes actual_kg for every card anyway).
+    cache = dict(actual_by_run or {})
+    metrics: dict = {}
+    for run in all_runs.values():
+        wc = wcs.get(run.work_center_id)
+        weekdays = (wc.working_weekdays if wc and wc.working_weekdays else DEFAULT_WEEKDAYS)
+        holidays = hol_by_wc.get(run.work_center_id, [])
+        actual = cache.get(run.id)
+        if actual is None:
+            actual = await _run_actual_kg(db, run)
+            cache[run.id] = actual
+        metrics[run.id] = (weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today),
+                           weekdays, holidays, wc)
+
+    # Roll the per-run numbers up per MO once, then hand the same rollup to every run
+    # of that MO — two runs of one MO must never report different completion dates.
+    by_mo: dict = {}
+    for run in all_runs.values():
+        m, weekdays, holidays, wc = metrics[run.id]
+        agg = by_mo.setdefault(run.mo_id, {
+            "target_daily": 0.0, "actual": 0.0, "earliest": None, "elapsed": 0,
+            "target_machines": [], "reality_machines": [], "machines_meta": [],
+        })
+        agg["target_daily"] += m["target_eff_per_day_kg"]
+        agg["actual"] += m["actual_kg"]
+        agg["elapsed"] = max(agg["elapsed"], m["elapsed_working_days"])
+        if agg["earliest"] is None or run.start_date < agg["earliest"]:
+            agg["earliest"] = run.start_date
+        agg["target_machines"].append({"weekdays": weekdays, "holidays": holidays, "daily_kg": m["target_eff_per_day_kg"]})
+        agg["reality_machines"].append({"weekdays": weekdays, "holidays": holidays, "daily_kg": m["actual_daily_rate_kg"] or 0})
+        agg["machines_meta"].append({
+            "work_center_code": wc.code if wc else None,
+            "work_center_name": wc.name if wc else None,
+            "lines": m["lines"],
+        })
+
+    mo_projection: dict = {}
+    for mo_id, agg in by_mo.items():
+        mo = mos.get(mo_id)
+        target_qty = float(mo.qty) if mo else 0.0
+        target_completion = (
+            weaving_service.walk_to_target(agg["target_machines"], target_qty, agg["earliest"])
+            if agg["earliest"] else None
+        )
+        reality_completion = weaving_service.walk_to_target(
+            agg["reality_machines"], target_qty, today, initial=agg["actual"]
+        )
+        # No date because nothing is coming off the loom: the walk only returns None
+        # when every machine's achieved rate is 0. After a full working day of that,
+        # the order is not "unknown", it is not going to make it.
+        unreachable = (
+            reality_completion is None and agg["elapsed"] > 0 and target_qty > agg["actual"]
+        )
+        mo_projection[mo_id] = {
+            "mo_code": mo.code if mo else None,
+            "item_code": mo.item_code if mo else None,
+            "target_qty": target_qty,
+            "total_actual_kg": round(agg["actual"], 3),
+            "total_target_daily_kg": round(agg["target_daily"], 3),
+            "target_working_days": ceil(target_qty / agg["target_daily"]) if agg["target_daily"] > 0 else None,
+            "target_completion_date": target_completion,
+            "reality_completion_date": reality_completion,
+            "reality_unreachable": unreachable,
+            "machines": agg["machines_meta"],
+        }
+
+    out: dict = {}
+    for run in runs:
+        base = mo_projection.get(run.mo_id)
+        if not base:
+            continue
+        wo = wos.get(run.work_order_id) if run.work_order_id else None
+        wo_target = wo.target_end_date.date() if (wo and wo.target_end_date) else None
+        out[run.id] = {
+            **base,
+            "wo_id": str(wo.id) if wo else None,
+            "wo_code": wo.code if wo else None,
+            "wo_qty": float(wo.qty) if (wo and wo.qty is not None) else None,
+            "wo_target_end_date": wo_target,
+            **weaving_service.lateness(
+                base["reality_completion_date"], wo_target, base["target_completion_date"],
+                unreachable=base["reality_unreachable"],
+            ),
+        }
+    return out
 
 
 # ── Production calendar ──────────────────────────────────────────────────────
