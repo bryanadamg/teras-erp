@@ -129,6 +129,37 @@ export function StatusChip({ status, label, style, tint, title }: { status: stri
     );
 }
 
+// Count pill — "<n> approved" as one tinted, bounded unit instead of loose numbers
+// separated by "|". For status-bar tallies where the reader scans for a status and
+// wants its number, not a sentence. Uses the same 5-family tint palette as
+// StatusChip, so a status reads the same color wherever it appears.
+export function StatusCountPill({ status, count, label, classic, title }: {
+    status: string; count: number; label?: string; classic?: boolean; title?: string;
+}) {
+    const c = statusTint(status);
+    return (
+        <span
+            title={title}
+            style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: classic ? '0 6px' : '1px 9px',
+                // Squared-off in classic to sit right against XP chrome; fully rounded
+                // in modern. Both still read as one bounded pill.
+                borderRadius: classic ? 2 : 999,
+                border: '1px solid', borderColor: c.borderColor,
+                background: c.background, color: c.color,
+                fontFamily: classic ? xpFont : modernFont,
+                fontSize: classic ? 10 : 11,
+                lineHeight: classic ? '15px' : '17px',
+                whiteSpace: 'nowrap',
+            }}
+        >
+            <strong style={{ fontWeight: 700 }}>{count}</strong>
+            <span style={{ opacity: 0.85 }}>{(label ?? status).replace(/_/g, ' ').toLowerCase()}</span>
+        </span>
+    );
+}
+
 // Work-center chip palette keyed on center_type (case-insensitive). Falls back
 // to sniffing the work-center *name* for a process word when the type is
 // GENERAL/blank, then to a neutral gray. Single source for the WO panel/list

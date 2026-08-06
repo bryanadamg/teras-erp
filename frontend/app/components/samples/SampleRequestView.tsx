@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -1780,27 +1780,25 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                <div style={{
                    background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)',
                    borderTop: '1px solid #b0a898',
-                   padding: '2px 8px',
+                   padding: '3px 8px',
                    display: 'flex',
-                   gap: '12px',
+                   alignItems: 'center',
+                   gap: '5px',
+                   flexWrap: 'wrap' as const,
                    fontFamily: 'Tahoma, Arial, sans-serif',
                    fontSize: '10px',
                    color: '#333',
                }}>
-                   <span>{filteredSamples.length} request{filteredSamples.length !== 1 ? 's' : ''}</span>
-                   <span>|</span>
-                   <span>{colorStats.total} color{colorStats.total !== 1 ? 's' : ''}</span>
-                   <span>|</span>
-                   <span>{colorStats.PENDING} pending</span>
-                   <span>|</span>
-                   <span>{colorStats.IN_PRODUCTION} in production</span>
-                   <span>|</span>
-                   <span>{colorStats.SENT} sent</span>
-                   <span>|</span>
-                   <span style={{ color: '#1b5e20', fontWeight: 'bold' }}>{colorStats.APPROVED} approved</span>
-                   <span>|</span>
-                   <span style={{ color: '#8b0000', fontWeight: 'bold' }}>{colorStats.REJECTED} rejected</span>
-                   {hasActiveFilter && <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>filtered</span>}
+                   <span style={{ alignSelf: 'center' }}>
+                       {filteredSamples.length} request{filteredSamples.length !== 1 ? 's' : ''} · {colorStats.total} color{colorStats.total !== 1 ? 's' : ''}
+                   </span>
+                   <span style={{ ...xpSep, height: 15, alignSelf: 'center' }} />
+                   <StatusCountPill classic status="PENDING" count={colorStats.PENDING} title="Colors not yet started" />
+                   <StatusCountPill classic status="IN_PRODUCTION" count={colorStats.IN_PRODUCTION} title="Colors in production" />
+                   <StatusCountPill classic status="SENT" count={colorStats.SENT} title="Colors sent to customer" />
+                   <StatusCountPill classic status="APPROVED" count={colorStats.APPROVED} title="Colors approved" />
+                   <StatusCountPill classic status="REJECTED" count={colorStats.REJECTED} title="Colors rejected" />
+                   {hasActiveFilter && <span style={{ marginLeft: 'auto', fontStyle: 'italic', alignSelf: 'center' }}>filtered</span>}
                </div>
            )}
        </ShellWindow>

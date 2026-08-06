@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark } from '../shared/xpTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -795,19 +795,16 @@ export default function LabDipRequestView({
 
             {/* ── Status bar: variant-grain tallies over the filtered set ── */}
             <div style={classic
-                ? { background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', display: 'flex', gap: 12, fontFamily: xpFont, fontSize: 10, color: '#333', flexShrink: 0 }
-                : { background: '#f7f9fc', borderTop: '1px solid #dbe1ea', padding: '5px 10px', display: 'flex', gap: 12, fontFamily: modernFont, fontSize: 12, color: '#64748b', flexShrink: 0 }}>
-                <span>{filtered.length} request{filtered.length !== 1 ? 's' : ''}</span>
-                <span>|</span>
-                <span>{variantStats.total} variant{variantStats.total !== 1 ? 's' : ''}</span>
-                <span>|</span>
-                <span>{variantStats.PENDING} pending</span>
-                <span>|</span>
-                <span>{variantStats.IN_PROGRESS} in progress</span>
-                <span>|</span>
-                <span style={{ color: classic ? '#0f5a22' : '#15803d', fontWeight: 'bold' }}>{variantStats.APPROVED} approved</span>
-                <span>|</span>
-                <span style={{ color: classic ? '#8b0000' : '#dc2626', fontWeight: 'bold' }}>{variantStats.REJECTED} rejected</span>
+                ? { background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' as const, fontFamily: xpFont, fontSize: 10, color: '#333', flexShrink: 0 }
+                : { background: '#f7f9fc', borderTop: '1px solid #dbe1ea', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, fontFamily: modernFont, fontSize: 12, color: '#64748b', flexShrink: 0 }}>
+                <span>
+                    {filtered.length} request{filtered.length !== 1 ? 's' : ''} · {variantStats.total} variant{variantStats.total !== 1 ? 's' : ''}
+                </span>
+                <span style={{ width: 1, height: 15, background: classic ? '#a0988c' : '#dbe1ea', margin: '0 2px' }} />
+                <StatusCountPill classic={classic} status="PENDING" count={variantStats.PENDING} title="Variants not yet started" />
+                <StatusCountPill classic={classic} status="IN_PROGRESS" count={variantStats.IN_PROGRESS} title="Variants in progress" />
+                <StatusCountPill classic={classic} status="APPROVED" count={variantStats.APPROVED} title="Variants approved" />
+                <StatusCountPill classic={classic} status="REJECTED" count={variantStats.REJECTED} title="Variants rejected" />
                 {hasActiveFilter && <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>filtered</span>}
             </div>
 
