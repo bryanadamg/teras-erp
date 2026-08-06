@@ -69,6 +69,7 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
         center_type=payload.center_type,
         input_location_id=payload.input_location_id,
         output_location_id=payload.output_location_id,
+        reject_location_id=payload.reject_location_id,
         parent_id=payload.parent_id,
         beam_slots=max(1, int(payload.beam_slots or 1)),
     )
@@ -109,6 +110,7 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     wc.center_type = payload.center_type
     wc.input_location_id = payload.input_location_id
     wc.output_location_id = payload.output_location_id
+    wc.reject_location_id = payload.reject_location_id
     wc.parent_id = payload.parent_id
     wc.beam_slots = max(1, int(payload.beam_slots or 1))
     # Cascade center_type down the whole subtree, not just direct children — with a

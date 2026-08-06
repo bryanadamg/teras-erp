@@ -383,6 +383,8 @@ class MOCompletionResponse(BaseModel):
     reject_reason: str | None = None
     rejected_at: datetime | None = None
     rejected_by: str | None = None
+    # Defect store the scrap was quarantined into (null = written off / left in place)
+    reject_location_id: UUID | None = None
 
 class BatchReject(BaseModel):
     """QC-reject a produced lot (from the Lot Management page)."""
@@ -888,6 +890,7 @@ class WorkOrderCompletionFlat(BaseModel):
     rejected: bool = False
     qty_rejected: float = 0.0   # scrapped out of this log entry (partial or whole)
     reject_reason: str | None = None
+    reject_location_name: str | None = None  # defect store the scrap was moved into
     output_batch_number: str | None = None   # output lot; drives per-bag label reprint on the WO list
     output_batch_notes: str | None = None    # clean operator note on that lot — printed on the bag label
 
@@ -1097,6 +1100,9 @@ class ItemCreate(BaseModel):
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
     default_putaway_location_id: UUID | None = None
+    # Defect store for this item's scrap; used when the producing work center has
+    # no reject location of its own (see services/reject_service.py).
+    default_reject_location_id: UUID | None = None
 
 
 class ItemUpdate(BaseModel):
@@ -1118,6 +1124,7 @@ class ItemUpdate(BaseModel):
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
     default_putaway_location_id: UUID | None = None
+    default_reject_location_id: UUID | None = None
 
 
 class ItemResponse(BaseModel):
@@ -1143,6 +1150,7 @@ class ItemResponse(BaseModel):
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
     default_putaway_location_id: UUID | None = None
+    default_reject_location_id: UUID | None = None
 
     class Config:
         from_attributes = True
@@ -1288,6 +1296,9 @@ class WorkCenterCreate(BaseModel):
     center_type: str = "GENERAL"
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    # Defect store for output this center rejects (WEAVING → greige BS, BEAMING →
+    # beam-reject store). Inherited down the tree like the other two.
+    reject_location_id: UUID | None = None
     parent_id: UUID | None = None
     # TYPE | GROUP | MACHINE. Null = derive from parent_id the legacy way (no
     # parent → TYPE root, parent → MACHINE), so older clients keep working.
@@ -1303,18 +1314,22 @@ class WorkCenterResponse(BaseModel):
     center_type: str = "GENERAL"
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    reject_location_id: UUID | None = None
     parent_id: UUID | None = None
     node_type: str = "MACHINE"
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
+    reject_location: LocationResponse | None = None
     # Locations are inherited down the tree: a machine with no own value uses its
     # GROUP's (then its TYPE's). input_location_id/output_location_id above are the
     # raw override on this row; these are what actually applies. Set by
     # work_center_service.decorate_effective_locations, not columns.
     effective_input_location_id: UUID | None = None
     effective_output_location_id: UUID | None = None
+    effective_reject_location_id: UUID | None = None
     input_location_inherited: bool = False
     output_location_inherited: bool = False
+    reject_location_inherited: bool = False
     working_weekdays: list[int] | None = None
     beam_slots: int = 1
 

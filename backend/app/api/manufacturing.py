@@ -767,6 +767,7 @@ async def list_work_orders_flat(
                 rejected=bool(c.rejected),
                 qty_rejected=float(c.qty_rejected or 0),
                 reject_reason=c.reject_reason,
+                reject_location_name=c.reject_location.name if c.reject_location else None,
                 output_batch_number=c.output_batch_number,
                 output_batch_notes=c.output_batch_notes,
             ))

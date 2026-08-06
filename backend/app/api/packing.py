@@ -11,6 +11,7 @@ from app.db.session import get_async_db
 from app.schemas import (
     PackingOrderCreate, PackingOrderUpdate, PackingOrderResponse, PackingOrderListResponse,
     PackingCompletionCreate, PackedUnitResponse, PackingCompletionLotPayload,
+    PackingCompletionReject,
 )
 from app.models.packing import (
     PackingOrder, PackingOrderMaterial, PackingCompletion, PackingCompletionMaterial,
@@ -25,6 +26,7 @@ from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import (
     audit_service, kpi_service, stock_service, packing_service, so_fulfilment_service,
+    reject_service,
 )
 from app.core.ws_manager import manager
 
@@ -610,6 +612,130 @@ async def add_packing_completion(
         db, user_id=current_user.id, action="PACK", entity_type="PackingOrder",
         entity_id=str(po_id),
         details=f"Packed {total_qty} into {total_cartons} {po.package_label.lower()}(s){lot_note} on {po.code}",
+    )
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "PACKING_UPDATE", "id": str(po_id)})
+        await manager.broadcast({"type": "STOCK_UPDATE"})
+    except Exception:
+        pass
+
+    po = await _load(db, po_id)
+    units = await _packed_units_for(db, [po.id])
+    return _decorate(po, units.get(str(po.id), []))
+
+
+@router.post("/{po_id}/completions/{completion_id}/reject", response_model=PackingOrderResponse)
+async def reject_packing_completion(
+    po_id: uuid.UUID,
+    completion_id: uuid.UUID,
+    payload: PackingCompletionReject,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('sales.manage')),
+):
+    """QC-reject cartons produced by one pack event — the packing-side mirror of
+    the WO completion reject.
+
+    Each rejected carton (a `Batch` row) is flagged and its stock is moved into the
+    defect store resolved by `reject_service` (payload override → the FG item's
+    `default_reject_location_id`; packing has no work center to route through). The
+    rejected qty leaves `qty_packed` and lands on `qty_rejected`, so an order that
+    had reached target reopens — closure stays a deliberate act.
+
+    Reject the whole event by omitting `packed_unit_ids`; name cartons to reject
+    only those (partial), which keeps the log active for its good cartons.
+    """
+    po = await _load(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Packing order not found")
+    comp = next((c for c in (po.completions or []) if str(c.id) == str(completion_id)), None)
+    if not comp:
+        raise HTTPException(status_code=404, detail="Completion not found on this packing order")
+    if comp.rejected:
+        raise HTTPException(status_code=400, detail="Completion is already rejected")
+
+    # Cartons minted by this event that are still good.
+    units = (await db.execute(
+        select(Batch).filter(Batch.packing_completion_id == comp.id)
+    )).scalars().all()
+    good_units = [b for b in units if not reject_service.is_reject_grade(b.quality_status)
+                  and b.quality_status != reject_service.DISPOSED]
+    if payload.packed_unit_ids:
+        wanted = {str(x) for x in payload.packed_unit_ids}
+        targets = [b for b in good_units if str(b.id) in wanted]
+        missing = wanted - {str(b.id) for b in targets}
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{len(missing)} carton(s) are not good cartons of this pack event",
+            )
+    else:
+        targets = good_units
+    whole = len(targets) >= len(good_units)
+
+    grade = reject_service.normalize_grade(payload.usable)
+    reject_loc = await reject_service.resolve_reject_location(
+        db, item_id=po.item_id, explicit=payload.reject_location_id,
+    )
+
+    # Carton qty is never stored on the Batch — it lives in the StockBalance row
+    # keyed by the carton, so the rejected qty is read from there before moving it.
+    qty_rejected = 0.0
+    for b in targets:
+        on_hand = float((await db.execute(
+            select(func.coalesce(func.sum(StockBalance.qty), 0))
+            .filter(StockBalance.batch_key == str(b.id))
+        )).scalar() or 0)
+        b.quality_status = grade
+        qty_rejected += on_hand
+        await reject_service.quarantine_lot(
+            db, item_id=b.item_id, batch_id=b.id,
+            location_id=reject_loc, reference_id=b.batch_number,
+        )
+    # An already-dispatched/consumed carton has no stock left; fall back to the
+    # logged qty pro-rated per carton so the scrap record is never zero.
+    if qty_rejected <= 1e-9 and targets:
+        per_carton = float(comp.qty or 0) / max(1, int(comp.package_count or len(targets)))
+        qty_rejected = per_carton * len(targets)
+
+    comp.qty_rejected = float(comp.qty_rejected or 0) + qty_rejected
+    comp.package_count_rejected = int(comp.package_count_rejected or 0) + len(targets)
+    comp.reject_reason = (payload.reason or "").strip() or None
+    comp.rejected_at = datetime.utcnow()
+    comp.rejected_by = current_user.username
+    comp.reject_location_id = reject_loc
+    if whole:
+        # Whole event: drops out of qty_packed entirely (mirrors MOCompletion).
+        comp.rejected = True
+    else:
+        # Partial: the log stays active for its good cartons, so trim qty the same
+        # way the lot-level partial reject trims a WO completion.
+        comp.qty = max(0.0, float(comp.qty or 0) - qty_rejected)
+        comp.package_count = max(0, int(comp.package_count or 0) - len(targets))
+    await db.flush()
+
+    # Reopen: packed progress just dropped, so an order that had hit target is no
+    # longer fulfilled. Never auto-closes on qty, never auto-closes off it either.
+    po = await _load(db, po_id)
+    if po.actual_end_date and po.qty_packed + 1e-6 < float(po.qty_target or 0):
+        po.actual_end_date = None
+        if po.status == "COMPLETED":
+            po.status = "IN_PROGRESS"
+    await db.commit()
+
+    if po.sales_order_id:
+        if await so_fulfilment_service.recompute_so_status(db, po.sales_order_id):
+            await db.commit()
+            await manager.broadcast({"type": "SALES_ORDER_UPDATE", "id": str(po.sales_order_id)})
+
+    loc_name = await reject_service.location_name(db, reject_loc)
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="REJECT", entity_type="PackingOrder",
+        entity_id=str(po_id),
+        details=f"QC rejected {len(targets)} {po.package_label.lower()}(s) ({qty_rejected:g}) on {po.code}"
+        + (" [usable]" if payload.usable else "")
+        + (f" → {loc_name}" if loc_name else "")
+        + (f": {comp.reject_reason}" if comp.reject_reason else ""),
     )
     try:
         await kpi_service.invalidate_kpis_async(db)
