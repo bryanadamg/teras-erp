@@ -307,6 +307,8 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
+      const variantErr = variantGateError(newLine);
+      if (variantErr) { showToast(variantErr, 'warning'); return; }
       // With more than one candidate recipe the BOM picker is on screen and the
       // choice is real — an unpicked line would reach the PR pre-fill with nothing
       // to disambiguate it and silently land on an arbitrary recipe.
@@ -364,6 +366,22 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
   const comboAttr = (attributes || []).find((a: any) => a.system_role === 'combo');
   const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
+
+  // A variant FG ordered without its variant identity is unbuildable: a color line
+  // with neither an approved color_id nor a pending lab dip code has no shade for
+  // the DYEING recipe match, and a combo line with no Combo value can't pick a BOM.
+  // Returns an error message, or null when the line is complete.
+  const variantGateError = (line: any): string | null => {
+      const vt = resolveItem(line.item_id)?.variant_type || '';
+      if (vt === 'color' && !line.color_id && !line.labdip_variant_code) {
+          return 'This is a color item — pick an approved color code or a pending lab dip code.';
+      }
+      if (vt === 'combo' && comboAttr) {
+          const hasCombo = (line.attribute_value_ids || []).some((vid: string) => comboAttr.values?.some((v: any) => v.id === vid));
+          if (!hasCombo) return 'This is a combo item — select a Combo before adding the line.';
+      }
+      return null;
+  };
 
   const handleValueChange = (valId: string, attrId: string) => {
       const attr = attributes.find((a: any) => a.id === attrId);
@@ -609,6 +627,12 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+      // Re-check every line, not just the one being typed: edit mode loads lines
+      // saved before this gate existed, and an item's variant_type can change.
+      for (let i = 0; i < newSO.lines.length; i++) {
+          const err = variantGateError(newSO.lines[i]);
+          if (err) { showToast(`Line ${i + 1} (${getItemCode(newSO.lines[i].item_id, newSO.lines[i].item_code)}): ${err}`, 'warning'); return; }
+      }
       const payload = {
           ...newSO,
           customer_po_ref: newSO.customer_po_ref || null,
@@ -691,6 +715,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const currentBoundAttrs = currentVariantType === 'combo' && comboAttr ? [comboAttr]
       : currentVariantType === 'color' && colorAttr ? [colorAttr]
       : [];
+
+  // Variant gate on the line being composed — greys out Add Line and says why.
+  const newLineVariantErr = newLine.item_id ? variantGateError(newLine) : null;
+  const addLineDisabled = !newLine.item_id || newLine.qty <= 0 || !!newLineVariantErr;
+  const addLineTitle = !newLine.item_id ? 'Select an item first'
+      : newLine.qty <= 0 ? 'Enter Qty (Yd) first'
+      : newLineVariantErr || 'Add item to order';
 
   // Color Library typeahead — server-side search (30k+ shades can't be client-cached).
   useEffect(() => {
@@ -1464,22 +1495,27 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
                    {/* Add Line button — full width, bottom of form */}
                    <div style={{ marginTop: classic ? 6 : 10, marginBottom: classic ? 6 : 10 }}>
+                       {newLineVariantErr && (
+                           <div style={{ fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? '10px' : '12px', fontWeight: 'bold', color: '#8a6d00', marginBottom: 4 }}>
+                               <i className="bi bi-exclamation-triangle me-1"></i>{newLineVariantErr}
+                           </div>
+                       )}
                        {classic ? (
                            <button type="button"
-                               style={(!newLine.item_id || newLine.qty <= 0)
+                               style={addLineDisabled
                                    ? { ...xpBtn(), width: '100%', padding: '3px 0', opacity: 0.5, textAlign: 'center' as const }
                                    : { ...xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' }), width: '100%', padding: '3px 0', textAlign: 'center' as const }}
-                               onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}
-                               title={!newLine.item_id ? 'Select an item first' : newLine.qty <= 0 ? 'Enter Qty (Yd) first' : 'Add item to order'}
+                               onClick={handleAddLine} disabled={addLineDisabled}
+                               title={addLineTitle}
                            >
                                <i className="bi bi-plus-lg" style={{ marginRight: 5 }}></i>Add Line to Order
                            </button>
                        ) : (
                            <button type="button"
-                               className={`w-100 btn ${(!newLine.item_id || newLine.qty <= 0) ? 'btn-outline-secondary' : 'btn-success'}`}
+                               className={`w-100 btn ${addLineDisabled ? 'btn-outline-secondary' : 'btn-success'}`}
                                style={{ fontWeight: 600 }}
-                               onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}
-                               title={!newLine.item_id ? 'Select an item first' : newLine.qty <= 0 ? 'Enter Qty (Yd) first' : 'Add item to order'}
+                               onClick={handleAddLine} disabled={addLineDisabled}
+                               title={addLineTitle}
                            >
                                <i className="bi bi-plus-lg me-2"></i>Add Line to Order
                            </button>
