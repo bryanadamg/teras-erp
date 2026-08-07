@@ -74,7 +74,16 @@ class SampleRequest(Base):
     completion_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     variant_type: Mapped[str] = mapped_column(String(16), default="color")
-    category: Mapped[str] = mapped_column(String(16), default="NEW_SAMPLE", index=True)
+    # Request classification, picked from the `Sample Category` system attribute
+    # (system_role='sample_category', seeded with New Sample / Re Sample / Yardage).
+    # Users add their own categories on the Attributes page, so this is NOT a closed
+    # enum: `category_value_id` is the real link and `category` is a display snapshot
+    # of the picked value (same shape as dye recipe wash bath / finishing steps).
+    category: Mapped[str] = mapped_column(String(64), default="New Sample", index=True)
+    category_value_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
     version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(32), default="DRAFT", index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

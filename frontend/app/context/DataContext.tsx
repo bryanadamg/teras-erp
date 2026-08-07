@@ -45,7 +45,8 @@ export interface SampleQuery {
     page?: number;
     search?: string;
     status?: string;
-    category?: string;
+    /** `Sample Category` attribute value id — filtering by id survives a rename. */
+    categoryValueId?: string;
     createdFrom?: string;
     createdTo?: string;
     /** Deep-link target: the server returns whichever page contains this row. */
@@ -607,7 +608,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         params.set('skip', String((Math.max(1, query.page || 1) - 1) * SAMPLE_PAGE_SIZE));
         if (query.search) params.set('search', query.search);
         if (query.status && query.status !== 'ALL') params.set('status', query.status);
-        if (query.category && query.category !== 'ALL') params.set('category', query.category);
+        if (query.categoryValueId && query.categoryValueId !== 'ALL') params.set('category_value_id', query.categoryValueId);
         if (query.createdFrom) params.set('created_from', query.createdFrom);
         if (query.createdTo) params.set('created_to', query.createdTo);
         if (query.focusId) params.set('focus_id', query.focusId);

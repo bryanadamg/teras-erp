@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from app.models.sample import SampleRequest, SampleColor, SampleRequestRead
 from app.models.item import Item as ItemModel
+from app.models.attribute import Attribute, AttributeValue
 from app.schemas import (
     SampleRequestCreate, SampleRequestUpdate, SampleRequestResponse, SampleColorResponse,
     PaginatedSampleRequestResponse, SampleColorStats,
@@ -19,6 +20,51 @@ from pathlib import Path
 import shutil, os, uuid
 
 router = APIRouter()
+
+
+# The request category is a value of the `Sample Category` system attribute so users
+# can add their own; these three are only the seeded defaults. The keys are what the
+# pre-attribute column stored — kept as an alias map so old links/clients still filter.
+SAMPLE_CATEGORY_ROLE = "sample_category"
+LEGACY_CATEGORY_LABELS = {
+    "NEW_SAMPLE": "New Sample",
+    "RE_SAMPLE": "Re Sample",
+    "YARDAGE": "Yardage",
+}
+DEFAULT_CATEGORY_LABEL = "New Sample"
+
+
+async def _resolve_sample_category(
+    db: AsyncSession, value_id, category_text: str | None
+) -> tuple[object | None, str]:
+    """Return (attribute_value_id, display snapshot) for a request's category pick.
+
+    Categories are values of the `Sample Category` system attribute (role
+    sample_category), curated on the Attributes page. A value belonging to any
+    other attribute is a 422. When only text arrives (legacy client, or the old
+    enum key) it is matched back to a value; unmatched text is kept as a bare
+    snapshot rather than rejected, so an import can't lose the classification.
+    """
+    if value_id:
+        row = (await db.execute(
+            select(AttributeValue)
+            .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+            .filter(AttributeValue.id == value_id, Attribute.system_role == SAMPLE_CATEGORY_ROLE)
+        )).scalars().first()
+        if not row:
+            raise HTTPException(status_code=422, detail=f"Invalid sample category selection: {value_id}")
+        return row.id, row.value
+
+    label = (category_text or "").strip()
+    label = LEGACY_CATEGORY_LABELS.get(label, label) or DEFAULT_CATEGORY_LABEL
+    match = (await db.execute(
+        select(AttributeValue)
+        .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+        .filter(Attribute.system_role == SAMPLE_CATEGORY_ROLE, func.lower(AttributeValue.value) == label.lower())
+    )).scalars().first()
+    if match:
+        return match.id, match.value
+    return None, label[:64]
 
 
 def _enrich_creator(samples: list) -> None:
@@ -57,6 +103,7 @@ async def create_sample_request(
     req_date = date.fromisoformat(payload.request_date) if payload.request_date else date.today()
     est_date = date.fromisoformat(payload.estimated_completion_date) if payload.estimated_completion_date else None
     now = datetime.utcnow()
+    cat_value_id, cat_label = await _resolve_sample_category(db, payload.category_value_id, payload.category)
 
     sample = SampleRequest(
         code=code,
@@ -67,7 +114,8 @@ async def create_sample_request(
         internal_article_code=payload.internal_article_code,
         width=payload.width,
         variant_type=payload.variant_type,
-        category=payload.category,
+        category=cat_label,
+        category_value_id=cat_value_id,
         main_material=payload.main_material,
         middle_material=payload.middle_material,
         bottom_material=payload.bottom_material,
@@ -134,6 +182,7 @@ def _sample_conditions(
     category: str | None,
     created_from: str | None,
     created_to: str | None,
+    category_value_id: str | None = None,
 ) -> list:
     """WHERE clauses shared by the page query, the total/unread counts and the
     color tallies — every number the samples page shows must be computed over
@@ -148,8 +197,13 @@ def _sample_conditions(
         ))
     if status and status != "ALL":
         conds.append(SampleRequest.status == status)
-    if category and category != "ALL":
-        conds.append(func.coalesce(SampleRequest.category, "NEW_SAMPLE") == category)
+    # The UI filters by attribute value id (a renamed category keeps matching its rows);
+    # ?category= is the legacy text/enum-key path kept for old deep links.
+    if category_value_id and category_value_id != "ALL":
+        conds.append(SampleRequest.category_value_id == category_value_id)
+    elif category and category != "ALL":
+        label = LEGACY_CATEGORY_LABELS.get(category, category)
+        conds.append(func.coalesce(SampleRequest.category, DEFAULT_CATEGORY_LABEL) == label)
     # Date inputs emit yyyy-mm-dd; created_at is a timestamp, so the upper bound
     # is exclusive-next-midnight to keep the range inclusive on both ends.
     if created_from:
@@ -166,6 +220,7 @@ async def get_samples(
     search: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_value_id: str | None = None,
     created_from: str | None = None,
     created_to: str | None = None,
     focus_id: str | None = None,
@@ -174,7 +229,7 @@ async def get_samples(
 ):
     limit = max(1, min(limit, 200))
     skip = max(0, skip)
-    conds = _sample_conditions(search, status, category, created_from, created_to)
+    conds = _sample_conditions(search, status, category, created_from, created_to, category_value_id)
 
     total = await db.scalar(select(func.count()).select_from(SampleRequest).where(*conds)) or 0
 
@@ -322,7 +377,9 @@ async def update_sample_request(
     sample.internal_article_code = payload.internal_article_code
     sample.width = payload.width
     sample.variant_type = payload.variant_type
-    sample.category = payload.category
+    sample.category_value_id, sample.category = await _resolve_sample_category(
+        db, payload.category_value_id, payload.category
+    )
     sample.main_material = payload.main_material
     sample.middle_material = payload.middle_material
     sample.bottom_material = payload.bottom_material

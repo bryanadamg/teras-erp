@@ -1589,7 +1589,11 @@ class SampleRequestCreate(BaseModel):
     internal_article_code: Optional[str] = None
     width: Optional[str] = None
     variant_type: str = "color"
-    category: str = "NEW_SAMPLE"
+    # `Sample Category` system attribute value (role sample_category). `category` is
+    # the display snapshot — resolved server-side from category_value_id when given,
+    # and matched back to a value when only the text is sent (legacy clients).
+    category_value_id: Optional[UUID] = None
+    category: Optional[str] = None
     colors: list[SampleColorCreate] = []
     main_material: Optional[str] = None
     middle_material: Optional[str] = None
@@ -1621,7 +1625,8 @@ class SampleRequestUpdate(BaseModel):
     internal_article_code: Optional[str] = None
     width: Optional[str] = None
     variant_type: str = "color"
-    category: str = "NEW_SAMPLE"
+    category_value_id: Optional[UUID] = None
+    category: Optional[str] = None
     colors: list[SampleColorUpdate] = []
     main_material: Optional[str] = None
     middle_material: Optional[str] = None
@@ -1645,7 +1650,8 @@ class SampleRequestResponse(BaseModel):
     version: int
     status: str
     variant_type: str = "color"
-    category: str = "NEW_SAMPLE"
+    category: str = "New Sample"
+    category_value_id: Optional[UUID] = None
     created_at: datetime
     is_unread: bool = False
     customer_id: Optional[UUID] = None

@@ -54,6 +54,9 @@ def seed_system_attributes(db):
             # migration a5c7e9b1d3f4)
             ("Wash Bath", "wash_bath", None),
             ("Finishing Step", "finishing_step", None),
+            # Sample request classification — the three defaults are what the client
+            # asked for; more are added on the Attributes page like any other value.
+            ("Sample Category", "sample_category", ["New Sample", "Re Sample", "Yardage"]),
         ]
         for name, role, seed_values in system_attrs:
             existing = db.query(Attribute).filter(Attribute.name == name).first()

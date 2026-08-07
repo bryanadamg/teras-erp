@@ -19,15 +19,19 @@ import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPane
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
 
-// Request classification, chosen at create time. Closed set — a plain column on the
-// request header, not a system attribute (no variant meaning, never explodes into items).
-const SAMPLE_CATEGORIES = [
-    { value: 'NEW_SAMPLE', label: 'New Sample' },
-    { value: 'RE_SAMPLE', label: 'Re Sample' },
-    { value: 'YARDAGE', label: 'Yardage' },
-] as const;
+// Request classification, chosen at create time. Values are the `Sample Category`
+// system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
+// are only the seeded defaults; users add their own on the Attributes page. The
+// request stores the value id plus a text snapshot, so this map is nothing but an
+// alias for the enum keys the column held before the attribute existed.
+const LEGACY_CATEGORY_LABELS: Record<string, string> = {
+    NEW_SAMPLE: 'New Sample',
+    RE_SAMPLE: 'Re Sample',
+    YARDAGE: 'Yardage',
+};
+const DEFAULT_CATEGORY_LABEL = 'New Sample';
 const categoryLabel = (v?: string) =>
-    SAMPLE_CATEGORIES.find(c => c.value === v)?.label ?? 'New Sample';
+    (v ? (LEGACY_CATEGORY_LABELS[v] ?? v) : DEFAULT_CATEGORY_LABEL);
 
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
@@ -57,6 +61,22 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
     const attr = (attributes as any[]).find((a: any) => a.system_role === 'material');
     return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
   }, [attributes]);
+  // Request categories — attribute values, so the dropdown grows with whatever the
+  // user curates on the Attributes page (id is what gets stored and filtered on).
+  const categoryOptions = useMemo(() => {
+    const attr = (attributes as any[]).find((a: any) => a.system_role === 'sample_category');
+    return (attr?.values ?? []).map((v: any) => ({ id: String(v.id), label: v.value as string }));
+  }, [attributes]);
+  const categoryIdByLabel = (label?: string) => {
+    if (!label) return '';
+    const wanted = (LEGACY_CATEGORY_LABELS[label] ?? label).toLowerCase();
+    return categoryOptions.find((c: any) => c.label.toLowerCase() === wanted)?.id ?? '';
+  };
+  const defaultCategory = () => {
+    const preferred = categoryOptions.find((c: any) => c.label === DEFAULT_CATEGORY_LABEL);
+    const pick = preferred ?? categoryOptions[0];
+    return { category_value_id: pick?.id ?? '', category: pick?.label ?? '' };
+  };
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
@@ -177,8 +197,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           customer_article_code: sample.customer_article_code || '',
           internal_article_code: sample.internal_article_code || '',
           width: sample.width || '',
-          // Cloning a rejected color into a fresh request is a re-sample by definition.
-          category: 'RE_SAMPLE',
+          // Cloning a rejected color into a fresh request is a re-sample by definition
+          // (falls back to the request's own category if that value was renamed away).
+          category_value_id: categoryIdByLabel('Re Sample') || categoryIdByLabel(sample.category),
+          category: categoryIdByLabel('Re Sample') ? 'Re Sample' : categoryLabel(sample.category),
           variant_type: (sample.variant_type || 'color') as 'color' | 'combo',
           colors: [{ name: color.name, is_repeat: true }],
           main_material: sample.main_material || '',
@@ -298,7 +320,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       customer_article_code: '',
       internal_article_code: '',
       width: '',
-      category: 'NEW_SAMPLE',
+      category_value_id: '',
+      category: '',
       variant_type: 'color' as 'color' | 'combo',
       colors: [] as { id?: string; name: string; is_repeat: boolean }[],
       main_material: '',
@@ -318,6 +341,19 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       notes: '',
   });
   const [newSample, setNewSample] = useState(emptyForm());
+
+  // The id is what the request stores; the label rides along as the snapshot the
+  // backend re-resolves anyway, so the list can render without a second lookup.
+  const pickCategory = (valueId: string) => {
+      const opt = categoryOptions.find((c: any) => c.id === valueId);
+      setNewSample(prev => ({ ...prev, category_value_id: valueId, category: opt?.label ?? '' }));
+  };
+  // /attributes may land after the create modal opens — preselect the default then.
+  useEffect(() => {
+      if (!isCreateOpen || editingSample || newSample.category_value_id) return;
+      const d = defaultCategory();
+      if (d.category_value_id) setNewSample(prev => (prev.category_value_id ? prev : { ...prev, ...d }));
+  }, [isCreateOpen, editingSample, categoryOptions, newSample.category_value_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Server-side combo typeahead. The Combo Library can hold thousands of values —
   // too many to ship to every client via /attributes — so the combo picker queries
@@ -427,7 +463,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           customer_article_code: sample.customer_article_code || '',
           internal_article_code: sample.internal_article_code || '',
           width: sample.width || '',
-          category: sample.category || 'NEW_SAMPLE',
+          // Rows created before the attribute existed carry only the text snapshot —
+          // match it back to a value so editing doesn't blank the field.
+          category_value_id: sample.category_value_id ? String(sample.category_value_id) : categoryIdByLabel(sample.category),
+          category: categoryLabel(sample.category),
           variant_type: (sample.variant_type || 'color') as 'color' | 'combo',
           colors: (sample.colors || []).map((c: any) => ({ id: c.id, name: c.name, is_repeat: c.is_repeat })),
           main_material: sample.main_material || '',
@@ -458,6 +497,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       const payload = {
           ...newSample,
           customer_id: newSample.customer_id || null,
+          // '' would fail UUID validation; the backend falls back to the text snapshot
+          category_value_id: newSample.category_value_id || null,
           original_weight: newSample.original_weight !== '' ? parseFloat(newSample.original_weight) : null,
           original_weight_unit: newSample.original_weight !== '' ? newSample.original_weight_unit : null,
           production_weight: newSample.production_weight !== '' ? parseFloat(newSample.production_weight) : null,
@@ -580,7 +621,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           page: samplePage,
           search: searchQuery,
           status: statusFilter,
-          category: categoryFilter,
+          categoryValueId: categoryFilter,
           createdFrom,
           createdTo,
           focusId,
@@ -724,9 +765,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                <div style={{ gridColumn: '1 / -1' }}>
                                    <label style={xpLbl}>Category <span style={{ fontWeight: 'normal', color: '#a00' }}>*</span></label>
                                    <select style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const, height: 20 }}
-                                           value={newSample.category}
-                                           onChange={e => setNewSample({ ...newSample, category: e.target.value })}>
-                                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                           value={newSample.category_value_id}
+                                           onChange={e => pickCategory(e.target.value)} required>
+                                       <option value="">Select Category…</option>
+                                       {categoryOptions.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
                                    </select>
                                </div>
                                <div style={{ gridColumn: '1 / -1' }}>
@@ -772,9 +814,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                <div className="col-12">
                                    <label className="form-label small text-muted">Category</label>
                                    <select className="form-select form-select-sm"
-                                           value={newSample.category}
-                                           onChange={e => setNewSample({ ...newSample, category: e.target.value })}>
-                                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                           value={newSample.category_value_id}
+                                           onChange={e => pickCategory(e.target.value)} required>
+                                       <option value="">Select Category…</option>
+                                       {categoryOptions.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
                                    </select>
                                </div>
                                <div className="col-12">
@@ -1318,7 +1361,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        title="Filter by category"
                    >
                        <option value="ALL">All Categories</option>
-                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                       {categoryOptions.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
                    </select>
                    <div style={xpSep}></div>
                    <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>Created</span>
@@ -1388,7 +1431,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        title="Filter by category"
                    >
                        <option value="ALL">All Categories</option>
-                       {SAMPLE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                       {categoryOptions.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
                    </select>
                    <div className="d-flex align-items-center gap-1">
                        <span className="small text-muted">Created</span>
