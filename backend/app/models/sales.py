@@ -1,6 +1,6 @@
 import uuid
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import String, ForeignKey, Numeric, DateTime, Text, Table, Column
+from sqlalchemy import String, ForeignKey, Numeric, DateTime, Text, Table, Column, Boolean, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -81,6 +81,13 @@ class SalesOrderLine(Base):
     labdip_variant_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     labdip_item_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("lab_dip_items.id", ondelete="SET NULL"), nullable=True
+    )
+    # The customer ordered this shade without sending a physical color swatch.
+    # External blocker, set by sales at order entry and cleared by editing the SO
+    # once the swatch arrives — distinct from labdip_status, which tracks *our*
+    # matching progress. Informational only: nothing downstream gates on it.
+    no_color_swatch: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
     )
 
     # Relationships

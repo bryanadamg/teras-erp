@@ -249,6 +249,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       labdip_variant_code: '',
       labdip_item_id: '',
       labdip_label: '',
+      // Customer ordered the shade but hasn't sent the physical swatch. Cleared
+      // by editing the SO line once it arrives; display-only, gates nothing.
+      no_color_swatch: false,
   });
   const [colorSearch, setColorSearch] = useState('');
   const [colorResults, setColorResults] = useState<any[]>([]);
@@ -318,10 +321,19 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       setNewSO({ ...newSO, lines: [...newSO.lines, { ...newLine, bom_id: newLine.bom_id || null, bom_size_id: newLine.bom_size_id || null }] });
       const nextDates = { due_date: newLine.due_date, internal_confirmation_date: newLine.internal_confirmation_date };
       setLastDeliveryDates(nextDates);
-      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false });
       setQtyMeter('');
       setQtyGrossYd('');
       setKgAuto(true);
+  };
+
+  // Toggle in place on an already-added line: the swatch usually arrives after
+  // the order is placed, so unchecking must not mean remove-and-re-add.
+  const handleLineSwatchToggle = (index: number) => {
+      setNewSO(prev => ({
+          ...prev,
+          lines: prev.lines.map((l: any, i: number) => i === index ? { ...l, no_color_swatch: !l.no_color_swatch } : l),
+      }));
   };
 
   const handleRemoveLine = (index: number) => {
@@ -426,7 +438,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       // Item change resets attributes, so no Combo filter yet — show all BOMs for item
       const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
       const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
-      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
+      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false, qty_kg: kg !== null ? kg : newLine.qty_kg });
   };
 
   // Combo (system_role='combo') gates BOM selection: if a Combo value is chosen on
@@ -556,7 +568,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const resetForm = () => {
       setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
-      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false });
       setQtyMeter('');
       setQtyGrossYd('');
       setKgAuto(true);
@@ -588,6 +600,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
               labdip_variant_code: l.labdip_variant_code || '',
               labdip_item_id: l.labdip_item_id || '',
               labdip_label: l.labdip_variant_code ? `${l.labdip_variant_code}${l.labdip_status ? ' · ' + l.labdip_status : ''}` : '',
+              no_color_swatch: !!l.no_color_swatch,
           })),
       });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
@@ -612,6 +625,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                   color_id: line.color_id || null,
                   labdip_variant_code: line.labdip_variant_code || null,
                   labdip_item_id: line.labdip_item_id || null,
+                  no_color_swatch: !!line.no_color_swatch,
               };
           })
       };
@@ -1374,6 +1388,26 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                            </div>
                        )}
 
+                       {/* No Color Swatch — the customer ordered a shade without sending the
+                           physical swatch. Per line (i.e. per color variant), informational. */}
+                       {newLine.item_id && (
+                           <div className="col-12 mt-1">
+                               <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
+                                   <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',margin:0}}>
+                                       <input
+                                           type="checkbox"
+                                           checked={!!newLine.no_color_swatch}
+                                           onChange={e => setNewLine({...newLine, no_color_swatch: e.target.checked})}
+                                           className={classic?'':'form-check-input mt-0'}
+                                           style={classic?{margin:0}:undefined}
+                                       />
+                                       <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000'}:undefined} className={classic?'':'small'}>No Color Swatch</span>
+                                       <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',color:'#888'}:{color:'#888'}} className={classic?'':'small'}>— customer has not supplied a physical swatch yet</span>
+                                   </label>
+                               </div>
+                           </div>
+                       )}
+
                        {/* BOM + Size / Measurement (Combo gates BOM list; other variants are annotations) */}
                        {(() => {
                            const itemBoms = getItemBoms(newLine.item_id, newLine.attribute_value_ids);
@@ -1466,6 +1500,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    })()}
                                    {line.bom_size_id && <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}</div>}
                                    {!line.color_id && line.labdip_variant_code && <div style={{color:'#8a6d00',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small fw-semibold'}><i className="bi bi-eyedropper me-1"></i>Pending lab dip: {line.labdip_variant_code}</div>}
+                                   {line.no_color_swatch && <div style={{color:'#a33',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small fw-semibold'}><i className="bi bi-palette me-1"></i>No Color Swatch</div>}
                                </div>
                                <div style={{display:'flex',alignItems:'center',gap:classic?6:10,flexWrap:'wrap' as const}}>
                                    <div style={{display:'flex',flexDirection:'column',gap:1}}>
@@ -1497,6 +1532,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        title="Quantity ordered (Yd)"
                                    />
                                    <span style={{color:classic?'#777':'',fontSize:classic?'10px':'',fontWeight:'normal'}} className={classic?'':'text-muted small'}>Yd</span>
+                                   <label style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',margin:0}} title="Customer has not supplied a physical color swatch — untick once it arrives">
+                                       <input type="checkbox" checked={!!line.no_color_swatch} onChange={() => handleLineSwatchToggle(idx)} className={classic?'':'form-check-input mt-0'} style={classic?{margin:0}:undefined} />
+                                       <span style={{color:classic?'#777':'',fontSize:'9px'}} className={classic?'':'text-muted'}>No swatch</span>
+                                   </label>
                                    <button type="button" style={classic?{...xpBtn(),border:'1px solid transparent',background:'transparent',padding:'1px 5px'}:undefined} className={classic?'':'btn btn-sm btn-link text-danger p-0'} onClick={() => handleRemoveLine(idx)}>
                                        <i className="bi bi-x-circle" style={{color:classic?'#c00000':''}}></i>
                                    </button>
@@ -1796,6 +1835,14 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                        </>
                                                    );
                                                })()}
+                                               {line.no_color_swatch && (
+                                                   <div
+                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', fontWeight:'bold', color:'#a33' }}
+                                                       title="Customer has not supplied a physical color swatch"
+                                                   >
+                                                       <i className="bi bi-palette me-1"></i>No Color Swatch
+                                                   </div>
+                                               )}
                                            </td>
 
                                            {/* Size */}

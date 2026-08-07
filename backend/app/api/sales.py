@@ -103,6 +103,7 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
                 color_id=line.color_id,
                 labdip_variant_code=line.labdip_variant_code,
                 labdip_item_id=line.labdip_item_id,
+                no_color_swatch=line.no_color_swatch,
             )
             if line.attribute_value_ids:
                 attr_result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))
@@ -269,6 +270,7 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
             color_id=line.color_id,
             labdip_variant_code=line.labdip_variant_code,
             labdip_item_id=line.labdip_item_id,
+            no_color_swatch=line.no_color_swatch,
         )
         if line.attribute_value_ids:
             attr_result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))

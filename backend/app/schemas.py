@@ -1508,6 +1508,8 @@ class SalesOrderLineCreate(BaseModel):
     color_id: UUID | None = None
     labdip_variant_code: str | None = None
     labdip_item_id: UUID | None = None
+    # Customer hasn't supplied the physical swatch yet. Display-only flag.
+    no_color_swatch: bool = False
 
 class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
