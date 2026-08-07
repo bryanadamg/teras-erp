@@ -63,7 +63,9 @@ function buildSection(key: string, d: any, tzDate: (v: string | Date) => string)
       const open  = salesOrders.filter((s) => s.status === 'PENDING' || s.status === 'PARTIAL').length;
       const ready = salesOrders.filter((s) => s.status === 'READY').length;
       const customers = partners.filter((p) => p.type === 'CUSTOMER' && p.active).length;
-      const activeSamples = kpis.active_samples ?? samples.length;
+      // samples is one server page now, never the whole table — the KPI is the
+      // only correct source, so fall back to 0 rather than a page count.
+      const activeSamples = kpis.active_samples ?? 0;
       const rows: ListRow[] = [...salesOrders].sort(byDateDesc).slice(0, 6).map((s) => ({
         code: s.code || s.id, primary: partnerName(s.partner_id ?? s.customer_id) || '—',
         status: s.status, right: s.created_at ? tzDate(s.created_at) : '',

@@ -1,17 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select, func, delete, or_, and_
+from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from app.models.sample import SampleRequest, SampleColor, SampleRequestRead
 from app.models.item import Item as ItemModel
-from app.schemas import SampleRequestCreate, SampleRequestUpdate, SampleRequestResponse, SampleColorResponse
+from app.schemas import (
+    SampleRequestCreate, SampleRequestUpdate, SampleRequestResponse, SampleColorResponse,
+    PaginatedSampleRequestResponse, SampleColorStats,
+)
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service, kpi_service
 from app.core.ws_manager import manager
-from datetime import datetime, date
+from datetime import datetime, date, time, timedelta
 from pathlib import Path
 import shutil, os, uuid
 
@@ -125,36 +128,172 @@ async def create_sample_request(
     return sample
 
 
-@router.get("/samples", response_model=list[SampleRequestResponse])
+def _sample_conditions(
+    search: str | None,
+    status: str | None,
+    category: str | None,
+    created_from: str | None,
+    created_to: str | None,
+) -> list:
+    """WHERE clauses shared by the page query, the total/unread counts and the
+    color tallies — every number the samples page shows must be computed over
+    the same filtered set, so they are built once here."""
+    conds = []
+    if search:
+        like = f"%{search.strip().lower()}%"
+        conds.append(or_(
+            func.lower(SampleRequest.code).like(like),
+            func.lower(SampleRequest.project).like(like),
+            func.lower(SampleRequest.customer_article_code).like(like),
+        ))
+    if status and status != "ALL":
+        conds.append(SampleRequest.status == status)
+    if category and category != "ALL":
+        conds.append(func.coalesce(SampleRequest.category, "NEW_SAMPLE") == category)
+    # Date inputs emit yyyy-mm-dd; created_at is a timestamp, so the upper bound
+    # is exclusive-next-midnight to keep the range inclusive on both ends.
+    if created_from:
+        conds.append(SampleRequest.created_at >= datetime.combine(date.fromisoformat(created_from), time.min))
+    if created_to:
+        conds.append(SampleRequest.created_at < datetime.combine(date.fromisoformat(created_to) + timedelta(days=1), time.min))
+    return conds
+
+
+@router.get("/samples", response_model=PaginatedSampleRequestResponse)
 async def get_samples(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
+    search: str | None = None,
+    status: str | None = None,
+    category: str | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
+    focus_id: str | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(SampleRequest)
-        .options(joinedload(SampleRequest.colors), joinedload(SampleRequest.created_by).joinedload(User.role))
-        .order_by(SampleRequest.created_at.desc())
-        .offset(skip)
-        .limit(limit)
+    limit = max(1, min(limit, 200))
+    skip = max(0, skip)
+    conds = _sample_conditions(search, status, category, created_from, created_to)
+
+    total = await db.scalar(select(func.count()).select_from(SampleRequest).where(*conds)) or 0
+
+    # ORDER BY is (created_at DESC, id DESC) everywhere: created_at alone is not
+    # unique, and an unstable order makes rows jump between pages.
+    order_cols = (SampleRequest.created_at.desc(), SampleRequest.id.desc())
+
+    # ?focus_id= (a ?highlight= deep link) must land on whatever page holds that
+    # row under the current filters — compute its rank instead of scanning.
+    if focus_id:
+        target = (await db.execute(
+            select(SampleRequest.created_at, SampleRequest.id)
+            .where(SampleRequest.id == focus_id, *conds)
+        )).first()
+        if target:
+            rank = await db.scalar(
+                select(func.count()).select_from(SampleRequest).where(
+                    *conds,
+                    or_(
+                        SampleRequest.created_at > target[0],
+                        and_(SampleRequest.created_at == target[0], SampleRequest.id > target[1]),
+                    ),
+                )
+            ) or 0
+            skip = (rank // limit) * limit
+
+    id_rows = await db.execute(
+        select(SampleRequest.id).where(*conds).order_by(*order_cols).offset(skip).limit(limit)
     )
-    samples = result.unique().scalars().all()
+    ids = [r[0] for r in id_rows.all()]
+
+    samples: list = []
+    if ids:
+        result = await db.execute(
+            select(SampleRequest)
+            .options(selectinload(SampleRequest.colors), joinedload(SampleRequest.created_by).joinedload(User.role))
+            .where(SampleRequest.id.in_(ids))
+        )
+        by_id = {s.id: s for s in result.unique().scalars().all()}
+        samples = [by_id[i] for i in ids if i in by_id]
+
     _enrich_creator(samples)
-
-    reads_result = await db.execute(
-        select(SampleRequestRead).filter(SampleRequestRead.user_id == current_user.id)
-    )
-    reads = {str(r.sample_request_id): r.read_at for r in reads_result.scalars().all()}
-
     await _enrich_colors_with_items(db, samples)
+
+    reads: dict = {}
+    if ids:
+        reads_result = await db.execute(
+            select(SampleRequestRead.sample_request_id, SampleRequestRead.read_at).where(
+                SampleRequestRead.user_id == current_user.id,
+                SampleRequestRead.sample_request_id.in_(ids),
+            )
+        )
+        reads = {str(r[0]): r[1] for r in reads_result.all()}
 
     for sample in samples:
         read_at = reads.get(str(sample.id))
         sample_updated_at = sample.updated_at or sample.created_at
         sample.is_unread = read_at is None or read_at < sample_updated_at
 
-    return samples
+    # Unread badge counts the whole filtered set, not the page — correlated
+    # subquery so "never read" and "read before the last edit" both count.
+    read_at_sq = (
+        select(SampleRequestRead.read_at)
+        .where(
+            SampleRequestRead.user_id == current_user.id,
+            SampleRequestRead.sample_request_id == SampleRequest.id,
+        )
+        .scalar_subquery()
+    )
+    unread = await db.scalar(
+        select(func.count()).select_from(SampleRequest).where(
+            *conds,
+            or_(
+                read_at_sq.is_(None),
+                read_at_sq < func.coalesce(SampleRequest.updated_at, SampleRequest.created_at),
+            ),
+        )
+    ) or 0
+
+    stat_rows = await db.execute(
+        select(SampleColor.status, func.count())
+        .select_from(SampleColor)
+        .join(SampleRequest, SampleColor.sample_request_id == SampleRequest.id)
+        .where(*conds)
+        .group_by(SampleColor.status)
+    )
+    color_stats = SampleColorStats()
+    for st, cnt in stat_rows.all():
+        color_stats.total += cnt
+        key = st or "PENDING"
+        if hasattr(color_stats, key):
+            setattr(color_stats, key, getattr(color_stats, key) + cnt)
+
+    return PaginatedSampleRequestResponse(
+        items=samples,
+        total=total,
+        page=(skip // limit) + 1,
+        size=limit,
+        unread=unread,
+        color_stats=color_stats,
+    )
+
+
+@router.get("/samples/codes", response_model=list[str])
+async def get_sample_codes(
+    prefix: str = "",
+    limit: int = 2000,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Codes matching a prefix, for client-side next-free-code suggestion.
+    The list is paginated now, so the create form can no longer test candidate
+    codes against the in-memory page."""
+    q = select(SampleRequest.code)
+    if prefix:
+        escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        q = q.where(SampleRequest.code.like(f"{escaped}%", escape="\\"))
+    rows = await db.execute(q.order_by(SampleRequest.code).limit(max(1, min(limit, 10000))))
+    return [r[0] for r in rows.all()]
 
 
 @router.put("/samples/{sample_id}", response_model=SampleRequestResponse)

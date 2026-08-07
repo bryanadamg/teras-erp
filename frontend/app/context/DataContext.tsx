@@ -37,6 +37,29 @@ export interface ItemIndexEntry {
 // signature disagreeing — which is exactly what a bare repeated union did.
 export type LiveKind = 'production' | 'kpi' | 'stock' | 'weaving' | 'bom' | 'sales';
 
+/** Rows per page of the server-paginated samples list (shared with SampleRequestView). */
+export const SAMPLE_PAGE_SIZE = 50;
+
+/** Server-side query for the samples list — filters live on the backend now. */
+export interface SampleQuery {
+    page?: number;
+    search?: string;
+    status?: string;
+    category?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    /** Deep-link target: the server returns whichever page contains this row. */
+    focusId?: string;
+}
+
+export interface SamplesMeta {
+    total: number;
+    unread: number;
+    /** Color-grain tallies over the whole filtered set, not the page. */
+    colorStats: Record<string, number>;
+    page: number;
+}
+
 interface DataContextType {
     items: any[];
     locations: any[];
@@ -54,6 +77,7 @@ interface DataContextType {
     salesOrders: any[];
     purchaseOrders: any[];
     samples: any[];
+    samplesMeta: SamplesMeta;
     auditLogs: any[];
     partners: any[];
     dashboardKPIs: any;
@@ -104,6 +128,8 @@ interface DataContextType {
     refreshManufacturing: () => Promise<void>;
     refreshPurchaseOrders: () => Promise<void>;
     refreshSalesOrders: () => Promise<void>;
+    /** Server-paginated samples fetch; omit the query to replay the last one. */
+    loadSamples: (q?: SampleQuery) => Promise<void>;
     refreshSamples: () => Promise<void>;
     refreshItemMetadata: () => Promise<void>;
     refreshRouting: () => Promise<void>;
@@ -156,6 +182,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [salesOrders, setSalesOrders] = useState([]);
     const [purchaseOrders, setPurchaseOrders] = useState([]);
     const [samples, setSamples] = useState([]);
+    const [samplesMeta, setSamplesMeta] = useState<SamplesMeta>({ total: 0, unread: 0, colorStats: {}, page: 1 });
     const [auditLogs, setAuditLogs] = useState([]);
     const [partners, setPartners] = useState([]);
     const [dashboardKPIs, setDashboardKPIs] = useState<any>({});
@@ -416,10 +443,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/sales-orders`, { headers }));
                 requestTypes.push('sales-orders');
             }
-            if (fetchTarget.includes('samples')) {
-                requests.push(fetch(`${API_BASE}/samples`, { headers }));
-                requestTypes.push('samples');
-            }
+            // NOT samples: the samples list is server-paginated + server-filtered
+            // (tens of thousands of rows), so SampleRequestView drives its own
+            // fetches through loadSamples() with the active page/filter query.
 
             // Procurement
             if (fetchTarget.includes('purchase-orders') || fetchTarget.includes('suppliers')) {
@@ -473,7 +499,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'balance': setStockBalance(data); break;
                     case 'stock-ledger': setStockEntries(data.items || []); setReportTotal(data.total || 0); break;
                     case 'sales-orders': setSalesOrders(data); break;
-                    case 'samples': setSamples(data); break;
                     case 'purchase-orders': setPurchaseOrders(data); break;
                     case 'audit-logs': setAuditLogs(data.items); setAuditTotal(data.total); break;
                 }
@@ -562,19 +587,54 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         } catch (e) { console.error('refreshSalesOrders error', e); }
     }, [currentUser]);
 
-    // Targeted refresh for the Samples page after a sample mutation — same
-    // reasoning as refreshSalesOrders: goes straight to /samples instead of the
-    // broad fetchData() (which no longer even pulls boms/sales-orders for this
-    // route, but still would re-pull items + master data unnecessarily).
-    const refreshSamples = useCallback(async () => {
+    // The samples list is fetched one page at a time with the filters applied
+    // server-side — the table can hold tens of thousands of requests, so it is
+    // never loaded whole. The last query is remembered so a mutation (status
+    // change, read toggle, delete) can replay the exact page the user is on.
+    const sampleQueryRef = useRef<SampleQuery>({ page: 1 });
+    // Filter/page changes fire in bursts (typing, clicking through pages); only
+    // the most recently dispatched response may commit, or a slow early request
+    // can overwrite the list with the wrong page.
+    const sampleGenRef = useRef(0);
+
+    const loadSamples = useCallback(async (q?: SampleQuery) => {
         if (!currentUser) return;
+        const query = q ? { ...q } : sampleQueryRef.current;
+        // focus_id is a one-shot deep-link jump — don't replay it on refresh.
+        sampleQueryRef.current = { ...query, focusId: undefined };
+        const params = new URLSearchParams();
+        params.set('limit', String(SAMPLE_PAGE_SIZE));
+        params.set('skip', String((Math.max(1, query.page || 1) - 1) * SAMPLE_PAGE_SIZE));
+        if (query.search) params.set('search', query.search);
+        if (query.status && query.status !== 'ALL') params.set('status', query.status);
+        if (query.category && query.category !== 'ALL') params.set('category', query.category);
+        if (query.createdFrom) params.set('created_from', query.createdFrom);
+        if (query.createdTo) params.set('created_to', query.createdTo);
+        if (query.focusId) params.set('focus_id', query.focusId);
+        const myGen = ++sampleGenRef.current;
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            const res = await fetch(`${API_BASE}/samples`, { headers, cache: 'no-store' });
-            if (res.ok) { const d = await res.json(); setSamples(d); }
-        } catch (e) { console.error('refreshSamples error', e); }
+            const res = await fetch(`${API_BASE}/samples?${params.toString()}`, { headers, cache: 'no-store' });
+            if (res.ok && myGen === sampleGenRef.current) {
+                const d = await res.json();
+                setSamples(d.items || []);
+                setSamplesMeta({
+                    total: d.total || 0,
+                    unread: d.unread || 0,
+                    colorStats: d.color_stats || {},
+                    page: d.page || 1,
+                });
+            }
+        } catch (e) {
+            console.error('loadSamples error', e);
+        } finally {
+            if (myGen === sampleGenRef.current) setLoadedOnce(prev => ({ ...prev, samples: true }));
+        }
     }, [currentUser]);
+
+    /** Re-run the current samples query after a mutation. */
+    const refreshSamples = useCallback(() => loadSamples(), [loadSamples]);
 
     // Targeted refresh for the Item Metadata page (categories/UOMs/attributes
     // CRUD) — that page reads only these 3 collections, but every small mutation
@@ -892,21 +952,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const value = React.useMemo(() => ({
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
-        stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
+        stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, samplesMeta, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         printTemplates, refreshPrintTemplates,
         wsStatus,
         loading,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
-        fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
+        fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
-        stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
+        stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, samplesMeta, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         printTemplates, refreshPrintTemplates, wsStatus, loading,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
+        itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents
     ]);
 

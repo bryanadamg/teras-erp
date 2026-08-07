@@ -1677,6 +1677,24 @@ class SampleRequestResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SampleColorStats(BaseModel):
+    """Color-grain tallies over the WHOLE filtered set, not just the page —
+    the samples footer counts colors, and a page slice would under-report it."""
+    total: int = 0
+    PENDING: int = 0
+    IN_PRODUCTION: int = 0
+    SENT: int = 0
+    APPROVED: int = 0
+    REJECTED: int = 0
+
+class PaginatedSampleRequestResponse(BaseModel):
+    items: list[SampleRequestResponse]
+    total: int
+    page: int
+    size: int
+    unread: int = 0
+    color_stats: SampleColorStats = SampleColorStats()
+
 # --- Lab Dip Request Schemas ---
 
 # --- Color Library Schemas ---

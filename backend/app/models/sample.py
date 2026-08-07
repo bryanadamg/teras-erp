@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import String, ForeignKey, Integer, Text, DateTime, Table, Column, Boolean, Float, Date
+from sqlalchemy import String, ForeignKey, Integer, Text, DateTime, Table, Column, Boolean, Float, Date, Index, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -31,6 +31,11 @@ class SampleColor(Base):
 
 class SampleRequest(Base):
     __tablename__ = "sample_requests"
+    # Matches the list ordering (created_at DESC, id DESC) — the samples list is
+    # server-paginated, so every page read hits this index instead of sorting the table.
+    __table_args__ = (
+        Index("ix_sample_requests_created_at", text("created_at DESC"), text("id DESC")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)

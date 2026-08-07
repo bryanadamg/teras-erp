@@ -17,8 +17,7 @@ import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
-
-const SAMPLE_PAGE_SIZE = 50;
+import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
 
 // Request classification, chosen at create time. Closed set — a plain column on the
 // request header, not a system attribute (no variant meaning, never explodes into items).
@@ -40,7 +39,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const handleApproveColor = (sampleId: string, colorId: string, colorName: string) => {
       setApproveTarget({ sampleId, colorId, colorName });
   };
-  const { companyProfile, attributes, loading: dataLoading, authFetch } = useData();
+  const { companyProfile, attributes, loading: dataLoading, authFetch, samplesMeta, loadSamples } = useData();
 
   // Combos are fetched via server-side typeahead (see comboResults below) rather than
   // the combo variant attribute's values — the library is too large to ship inline.
@@ -68,10 +67,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   // Row "⋯" overflow menu (Edit / Print / Log) — separate from the status-update menu above
   const { openId: rowMenuId, pos: rowMenuPos, toggle: toggleRowMenu, close: closeRowMenu } = useFloatingMenu(170);
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
+  // searchTerm is the live input echo; searchQuery is the debounced value that
+  // actually hits the backend (the list is server-filtered — see loadSamples).
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
-  // Created-date range (inclusive both ends), filtered client-side like every other filter here.
+  // Created-date range (inclusive both ends), applied server-side like every other filter here.
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
   const [samplePage, setSamplePage] = useState(1);
@@ -133,27 +135,39 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       setApproveTarget(null);
   };
 
+  // Existing codes sharing a prefix. The list is server-paginated, so "is this
+  // code taken?" can no longer be answered from the rows currently on screen —
+  // it's a narrow indexed prefix query instead.
+  const fetchCodesWithPrefix = async (prefix: string): Promise<Set<string>> => {
+      try {
+          const res = await authFetch(`${API_BASE}/samples/codes?prefix=${encodeURIComponent(prefix)}`);
+          if (!res.ok) return new Set();
+          return new Set<string>(await res.json());
+      } catch { return new Set(); }
+  };
+
   // Build a revision-indexed code from a parent: ROOT-R1, ROOT-R2, …
   // Strips an existing -R<n> suffix so revisions chain off the original root,
   // and bumps to one past the highest revision already in the system.
-  const buildRevisionCode = (parentCode: string): string => {
+  const buildRevisionCode = async (parentCode: string): Promise<string> => {
       const m = (parentCode || '').match(/^(.*)-R(\d+)$/);
       const root = m ? m[1] : (parentCode || '');
+      const existing = await fetchCodesWithPrefix(`${root}-R`);
       let maxRev = 0;
-      (samples || []).forEach((s: any) => {
-          const rm = (s.code || '').match(/^(.*)-R(\d+)$/);
+      existing.forEach((c: string) => {
+          const rm = c.match(/^(.*)-R(\d+)$/);
           if (rm && rm[1] === root) maxRev = Math.max(maxRev, parseInt(rm[2], 10));
       });
       let next = maxRev + 1;
       let code = `${root}-R${next}`;
-      while ((samples || []).some((s: any) => s.code === code)) { next++; code = `${root}-R${next}`; }
+      while (existing.has(code)) { next++; code = `${root}-R${next}`; }
       return code;
   };
 
   // Clone a rejected color into a brand-new sample request (carry over all specs)
-  const createNewFromRejected = (sample: any, color: any) => {
+  const createNewFromRejected = async (sample: any, color: any) => {
       setEditingSample(null);
-      const revCode = buildRevisionCode(sample.code);
+      const revCode = await buildRevisionCode(sample.code);
       const revNum = revCode.match(/-R(\d+)$/)?.[1] ?? '1';
       setNewSample({
           code: revCode,
@@ -365,26 +379,42 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       }
   }, []);
 
-  const handleSaveConfig = (newConfig: CodeConfig) => {
+  const handleSaveConfig = async (newConfig: CodeConfig) => {
       setCodeConfig(newConfig);
       localStorage.setItem('sample_code_config', JSON.stringify(newConfig));
-      setNewSample(prev => ({ ...prev, code: suggestSampleCode(newConfig) }));
+      const code = await suggestSampleCode(newConfig);
+      setNewSample(prev => ({ ...prev, code }));
   };
 
-  const suggestSampleCode = (config = codeConfig) => {
+  // Everything before the counter segment is fixed for a given config — take it
+  // from where two consecutive candidates diverge, and only those codes need
+  // checking for the next free counter.
+  const codePrefixOf = (config: CodeConfig) => {
+      const a = buildCodeWithCounter(config, 1);
+      const b = buildCodeWithCounter(config, 2);
+      let i = 0;
+      while (i < a.length && i < b.length && a[i] === b[i]) i++;
+      return a.slice(0, i);
+  };
+
+  const suggestSampleCode = async (config = codeConfig) => {
+      const existing = await fetchCodesWithPrefix(codePrefixOf(config));
       let counter = 1;
       let code = buildCodeWithCounter(config, counter);
-      while (samples.some((s: any) => s.code === code)) {
+      while (existing.has(code)) {
           counter++;
           code = buildCodeWithCounter(config, counter);
       }
       return code;
   };
 
-  const openCreateModal = () => {
-      if (!newSample.code) setNewSample(prev => ({ ...prev, code: suggestSampleCode() }));
+  const openCreateModal = async () => {
       setEditingSample(null);
       setIsCreateOpen(true);
+      if (!newSample.code) {
+          const code = await suggestSampleCode();
+          setNewSample(prev => (prev.code ? prev : { ...prev, code }));
+      }
   };
 
   const openEditModal = (sample: any) => {
@@ -506,57 +536,63 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
   const STATUS_FILTERS = ['ALL', 'IN_PRODUCTION', 'SENT', 'APPROVED', 'REJECTED'];
 
-  const filteredSamples = samples.filter((s: any) => {
-      const matchSearch = !searchTerm ||
-          s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.project && s.project.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (s.customer_article_code && s.customer_article_code.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchStatus = statusFilter === 'ALL' || s.status === statusFilter;
-      const matchCategory = categoryFilter === 'ALL' || (s.category || 'NEW_SAMPLE') === categoryFilter;
-      // created_at is a UTC timestamp; compare on its date part against the raw
-      // yyyy-mm-dd the date inputs emit. Both ends inclusive.
-      const createdDay = s.created_at ? String(s.created_at).slice(0, 10) : '';
-      const matchFrom = !createdFrom || (createdDay && createdDay >= createdFrom);
-      const matchTo = !createdTo || (createdDay && createdDay <= createdTo);
-      return matchSearch && matchStatus && matchCategory && matchFrom && matchTo;
-  });
-
+  // `samples` IS the current page — search, status/category, date range and
+  // paging are all resolved by the backend. Nothing is filtered client-side:
+  // the table can hold tens of thousands of requests and is never loaded whole.
+  const pageSamples = samples;
+  const totalSamples = samplesMeta.total;
+  const unreadCount = samplesMeta.unread;
   // Footer tallies run at COLOR grain, not request grain — a request is a bag of colors
   // each approved/rejected on its own, so "12 approved" at request level hides the real
-  // progress. Counted over filteredSamples so the numbers track whatever filter is on.
-  const colorStats = useMemo(() => {
-      const acc = { total: 0, PENDING: 0, IN_PRODUCTION: 0, SENT: 0, APPROVED: 0, REJECTED: 0 } as Record<string, number>;
-      for (const s of filteredSamples) {
-          for (const c of (s.colors || [])) {
-              acc.total++;
-              const st = c.status || 'PENDING';
-              if (st in acc) acc[st]++;
-          }
-      }
-      return acc;
-  }, [filteredSamples]);
+  // progress. Computed server-side over the whole filtered set, not just this page.
+  const colorStats = useMemo(() => ({
+      total: 0, PENDING: 0, IN_PRODUCTION: 0, SENT: 0, APPROVED: 0, REJECTED: 0,
+      ...(samplesMeta.colorStats || {}),
+  }) as Record<string, number>, [samplesMeta.colorStats]);
 
   const hasActiveFilter = !!searchTerm || statusFilter !== 'ALL' || categoryFilter !== 'ALL' || !!createdFrom || !!createdTo;
   const clearFilters = () => {
       setSearchTerm('');
+      setSearchQuery('');
       setStatusFilter('ALL');
       setCategoryFilter('ALL');
       setCreatedFrom('');
       setCreatedTo('');
   };
 
-  useEffect(() => { setSamplePage(1); }, [searchTerm, statusFilter, categoryFilter, createdFrom, createdTo]);
-  // A ?highlight=<id> deep link must stay reachable even once paginated —
-  // jump straight to whichever page contains the target row.
+  // Debounce the search box: the input echoes instantly, the fetch fires after
+  // the pause (same shape as DataContext's item search).
   useEffect(() => {
-      if (!highlightId) return;
-      const idx = filteredSamples.findIndex((s: any) => s.id === highlightId);
-      if (idx >= 0) setSamplePage(Math.floor(idx / SAMPLE_PAGE_SIZE) + 1);
+      const id = setTimeout(() => setSearchQuery(searchTerm), 350);
+      return () => clearTimeout(id);
+  }, [searchTerm]);
+
+  useEffect(() => { setSamplePage(1); }, [searchQuery, statusFilter, categoryFilter, createdFrom, createdTo]);
+
+  // A ?highlight=<id> deep link must stay reachable even once paginated — the
+  // server resolves which page holds that row under the active filters and
+  // returns it, so we follow its `page` back into local state (once).
+  const focusConsumedRef = useRef(false);
+  useEffect(() => {
+      const focusId = highlightId && !focusConsumedRef.current ? highlightId : undefined;
+      if (focusId) focusConsumedRef.current = true;
+      loadSamples({
+          page: samplePage,
+          search: searchQuery,
+          status: statusFilter,
+          category: categoryFilter,
+          createdFrom,
+          createdTo,
+          focusId,
+      });
+  }, [samplePage, searchQuery, statusFilter, categoryFilter, createdFrom, createdTo, highlightId, loadSamples]);
+
+  useEffect(() => {
+      if (samplesMeta.page && samplesMeta.page !== samplePage) setSamplePage(samplesMeta.page);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightId, samples?.length]);
-  const samplePageCount = Math.max(1, Math.ceil(filteredSamples.length / SAMPLE_PAGE_SIZE));
-  const clampedSamplePage = Math.min(samplePage, samplePageCount);
-  const pageSamples = filteredSamples.slice((clampedSamplePage - 1) * SAMPLE_PAGE_SIZE, clampedSamplePage * SAMPLE_PAGE_SIZE);
+  }, [samplesMeta.page]);
+
+  const clampedSamplePage = samplePage;
 
   return (
     <>
@@ -1314,9 +1350,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        Mark All as Read
                    </button>
                    <span style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>
-                       {filteredSamples.length} item{filteredSamples.length !== 1 ? 's' : ''}
-                       {filteredSamples.filter((s: any) => s.is_unread).length > 0 && (
-                           <> · <span style={{ color: '#1c5bc8', fontWeight: 'bold' }}>{filteredSamples.filter((s: any) => s.is_unread).length} unread</span></>
+                       {totalSamples} item{totalSamples !== 1 ? 's' : ''}
+                       {unreadCount > 0 && (
+                           <> · <span style={{ color: '#1c5bc8', fontWeight: 'bold' }}>{unreadCount} unread</span></>
                        )}
                    </span>
                </div>
@@ -1391,9 +1427,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <i className="bi bi-check-circle me-1"></i>Mark All as Read
                    </button>
                    <span className="small text-muted">
-                       {filteredSamples.length} item{filteredSamples.length !== 1 ? 's' : ''}
-                       {filteredSamples.filter((s: any) => s.is_unread).length > 0 && (
-                           <> · <span className="fw-bold" style={{ color: '#0d6efd' }}>{filteredSamples.filter((s: any) => s.is_unread).length} unread</span></>
+                       {totalSamples} item{totalSamples !== 1 ? 's' : ''}
+                       {unreadCount > 0 && (
+                           <> · <span className="fw-bold" style={{ color: '#0d6efd' }}>{unreadCount} unread</span></>
                        )}
                    </span>
                </div>
@@ -1753,7 +1789,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                })()}
                                </React.Fragment>
                            ))}
-                           {filteredSamples.length === 0 && (
+                           {pageSamples.length === 0 && (
                                <tr>
                                    <td
                                        colSpan={8}
@@ -1773,7 +1809,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                </div>
            </div>
 
-           <Pager page={clampedSamplePage} total={filteredSamples.length} pageSize={SAMPLE_PAGE_SIZE} onPageChange={setSamplePage} hideWhenEmpty />
+           <Pager page={clampedSamplePage} total={totalSamples} pageSize={SAMPLE_PAGE_SIZE} onPageChange={setSamplePage} hideWhenEmpty />
 
            {/* ── Status bar ── */}
            {classic && (
@@ -1790,7 +1826,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    color: '#333',
                }}>
                    <span style={{ alignSelf: 'center' }}>
-                       {filteredSamples.length} request{filteredSamples.length !== 1 ? 's' : ''} · {colorStats.total} color{colorStats.total !== 1 ? 's' : ''}
+                       {totalSamples} request{totalSamples !== 1 ? 's' : ''} · {colorStats.total} color{colorStats.total !== 1 ? 's' : ''}
                    </span>
                    <span style={{ ...xpSep, height: 15, alignSelf: 'center' }} />
                    <StatusCountPill classic status="PENDING" count={colorStats.PENDING} title="Colors not yet started" />
