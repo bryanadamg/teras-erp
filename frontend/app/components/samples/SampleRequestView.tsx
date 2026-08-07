@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -697,7 +697,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
        >
            <div style={{ fontSize: 12 }}>
                <p className="text-muted small mb-3">
-                   Rejecting locks this color — its status cannot be changed afterwards. Pick a reason below.
+                   Rejecting rests this color and logs the rejection. It can be reopened for another attempt; every round is kept in the sample report. Pick a reason below.
                </p>
                <div className="mb-3">
                    <label className="form-label small fw-bold">Rejection Reason <span className="text-danger">*</span></label>
@@ -1709,7 +1709,21 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                ) : (
                                                    <span className={`badge ${c.is_repeat ? 'bg-primary bg-opacity-10 text-primary' : 'bg-success bg-opacity-10 text-success'} border`} style={{ fontSize: 10 }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
                                                ),
-                                               <StatusChip status={status} tint style={classic ? undefined : { fontSize: 10 }} />,
+                                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                   <StatusChip status={status} tint style={classic ? undefined : { fontSize: 10 }} />
+                                                   {/* Attempt tallies — a rejected variant can be reopened and rejected again,
+                                                       so these are counts of logged transitions, not the current status. */}
+                                                   {(c.process_count > 1 || c.reject_count > 0) && (
+                                                       <span
+                                                           title={`${c.process_count || 0} process run(s), ${c.reject_count || 0} rejection(s), ${c.approve_count || 0} approval(s)`}
+                                                           style={{ fontSize: 9, fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined, color: '#555', whiteSpace: 'nowrap' }}
+                                                       >
+                                                           {c.process_count > 1 && <span>run {c.process_count}&#215;</span>}
+                                                           {c.process_count > 1 && c.reject_count > 0 && ' · '}
+                                                           {c.reject_count > 0 && <span style={{ color: familyColor('red'), fontWeight: 'bold' }}>rej {c.reject_count}&#215;</span>}
+                                                       </span>
+                                                   )}
+                                               </span>,
                                                isApproved ? (
                                                    classic
                                                        ? <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Approved</span>
@@ -1718,6 +1732,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                    <div style={{ textAlign: 'center' as const }}>
                                                        <div className={classic ? '' : 'fw-bold text-danger'} style={classic ? { fontSize: 10, color: '#a01a1a', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' } : { fontSize: 10 }}>Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}</div>
                                                        {c.rejection_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: 'Tahoma, Arial, sans-serif', fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.rejection_notes}</div>}
+                                                       {/* Rejected rests but is reopenable — remaking the variant is a new attempt,
+                                                           which is what the sample report counts. Only exit is back to In Production. */}
+                                                       {canManage && (
+                                                           classic
+                                                               ? <button type="button" style={cbInprod(false)} onClick={() => onUpdateColorStatus(s.id, c.id, 'IN_PRODUCTION')} title="Reopen for another attempt (logs a new process run)">&#8635; Reopen</button>
+                                                               : <button type="button" className="btn btn-sm btn-outline-warning mt-1" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, 'IN_PRODUCTION')} title="Reopen for another attempt (logs a new process run)">&#8635; Reopen</button>
+                                                       )}
                                                    </div>
                                                ) : canManage ? (
                                                    classic ? (

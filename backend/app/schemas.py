@@ -1578,6 +1578,30 @@ class SampleColorResponse(BaseModel):
     rejection_notes: str | None = None
     item_id: UUID | None = None
     item_code: str | None = None
+    # Attempt tallies — a variant can be rejected, reopened and rejected again, so
+    # these are counts of logged events, not booleans over the current status.
+    process_count: int = 0
+    reject_count: int = 0
+    approve_count: int = 0
+    status_updated_at: Optional[datetime] = None
+    first_process_at: Optional[datetime] = None
+    last_process_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    approved_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class SampleColorEventResponse(BaseModel):
+    id: UUID
+    sample_color_id: UUID
+    event: str
+    previous_status: Optional[str] = None
+    round_no: int = 1
+    reason: Optional[str] = None
+    notes: Optional[str] = None
+    created_by_name: Optional[str] = None
+    created_at: datetime
     class Config:
         from_attributes = True
 
@@ -1700,6 +1724,52 @@ class PaginatedSampleRequestResponse(BaseModel):
     size: int
     unread: int = 0
     color_stats: SampleColorStats = SampleColorStats()
+
+class SampleReportTotals(BaseModel):
+    """Attempt counts over the report window. `processes`/`rejects`/`approvals` are
+    event counts, so they can exceed `variants` — that is the point of the report."""
+    variants: int = 0
+    requests: int = 0
+    processes: int = 0
+    sent: int = 0
+    approvals: int = 0
+    rejects: int = 0
+    approval_rate: float = 0.0
+    avg_processes_per_variant: float = 0.0
+
+class SampleReportVariantRow(BaseModel):
+    color_id: UUID
+    variant_name: str
+    is_repeat: bool = False
+    status: str = "PENDING"
+    sample_id: UUID
+    sample_code: str
+    project: Optional[str] = None
+    customer_article_code: Optional[str] = None
+    category: Optional[str] = None
+    customer_name: Optional[str] = None
+    processes: int = 0
+    sent: int = 0
+    approvals: int = 0
+    rejects: int = 0
+    last_event_at: Optional[datetime] = None
+
+class SampleReportGroupRow(BaseModel):
+    label: str
+    variants: int = 0
+    processes: int = 0
+    sent: int = 0
+    approvals: int = 0
+    rejects: int = 0
+    approval_rate: float = 0.0
+
+class SampleDevelopmentReport(BaseModel):
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    group_by: str = "customer"
+    totals: SampleReportTotals = SampleReportTotals()
+    rows: list[SampleReportVariantRow] = []
+    groups: list[SampleReportGroupRow] = []
 
 # --- Lab Dip Request Schemas ---
 

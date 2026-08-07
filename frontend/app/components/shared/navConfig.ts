@@ -35,6 +35,7 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'pick-lists', label: 'Pick Lists', icon: 'bi-clipboard-check', permission: 'sales.manage' },
             { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'customer.view' },
             { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask', permission: 'sample_request.view' },
+            { tab: 'sample-report', label: 'Sample Report', i18nKey: 'sample_report', icon: 'bi-clipboard-data', permission: 'sample_request.view' },
         ],
     },
     {

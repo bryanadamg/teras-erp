@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete, or_, and_
+from sqlalchemy import select, func, delete, or_, and_, case
 from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
-from app.models.sample import SampleRequest, SampleColor, SampleRequestRead
+from app.models.sample import SampleRequest, SampleColor, SampleRequestRead, SampleColorEvent
 from app.models.item import Item as ItemModel
+from app.models.partner import Partner
 from app.models.attribute import Attribute, AttributeValue
 from app.schemas import (
     SampleRequestCreate, SampleRequestUpdate, SampleRequestResponse, SampleColorResponse,
-    PaginatedSampleRequestResponse, SampleColorStats,
+    PaginatedSampleRequestResponse, SampleColorStats, SampleColorEventResponse,
+    SampleDevelopmentReport, SampleReportTotals, SampleReportVariantRow, SampleReportGroupRow,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
@@ -351,6 +353,184 @@ async def get_sample_codes(
     return [r[0] for r in rows.all()]
 
 
+@router.get("/samples/report", response_model=SampleDevelopmentReport)
+async def get_sample_development_report(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    customer_id: str | None = None,
+    category_value_id: str | None = None,
+    group_by: str = "customer",
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sample development activity over a date range, at attempt grain.
+
+    Answers the client's question directly: in this window, how many variants did
+    we touch, how many times did we run the sample process, how many times was a
+    variant rejected, how many times approved. Counts are event rows
+    (`sample_color_events`), NOT current statuses — a variant rejected twice before
+    approval contributes 2 rejects, 1 approval and 3 processes, and it lands in
+    whichever window each attempt happened in. The range is on the event's own
+    timestamp; SampleRequest.updated_at is unusable here because any edit bumps it.
+    """
+    if group_by not in ("customer", "category", "month"):
+        raise HTTPException(status_code=400, detail="group_by must be customer, category or month")
+
+    conds = []
+    if date_from:
+        conds.append(SampleColorEvent.created_at >= datetime.combine(date.fromisoformat(date_from), time.min))
+    if date_to:
+        # Inclusive upper bound: date inputs are yyyy-mm-dd against a timestamp column.
+        conds.append(SampleColorEvent.created_at < datetime.combine(date.fromisoformat(date_to) + timedelta(days=1), time.min))
+    if customer_id:
+        conds.append(SampleRequest.customer_id == customer_id)
+    if category_value_id and category_value_id != "ALL":
+        conds.append(SampleRequest.category_value_id == category_value_id)
+
+    def _c(event: str):
+        """Count of one event kind inside the grouped set (0, never NULL)."""
+        return func.coalesce(func.sum(case((SampleColorEvent.event == event, 1), else_=0)), 0)
+
+    processes_expr = _c("IN_PRODUCTION")
+    sent_expr = _c("SENT")
+    approvals_expr = _c("APPROVED")
+    rejects_expr = _c("REJECTED")
+
+    totals_row = (await db.execute(
+        select(
+            func.count(func.distinct(SampleColorEvent.sample_color_id)),
+            func.count(func.distinct(SampleColorEvent.sample_request_id)),
+            processes_expr, sent_expr, approvals_expr, rejects_expr,
+        ).select_from(SampleColorEvent)
+        .join(SampleRequest, SampleRequest.id == SampleColorEvent.sample_request_id)
+        .where(*conds)
+    )).first()
+
+    variants, requests, processes, sent, approvals, rejects = (
+        totals_row if totals_row else (0, 0, 0, 0, 0, 0)
+    )
+    decided = (approvals or 0) + (rejects or 0)
+    totals = SampleReportTotals(
+        variants=variants or 0,
+        requests=requests or 0,
+        processes=processes or 0,
+        sent=sent or 0,
+        approvals=approvals or 0,
+        rejects=rejects or 0,
+        # Share of decided attempts that passed — reject rate is its complement.
+        approval_rate=round((approvals or 0) * 100.0 / decided, 1) if decided else 0.0,
+        # Process runs per variant touched: >1 means remakes are the norm.
+        avg_processes_per_variant=round((processes or 0) / variants, 2) if variants else 0.0,
+    )
+
+    # Variant grain: one row per sample variant that saw activity in the window.
+    row_result = await db.execute(
+        select(
+            SampleColor.id,
+            SampleColor.name,
+            SampleColor.is_repeat,
+            SampleColor.status,
+            SampleRequest.id,
+            SampleRequest.code,
+            SampleRequest.project,
+            SampleRequest.customer_article_code,
+            SampleRequest.category,
+            Partner.name,
+            processes_expr, sent_expr, approvals_expr, rejects_expr,
+            func.max(SampleColorEvent.created_at),
+        )
+        .select_from(SampleColorEvent)
+        .join(SampleColor, SampleColor.id == SampleColorEvent.sample_color_id)
+        .join(SampleRequest, SampleRequest.id == SampleColorEvent.sample_request_id)
+        .join(Partner, Partner.id == SampleRequest.customer_id, isouter=True)
+        .where(*conds)
+        .group_by(
+            SampleColor.id, SampleColor.name, SampleColor.is_repeat, SampleColor.status,
+            SampleRequest.id, SampleRequest.code, SampleRequest.project,
+            SampleRequest.customer_article_code, SampleRequest.category, Partner.name,
+        )
+        .order_by(func.max(SampleColorEvent.created_at).desc())
+    )
+    rows = [
+        SampleReportVariantRow(
+            color_id=r[0], variant_name=r[1], is_repeat=r[2], status=r[3],
+            sample_id=r[4], sample_code=r[5], project=r[6],
+            customer_article_code=r[7], category=r[8], customer_name=r[9],
+            processes=r[10] or 0, sent=r[11] or 0, approvals=r[12] or 0, rejects=r[13] or 0,
+            last_event_at=r[14],
+        )
+        for r in row_result.all()
+    ]
+
+    # One aggregate tier so the report reads without client-side rollups.
+    if group_by == "customer":
+        label_col = func.coalesce(Partner.name, "(No customer)")
+    elif group_by == "category":
+        label_col = func.coalesce(SampleRequest.category, DEFAULT_CATEGORY_LABEL)
+    else:
+        label_col = func.to_char(SampleColorEvent.created_at, "YYYY-MM")
+
+    group_result = await db.execute(
+        select(
+            label_col,
+            func.count(func.distinct(SampleColorEvent.sample_color_id)),
+            processes_expr, sent_expr, approvals_expr, rejects_expr,
+        )
+        .select_from(SampleColorEvent)
+        .join(SampleRequest, SampleRequest.id == SampleColorEvent.sample_request_id)
+        .join(Partner, Partner.id == SampleRequest.customer_id, isouter=True)
+        .where(*conds)
+        .group_by(label_col)
+        .order_by(label_col)
+    )
+    groups = []
+    for g in group_result.all():
+        g_decided = (g[4] or 0) + (g[5] or 0)
+        groups.append(SampleReportGroupRow(
+            label=g[0] or "—",
+            variants=g[1] or 0,
+            processes=g[2] or 0,
+            sent=g[3] or 0,
+            approvals=g[4] or 0,
+            rejects=g[5] or 0,
+            approval_rate=round((g[4] or 0) * 100.0 / g_decided, 1) if g_decided else 0.0,
+        ))
+
+    return SampleDevelopmentReport(
+        date_from=date_from,
+        date_to=date_to,
+        group_by=group_by,
+        totals=totals,
+        rows=rows,
+        groups=groups,
+    )
+
+
+@router.get("/samples/{sample_id}/colors/{color_id}/events", response_model=list[SampleColorEventResponse])
+async def get_color_events(
+    sample_id: str,
+    color_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Full attempt history for one variant — drives the "rejected 2x" drill-down."""
+    rows = await db.execute(
+        select(SampleColorEvent, User.full_name)
+        .join(User, User.id == SampleColorEvent.created_by_id, isouter=True)
+        .join(SampleColor, SampleColor.id == SampleColorEvent.sample_color_id)
+        .where(
+            SampleColorEvent.sample_color_id == color_id,
+            SampleColor.sample_request_id == sample_id,
+        )
+        .order_by(SampleColorEvent.created_at)
+    )
+    out = []
+    for ev, user_name in rows.all():
+        ev.created_by_name = user_name
+        out.append(ev)
+    return out
+
+
 @router.put("/samples/{sample_id}", response_model=SampleRequestResponse)
 async def update_sample_request(
     sample_id: str,
@@ -509,17 +689,62 @@ async def update_color_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    if color.status in ("APPROVED", "REJECTED"):
-        raise HTTPException(status_code=400, detail=f"{color.status.capitalize()} color status is locked and cannot be changed")
+    # APPROVED is terminal — the shade is signed off and its item lineage is minted.
+    if color.status == "APPROVED":
+        raise HTTPException(status_code=400, detail="Approved color status is locked and cannot be changed")
+    # REJECTED rests but is reopenable: the only exit is back to IN_PRODUCTION for
+    # another attempt (same rule as lab dip variants). Every attempt is a new event
+    # row, which is what makes "rejected N times" countable in the report.
+    if color.status == "REJECTED" and status != "IN_PRODUCTION":
+        raise HTTPException(status_code=400, detail="A rejected color can only be reopened to In Production")
 
     previous_status = color.status
+    now = datetime.utcnow()
+    reason_v = (reason or "").strip() or None
+    notes_v = (notes or "").strip() or None
+
     color.status = status
     if status == "REJECTED":
-        color.rejection_reason = (reason or "").strip() or None
-        color.rejection_notes = (notes or "").strip() or None
+        color.rejection_reason = reason_v
+        color.rejection_notes = notes_v
     else:
         color.rejection_reason = None
         color.rejection_notes = None
+
+    # Own timestamps + attempt tallies. The parent's updated_at moves on any edit, so
+    # the report dates a variant only from these and from the event rows.
+    color.status_updated_at = now
+    if status == "IN_PRODUCTION":
+        color.process_count = (color.process_count or 0) + 1
+        color.first_process_at = color.first_process_at or now
+        color.last_process_at = now
+    elif status == "SENT":
+        color.sent_at = now
+    elif status == "APPROVED":
+        color.approve_count = (color.approve_count or 0) + 1
+        color.approved_at = now
+    elif status == "REJECTED":
+        color.reject_count = (color.reject_count or 0) + 1
+        color.rejected_at = now
+        # A reopened variant is rejected again later; the previous rejected_at is
+        # overwritten on purpose — the event log keeps every round.
+
+    prior_same = await db.scalar(
+        select(func.count()).select_from(SampleColorEvent).where(
+            SampleColorEvent.sample_color_id == color.id,
+            SampleColorEvent.event == status,
+        )
+    ) or 0
+    db.add(SampleColorEvent(
+        sample_color_id=color.id,
+        sample_request_id=color.sample_request_id,
+        event=status,
+        previous_status=previous_status,
+        round_no=prior_same + 1,
+        reason=reason_v,
+        notes=notes_v,
+        created_by_id=current_user.id,
+    ))
 
     # Bump parent sample's updated_at so all users see it as unread
     parent_result = await db.execute(select(SampleRequest).filter(SampleRequest.id == sample_id))

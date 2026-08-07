@@ -28,6 +28,70 @@ class SampleColor(Base):
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rejection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Attempt tallies + own timestamps. The parent request's updated_at is bumped by
+    # ANY edit to the request, so it cannot date a variant's approval/rejection —
+    # the sample development report ranges on these columns and on
+    # SampleColorEvent.created_at, never on SampleRequest.updated_at.
+    status_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    first_process_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_process_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Denormalised counts of the event rows below (a rejected variant is reopened for
+    # another attempt, so both can exceed 1). Kept in sync in update_color_status.
+    process_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reject_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    approve_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+    events = relationship(
+        "SampleColorEvent",
+        order_by="SampleColorEvent.created_at",
+        cascade="all, delete-orphan",
+        back_populates="color",
+    )
+
+
+class SampleColorEvent(Base):
+    """Immutable log of every status transition a sample variant went through.
+
+    The variant row only carries its *current* status, so "how many times did we
+    process / reject / approve this variant in a date range" is unanswerable from it.
+    Each transition appends one row here; the report counts rows, and the counts
+    survive a later reopen (same shape as lab_dip_rejections, but for all events,
+    since the client asks for process and approve attempts too).
+    """
+
+    __tablename__ = "sample_color_events"
+    __table_args__ = (
+        # The report groups by (event, created_at range); this is the covering order.
+        Index("ix_sample_color_events_event_created", "event", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sample_color_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sample_colors.id", ondelete="CASCADE"), index=True
+    )
+    # Denormalised parent so the report can filter by customer/category without a
+    # second join hop through sample_colors on every aggregate.
+    sample_request_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sample_requests.id", ondelete="CASCADE"), index=True
+    )
+    # The status the variant moved INTO: PENDING | IN_PRODUCTION | SENT | APPROVED | REJECTED
+    event: Mapped[str] = mapped_column(String(32), index=True)
+    previous_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 1-based occurrence of this event for this variant (2 = second rejection).
+    round_no: Mapped[int] = mapped_column(Integer, default=1)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    color = relationship("SampleColor", back_populates="events")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
 
 class SampleRequest(Base):
     __tablename__ = "sample_requests"
