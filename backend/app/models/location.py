@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, ForeignKey, inspect as sa_inspect
+from sqlalchemy import String, ForeignKey, Boolean, text, inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from app.db.base import Base
@@ -20,6 +20,13 @@ class Location(Base):
 
     # Non-null = system-seeded row; cannot be renamed or deleted
     system_code: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
+
+    # Stock sitting here is on QC hold: it shows on the Quarantine Packing page and
+    # cannot be packed until its lot carries the passing quarantine status. A flag
+    # rather than a system_code check because a plant may run several hold areas
+    # (incoming QC, post-dye hold, customer-claim hold) — the seeded QC store is
+    # only the default one.
+    is_quarantine: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     # Self-referential 3-level hierarchy:
     #   warehouse (parent_id IS NULL)

@@ -688,10 +688,12 @@ class LocationCreate(BaseModel):
     code: str
     name: str
     parent_id: UUID | None = None        # null = top-level warehouse/area
+    is_quarantine: bool = False          # stock here is on QC hold (inherited by children)
 
 class LocationUpdate(BaseModel):
     name: str | None = None
     parent_id: UUID | None = None        # explicit null = move to top level
+    is_quarantine: bool | None = None
 
 class LocationResponse(BaseModel):
     id: UUID
@@ -702,6 +704,7 @@ class LocationResponse(BaseModel):
     has_children: bool = False
     location_type: str = 'bin'
     system_code: str | None = None
+    is_quarantine: bool = False
     full_path: str = ''
 
     class Config:
@@ -2834,3 +2837,79 @@ class PrintTemplateResponse(BaseModel):
     updated_by_id: UUID | None = None
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+# ── Quarantine Packing ─────────────────────────────────────────────────────────
+# QC hold desk between production output and packing. The disposition lives on
+# the LOT so a partially-passed MO can release its good lots; the group row is a
+# derived rollup, never stored. See services/quarantine_service.py for the gate.
+
+class QuarantineStatusOption(BaseModel):
+    id: UUID
+    value: str
+    # True for the one disposition that releases a lot to packing ("OK"). The
+    # value list is client-extensible; this flag is not — it comes from code.
+    is_pass: bool
+
+class QuarantineLotResponse(BaseModel):
+    # Null on un-lotted stock held in quarantine: it is shown so nothing on hold
+    # is invisible, but it cannot be dispositioned.
+    batch_id: UUID | None = None
+    batch_number: str | None = None
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    uom: str | None = None
+    qty: float
+    location_id: UUID | None = None
+    location_name: str | None = None
+    variant_key: str = ''
+    quality_status: str | None = None
+    quarantine_status: str | None = None
+    quarantine_status_id: UUID | None = None
+    quarantine_status_at: datetime | None = None
+    quarantine_status_by: str | None = None
+    quarantine_notes: str | None = None
+    released: bool = False
+    created_at: datetime | None = None
+
+class QuarantineGroupResponse(BaseModel):
+    # "<mo_id|unassigned>:<item_id>" — an MO can output several items and an item
+    # can arrive from several MOs, so the row is one (order, product) pair.
+    key: str
+    mo_id: UUID | None = None
+    mo_code: str | None = None
+    mo_status: str | None = None
+    mo_qty: float | None = None
+    production_run_code: str | None = None
+    sales_order_id: UUID | None = None
+    sales_order_code: str | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    labdip_variant_code: str | None = None
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    uom: str | None = None
+    qty_total: float = 0
+    qty_released: float = 0
+    lot_count: int = 0
+    # NONE (nothing dispositioned) | MIXED (lots disagree) | the shared status.
+    rollup_status: str = 'NONE'
+    status_counts: dict[str, int] = {}
+    lots: list[QuarantineLotResponse] = []
+
+class QuarantineListResponse(BaseModel):
+    items: list[QuarantineGroupResponse]
+    total: int
+    page: int
+    size: int
+    # True when the scan hit MAX_LOT_ROWS — said out loud rather than showing a
+    # partial hold list as if it were everything.
+    truncated: bool = False
+
+class QuarantineStatusUpdate(BaseModel):
+    batch_ids: list[UUID]
+    # Null clears the disposition, re-holding the lots.
+    status_value_id: UUID | None = None
+    notes: str | None = None

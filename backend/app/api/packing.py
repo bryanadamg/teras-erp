@@ -26,7 +26,7 @@ from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import (
     audit_service, kpi_service, stock_service, packing_service, so_fulfilment_service,
-    reject_service,
+    reject_service, quarantine_service,
 )
 from app.core.ws_manager import manager
 
@@ -498,6 +498,21 @@ async def add_packing_completion(
             qty=payload.qty,
             package_count=payload.package_count,
         )] if payload.source_batch_id else [None]
+
+    # QC hold gate. Packing pulls straight out of the quarantine location, so the
+    # release check belongs here rather than on a transfer. Checked up front for
+    # the whole submission — a partial pack that stops halfway through the lot
+    # list would leave cartons minted against a held batch. No-op when the source
+    # is a normal store.
+    try:
+        await quarantine_service.assert_lots_released(
+            db,
+            source_location_id=po.source_location_id,
+            item_id=po.item_id,
+            batch_ids=[(l.batch_id if l else None) for l in lots],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     def _cartons(qty: float, stated: Optional[int]) -> int:
         if stated:

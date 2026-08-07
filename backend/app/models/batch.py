@@ -57,6 +57,22 @@ class Batch(Base):
     # excluded from netting/availability and from consumption/staging pickers.
     quality_status: Mapped[str] = mapped_column(String(16), default="GOOD", server_default="GOOD")
 
+    # --- Quarantine disposition (separate axis from quality_status) ------------
+    # quality_status is the binary scrap decision; this is the pre-packing QC
+    # disposition of a lot sitting in a quarantine location — an open, client-
+    # extensible list (OK / Bulk Sample / Waiting Approval / ...). It is a value
+    # of the `Quarantine Status` system attribute, with `quarantine_status` kept
+    # as the immutable display snapshot, exactly like sample category and dye
+    # recipe wash-bath steps. Null = not yet dispositioned; packing treats that
+    # as "not released" while the lot is in a quarantine location.
+    quarantine_status_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    quarantine_status: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    quarantine_status_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    quarantine_status_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    quarantine_notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+
     item = relationship("Item")
     consumptions_as_input = relationship("BatchConsumption", foreign_keys="BatchConsumption.input_batch_id", back_populates="input_batch")
     consumptions_as_output = relationship("BatchConsumption", foreign_keys="BatchConsumption.output_batch_id", back_populates="output_batch")

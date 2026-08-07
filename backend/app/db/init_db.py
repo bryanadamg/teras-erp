@@ -57,6 +57,10 @@ def seed_system_attributes(db):
             # Sample request classification — the three defaults are what the client
             # asked for; more are added on the Attributes page like any other value.
             ("Sample Category", "sample_category", ["New Sample", "Re Sample", "Yardage"]),
+            # Pre-packing QC disposition of a lot held in a quarantine location.
+            # Open list — the client adds more values on the Attributes page. Only
+            # QUARANTINE_PASS_VALUES (api/quarantine.py) releases a lot to packing.
+            ("Quarantine Status", "quarantine_status", ["OK", "Bulk Sample", "Waiting Approval"]),
         ]
         for name, role, seed_values in system_attrs:
             existing = db.query(Attribute).filter(Attribute.name == name).first()
@@ -243,6 +247,11 @@ def seed_system_locations(db):
         for w in SYSTEM_WAREHOUSES:
             existing = db.query(Location).filter(Location.system_code == w["system_code"]).first()
             if existing:
+                # The seeded QC store is a hold area out of the box; other stores are
+                # left alone so an operator-set flag is never overwritten here.
+                if w["system_code"] == "QC" and not existing.is_quarantine:
+                    existing.is_quarantine = True
+                    db.commit()
                 continue
             # Adopt an existing row with the same code rather than creating a duplicate
             by_code = db.query(Location).filter(Location.code == w["code"]).first()
@@ -257,6 +266,7 @@ def seed_system_locations(db):
                     location_type='warehouse',
                     system_code=w["system_code"],
                     parent_id=None,
+                    is_quarantine=(w["system_code"] == "QC"),
                 ))
                 db.commit()
                 created += 1
@@ -341,6 +351,10 @@ def seed_rbac(db):
             ("lot.delete", "Delete Lots"),
             ("lot.qc_reject", "QC Reject Lots"),
             ("lot.view", "View Lots"),
+            # Quarantine Packing — QC hold desk. set_status is the release decision
+            # that lets a lot be packed, so it is deliberately separate from lot.*.
+            ("quarantine.view", "View Quarantine Packing"),
+            ("quarantine.set_status", "Set Quarantine Status"),
             # Stock In Hand (scoped by Role.allowed_categories)
             ("stock_on_hand.create", "Create Stock Entries"),
             ("stock_on_hand.adjust", "Adjust Stock On Hand"),
@@ -452,6 +466,7 @@ def seed_rbac(db):
                 "uom.create", "uom.edit", "uom.delete", "uom.view",
                 "combo_library.create", "combo_library.edit", "combo_library.delete", "combo_library.view",
                 "lot.create", "lot.split", "lot.delete", "lot.qc_reject", "lot.view",
+                "quarantine.view", "quarantine.set_status",
                 "stock_on_hand.create", "stock_on_hand.adjust", "stock_on_hand.move", "stock_on_hand.view",
                 "booking_stock.view",
                 "location.create", "location.edit", "location.delete", "location.view",
@@ -485,6 +500,15 @@ def seed_rbac(db):
             # "work_order.manage" used to imply. Tighten via the Roles page if a
             # site actually wants operators editing/deleting WOs.
             "Operator": ["work_order.log", "work_order.view", "work_order.stage", "weaving_monitor.view"],
+            # QC desk: dispositions held stock on the Quarantine Packing page and
+            # scraps bad lots. Read-only everywhere else — releasing to packing is
+            # the only write this role owns.
+            "QC Inspector": [
+                "quarantine.view", "quarantine.set_status",
+                "lot.qc_reject", "lot.view",
+                "stock_on_hand.view", "manufacturing_order.view", "work_order.view",
+                "item.view", "reports.view",
+            ],
         }
 
         for role_name, perm_codes in roles_data.items():

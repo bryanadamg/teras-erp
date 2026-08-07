@@ -60,6 +60,7 @@ def create_location(payload: LocationCreate, db: Session = Depends(get_db), curr
         name=payload.name,
         parent_id=payload.parent_id,
         location_type=loc_type,
+        is_quarantine=payload.is_quarantine,
     )
     db.add(loc)
     db.commit()
@@ -85,6 +86,7 @@ def get_locations(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db
             has_children=r.id in parents_with_children,
             location_type=r.location_type,
             system_code=r.system_code,
+            is_quarantine=r.is_quarantine,
             full_path=_compute_full_path(r.id, id_to_name, id_to_parent),
         )
         for r in rows
@@ -106,6 +108,10 @@ def update_location(location_id: str, payload: LocationUpdate, db: Session = Dep
             raise HTTPException(status_code=400, detail="System stores cannot be moved")
         _assert_parent_ok(db, data["parent_id"], moving_id=loc.id)
         loc.parent_id = data["parent_id"]
+    # Hold-area flag is editable on system stores too — a plant may run its QC
+    # hold somewhere other than the seeded Quarantine warehouse.
+    if data.get("is_quarantine") is not None:
+        loc.is_quarantine = data["is_quarantine"]
     db.add(AuditLog(user_id=current_user.id, action="UPDATE", entity_type="location", entity_id=str(loc.id), details=f"Updated location {loc.code}"))
     db.commit()
     db.refresh(loc)

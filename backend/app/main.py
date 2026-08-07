@@ -24,7 +24,7 @@ logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
 from app.db.session import engine
 from app.core.db_manager import db_manager
 from app.db.base import Base
-from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, colors, combos, weaving, print_templates, production_reports
+from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, colors, combos, weaving, print_templates, production_reports, quarantine
 from app.core.ws_manager import manager
 
 @asynccontextmanager
@@ -83,6 +83,7 @@ api_router.include_router(lab_dips.router)
 api_router.include_router(colors.router)
 api_router.include_router(combos.router)
 api_router.include_router(packing.router)
+api_router.include_router(quarantine.router)
 api_router.include_router(pick_lists.router)
 api_router.include_router(weaving.router)
 api_router.include_router(preferences.router)
