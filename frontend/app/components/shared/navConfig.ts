@@ -26,11 +26,14 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Sales', i18nKey: 'sales', icon: 'bi-graph-up', accent: 'green',
-        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage'],
+        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage', 'quarantine.view'],
         items: [
             { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales_order.view' },
             // Packing Orders / Pick Lists are a separate feature not covered by the
             // Permissions config spreadsheet — still gated on the legacy blob code.
+            // QC hold desk feeding Packing Orders — sits immediately before it in
+            // the flow, so it sits immediately above it here.
+            { tab: 'quarantine-packing', label: 'Quarantine Packing', icon: 'bi-shield-exclamation', permission: 'quarantine.view' },
             { tab: 'packing', label: 'Packing Orders', icon: 'bi-box2', permission: 'sales.manage' },
             { tab: 'pick-lists', label: 'Pick Lists', icon: 'bi-clipboard-check', permission: 'sales.manage' },
             { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'customer.view' },

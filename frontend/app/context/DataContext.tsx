@@ -910,6 +910,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                             queueLive('kpi');
                             break;
                         case 'STOCK_UPDATE':
+                        // A quarantine disposition doesn't move stock, but it changes
+                        // which stock is packable — same 'stock' subscribers care, and
+                        // the Quarantine Packing page reloads off this.
+                        case 'QUARANTINE_UPDATE':
                             queueLive('stock');
                             break;
                         case 'BOM_UPDATE':

@@ -55,6 +55,7 @@ export const PERMISSION_MATRIX: PermissionMatrixSection[] = [
         section: 'Stock',
         resources: [
             { resource: 'lot', label: 'Lot Management', scope: 'location' },
+            { resource: 'quarantine', label: 'Quarantine Packing' },
             { resource: 'stock_on_hand', label: 'Stock In Hand', scope: 'category' },
             { resource: 'booking_stock', label: 'Booking Stock' },
             { resource: 'location', label: 'Location' },
@@ -112,6 +113,9 @@ export const RESOURCE_ACTIONS: Record<string, PermissionMatrixAction[]> = {
     combo_library: [CREATE, EDIT, DELETE, VIEW],
 
     lot: [CREATE, A('split', 'Split'), DELETE, A('qc_reject', 'QC Reject'), VIEW],
+    // set_status is the release-to-packing decision, so it is its own grant
+    // rather than being folded into an edit right.
+    quarantine: [A('set_status', 'Set Status'), VIEW],
     stock_on_hand: [CREATE, A('adjust', 'Adjust'), A('move', 'Move'), VIEW],
     booking_stock: [VIEW],
     location: [CREATE, EDIT, DELETE, VIEW],

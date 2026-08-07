@@ -53,7 +53,13 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     PRINT: 'gray', SPLIT: 'gray', ARCHIVE: 'gray', REBUILD: 'gray',
     // Item.variant_type tags (Inventory table "Type" column) — not a lifecycle
     // status, but reuses the same 5-family palette for a consistent chip.
+    // NONE doubles as the Quarantine Packing "not dispositioned yet" rollup.
     NONE: 'gray', COLOR: 'blue', COMBO: 'amber',
+    // Quarantine dispositions (values of the `Quarantine Status` attribute — the
+    // list is client-extensible, so an added value falls through to gray until
+    // someone maps it here). OK is the only one that releases a lot to packing;
+    // MIXED is the derived MO rollup when its lots disagree.
+    OK: 'green', BULK_SAMPLE: 'blue', WAITING_APPROVAL: 'amber', MIXED: 'amber',
 };
 
 const FAMILY_SOLID: Record<StatusFamily, string> = {

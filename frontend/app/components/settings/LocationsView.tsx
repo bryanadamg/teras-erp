@@ -170,6 +170,26 @@ export default function LocationsView({
     onUpdateLocation(id, { parent_id: zoneId });
   };
 
+  // Quarantine hold flag. Set on the STORE and inherited by its zones/bins —
+  // stock held anywhere under it shows on the Quarantine Packing page and cannot
+  // be packed until its lot is dispositioned OK. Editable on system stores too:
+  // a plant may hold elsewhere than the seeded Quarantine warehouse.
+  const toggleQuarantine = async (loc: any) => {
+    if (!onUpdateLocation) return;
+    const next = !loc.is_quarantine;
+    await onUpdateLocation(loc.id, { is_quarantine: next });
+    showToast(
+      next
+        ? `${loc.name} is now a quarantine hold area`
+        : `${loc.name} is no longer a quarantine hold area`,
+      'success',
+    );
+  };
+
+  const quarantineTitle = (loc: any) => loc.is_quarantine
+    ? 'Quarantine hold area — click to stop holding stock here'
+    : 'Click to make this a quarantine hold area';
+
   const q = searchTerm.toLowerCase();
   const matches = (l: any) => l.code.toLowerCase().includes(q) || l.name.toLowerCase().includes(q);
 
@@ -198,6 +218,14 @@ export default function LocationsView({
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
           )}
           {isSystem && <i className="bi bi-lock-fill" title="System store" style={{ color: active ? '#cde' : '#888', fontSize: 9 }} />}
+          {(loc.is_quarantine || (canManage && hoveredStore === loc.id)) && (
+            <i
+              className={`bi ${loc.is_quarantine ? 'bi-shield-fill-exclamation' : 'bi-shield'}`}
+              title={quarantineTitle(loc)}
+              onClick={(e) => { e.stopPropagation(); if (canManage) toggleQuarantine(loc); }}
+              style={{ color: loc.is_quarantine ? (active ? '#ffd479' : '#b8860b') : (active ? '#cde' : '#999'), fontSize: 11, cursor: canManage ? 'pointer' : 'default' }}
+            />
+          )}
           <span style={{ fontSize: 10, color: active ? '#dde' : '#777' }}>{cnt}</span>
           {canManage && !renaming && !isSystem && hoveredStore === loc.id && (
             <>
@@ -413,6 +441,14 @@ export default function LocationsView({
           <span className="flex-grow-1 text-truncate text-start">{loc.name}</span>
         )}
         {isSystem && <i className="bi bi-lock-fill" title="System store" style={{ color: active ? '#cde' : '#888', fontSize: 10 }} />}
+        {(loc.is_quarantine || (canManage && hoveredStore === loc.id)) && (
+          <i
+            className={`bi ${loc.is_quarantine ? 'bi-shield-fill-exclamation' : 'bi-shield'}`}
+            title={quarantineTitle(loc)}
+            onClick={(e) => { e.stopPropagation(); if (canManage) toggleQuarantine(loc); }}
+            style={{ color: loc.is_quarantine ? (active ? '#ffd479' : '#b8860b') : undefined, cursor: canManage ? 'pointer' : 'default' }}
+          />
+        )}
         <span className={`badge rounded-pill ${active ? 'bg-light text-dark' : 'bg-secondary'}`}>{cnt}</span>
         {canManage && !renaming && !isSystem && hoveredStore === loc.id && (
           <span className="d-flex gap-2" onClick={e => e.stopPropagation()}>
