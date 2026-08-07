@@ -126,10 +126,12 @@ function SPKDocument({
             <table style={tableStyle}>
                 <tbody>
                     <FieldRow label="TGL TURUN SPK" value={formatDate(sample.request_date || sample.created_at)} />
+                    <FieldRow label="KODE SPK" value={sample.code} />
                     <FieldRow label="PROJECT" value={sample.project} />
                     <FieldRow label="NAMA CUSTOMER" value={customerName} />
-                    <FieldRow label="KODE ARTIKEL CUSTOMER" value={sample.customer_article_code} />
-                    <FieldRow label="KODE ARTIKEL BOLA INTAN" value={sample.internal_article_code || sample.code} />
+                    {/* Left blank on purpose — filled in by hand on the printed form */}
+                    <FieldRow label="KODE ARTIKEL SAMPLE" value="" />
+                    <FieldRow label="KODE ARTIKEL BOLA INTAN" value="" />
                     <FieldRow label="LEBAR" value={sample.width} />
 
                     {/* Color rows */}
