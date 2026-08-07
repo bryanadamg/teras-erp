@@ -87,6 +87,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [lines, setLines] = useState('1');
     const [rate, setRate] = useState('5');
     const [eff, setEff] = useState('50');
+    // Rate and target efficiency are LOOM properties, not per-WO ones: every WO woven
+    // on a loom runs at the same g/min/line and is judged against the same target.
+    // So the second and later runs inherit both from the loom's first active run and
+    // only `lines` is typed. `rateUnlocked` is the escape hatch for the rare re-spec.
+    const [rateUnlocked, setRateUnlocked] = useState(false);
     const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
 
     // Both inline editors are keyed by run id, not a boolean: a loom shows several
@@ -162,6 +167,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             setMoCandsAll(false);
             setMoMode(false);
             setStartOpen(false);
+            setRateUnlocked(false);
             setWoId('');
             setMoId('');
             load();
@@ -250,6 +256,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         setMoId('');
         setWoId('');
         setStartOpen(false);
+        // Next WO added to this loom inherits again — an override is per-entry.
+        setRateUnlocked(false);
         load();
     };
     const stopRun = async (runId: string) => {
@@ -320,6 +328,19 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
     // Every RUNNING run on this loom, not just the newest.
     const runs: any[] = data?.active_runs || (data?.active_run ? [data.active_run] : []);
+
+    // The loom's FIRST active run — the server sorts active_runs created_at DESC, so
+    // the oldest is last. It is the baseline the later WOs inherit rate/target from.
+    const baseRun: any = runs.length ? runs[runs.length - 1] : null;
+    const rateLocked = !!baseRun && !rateUnlocked;
+
+    // Keep the two inherited fields pinned to the baseline while locked, so a reload
+    // or a run being stopped can never leave the form holding a stale rate.
+    useEffect(() => {
+        if (!baseRun || rateUnlocked) return;
+        if (baseRun.rate_per_line_g_min != null) setRate(String(baseRun.rate_per_line_g_min));
+        if (baseRun.target_efficiency_pct != null) setEff(String(baseRun.target_efficiency_pct));
+    }, [baseRun?.id, baseRun?.rate_per_line_g_min, baseRun?.target_efficiency_pct, rateUnlocked]);
 
     // ── Themed primitives ────────────────────────────────────────────────────
     const SecTitle = SectionTitle;
@@ -730,14 +751,57 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     <FieldLabel classic={cls}>{t('lines')}</FieldLabel>
                                     <input type="number" min="1" {...inputProps} value={lines} onChange={e => setLines(e.target.value)} />
                                 </div>
+                                {/* Inherited from the loom's first run while locked —
+                                    adding the 2nd/3rd WO to a loom is a lines-only
+                                    entry. Rendered disabled, not hidden, so the values
+                                    being applied are still visible. */}
                                 <div className="col-md-2 col-4">
                                     <FieldLabel classic={cls}>{t('rate_per_line')}</FieldLabel>
-                                    <input type="number" {...inputProps} value={rate} onChange={e => setRate(e.target.value)} />
+                                    <input type="number" {...inputProps} value={rate} disabled={rateLocked}
+                                        // Classic inputs are hand-styled, so :disabled
+                                        // greying has to be inline or the locked field
+                                        // reads as editable in the XP theme.
+                                        style={{ ...(inputProps.style || {}), ...(rateLocked ? { background: '#f0f0f0', color: '#666' } : {}) }}
+                                        onChange={e => setRate(e.target.value)} />
                                 </div>
                                 <div className="col-md-3 col-4">
                                     <FieldLabel classic={cls}>{t('target_efficiency')}</FieldLabel>
-                                    <input type="number" {...inputProps} value={eff} onChange={e => setEff(e.target.value)} />
+                                    <input type="number" {...inputProps} value={eff} disabled={rateLocked}
+                                        // Classic inputs are hand-styled, so :disabled
+                                        // greying has to be inline or the locked field
+                                        // reads as editable in the XP theme.
+                                        style={{ ...(inputProps.style || {}), ...(rateLocked ? { background: '#f0f0f0', color: '#666' } : {}) }}
+                                        onChange={e => setEff(e.target.value)} />
                                 </div>
+                                {baseRun && (
+                                    <div className="col-12" style={{ fontSize: 10, color: '#666', marginTop: -2 }}>
+                                        {rateLocked ? (
+                                            <>
+                                                {t('rate_from_first_run')}{baseRun.wo_code ? ` (${baseRun.wo_code})` : ''}
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-link p-0 ms-1"
+                                                    style={{ fontSize: 10, verticalAlign: 'baseline' }}
+                                                    onClick={() => setRateUnlocked(true)}
+                                                >
+                                                    {t('rate_edit')}
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {t('rate_overridden')}
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-link p-0 ms-1"
+                                                    style={{ fontSize: 10, verticalAlign: 'baseline' }}
+                                                    onClick={() => setRateUnlocked(false)}
+                                                >
+                                                    {t('rate_reset')}
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="col-md-4 col-6">
                                     <FieldLabel classic={cls}>{t('start_date')}</FieldLabel>
                                     <input type="date" {...inputProps} value={startDate} onChange={e => setStartDate(e.target.value)} />
