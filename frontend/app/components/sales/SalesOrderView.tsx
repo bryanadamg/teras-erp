@@ -756,26 +756,31 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   // Splits a line's attribute_value_ids into "registered color variant" chips
   // (the Colors-attribute value, e.g. Black-318) vs plain-text attrs (size, etc.),
   // and builds a matching chip for the Color Library code if present.
-  const buildVariantChips = (attrIds: string[], colorLabel?: string | null, colorHex?: string | null) => {
+  // A pending lab dip code is the line's colour identity until approval backfills
+  // color_id, so it renders as a chip in the same row (amber) instead of vanishing.
+  const buildVariantChips = (attrIds: string[], colorLabel?: string | null, colorHex?: string | null, pendingLabdip?: string | null) => {
       const colorValId = colorAttr ? attrIds.find(vid => colorAttr.values?.some((v: any) => v.id === vid)) : undefined;
       const plainIds = attrIds.filter(vid => vid !== colorValId);
-      const chips: { label: string; hex: string | null }[] = [];
+      const chips: { label: string; hex: string | null; pending?: boolean }[] = [];
       if (colorValId) chips.push({ label: getAttributeValueName(colorValId), hex: getAttributeValueHex(colorValId) });
       if (colorLabel) chips.push({ label: colorLabel, hex: colorHex || null });
+      else if (pendingLabdip) chips.push({ label: pendingLabdip, hex: null, pending: true });
       return { chips, plainIds };
   };
 
-  const renderChipRow = (chips: { label: string; hex: string | null }[]) => (
+  const renderChipRow = (chips: { label: string; hex: string | null; pending?: boolean }[]) => (
       <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2}}>
           {chips.map((c, i) => (
-              <span key={i} style={{display:'inline-flex',alignItems:'center',gap:4,
-                  background:classic?'#f0ede4':'#eef1f4',
-                  border:classic?'1px solid #b0a898':'1px solid #dee2e6',
+              <span key={i} title={c.pending ? 'Pending lab dip — colour not approved yet' : undefined}
+                  style={{display:'inline-flex',alignItems:'center',gap:4,
+                  background:c.pending?(classic?'#fff5d6':'#fff8e1'):(classic?'#f0ede4':'#eef1f4'),
+                  border:c.pending?'1px solid #c8a000':(classic?'1px solid #b0a898':'1px solid #dee2e6'),
                   borderRadius:classic?0:10,
                   padding:'1px 6px 1px 4px',
                   fontSize:'9px',
                   fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,
-                  color:classic?'#333':'#495057'}}>
+                  color:c.pending?'#8a6d00':(classic?'#333':'#495057')}}>
+                  {c.pending && <i className="bi bi-eyedropper" style={{fontSize:'8px'}}></i>}
                   {c.hex && <span style={{width:8,height:8,borderRadius:'50%',flexShrink:0,display:'inline-block',background:c.hex,border:'1px solid rgba(0,0,0,0.25)'}}></span>}
                   {c.label}
               </span>
@@ -1490,7 +1495,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 font-monospace small'}>{getItemCode(line.item_id, line.item_code)}</span>
                                    {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
                                    {(() => {
-                                       const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], line.color_label, line.color_hex);
+                                       const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], line.color_label, line.color_hex, !line.color_id ? line.labdip_variant_code : null);
                                        return (
                                            <>
                                                {plainIds.length > 0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>{plainIds.map(getAttributeValueName).join(', ')}</div>}
@@ -1499,7 +1504,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        );
                                    })()}
                                    {line.bom_size_id && <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}</div>}
-                                   {!line.color_id && line.labdip_variant_code && <div style={{color:'#8a6d00',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small fw-semibold'}><i className="bi bi-eyedropper me-1"></i>Pending lab dip: {line.labdip_variant_code}</div>}
                                    {line.no_color_swatch && <div style={{color:'#a33',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small fw-semibold'}><i className="bi bi-palette me-1"></i>No Color Swatch</div>}
                                </div>
                                <div style={{display:'flex',alignItems:'center',gap:classic?6:10,flexWrap:'wrap' as const}}>
@@ -1823,7 +1827,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                </div>
                                                {(() => {
                                                    const colorLabel = line.color_code ? `${line.color_code}${line.color_name ? ' — ' + line.color_name : ''}` : null;
-                                                   const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], colorLabel, line.color_hex);
+                                                   const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], colorLabel, line.color_hex, line.labdip_variant_code);
                                                    return (
                                                        <>
                                                            {plainIds.length > 0 && (
