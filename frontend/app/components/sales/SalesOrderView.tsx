@@ -913,11 +913,16 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                            )}
                            {!lineageLoading && lineageData && (lineageData.production_runs || []).map((pr: any) => {
                                const prMos = pr.manufacturing_orders || [];
-                               const prDone = prMos.filter((m: any) => ['COMPLETED', 'DELIVERED'].includes(m.status)).length;
-                               const prPct = prMos.length ? Math.round((prDone / prMos.length) * 100) : 0;
                                const rows: any[] = [];
                                prMos.forEach((mo: any) => flattenMO(mo, 0, false, rows));
                                (pr.unpegged_components || []).forEach((mo: any) => flattenMO(mo, 0, true, rows));
+                               // Header progress counts EVERY MO in the run — roots plus nested
+                               // and unpegged shared components — not just the root MOs, so the
+                               // bar matches the rows the user actually sees below it.
+                               const allMoRows = rows.filter((r: any) => r.kind === 'mo');
+                               const prTotal = allMoRows.length;
+                               const prDone = allMoRows.filter((r: any) => ['COMPLETED', 'DELIVERED'].includes(r.mo.status)).length;
+                               const prPct = prTotal ? Math.round((prDone / prTotal) * 100) : 0;
                                const thStyle: React.CSSProperties = {
                                    padding: '3px 8px', fontSize: classic ? '0.66rem' : '0.7rem', fontWeight: 'bold',
                                    color: '#555', textAlign: 'left', borderBottom: classic ? '1px solid #b8c4de' : '1px solid #dbe5f5', whiteSpace: 'nowrap',
@@ -929,7 +934,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '5px 8px', background: classic ? '#e3ebf8' : '#eef3fb', border: sectBorder, borderBottom: 'none' }}>
                                        {lineageCodeChip(pr.code, () => goToPR(pr.code), 'pr')}
                                        {lineageStatusBadge(pr.status)}
-                                       <span style={{ color: '#777', fontSize: '0.72rem' }}>{prDone}/{prMos.length} MO done</span>
+                                       <span style={{ color: '#777', fontSize: '0.72rem' }}>{prDone}/{prTotal} MO done</span>
                                        <div style={{ flex: 1, minWidth: 80, maxWidth: 180, height: 8, background: '#e4e4e4', borderRadius: 4, overflow: 'hidden' }}>
                                            <div style={{ height: '100%', width: `${prPct}%`, background: prPct === 100 ? '#2d7a2d' : '#0058e6' }} />
                                        </div>
