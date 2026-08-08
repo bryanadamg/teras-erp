@@ -943,6 +943,13 @@ class WorkOrderFlatResponse(BaseModel):
     bom_operation_id: str | None = None
     mo_id: str
     mo_code: str
+    # Top of the parent_mo_id / MODependency chain. A consolidated component MO is
+    # shared across variants, so it can peg to several roots — the extras ride in
+    # `root_mo_codes` and `root_mo_count`.
+    root_mo_id: str | None = None
+    root_mo_code: str | None = None
+    root_mo_count: int = 0
+    root_mo_codes: list[str] = []
     item_name: str
     item_id: str
     combo_label: str | None = None   # MO's Combo (system_role='combo') attribute value, if any

@@ -99,6 +99,10 @@ interface FlatWO {
     staging_status?: string;
     mo_id: string;
     mo_code: string;
+    root_mo_id?: string | null;
+    root_mo_code?: string | null;
+    root_mo_count?: number;
+    root_mo_codes?: string[];
     item_name: string;
     combo_label?: string | null;
     color_label?: string | null;
@@ -247,6 +251,7 @@ export default function WorkOrderListView({
     const filtered = flatWOs;
 
     const sortCols = useMemo(() => ({
+        rootmo:   (wo: FlatWO) => wo.root_mo_code ?? null,
         sequence: (wo: FlatWO) => wo.sequence,
         name:     (wo: FlatWO) => wo.name,
         product:  (wo: FlatWO) => (wo as any).item_name,
@@ -374,7 +379,7 @@ export default function WorkOrderListView({
         }
     };
 
-    const COLS = 14; // checkbox + chevron + 11 data cols + actions
+    const COLS = 15; // checkbox + chevron + 12 data cols + actions
 
     const renderDetailPanel = (wo: FlatWO) => {
         const bomItemIds = new Set<string>(wo.bom_line_item_ids || []);
@@ -725,12 +730,13 @@ export default function WorkOrderListView({
                     {/* Table */}
                     <div className="table-responsive" style={{ flex: 1, overflow: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
                         <table
-                            style={{ width: '100%', minWidth: 1500, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
+                            style={{ width: '100%', minWidth: 1596, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                         >
                             <colgroup>
                                 <col style={{ width: 28 }} />   {/* checkbox */}
                                 <col style={{ width: 22 }} />   {/* chevron */}
+                                <col style={{ width: 96 }} />   {/* Root MO */}
                                 <col style={{ width: 34 }} />   {/* # */}
                                 <col style={{ width: '20%' }} />{/* Name */}
                                 <col style={{ width: '22%' }} />{/* Product */}
@@ -757,7 +763,7 @@ export default function WorkOrderListView({
                                         />
                                     </th>
                                     <th style={{ ...thStyle, width: 22, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
-                                    {([['#', 'sequence'], ['Name', 'name'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Created', 'created'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
+                                    {([['Root MO', 'rootmo'], ['#', 'sequence'], ['Name', 'name'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Created', 'created'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
                                         <th key={`${h}-${i}`}
                                             style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left', cursor: key ? 'pointer' : undefined, userSelect: 'none' }}
                                             className={classic ? '' : 'ps-3'}
@@ -786,6 +792,7 @@ export default function WorkOrderListView({
                                             <tr key={wo.id} style={{ background: classic ? '#fffbe6' : undefined }}
                                                 className={classic ? '' : 'table-warning'}>
                                                 <td style={{ ...tdBase, padding: '3px 6px' }} />
+                                                <td style={tdBase} />
                                                 <td style={tdBase} />
                                                 <td style={tdBase} className={classic ? '' : 'ps-3'}>
                                                     <input style={{ ...xpInput, width: 32 }} value={form.sequence}
@@ -860,6 +867,31 @@ export default function WorkOrderListView({
                                                     <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>
                                                         {isExpanded ? '▼' : '►'}
                                                     </span>
+                                                </td>
+                                                {/* Root MO — top of the parent/pegging chain, not this WO's own MO.
+                                                    A shared component MO feeds several roots; the first is shown and
+                                                    the rest sit behind a +N marker. */}
+                                                <td style={{ ...tdBase, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                                                    {wo.root_mo_code ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, overflow: 'hidden' }}>
+                                                            <span
+                                                                onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.root_mo_code!)}`)}
+                                                                title={`Go to root MO ${wo.root_mo_code}`}
+                                                                style={{
+                                                                    fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11,
+                                                                    color: '#0058e6', background: '#e8f0fe', border: '1px solid #b0c8f8',
+                                                                    borderRadius: classic ? 2 : 4, padding: '0 5px', cursor: 'pointer',
+                                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                                }}
+                                                            >{wo.root_mo_code}</span>
+                                                            {(wo.root_mo_count ?? 0) > 1 && (
+                                                                <span
+                                                                    title={`Shared component — feeds ${wo.root_mo_count} root MOs: ${(wo.root_mo_codes || []).join(', ')}`}
+                                                                    style={{ fontSize: 9, fontWeight: 'bold', color: '#7a5000', background: '#fff3cd', border: '1px solid #b8860b', padding: '0 3px', flexShrink: 0 }}
+                                                                >+{(wo.root_mo_count ?? 1) - 1}</span>
+                                                            )}
+                                                        </div>
+                                                    ) : <span style={{ color: '#bbb' }}>—</span>}
                                                 </td>
                                                 <td style={{ ...tdBase, color: '#888', width: 36 }} className={classic ? '' : 'ps-3'}>{wo.sequence}</td>
                                                 <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080', overflow: 'hidden' }}

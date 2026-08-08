@@ -611,6 +611,83 @@ async def get_manufacturing_order(
     return mo
 
 
+MAX_MO_ANCESTOR_DEPTH = 12
+
+
+async def resolve_root_mos(db: AsyncSession, mo_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
+    """Map each given MO id to its root MO(s) as (id, code), sorted by code.
+
+    Two links go upward and both must be followed: a child MO hangs off its parent
+    via `parent_mo_id`, but a consolidated component MO (`is_shared_component`) has
+    `parent_mo_id=None` and is reachable from its roots ONLY through `MODependency`.
+    Following pegging is why a component MO can resolve to more than one root — it is
+    shared across the colour/size variants of a production run by design.
+    """
+    origins = {str(m) for m in mo_ids if m}
+    if not origins:
+        return {}
+
+    roots: dict[str, set[str]] = {o: set() for o in origins}
+    code_map: dict[str, str] = {}
+    # node -> origins whose walk has already passed through it (cycle / re-visit guard)
+    visited: dict[str, set[str]] = {}
+
+    def push(target: dict[str, set[str]], node: str, origs: set[str]) -> None:
+        already = visited.setdefault(node, set())
+        fresh = origs - already
+        if fresh:
+            already |= fresh
+            target.setdefault(node, set()).update(fresh)
+
+    frontier: dict[str, set[str]] = {}
+    for o in origins:
+        push(frontier, o, {o})
+
+    for _ in range(MAX_MO_ANCESTOR_DEPTH):
+        if not frontier:
+            break
+        rows = (await db.execute(
+            select(ManufacturingOrder.id, ManufacturingOrder.code, ManufacturingOrder.parent_mo_id)
+            .where(ManufacturingOrder.id.in_(list(frontier.keys())))
+        )).all()
+
+        next_frontier: dict[str, set[str]] = {}
+        parentless: dict[str, set[str]] = {}
+        for mid, code, parent_id in rows:
+            smid = str(mid)
+            code_map[smid] = code
+            origs = frontier.get(smid, set())
+            if parent_id:
+                push(next_frontier, str(parent_id), origs)
+            else:
+                parentless[smid] = origs
+
+        if parentless:
+            deps = (await db.execute(
+                select(MODependency.required_mo_id, MODependency.dependent_mo_id)
+                .where(MODependency.required_mo_id.in_(list(parentless.keys())))
+            )).all()
+            pegged: dict[str, list[str]] = {}
+            for req, dep in deps:
+                pegged.setdefault(str(req), []).append(str(dep))
+            for smid, origs in parentless.items():
+                ups = pegged.get(smid)
+                if ups:
+                    for u in ups:
+                        push(next_frontier, u, origs)
+                else:
+                    # No parent and nothing depends on it — this IS a root.
+                    for o in origs:
+                        roots[o].add(smid)
+
+        frontier = next_frontier
+
+    return {
+        o: sorted(((r, code_map.get(r, "")) for r in rs), key=lambda t: t[1])
+        for o, rs in roots.items()
+    }
+
+
 @router.get("/work-orders", response_model=WorkOrderFlatPageResponse)
 async def list_work_orders_flat(
     skip: int = 0,
@@ -718,9 +795,14 @@ async def list_work_orders_flat(
 
     wos = (await db.execute(data_stmt)).scalars().unique().all()
 
+    # Root MO per WO — the top of the parent/pegging chain, so the floor can jump from
+    # any step (including consolidated component MOs) to the order it ultimately feeds.
+    root_map = await resolve_root_mos(db, [str(wo.manufacturing_order_id) for wo in wos])
+
     result = []
     for wo in wos:
         mo = wo.manufacturing_order
+        wo_roots = root_map.get(str(wo.manufacturing_order_id), [])
         bom_line_item_ids = [str(ln.item_id) for ln in (mo.bom.lines if mo and mo.bom else [])]
 
         combo_label = None
@@ -805,6 +887,10 @@ async def list_work_orders_flat(
             bom_operation_id=str(wo.bom_operation_id) if wo.bom_operation_id else None,
             mo_id=str(mo.id),
             mo_code=mo.code,
+            root_mo_id=wo_roots[0][0] if wo_roots else None,
+            root_mo_code=wo_roots[0][1] if wo_roots else None,
+            root_mo_count=len(wo_roots),
+            root_mo_codes=[c for _, c in wo_roots],
             item_name=mo.item.name if mo and mo.item else "",
             item_id=str(mo.item_id) if mo else "",
             combo_label=combo_label,
