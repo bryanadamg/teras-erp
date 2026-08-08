@@ -730,13 +730,13 @@ export default function WorkOrderListView({
                     {/* Table */}
                     <div className="table-responsive" style={{ flex: 1, overflow: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
                         <table
-                            style={{ width: '100%', minWidth: 1596, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
+                            style={{ width: '100%', minWidth: 1690, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                         >
                             <colgroup>
                                 <col style={{ width: 28 }} />   {/* checkbox */}
                                 <col style={{ width: 22 }} />   {/* chevron */}
-                                <col style={{ width: 96 }} />   {/* Root MO */}
+                                <col style={{ width: 190 }} />  {/* Root MO */}
                                 <col style={{ width: 34 }} />   {/* # */}
                                 <col style={{ width: '20%' }} />{/* Name */}
                                 <col style={{ width: '22%' }} />{/* Product */}
