@@ -14,7 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
-import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
 
 const SO_PAGE_SIZE = 50;
@@ -1626,77 +1626,19 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
            />
 
            {/* ── Secondary toolbar: search + status filters + count ── */}
-           {classic ? (
-               <div style={xpToolbar()}>
-                   <input
-                       style={xpInput({ width: 150 })}
-                       placeholder="Search PO#…"
-                       value={searchTerm}
-                       onChange={e => setSearchTerm(e.target.value)}
-                   />
-                   <input
-                       style={xpInput({ width: 150 })}
-                       placeholder="Search Customer…"
-                       value={customerSearch}
-                       onChange={e => setCustomerSearch(e.target.value)}
-                   />
-                   <div style={xpSep}></div>
-                   {STATUS_FILTERS.map(s => (
-                       <button
-                           key={s}
-                           style={statusFilter === s
-                               ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
-                               : xpBtn()
-                           }
-                           onClick={() => setStatusFilter(s)}
-                       >
-                           {s}
-                       </button>
-                   ))}
-                   <div style={xpSep}></div>
-                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>
-                       {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
-                   </span>
-               </div>
-           ) : (
-               <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
-                   <div className="position-relative" style={{ flex: '1 1 140px', maxWidth: 200 }}>
-                       <i className="bi bi-search position-absolute" style={{ left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, opacity: 0.5 }}></i>
-                       <input
-                           className="form-control form-control-sm"
-                           style={{ paddingLeft: 24 }}
-                           placeholder="Search PO#…"
-                           value={searchTerm}
-                           onChange={e => setSearchTerm(e.target.value)}
-                       />
-                   </div>
-                   <div className="position-relative" style={{ flex: '1 1 140px', maxWidth: 200 }}>
-                       <i className="bi bi-person position-absolute" style={{ left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, opacity: 0.5 }}></i>
-                       <input
-                           className="form-control form-control-sm"
-                           style={{ paddingLeft: 24 }}
-                           placeholder="Search Customer…"
-                           value={customerSearch}
-                           onChange={e => setCustomerSearch(e.target.value)}
-                       />
-                   </div>
-                   <div className="d-flex gap-1 flex-wrap">
-                       {STATUS_FILTERS.map(s => (
-                           <button
-                               key={s}
-                               className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-light border'}`}
-                               style={{ fontSize: 11 }}
-                               onClick={() => setStatusFilter(s)}
-                           >
-                               {s}
-                           </button>
-                       ))}
-                   </div>
-                   <span className="text-muted small ms-1">
-                       {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
-                   </span>
-               </div>
-           )}
+           <div
+               style={classic ? xpToolbar() : undefined}
+               className={classic ? '' : 'px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white'}
+           >
+               <SearchField classic={classic} value={searchTerm} onChange={setSearchTerm} placeholder="Search PO#…" width={200} grow />
+               <SearchField classic={classic} value={customerSearch} onChange={setCustomerSearch} placeholder="Search Customer…" icon="bi-person" width={200} grow />
+               {classic && <div style={xpSep}></div>}
+               <FilterChipBar classic={classic} options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
+               {classic && <div style={xpSep}></div>}
+               <ToolbarCount classic={classic}>
+                   {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
+               </ToolbarCount>
+           </div>
 
            {/* ── Table ── */}
            <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>

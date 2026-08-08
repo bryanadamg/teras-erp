@@ -13,7 +13,7 @@ import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
 import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip } from '../shared/xpTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
@@ -576,6 +576,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const getCustomerName = (id: string) => (customers || []).find((c: any) => c.id === id)?.name || '—';
 
   const STATUS_FILTERS = ['ALL', 'IN_PRODUCTION', 'SENT', 'APPROVED', 'REJECTED'];
+  // IN_PRODUCTION is abbreviated so the chip row still fits one toolbar line.
+  const STATUS_FILTER_OPTIONS = STATUS_FILTERS.map(s => ({ value: s, label: s === 'IN_PRODUCTION' ? 'IN PROD' : s }));
 
   // `samples` IS the current page — search, status/category, date range and
   // paging are all resolved by the backend. Nothing is filtered client-side:
@@ -1334,25 +1336,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            {/* ── Secondary toolbar: search + status filters + count ── */}
            {classic ? (
                <div style={xpToolbar()}>
-                   <input
-                       style={{ ...xpInput, width: 180 }}
-                       placeholder="Search code, article, project…"
-                       value={searchTerm}
-                       onChange={e => setSearchTerm(e.target.value)}
-                   />
+                   <SearchField classic value={searchTerm} onChange={setSearchTerm} placeholder="Search code, article, project…" width={200} />
                    <div style={xpSep}></div>
-                   {STATUS_FILTERS.map(s => (
-                       <button
-                           key={s}
-                           style={statusFilter === s
-                               ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
-                               : xpBtn()
-                           }
-                           onClick={() => setStatusFilter(s)}
-                       >
-                           {s === 'IN_PRODUCTION' ? 'IN PROD' : s}
-                       </button>
-                   ))}
+                   <FilterChipBar classic options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
                    <div style={xpSep}></div>
                    <select
                        style={{ ...xpInput, width: 120 }}
@@ -1392,37 +1378,17 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l2.5 2.5L16 9"/></svg>
                        Mark All as Read
                    </button>
-                   <span style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>
+                   <ToolbarCount classic right>
                        {totalSamples} item{totalSamples !== 1 ? 's' : ''}
                        {unreadCount > 0 && (
                            <> · <span style={{ color: '#1c5bc8', fontWeight: 'bold' }}>{unreadCount} unread</span></>
                        )}
-                   </span>
+                   </ToolbarCount>
                </div>
            ) : (
                <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
-                   <div className="position-relative" style={{ flex: '1 1 160px', maxWidth: 240 }}>
-                       <i className="bi bi-search position-absolute" style={{ left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, opacity: 0.5 }}></i>
-                       <input
-                           className="form-control form-control-sm"
-                           style={{ paddingLeft: 24 }}
-                           placeholder="Search code, article, project…"
-                           value={searchTerm}
-                           onChange={e => setSearchTerm(e.target.value)}
-                       />
-                   </div>
-                   <div className="d-flex gap-1 flex-wrap">
-                       {STATUS_FILTERS.map(s => (
-                           <button
-                               key={s}
-                               className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-light border'}`}
-                               style={{ fontSize: 11 }}
-                               onClick={() => setStatusFilter(s)}
-                           >
-                               {s === 'IN_PRODUCTION' ? 'IN PROD' : s}
-                           </button>
-                       ))}
-                   </div>
+                   <SearchField classic={false} value={searchTerm} onChange={setSearchTerm} placeholder="Search code, article, project…" width={240} grow />
+                   <FilterChipBar classic={false} options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
                    <select
                        className="form-select form-select-sm"
                        style={{ fontSize: 11, width: 'auto' }}

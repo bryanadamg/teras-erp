@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import TreeSelect, { buildLocationPickerTree, TreeSelectOption } from '../shared/TreeSelect';
-import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';

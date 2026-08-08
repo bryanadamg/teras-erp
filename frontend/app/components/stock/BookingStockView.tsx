@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { xpFont, xpBtn, XPLoading, useSortable, SortMark, CodeChip, CODE_FONT } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
@@ -225,13 +225,7 @@ export default function BookingStockView() {
                     </div>
 
                     <div style={xpToolbar}>
-                        <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }} />
-                        <input
-                            style={{ ...xpInputS, width: 200 }}
-                            placeholder="Search item..."
-                            value={searchInput}
-                            onChange={e => setSearchInput(e.target.value)}
-                        />
+                        <SearchField classic value={searchInput} onChange={setSearchInput} placeholder="Search item..." width={200} />
                         <div style={xpSep} />
                         <button style={xpBtn()} onClick={fetchAvailability} title="Refresh">
                             <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
@@ -344,10 +338,7 @@ export default function BookingStockView() {
                 </div>
 
                 <div className="card-body py-2 d-flex flex-wrap align-items-center gap-2 border-bottom">
-                    <div className="input-group input-group-sm" style={{ width: 240 }}>
-                        <span className="input-group-text"><i className="bi bi-search" /></span>
-                        <input className="form-control" placeholder="Search item..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
-                    </div>
+                    <SearchField classic={false} value={searchInput} onChange={setSearchInput} placeholder="Search item..." width={240} />
                     <button className="btn btn-sm btn-outline-secondary" onClick={fetchAvailability}>
                         <i className="bi bi-arrow-clockwise me-1" />Refresh
                     </button>

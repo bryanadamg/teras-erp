@@ -9,7 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel } from '../shared/listViewTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
 
@@ -174,36 +174,23 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
             />
 
                 {/* ── Secondary toolbar: search + count ── */}
-                {classic ? (
-                    <div style={xpToolbar()}>
-                        <input
-                            style={{ ...xpInput, width: 200 }}
-                            placeholder={`Search ${typeLabel.toLowerCase()}s…`}
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                        />
-                        <div style={xpSep}></div>
-                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>
-                            {filteredPartners.length} {typeLabel}{filteredPartners.length !== 1 ? 's' : ''}
-                        </span>
-                    </div>
-                ) : (
-                    <div className="px-3 py-2 border-bottom d-flex align-items-center gap-3 bg-white">
-                        <div className="position-relative" style={{ flex: '1 1 200px', maxWidth: 280 }}>
-                            <i className="bi bi-search position-absolute" style={{ left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, opacity: 0.5 }}></i>
-                            <input
-                                className="form-control form-control-sm"
-                                style={{ paddingLeft: 24 }}
-                                placeholder={`Search ${typeLabel.toLowerCase()}s…`}
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        <span className="text-muted small">
-                            {filteredPartners.length} {typeLabel}{filteredPartners.length !== 1 ? 's' : ''}
-                        </span>
-                    </div>
-                )}
+                <div
+                    style={classic ? xpToolbar() : undefined}
+                    className={classic ? '' : 'px-3 py-2 border-bottom d-flex align-items-center gap-3 bg-white'}
+                >
+                    <SearchField
+                        classic={classic}
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder={`Search ${typeLabel.toLowerCase()}s…`}
+                        width={280}
+                        grow
+                    />
+                    {classic && <div style={xpSep}></div>}
+                    <ToolbarCount classic={classic}>
+                        {filteredPartners.length} {typeLabel}{filteredPartners.length !== 1 ? 's' : ''}
+                    </ToolbarCount>
+                </div>
 
                 {/* ── Bulk action bar ── */}
                 {canManage && someSelected && (

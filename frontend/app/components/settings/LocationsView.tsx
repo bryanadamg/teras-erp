@@ -3,7 +3,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
+import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar, SearchField } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { XPActionButton, CodeChip } from '../shared/xpTheme';
 

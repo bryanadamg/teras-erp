@@ -12,7 +12,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
 const PO_PAGE_SIZE = 50;
@@ -828,61 +828,23 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
            )}
 
            {/* ── Secondary toolbar: search + status filters + count ── */}
-           {classic ? (
-               <div style={xpToolbar}>
-                   <input
-                       style={xpInput({ width: 180 })}
-                       placeholder="Search PO# or supplier…"
-                       value={searchTerm}
-                       onChange={e => setSearchTerm(e.target.value)}
-                   />
-                   <div style={xpSep}></div>
-                   {STATUS_FILTERS.map(s => (
-                       <button
-                           key={s}
-                           style={statusFilter === s
-                               ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
-                               : xpBtn()
-                           }
-                           onClick={() => setStatusFilter(s)}
-                       >
-                           {s} <span style={{ opacity: 0.75, fontWeight: 'normal' }}>({statusCounts[s]})</span>
-                       </button>
-                   ))}
-                   <div style={xpSep}></div>
-                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>
-                       {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
-                   </span>
-               </div>
-           ) : (
-               <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
-                   <div className="position-relative" style={{ flex: '1 1 160px', maxWidth: 240 }}>
-                       <i className="bi bi-search position-absolute" style={{ left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, opacity: 0.5 }}></i>
-                       <input
-                           className="form-control form-control-sm"
-                           style={{ paddingLeft: 24 }}
-                           placeholder="Search PO# or supplier…"
-                           value={searchTerm}
-                           onChange={e => setSearchTerm(e.target.value)}
-                       />
-                   </div>
-                   <div className="d-flex gap-1">
-                       {STATUS_FILTERS.map(s => (
-                           <button
-                               key={s}
-                               className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-light border'}`}
-                               style={{ fontSize: 11 }}
-                               onClick={() => setStatusFilter(s)}
-                           >
-                               {s} <span className="opacity-75">({statusCounts[s]})</span>
-                           </button>
-                       ))}
-                   </div>
-                   <span className="text-muted small ms-1">
-                       {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
-                   </span>
-               </div>
-           )}
+           <div
+               style={classic ? xpToolbar : undefined}
+               className={classic ? '' : 'px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white'}
+           >
+               <SearchField classic={classic} value={searchTerm} onChange={setSearchTerm} placeholder="Search PO# or supplier…" width={240} grow />
+               {classic && <div style={xpSep}></div>}
+               <FilterChipBar
+                   classic={classic}
+                   options={STATUS_FILTERS.map(s => ({ value: s, count: statusCounts[s] }))}
+                   value={statusFilter}
+                   onChange={setStatusFilter}
+               />
+               {classic && <div style={xpSep}></div>}
+               <ToolbarCount classic={classic}>
+                   {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
+               </ToolbarCount>
+           </div>
 
            {/* ── Table ── */}
            <div className={classic ? '' : 'card-body p-0'}>

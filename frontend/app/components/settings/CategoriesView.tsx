@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { CODE_FONT } from '../shared/xpTheme';
+import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 type Category = {
     id: string;
@@ -447,17 +448,11 @@ export default function CategoriesView({
             <div>
                 {/* Search toolbar */}
                 <div style={xpToolbar}>
-                    <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
-                    <input
-                        style={{ ...xpInput, width: 200 }}
-                        placeholder="Search categories..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
+                    <SearchField classic value={search} onChange={setSearch} placeholder="Search categories..." width={200} />
                     <div style={{ width: 1, height: 20, background: '#a0988c', margin: '0 2px', flexShrink: 0 }} />
-                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>
+                    <ToolbarCount classic>
                         {categories.length} categor{categories.length === 1 ? 'y' : 'ies'}
-                    </span>
+                    </ToolbarCount>
                 </div>
 
                 {/* Tree */}
@@ -526,15 +521,7 @@ export default function CategoriesView({
     return (
         <div>
             {/* Search row */}
-            <div className="input-group mb-3">
-                <span className="input-group-text"><i className="bi bi-search"></i></span>
-                <input
-                    className="form-control"
-                    placeholder="Search categories..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
-            </div>
+            <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search categories..." width={320} style={{ display: 'flex', marginBottom: 16 }} />
 
             {/* Tree */}
             <div style={{

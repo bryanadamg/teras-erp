@@ -7,6 +7,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { xpBtn, xpInput, CodeChip } from '../shared/xpTheme';
+import { SearchField, ToolbarCount } from '../shared/shellTheme';
 import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import PixelAvatar from '../shared/PixelAvatar';
 import Pager from '../shared/Pager';
@@ -165,14 +166,7 @@ export default function SettingsUsersTab({
                     background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
                     padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const,
                 }}>
-                    <i className="bi bi-search" style={{ fontSize: 10, color: '#555' }}></i>
-                    <input
-                        type="text"
-                        style={xpInput({ width: 200 })}
-                        placeholder="Search username or name…"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
+                    <SearchField classic value={search} onChange={setSearch} placeholder="Search username or name…" width={200} />
                     <select style={xpInput({ height: 'auto', padding: '1px 4px', width: 120 })} value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}>
                         <option value="all">All Statuses</option>
                         <option value="active">Active</option>
@@ -192,24 +186,15 @@ export default function SettingsUsersTab({
                             <i className="bi bi-x-lg" style={{ fontSize: 8 }} />
                         </button>
                     )}
-                    <div style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#555' }}>
+                    <ToolbarCount classic right>
                         {filteredUsers.length} of {users.length} user{users.length !== 1 ? 's' : ''}
-                    </div>
+                    </ToolbarCount>
                 </div>
             ) : (
                 <div className="card-body border-bottom py-2">
                     <div className="row g-2 align-items-center">
                         <div className="col-md-5">
-                            <div className="input-group input-group-sm">
-                                <span className="input-group-text bg-white border-end-0"><i className="bi bi-search"></i></span>
-                                <input
-                                    type="text"
-                                    className="form-control border-start-0"
-                                    placeholder="Search username or name…"
-                                    value={search}
-                                    onChange={e => setSearch(e.target.value)}
-                                />
-                            </div>
+                            <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search username or name…" width={400} grow style={{ display: 'flex', width: '100%' }} />
                         </div>
                         <div className="col-md-3">
                             <select className="form-select form-select-sm" value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}>

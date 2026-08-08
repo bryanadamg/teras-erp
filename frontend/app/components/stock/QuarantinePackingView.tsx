@@ -6,7 +6,7 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
-import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, XPLoading, XPStatusBar, XPEmptyState,

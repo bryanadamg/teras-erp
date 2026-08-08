@@ -10,7 +10,7 @@ import {
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
 
@@ -341,13 +341,7 @@ export default function ReportsView(_props: any) {
 
                     {/* Filters — line 1: search + dropdowns */}
                     <div style={toolbarTop} className="no-print">
-                        <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }} />
-                        <input
-                            style={xpInput({ width: 180 })}
-                            placeholder="Search item or reference..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                        />
+                        <SearchField classic value={search} onChange={setSearch} placeholder="Search item or reference..." width={200} />
                         <div style={xpSep} />
                         <TreeSelect
                             options={locFilterTreeOptions}
@@ -475,10 +469,7 @@ export default function ReportsView(_props: any) {
                 {/* Line 1: search + dropdowns */}
                 <div className="row g-2 align-items-center">
                     <div className="col-md-4">
-                        <div className="input-group input-group-sm">
-                            <span className="input-group-text"><i className="bi bi-search" /></span>
-                            <input className="form-control" placeholder="Search item or reference..." value={search} onChange={e => setSearch(e.target.value)} />
-                        </div>
+                        <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search item or reference..." width={320} grow style={{ display: 'flex', width: '100%' }} />
                     </div>
                     <div className="col-md-2">
                         <TreeSelect
