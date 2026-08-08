@@ -2,6 +2,7 @@
 import React from 'react';
 import type { KartuKerjaSettings } from './KartuKerjaCardBeaming';
 import { useTimezone } from '../../context/TimezoneContext';
+import { CODE_FONT } from '../shared/xpTheme';
 
 /**
  * Kartu Kerja (WO step card) body for WEAVING work centers — modeled on the
@@ -68,7 +69,7 @@ export default function KartuKerjaCardWeaving({
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '6px', gap: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
-                    <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{workOrder.code || parentMO?.code || '—'}</div>
+                    <div style={{ fontSize: '12px', fontFamily: CODE_FONT, fontWeight: 'bold' }}>{workOrder.code || parentMO?.code || '—'}</div>
                     {displayCompany && <div style={{ fontSize: '8px', color: '#555', fontWeight: 'bold' }}>{displayCompany}</div>}
                     <div style={{ fontSize: '8px', color: '#666' }}>
                         {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -211,7 +212,7 @@ export default function KartuKerjaCardWeaving({
                                 return (
                                     <tr key={line.id}>
                                         <td style={{ border: '1px solid #bbb', padding: '2px 5px' }}>
-                                            <span style={{ fontFamily: 'monospace', color: '#555', marginRight: '4px', fontSize: '8px' }}>
+                                            <span style={{ fontFamily: CODE_FONT, color: '#555', marginRight: '4px', fontSize: '8px' }}>
                                                 {line.item_code || ''}
                                             </span>
                                             {line.item_name || line.item_id}

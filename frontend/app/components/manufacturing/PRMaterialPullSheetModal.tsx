@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
+import { CODE_FONT } from '../shared/xpTheme';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -96,7 +97,7 @@ export default function PRMaterialPullSheetModal({
                     const hasShort = r.shortfall > 0;
                     return (
                         <tr key={`${r.item_id}-${(r.attribute_value_ids || []).join(',')}`}>
-                            <td style={{ border: '1px solid #ccc', padding: '2px 4px', fontFamily: 'monospace', color: '#555' }}>{r.item_code}</td>
+                            <td style={{ border: '1px solid #ccc', padding: '2px 4px', fontFamily: CODE_FONT, color: '#555' }}>{r.item_code}</td>
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px' }}>
                                 {r.item_name}
                                 {attrNames.length > 0 && <span style={{ color: '#666', marginLeft: '4px', fontSize: '7px' }}>[{attrNames.join(', ')}]</span>}
@@ -134,7 +135,7 @@ export default function PRMaterialPullSheetModal({
                     </div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '8px', color: '#555' }}>
-                    <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{pr.code}</div>
+                    <div style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#000' }}>{pr.code}</div>
                 </div>
             </div>
 
@@ -148,7 +149,7 @@ export default function PRMaterialPullSheetModal({
                     {pr.sales_order_id && (
                         <tr>
                             <td style={gridLbl}>Sales Order</td>
-                            <td style={{ ...gridVal, fontFamily: 'monospace', color: '#0058e6' }}>{pr.sales_order_code || '—'}</td>
+                            <td style={{ ...gridVal, fontFamily: CODE_FONT, color: '#0058e6' }}>{pr.sales_order_code || '—'}</td>
                             <td style={gridLbl}>Due Date</td>
                             <td style={gridVal}>{formatDate(pr.target_end_date) || '—'}</td>
                         </tr>

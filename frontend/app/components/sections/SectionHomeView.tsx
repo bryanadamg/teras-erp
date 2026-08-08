@@ -6,7 +6,7 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpFont, StatusChip } from '../shared/xpTheme';
+import { xpFont, StatusChip, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { NAV_SECTIONS, navLabel, NavSection } from '../shared/navConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
                   background: '#f5f4ef', textAlign: 'center', padding: '6px 4px',
                   cursor: k.tab ? 'pointer' : 'default',
                 }}>
-                <div style={{ fontSize: 22, fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: toneColor(k.tone), lineHeight: 1.1 }}>
+                <div style={{ fontSize: 22, fontWeight: 'bold', fontFamily: CODE_FONT, color: toneColor(k.tone), lineHeight: 1.1 }}>
                   {k.value}
                 </div>
                 <div style={{ fontSize: 8, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 2 }}>
@@ -251,7 +251,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
                 )}
                 {section.list.rows.map((r, i) => (
                   <tr key={i} style={{ background: i % 2 ? '#f5f3ee' : '#fff' }}>
-                    {r.code !== '' && <td style={{ padding: '3px 6px', fontWeight: 'bold', fontFamily: "'Courier New', monospace" }}>{r.code}</td>}
+                    {r.code !== '' && <td style={{ padding: '3px 6px' }}><CodeChip code={r.code} classic /></td>}
                     <td style={{ padding: '3px 6px' }}>{r.primary}</td>
                     {r.status !== undefined && <td style={{ padding: '3px 6px' }}><StatusChip status={r.status} /></td>}
                     {r.right !== undefined && <td style={{ padding: '3px 6px', textAlign: 'right' }}>{r.right}</td>}
@@ -319,7 +319,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
                   )}
                   {section.list.rows.map((r, i) => (
                     <tr key={i}>
-                      {r.code !== '' && <td className="px-3 font-monospace fw-bold">{r.code}</td>}
+                      {r.code !== '' && <td className="px-3"><CodeChip code={r.code} classic={false} /></td>}
                       <td className="px-3">{r.primary}</td>
                       {r.status !== undefined && <td className="px-3"><StatusChip status={r.status} /></td>}
                       {r.right !== undefined && <td className="px-3 text-end">{r.right}</td>}

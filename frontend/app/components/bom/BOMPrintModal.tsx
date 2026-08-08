@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
+import { CODE_FONT } from '../shared/xpTheme';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -96,7 +97,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
                 </div>
                 <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 15, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Bill of Materials</div>
-                    <div style={{ fontFamily: 'Courier New, monospace', fontSize: 11, color: '#0000cc', marginTop: 2 }}>{bom.code}</div>
+                    <div style={{ fontFamily: CODE_FONT, fontSize: 11, color: '#0000cc', marginTop: 2 }}>{bom.code}</div>
                     <div style={{ fontSize: '7.5pt', color: '#555', marginTop: 2 }}>Printed: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                     {settings.headerNote && <div style={{ fontSize: '7.5pt', color: '#333', marginTop: 2, fontStyle: 'italic' }}>{settings.headerNote}</div>}
                 </div>
@@ -109,7 +110,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
                         <td style={{ ...td, background: '#f5f5f5', fontWeight: 'bold', width: '15%', whiteSpace: 'nowrap' }}>Item</td>
                         <td style={{ ...td, width: '35%' }}>
                             <span style={{ fontWeight: 'bold' }}>{bom.item_name || bom.item_code}</span>
-                            <span style={{ fontFamily: 'Courier New, monospace', fontSize: '7.5pt', color: '#555', marginLeft: 6 }}>{bom.item_code}</span>
+                            <span style={{ fontFamily: CODE_FONT, fontSize: '7.5pt', color: '#555', marginLeft: 6 }}>{bom.item_code}</span>
                         </td>
                         <td style={{ ...td, background: '#f5f5f5', fontWeight: 'bold', width: '15%', whiteSpace: 'nowrap' }}>Batch Output</td>
                         <td style={{ ...td, width: '35%' }}>{fmt(bom.qty, 2)} pcs{bom.tolerance_percentage > 0 ? ` ±${bom.tolerance_percentage}%` : ''}</td>
@@ -268,7 +269,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
                                     {lines.map((line: any, i: number) => (
                                         <tr key={line.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9f9f9' }}>
                                             <td style={{ ...td, textAlign: 'center', color: '#666' }}>{i + 1}</td>
-                                            <td style={{ ...td, fontFamily: 'Courier New, monospace', fontSize: '7.5pt', color: '#0000cc' }}>{line.item_code}</td>
+                                            <td style={{ ...td, fontFamily: CODE_FONT, fontSize: '7.5pt', color: '#0000cc' }}>{line.item_code}</td>
                                             <td style={td}>{line.item_name}</td>
                                             <td style={{ ...td, textAlign: 'right' }}>{(line.percentage || 0) > 0 ? `${line.percentage}%` : '—'}</td>
                                             <td style={{ ...td, fontSize: '7.5pt', color: '#444' }}>{(line.attribute_value_ids || []).map(getAttributeValueName).filter(Boolean).join(', ') || '—'}</td>

@@ -8,6 +8,7 @@ import type {
 import type { PrintContext } from './renderContext';
 import { resolveField, fieldDef } from './fieldRegistry';
 import { rowSource } from './rowSources';
+import { CODE_FONT } from '../xpTheme';
 
 /**
  * Renders a print layout to JSX.
@@ -114,7 +115,7 @@ function FieldValue({ item, ctx, docType }: {
     const style: React.CSSProperties = {
         fontSize: item.fontSize ?? 11,
         fontWeight: item.bold ? 'bold' : 'normal',
-        fontFamily: (item.mono ?? def?.mono) ? 'monospace' : undefined,
+        fontFamily: (item.mono ?? def?.mono) ? CODE_FONT : undefined,
         textAlign: item.align,
         color: item.color,
         lineHeight: (item.fontSize ?? 11) >= 17 ? 1.05 : undefined,
@@ -344,7 +345,7 @@ function TableBandView({ band, ctx, rows, onSelect }: {
                                 return (
                                     <td key={col.field} style={style}>
                                         {raw.code && (
-                                            <span style={{ fontFamily: 'monospace', color: '#555', marginRight: 4, fontSize: fontSize - 1 }}>
+                                            <span style={{ fontFamily: CODE_FONT, color: '#555', marginRight: 4, fontSize: fontSize - 1 }}>
                                                 {raw.code}
                                             </span>
                                         )}

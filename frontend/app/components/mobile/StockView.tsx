@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { CodeChip, CODE_FONT } from '../shared/xpTheme';
 
 const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
@@ -140,7 +141,7 @@ export default function MobileStockView({ items, locations, stockBalance }: Mobi
                                             {item.name}
                                         </div>
                                         {item.sku && (
-                                            <div style={{ fontFamily: "'Courier New', monospace", fontSize: 10, color: '#666', marginTop: 1 }}>{item.sku}</div>
+                                            <CodeChip code={item.sku} classic tier={2} style={{ display: 'block', fontSize: 10, marginTop: 1 }} />
                                         )}
                                         {total <= 0 && (
                                             <div style={{ fontFamily: XP_FONT, fontSize: 10, color: '#cc0000', fontWeight: 'bold', marginTop: 1 }}>
@@ -150,7 +151,7 @@ export default function MobileStockView({ items, locations, stockBalance }: Mobi
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                                         <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontFamily: "'Courier New', monospace", fontSize: 20, fontWeight: 'bold', color: qtyColor(total), lineHeight: 1 }}>
+                                            <div style={{ fontFamily: CODE_FONT, fontSize: 20, fontWeight: 'bold', color: qtyColor(total), lineHeight: 1 }}>
                                                 {total % 1 === 0 ? total : total.toFixed(2)}
                                             </div>
                                             <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#888', textAlign: 'right' }}>
@@ -190,7 +191,7 @@ export default function MobileStockView({ items, locations, stockBalance }: Mobi
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <div style={{ fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 'bold', color: qtyColor(parseFloat(String(entry.qty))) }}>
+                                                    <div style={{ fontFamily: CODE_FONT, fontSize: 14, fontWeight: 'bold', color: qtyColor(parseFloat(String(entry.qty))) }}>
                                                         {parseFloat(String(entry.qty)) % 1 === 0
                                                             ? parseFloat(String(entry.qty))
                                                             : parseFloat(String(entry.qty)).toFixed(2)}

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
+import { CODE_FONT } from '../shared/xpTheme';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -56,7 +57,7 @@ const renderPrintBOMLines = (
                     </td>
                     <td style={{ paddingLeft: '6px', fontSize: '8px' }}>
                         {level > 0 && <span style={{ color: '#888', marginRight: '3px' }}>↳</span>}
-                        <span style={{ fontFamily: 'monospace', color: '#555', marginRight: '4px', fontSize: '7px' }}>
+                        <span style={{ fontFamily: CODE_FONT, color: '#555', marginRight: '4px', fontSize: '7px' }}>
                             {line.item_code || getItemCode(line.item_id)}
                         </span>
                         {line.item_name || getItemName(line.item_id)}
@@ -94,7 +95,7 @@ const renderChildWOsPrint = (
             {children.map(child => (
                 <div key={child.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', border: '1px solid #ddd', padding: '4px 6px', background: '#fafafa' }}>
                     <div style={{ flex: 1, fontSize: '8px' }}>
-                        <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#0058e6' }}>{child.code}</div>
+                        <div style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#0058e6' }}>{child.code}</div>
                         <div style={{ fontWeight: 'bold' }}>{child.item_name || getItemName(child.item_id)}</div>
                         <div style={{ color: '#666' }}>Qty: {child.qty} · Loc: {getLocationName(child.location_id)} · Status: {child.status} · Due: {formatDate(child.target_end_date)}</div>
                     </div>
@@ -208,7 +209,7 @@ export default function MOPrintModal({
                     )}
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '8px', color: '#555' }}>
-                    <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{wo.code}</div>
+                    <div style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#000' }}>{wo.code}</div>
                 </div>
             </div>
 
@@ -222,14 +223,14 @@ export default function MOPrintModal({
                     </tr>
                     <tr>
                         <td style={{ ...gridLbl, width: '18%' }}>No. SPK</td>
-                        <td style={{ ...gridVal, fontFamily: 'monospace', width: '32%' }}>{wo.code}</td>
+                        <td style={{ ...gridVal, fontFamily: CODE_FONT, width: '32%' }}>{wo.code}</td>
                         <td style={{ ...gridLbl, width: '18%' }}>Jml Order</td>
                         <td style={{ ...gridVal, fontWeight: 'bold' }}>{wo.qty} <span style={{ color: '#666', fontSize: '7px' }}>pcs</span></td>
                     </tr>
                     {wo.sales_order_id && (
                         <tr>
                             <td style={gridLbl}>Sales Order</td>
-                            <td style={{ ...gridVal, fontFamily: 'monospace', color: '#0058e6' }}>{wo.sales_order_code || '—'}</td>
+                            <td style={{ ...gridVal, fontFamily: CODE_FONT, color: '#0058e6' }}>{wo.sales_order_code || '—'}</td>
                             <td style={gridLbl}>Customer</td>
                             <td style={gridVal}>{bom?.customer_name || '—'}</td>
                         </tr>

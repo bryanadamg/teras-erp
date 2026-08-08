@@ -6,7 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    XPLoading, XPEmptyState, useSortable, SortMark,
+    XPLoading, XPEmptyState, useSortable, SortMark, CodeChip,
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
@@ -588,7 +588,7 @@ export default function ReportsView(_props: any) {
                                             </td>
                                             <td>
                                                 <div className="fw-medium">{getItemName(e)}</div>
-                                                <div className="small text-muted font-monospace">{getItemCode(e)}</div>
+                                                <CodeChip code={getItemCode(e)} classic={false} tier={2} style={{ display: 'block' }} />
                                                 {e.attribute_value_ids?.length > 0 && (
                                                     <div className="d-flex flex-wrap gap-1 mt-1">
                                                         {e.attribute_value_ids.map((vid: string) => <span key={vid} className="badge text-bg-light border" style={{ fontSize: 9 }}>{getAttrName(vid)}</span>)}

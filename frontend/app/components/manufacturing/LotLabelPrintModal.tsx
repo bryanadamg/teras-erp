@@ -7,6 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell from '../shared/PrintModalShell';
+import { CODE_FONT } from '../shared/xpTheme';
 
 // Code 128 (1D) alongside the QR so old laser scanners can read the lot too.
 function makeBarcodeDataUrl(text: string): string {
@@ -96,7 +97,7 @@ export default function LotLabelPrintModal({
                     {/* Lot number hero */}
                     <div style={{ border: '2px solid #000', padding: '4px 8px', marginBottom: '6px' }}>
                         <div style={heroLbl}>NO. LOT (KANTONG)</div>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1.05, fontFamily: 'monospace', wordBreak: 'break-all' }}>{lot.batch_number || '—'}</div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1.05, fontFamily: CODE_FONT, wordBreak: 'break-all' }}>{lot.batch_number || '—'}</div>
                         {barcodeUrls[lot.id] && (
                             <img src={barcodeUrls[lot.id]} alt="barcode" style={{ width: '100%', height: '40px', objectFit: 'contain', display: 'block', marginTop: '3px' }} />
                         )}
@@ -119,7 +120,7 @@ export default function LotLabelPrintModal({
                             </tr>
                             <tr>
                                 <td style={gridLbl}>Kode</td>
-                                <td style={{ ...gridVal, fontFamily: 'monospace', fontSize: '10px' }}>{lot.item_code || '—'}</td>
+                                <td style={{ ...gridVal, fontFamily: CODE_FONT, fontSize: '10px' }}>{lot.item_code || '—'}</td>
                             </tr>
                             <tr>
                                 <td style={gridLbl}>Lokasi</td>

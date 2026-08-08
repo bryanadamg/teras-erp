@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import PrintModalShell from '../shared/PrintModalShell';
+import { CODE_FONT } from '../shared/xpTheme';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
 
@@ -102,7 +103,7 @@ export default function DyeRecipePrintView({ recipe, onClose }: Props) {
                     <div style={{ fontSize: '7px', color: '#555', marginTop: 2 }}>Tanggal: {today}</div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '8px', color: '#555' }}>
-                    <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{recipe.code}</div>
+                    <div style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#000' }}>{recipe.code}</div>
                     {recipe.substrate_type && <div style={{ fontSize: '7px' }}>{recipe.substrate_type}</div>}
                 </div>
             </div>

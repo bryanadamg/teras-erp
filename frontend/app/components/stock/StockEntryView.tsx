@@ -3,6 +3,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { CodeChip, CODE_FONT } from '../shared/xpTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
   const itemOptions = (selectItems ?? items);
@@ -356,7 +357,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                       <tr key={idx}>
                                           <td className="ps-4">
                                               <div className="fw-bold text-dark">{getItemName(bal)}</div>
-                                              <div className="small text-muted font-monospace">{getItemCode(bal)}</div>
+                                              <CodeChip code={getItemCode(bal)} classic={false} tier={2} style={{ display: 'block' }} />
                                           </td>
                                           <td>
                                               <div className="d-flex flex-wrap gap-1">
@@ -378,7 +379,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                               </div>
                                           </td>
                                           <td className="text-end">
-                                              <span className={`fw-bold font-monospace ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`}>{bal.qty}</span>
+                                              <span className={`fw-bold ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`} style={{ fontFamily: CODE_FONT }}>{bal.qty}</span>
                                           </td>
                                           <td className="text-muted small">{getItemUom(bal) || ''}</td>
                                           <td className="small" style={{ whiteSpace: 'nowrap' }}>

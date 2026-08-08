@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
-import { STATUS_COLORS } from '../shared/xpTheme';
+import { STATUS_COLORS, CodeChip } from '../shared/xpTheme';
 
 const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
@@ -282,7 +282,9 @@ export default function MobileManufacturingView({
                                 >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                                         <div style={{ minWidth: 0 }}>
-                                            <div style={{ fontFamily: "'Courier New', monospace", fontSize: 15, fontWeight: 'bold', color: '#00309c' }}>{mo.code}</div>
+                                            {/* Card title on a phone — one step up from the desktop tier-1
+                                                size so it stays readable at arm's length on the floor. */}
+                                            <CodeChip code={mo.code} classic tone="accent" style={{ display: 'block', fontSize: 15 }} />
                                             <div style={{ fontFamily: XP_FONT, fontSize: 12, color: '#333', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mo.item_name || '—'}</div>
                                             <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555', marginTop: 1 }}>
                                                 Qty: {parseFloat(mo.qty)}

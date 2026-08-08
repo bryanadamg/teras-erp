@@ -6,6 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import CalendarView from '../shared/CalendarView';
 import {
     xpFont, ProgressBar, StatusChip, XPStatusBar, familyColor, familyTint, type StatusFamily,
+    CodeChip, CODE_FONT,
 } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
@@ -399,7 +400,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     {namedLowStock.length === 0 && <li className="list-group-item text-muted small">{t('all_systems_nominal')}</li>}
                                     {namedLowStock.map((i: any) => (
                                         <li key={i.id} className="list-group-item d-flex justify-content-between align-items-center py-2">
-                                            <span><span className="font-monospace text-muted me-2">{i.code}</span>{i.name}</span>
+                                            <span><CodeChip code={i.code} classic={false} tier={2} className="me-2" />{i.name}</span>
                                             <span className={`badge ${i.totalStock <= 0 ? 'bg-danger' : 'bg-warning text-dark'}`}>{i.totalStock} / min {i.minLevel}</span>
                                         </li>
                                     ))}
@@ -495,7 +496,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                         <li key={entry.key} className="list-group-item d-flex justify-content-between align-items-center py-2 border-0 border-bottom">
                                             <div style={{ minWidth: 0 }}>
                                                 <div className="fw-medium text-truncate small">{entry.itemName}</div>
-                                                <small className="text-muted d-block font-monospace" style={{ fontSize: '0.65rem' }}>{tzDateTime(entry.created_at)}</small>
+                                                <small className="text-muted d-block" style={{ fontSize: '0.65rem', fontFamily: CODE_FONT }}>{tzDateTime(entry.created_at)}</small>
                                             </div>
                                             <div className={`fw-bold ms-2 small ${entry.qty_change > 0 ? 'text-success' : 'text-danger'}`}>
                                                 {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
@@ -563,7 +564,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                         <tbody>
                                             {activeWOList.map((wo: any) => (
                                                 <tr key={wo.id}>
-                                                    <td className="ps-3 font-monospace fw-bold">{wo.code}</td>
+                                                    <td className="ps-3"><CodeChip code={wo.code} classic={false} /></td>
                                                     <td>{wo.itemName}</td>
                                                     <td><StatusChip status={wo.isOverdue ? 'OVERDUE' : wo.status} tint /></td>
                                                     <td style={{ maxWidth: 160 }}>
@@ -626,7 +627,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             </div>
             <div style={{ padding: '6px 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '26px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: familyColor(fam), lineHeight: 1 }}>
+                    <span style={{ fontSize: '26px', fontWeight: 'bold', fontFamily: CODE_FONT, color: familyColor(fam), lineHeight: 1 }}>
                         {bigNum}
                     </span>
                     <span style={{ fontSize: '10px', color: '#555' }}>{bigLabel}</span>
@@ -666,7 +667,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
         value: React.ReactNode; label: string; tone?: StatusFamily; highlight?: 'crit' | 'warn';
     }) => (
         <div style={kpiTileStyle(highlight)}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: tone ? familyColor(tone) : '#333', lineHeight: 1.1 }}>{value}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: CODE_FONT, color: tone ? familyColor(tone) : '#333', lineHeight: 1.1 }}>{value}</div>
             <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{label}</div>
         </div>
     );
@@ -844,7 +845,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     const displayStatus = wo.isOverdue ? 'OVERDUE' : wo.status;
                                     return (
                                         <tr key={wo.id} style={lvRow(true, idx)}>
-                                            <td style={{ ...lvTd(true), fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: '10px' }}>{wo.code}</td>
+                                            <td style={lvTd(true)}><CodeChip code={wo.code} classic /></td>
                                             <td style={{ ...lvTd(true), fontWeight: 'bold', color: '#000' }}>{wo.itemName}</td>
                                             <td style={lvTd(true)}>
                                                 <StatusChip
@@ -985,7 +986,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             <div key={m.key} style={{ border: '1px solid #c0bdb5', background: '#fff', padding: '6px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
                                     <span style={{ fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', color: '#444' }}>{t(labelKey)}</span>
-                                    <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: 13, color: '#00309c' }}>{last.toLocaleString()}</span>
+                                    <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold', fontSize: 13, color: '#00309c' }}>{last.toLocaleString()}</span>
                                 </div>
                                 <Sparkline data={series} color={m.color} width={150} height={30} ariaLabel={`${t(labelKey)} 30-day trend`} />
                                 <div style={{ fontSize: 8, color: deltaColor, marginTop: 2 }}>

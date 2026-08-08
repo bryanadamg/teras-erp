@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBtn, xpInput } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpSectionHead, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import ModalWrapper from '../shared/ModalWrapper';
 
@@ -350,7 +350,7 @@ export default function SettingsDatabaseTab() {
                         ) : (
                             <div className="input-group">
                                 <span className="input-group-text bg-light"><i className="bi bi-link-45deg"></i></span>
-                                <input className="form-control bg-light font-monospace small" value={currentDbUrl} readOnly />
+                                <input className="form-control bg-light small" style={{ fontFamily: CODE_FONT }} value={currentDbUrl} readOnly />
                             </div>
                         )}
                     </div>
@@ -363,7 +363,7 @@ export default function SettingsDatabaseTab() {
                             {classic ? (
                                 <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
                                     <input
-                                        style={xpInput({ flex: 1, fontFamily: "'Courier New', monospace", boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })}
+                                        style={xpInput({ flex: 1, fontFamily: CODE_FONT, boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })}
                                         placeholder="postgresql+psycopg2://user:pass@host:port/db"
                                         value={newDbUrl}
                                         onChange={e => setNewDbUrl(e.target.value)}
@@ -379,7 +379,8 @@ export default function SettingsDatabaseTab() {
                             ) : (
                                 <div className="input-group mb-2">
                                     <input
-                                        className="form-control font-monospace small"
+                                        className="form-control small"
+                                        style={{ fontFamily: CODE_FONT }}
                                         placeholder="postgresql+psycopg2://user:pass@host:port/db"
                                         value={newDbUrl}
                                         onChange={e => setNewDbUrl(e.target.value)}
@@ -496,7 +497,7 @@ export default function SettingsDatabaseTab() {
                                         key={i}
                                         style={classic ? { background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}
                                     >
-                                        <td style={classic ? { ...tdBase, fontFamily: "'Courier New', monospace", fontSize: '10px' } : undefined} className={classic ? '' : 'ps-4 font-monospace'}>{s.name}</td>
+                                        <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}><CodeChip code={s.name} classic={classic} /></td>
                                         <td style={classic ? tdBase : undefined}>{tzDateTime(s.created_at)}</td>
                                         <td style={classic ? tdBase : undefined}>{(s.size / 1024 / 1024).toFixed(2)} MB</td>
                                         <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>

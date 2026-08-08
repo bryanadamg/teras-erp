@@ -683,7 +683,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <div className="d-flex flex-column gap-1 align-items-start">
                             <span className="badge bg-warning text-dark">{batchLabel}</span>
                             {bal.vendor_lot && (
-                                <span className="badge bg-secondary-subtle text-secondary-emphasis font-monospace" title={`Supplier lot: ${bal.vendor_lot}`}>
+                                <span className="badge bg-secondary-subtle text-secondary-emphasis" style={{ fontFamily: CODE_FONT }} title={`Supplier lot: ${bal.vendor_lot}`}>
                                     SUP {bal.vendor_lot}
                                 </span>
                             )}

@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
-import { xpFont as XP_FONT, familyColor, familyTint, ProgressBar, StatusChip, type StatusFamily } from '../shared/xpTheme';
+import { xpFont as XP_FONT, familyColor, familyTint, ProgressBar, StatusChip, type StatusFamily, CodeChip, CODE_FONT } from '../shared/xpTheme';
 
 const XP_BEIGE = '#ece9d8';
 
@@ -120,7 +120,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
         return (
             <div style={xpPanel({ padding: '8px 10px', flex: 1, minWidth: 0 })}>
                 <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 3 }}>{label}</div>
-                <div style={{ fontFamily: "'Courier New', monospace", fontSize: 20, fontWeight: 'bold', color: familyColor(tone), lineHeight: 1 }}>{pct.toFixed(0)}%</div>
+                <div style={{ fontFamily: CODE_FONT, fontSize: 20, fontWeight: 'bold', color: familyColor(tone), lineHeight: 1 }}>{pct.toFixed(0)}%</div>
                 <div style={{ marginTop: 4 }}>
                     <ProgressBar pct={pct} tone={tone} height={7} title={label} />
                 </div>
@@ -144,7 +144,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                             <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: k.alert ? '#cc0000' : '#666', marginBottom: 3 }}>
                                 <i className={`bi ${k.icon}`} style={{ marginRight: 4 }} aria-hidden="true" />{k.label}
                             </div>
-                            <div style={{ fontFamily: "'Courier New', monospace", fontSize: 28, fontWeight: 'bold', color: k.alert ? '#cc0000' : '#00309c', lineHeight: 1 }}>
+                            <div style={{ fontFamily: CODE_FONT, fontSize: 28, fontWeight: 'bold', color: k.alert ? '#cc0000' : '#00309c', lineHeight: 1 }}>
                                 {k.value}
                             </div>
                         </div>
@@ -208,7 +208,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                                 borderLeft: `4px solid ${familyColor(wo.isOverdue ? 'red' : wo.status === 'IN_PROGRESS' ? 'blue' : 'gray')}`,
                             })}>
                                 <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 'bold', color: '#00309c' }}>{wo.code}</div>
+                                    <CodeChip code={wo.code} classic tone="accent" style={{ display: 'block', fontSize: 14 }} />
                                     <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#444', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.itemName}</div>
                                     {wo.isOverdue && (
                                         <div style={{ fontFamily: XP_FONT, fontSize: 10, color: '#cc0000', fontWeight: 'bold', marginTop: 1 }}>

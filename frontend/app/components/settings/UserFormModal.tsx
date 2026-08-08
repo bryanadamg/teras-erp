@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpBtn, xpInput, xpLabel } from '../shared/xpTheme';
+import { xpBtn, xpInput, xpLabel, CODE_FONT } from '../shared/xpTheme';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
@@ -140,8 +140,8 @@ export default function UserFormModal({
                     <div className="mb-2">
                         <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Username</label>
                         <input
-                            style={classic ? xpInput({ width: '100%', fontFamily: "'Courier New', monospace" }) : undefined}
-                            className={classic ? '' : 'form-control form-control-sm font-monospace'}
+                            style={classic ? xpInput({ width: '100%', fontFamily: CODE_FONT }) : { fontFamily: CODE_FONT }}
+                            className={classic ? '' : 'form-control form-control-sm'}
                             value={username}
                             onChange={e => setUsername(e.target.value)}
                         />

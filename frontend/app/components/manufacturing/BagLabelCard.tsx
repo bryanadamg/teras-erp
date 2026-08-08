@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { useTimezone } from '../../context/TimezoneContext';
+import { CODE_FONT } from '../shared/xpTheme';
 
 /**
  * Bag output label — one physical sticker per bag produced at a WEAVING WO.
@@ -80,7 +81,7 @@ export default function BagLabelCard({
                 so both phone/imager and old laser scanners can read the lot. */}
             <div style={{ border: '2px solid #000', padding: '4px 8px', marginBottom: '6px' }}>
                 <div style={heroLbl}>NO. LOT (KANTONG)</div>
-                <div style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1.05, fontFamily: 'monospace', wordBreak: 'break-all' }}>{lotNo}</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1.05, fontFamily: CODE_FONT, wordBreak: 'break-all' }}>{lotNo}</div>
                 {barcodeDataUrl && (
                     <img src={barcodeDataUrl} alt={`barcode ${lotNo}`} style={{ width: '100%', height: '40px', objectFit: 'contain', display: 'block', marginTop: '3px' }} />
                 )}
@@ -117,7 +118,7 @@ export default function BagLabelCard({
                         <td style={gridLbl}>No. Mesin</td>
                         <td style={gridVal}>{mesin || '—'}</td>
                         <td style={gridLbl}>SPK / WO</td>
-                        <td style={{ ...gridVal, fontFamily: 'monospace', fontSize: '9px' }}>{workOrder?.code || '—'}</td>
+                        <td style={{ ...gridVal, fontFamily: CODE_FONT, fontSize: '9px' }}>{workOrder?.code || '—'}</td>
                     </tr>
                     <tr>
                         <td style={gridLbl}>Operator</td>

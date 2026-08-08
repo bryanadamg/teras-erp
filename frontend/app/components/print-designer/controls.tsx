@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, CODE_FONT } from '../shared/xpTheme';
 
 /**
  * Dense form controls for the print designer's inspector.
@@ -54,7 +54,7 @@ export function TextField({ value, onChange, classic, placeholder, mono }: {
             value={value ?? ''}
             placeholder={placeholder}
             onChange={e => onChange(e.target.value)}
-            style={{ ...inputBase(classic), ...(mono ? { fontFamily: 'monospace' } : {}) }}
+            style={{ ...inputBase(classic), ...(mono ? { fontFamily: CODE_FONT } : {}) }}
         />
     );
 }

@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpInput } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import PixelAvatar from '../shared/PixelAvatar';
 import Pager from '../shared/Pager';
@@ -269,8 +269,8 @@ export default function SettingsUsersTab({
                                                 <PixelAvatar avatarId={user.avatar_id} size={24} />
                                             </div>
                                         </td>
-                                        <td style={classic ? { ...tdBase, fontFamily: "'Courier New', monospace", fontWeight: 'bold' } : undefined} className={classic ? '' : 'font-monospace'}>
-                                            {user.username}
+                                        <td style={classic ? tdBase : undefined}>
+                                            <CodeChip code={user.username} classic={classic} />
                                             {isSelf && <span className={classic ? '' : 'text-muted small ms-1'} style={classic ? { fontSize: 8, color: '#888', fontWeight: 'normal' } : undefined}> (you)</span>}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>{user.full_name}</td>
