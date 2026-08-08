@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -118,12 +118,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
     </span>
   );
 
+  // Blue while running, green at 100 — the STATUS_FAMILY reading of IN_PROGRESS
+  // vs COMPLETED, not ProgressBar's default gray/amber/green fill ramp.
   const lineageProgressBar = (pct: number) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{ flex: 1, minWidth: 50, maxWidth: 130, height: 6, background: '#e4e4e4', borderRadius: 3, border: classic ? '1px solid #b0b0b0' : undefined, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#2d7a2d' : '#0058e6', transition: 'width 0.3s' }} />
-      </div>
-      <span style={{ fontSize: '0.66rem', fontFamily: CODE_FONT, color: '#666', minWidth: 28 }}>{pct}%</span>
+    <div style={{ maxWidth: 175 }}>
+      <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} height={7} label="outside" />
     </div>
   );
 
@@ -988,10 +987,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        {lineageCodeChip(pr.code, () => goToPR(pr.code), 'pr')}
                                        {lineageStatusBadge(pr.status)}
                                        <span style={{ color: '#777', fontSize: '0.72rem' }}>{prDone}/{prTotal} MO done</span>
-                                       <div style={{ flex: 1, minWidth: 80, maxWidth: 180, height: 8, background: '#e4e4e4', borderRadius: 4, overflow: 'hidden' }}>
-                                           <div style={{ height: '100%', width: `${prPct}%`, background: prPct === 100 ? '#2d7a2d' : '#0058e6' }} />
+                                       <div style={{ flex: 1, minWidth: 80, maxWidth: 230 }}>
+                                           <ProgressBar pct={prPct} tone={prPct >= 100 ? 'green' : 'blue'} height={8} label="outside" />
                                        </div>
-                                       <span style={{ fontSize: '0.7rem', fontFamily: CODE_FONT, color: '#555' }}>{prPct}%</span>
                                    </div>
                                    {rows.length === 0 ? (
                                        <div style={{ padding: '8px', color: '#999', fontStyle: 'italic', border: sectBorder }}>No manufacturing orders.</div>

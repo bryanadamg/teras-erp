@@ -335,9 +335,13 @@ body {
   --win-header-grad: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
   --win-text: #000000;
   --win-highlight: #316ac5;
-  
+  /* Mirrors `xpFont` in components/shared/xpTheme.tsx — the one classic type
+     stack. CSS can't import the TS const, so keep the two in step by hand;
+     three rules below used to declare their own shorter variants. */
+  --xp-font: "Tahoma", "Segoe UI", "Arial", sans-serif;
+
   background-color: var(--win-bg) !important;
-  font-family: "Tahoma", "Segoe UI", "Arial", sans-serif !important;
+  font-family: var(--xp-font) !important;
   font-size: 11px;
 }
 
@@ -499,7 +503,7 @@ body {
   background: #f5f3ee !important;
   box-shadow: 2px 2px 4px rgba(0,0,0,0.3) !important;
   padding: 2px 0 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
+  font-family: var(--xp-font) !important;
   font-size: 11px !important;
 }
 .ui-style-classic .dropdown-menu .dropdown-item {
@@ -629,7 +633,7 @@ body {
 .ui-style-classic .table td {
   border: 1px solid #d6d3ce !important;
   padding: 4px 8px;
-  font-family: "Tahoma", sans-serif;
+  font-family: var(--xp-font);
   font-size: 12px !important;
   white-space: nowrap;
 }
@@ -1465,7 +1469,7 @@ table {
     border: 1px solid #000000 !important;
     border-radius: 0 !important;
     color: black !important;
-    font-family: "Tahoma", sans-serif;
+    font-family: var(--xp-font);
     font-size: 11px;
 }
 /* Keep type distinguishable: XP tooltip body + colored left edge */
