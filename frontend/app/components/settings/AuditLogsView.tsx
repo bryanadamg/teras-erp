@@ -5,7 +5,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
-import { StatusChip } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
 // entity_type is a raw model name (WorkOrder, attribute_value, work_center_holiday, ...) — humanize for display.
@@ -71,7 +71,7 @@ const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
     return (
         <>
             <tr style={{ ...lvRow(false, rowIndex ?? 0), cursor: log.changes ? 'pointer' : 'default' }} onClick={() => log.changes && setShowChanges(!showChanges)}>
-                <td className="ps-4 text-muted font-monospace">{tzDateTime(log.timestamp)}</td>
+                <td className="ps-4 text-muted" style={{ fontFamily: CODE_FONT }}>{tzDateTime(log.timestamp)}</td>
                 <td><span className="fw-medium text-dark text-truncate d-inline-block" style={{ maxWidth: '100%' }} title={log.user_id}>{userLabel}</span></td>
                 <td style={{ overflow: 'hidden' }}>
                     <StatusChip status={log.action} title={log.action.replace(/_/g, ' ')} style={{ fontFamily: LV_MODERN_FONT, borderRadius: 4, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
@@ -89,7 +89,7 @@ const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
                     <td colSpan={5} className="p-0">
                         <div className="p-3 ps-5 border-bottom shadow-inner">
                             <h6 className="extra-small fw-bold text-uppercase text-muted mb-2">Technical Diff (JSON)</h6>
-                            <pre className="extra-small font-monospace mb-0 overflow-auto bg-white p-2 border rounded" style={{ maxHeight: '200px' }}>
+                            <pre className="extra-small mb-0 overflow-auto bg-white p-2 border rounded" style={{ maxHeight: '200px', fontFamily: CODE_FONT }}>
                                 {JSON.stringify(log.changes, null, 2)}
                             </pre>
                         </div>

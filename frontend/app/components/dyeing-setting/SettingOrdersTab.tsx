@@ -5,6 +5,7 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
+import { CodeChip } from '../shared/xpTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -360,9 +361,12 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                             >
                                 <div style={{ fontWeight: classic ? 'bold' : 600, fontSize: classic ? 11 : 13 }}>{wo.name || wo.code || wo.id}</div>
                                 {wo.mo_code && (
-                                    <div style={{ fontSize: 9, color: classic ? (selected ? '#cce0ff' : '#666') : (selected ? '#2563eb' : '#64748b'), fontFamily: 'monospace' }}>
-                                        MO: {wo.mo_code}
-                                    </div>
+                                    <CodeChip
+                                        code={`MO: ${wo.mo_code}`}
+                                        classic={classic}
+                                        tier={2}
+                                        style={{ display: 'block', color: selected ? (classic ? '#cce0ff' : '#2563eb') : undefined }}
+                                    />
                                 )}
                                 {wo.status && (
                                     <div style={{ marginTop: 2 }}>{statusChip(wo.status, classic)}</div>

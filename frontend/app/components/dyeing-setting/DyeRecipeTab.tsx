@@ -11,7 +11,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CodeChip } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -667,27 +667,17 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                             <i className={expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill'} style={{ fontSize: 10 }} />
                                         </td>
                                         <td style={lvTd(classic)}>
-                                            <span style={classic
-                                                ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 11 }
-                                                : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{recipe.code}</span>
+                                            <CodeChip code={recipe.code} classic={classic} tone="accent" />
                                         </td>
                                         <td style={lvTd(classic)}>
                                             {recipe.color_code ? (
                                                 <span
                                                     onClick={e => { e.stopPropagation(); router.push(`/colors?search=${encodeURIComponent(recipe.color_code)}`); }}
                                                     title={`Open ${recipe.color_code} in the Color Library`}
-                                                    style={classic ? {
-                                                        display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'pointer',
-                                                        fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: 10, color: '#1a3d90',
-                                                        background: '#dde8f5', border: '1px solid #7fa8e8', borderRadius: 2, padding: '1px 6px',
-                                                    } : {
-                                                        display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
-                                                        fontFamily: "'Courier New', monospace", fontWeight: 600, fontSize: 12, color: '#1d4ed8',
-                                                        background: '#eff6ff', border: '1px solid #bfd3f5', borderRadius: 6, padding: '2px 8px',
-                                                    }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: classic ? 3 : 4, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                                                 >
-                                                    <i className="bi bi-palette" style={{ fontSize: classic ? 9 : 11 }} />
-                                                    {recipe.color_code}
+                                                    <i className="bi bi-palette" style={{ fontSize: classic ? 9 : 11, color: '#0058e6' }} />
+                                                    <CodeChip code={recipe.color_code} classic={classic} link />
                                                 </span>
                                             ) : <span style={{ color: '#aaa' }}>—</span>}
                                         </td>

@@ -13,7 +13,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -444,7 +444,7 @@ export default function WorkOrderPanel({
                     background: '#e8eaf6', border: '1px solid #9fa8da',
                     padding: '1px 7px', marginBottom: 8, fontSize: 10, color: '#1a237e',
                 }}>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{parentMO.code}</span>
+                    <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{parentMO.code}</span>
                     {parentMO.item_name && (
                         <span style={{ color: '#3949ab' }}>{parentMO.item_name}</span>
                     )}
@@ -515,9 +515,12 @@ export default function WorkOrderPanel({
                                     borderLeft: `3px solid ${STATUS_BORDER[wo.status] || '#aaa'}`,
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                                        <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#666', minWidth: 90 }}>
-                                            {wo.code || `Step ${wo.sequence}`}
-                                        </span>
+                                        <CodeChip
+                                            code={wo.code || `Step ${wo.sequence}`}
+                                            classic
+                                            tier={2}
+                                            style={{ minWidth: 90 }}
+                                        />
                                         {bomOperations.length > 0 && (
                                             <select
                                                 style={{ ...xpInput, minWidth: 130 }}
@@ -652,12 +655,7 @@ export default function WorkOrderPanel({
                                 }}>
                                     {/* WO Code — small status dot instead of a side-tab bar */}
                                     <span
-                                        style={{
-                                            fontFamily: 'monospace', fontWeight: 'bold', fontSize: 10,
-                                            color: '#0058e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                            cursor: 'pointer', textDecoration: 'underline',
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                        }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, cursor: 'pointer' }}
                                         title={wo.code || `Step ${wo.sequence}`}
                                         onClick={() => { window.location.href = `/work-orders?wo=${wo.id}`; }}
                                     >
@@ -665,7 +663,12 @@ export default function WorkOrderPanel({
                                             width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
                                             background: STATUS_BORDER[wo.status] || '#c8c6be',
                                         }} />
-                                        {wo.code || `Step ${wo.sequence}`}
+                                        <CodeChip
+                                            code={wo.code || `Step ${wo.sequence}`}
+                                            classic
+                                            link
+                                            style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                        />
                                     </span>
 
                                     {/* Print status chips (Card / Label) */}

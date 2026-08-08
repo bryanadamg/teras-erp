@@ -10,7 +10,7 @@ import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar } from '../sha
 import { lvTh, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, XPLoading, XPStatusBar, XPEmptyState,
-    XPActionButton, ColorSwatchChip, xpPanel,
+    XPActionButton, ColorSwatchChip, xpPanel, CodeChip,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -247,8 +247,10 @@ export default function QuarantinePackingView() {
                 <tbody>
                     {g.lots.map((l, i) => (
                         <tr key={l.batch_id || `nolot-${i}`} style={classic ? lvRow(true, i) : undefined}>
-                            <td style={{ ...lvTd(classic), fontFamily: 'monospace' }}>
-                                {l.batch_number || <span style={{ color: '#999', fontStyle: 'italic', fontFamily: 'inherit' }}>No lot</span>}
+                            <td style={lvTd(classic)}>
+                                {l.batch_number
+                                    ? <CodeChip code={l.batch_number} classic={classic} />
+                                    : <span style={{ color: '#999', fontStyle: 'italic' }}>No lot</span>}
                                 {l.quality_status === 'REJECTED' && (
                                     <StatusChip status="REJECTED" style={{ marginLeft: 6 }} tint />
                                 )}
@@ -365,7 +367,7 @@ export default function QuarantinePackingView() {
                                         <i className={`bi ${open ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}`}
                                             style={{ fontSize: 8, marginRight: 5, color: '#888' }} />
                                         {g.mo_code
-                                            ? <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#1a3d90' }}>{g.mo_code}</span>
+                                            ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
                                             : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}
                                         {g.mo_status && <StatusChip status={g.mo_status} style={{ marginLeft: 6 }} tint />}
                                         <div style={{ fontSize: 10, color: '#666', marginLeft: 18 }}>

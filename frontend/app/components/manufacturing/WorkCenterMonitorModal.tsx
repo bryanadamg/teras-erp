@@ -12,7 +12,7 @@ import { useToast } from '../shared/Toast';
 import {
     xpFont, familyColor, StatusChip, XPActionButton, XPLoading, XPEmptyState,
     SunkenPanel, SunkenPanelBody, FormSection, FieldLabel, ProgressBar,
-    xpSelect, xpPanel, SectionTitle,
+    xpSelect, xpPanel, SectionTitle, CodeChip,
 } from '../shared/xpTheme';
 import { LvTabBar, LvTab, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { WorkingDaysSection, HolidayCalendarSection, useNationalHolidays } from '../shared/productionCalendar';
@@ -859,7 +859,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     <tbody>
                                         {data.history.map((h: any, idx: number) => (
                                             <tr key={h.id} style={lvRow(cls, idx)}>
-                                                <td style={{ ...lvTd(cls), fontFamily: 'monospace' }}>{h.mo_code}</td>
+                                                <td style={lvTd(cls)}><CodeChip code={h.mo_code} classic={cls} /></td>
                                                 <td style={lvTd(cls)}>
                                                     <div className="d-flex align-items-center gap-2">
                                                         <span>{h.item_code}</span>

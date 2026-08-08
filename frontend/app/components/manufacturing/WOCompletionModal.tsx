@@ -8,7 +8,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
-import { ProgressBar, LegendPanel } from '../shared/xpTheme';
+import { ProgressBar, LegendPanel, CodeChip } from '../shared/xpTheme';
 import { LotChips } from '../shared/LotChips';
 import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -550,7 +550,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                             same item differ only by size / combo / shade. */}
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
+                                                                <CodeChip code={b.batch_number} classic />
                                                                 <span style={{ color: '#555' }}>{Number(b.remaining ?? 0).toFixed(2)} kg</span>
                                                                 {/* What this log actually takes off the lot — the rest stays
                                                                     on it for the next run. FIFO, so later lots may draw 0. */}

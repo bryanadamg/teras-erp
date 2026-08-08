@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip } from '../shared/xpTheme';
+import { StatusChip, CodeChip } from '../shared/xpTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -152,9 +152,7 @@ export default function ComboLibraryView({
                         {combos.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>
                                 <td style={lvTd(classic)}>
-                                    <span style={classic
-                                        ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 11 }
-                                        : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{c.code}</span>
+                                    <CodeChip code={c.code} classic={classic} tone="accent" />
                                 </td>
                                 <td style={lvTd(classic)}>{c.name}</td>
                                 <td style={lvTd(classic)}>{c.description || <span style={{ color: '#aaa' }}>—</span>}</td>

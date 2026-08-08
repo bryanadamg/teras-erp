@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
+import { CodeChip } from '../shared/xpTheme';
 
 /**
  * Save-time confirmation for the BOM Designer.
@@ -145,13 +146,7 @@ const PlanNode = memo(({ node }: { node: BOMPlanNode }) => {
                     <span style={{ marginLeft: 'auto', fontSize: 10, color: '#333' }}>
                         {node.qtyLabel}
                     </span>
-                    <span style={{
-                        fontFamily: '"Courier New", monospace', fontSize: 10,
-                        color: '#0000cc', background: '#fff',
-                        border: '1px solid #c8d4e4', padding: '0 4px',
-                    }}>
-                        {node.bomCode || '(no code)'}
-                    </span>
+                    <CodeChip code={node.bomCode || '(no code)'} classic tone="accent" />
                 </div>
 
                 {node.skipReason && (

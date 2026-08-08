@@ -7,6 +7,7 @@ import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import LotLabelPrintModal from './LotLabelPrintModal';
 import { LotChips } from '../shared/LotChips';
+import { CodeChip } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -352,7 +353,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                                     ) : cart.map((b, i) => (
                                         <tr key={b.id} style={{ borderBottom: '1px solid #cfccc4' }}>
                                             <td style={{ padding: '3px 5px', color: '#888' }}>{i + 1}</td>
-                                            <td style={{ padding: '3px 5px', fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</td>
+                                            <td style={{ padding: '3px 5px' }}><CodeChip code={b.batch_number} classic /></td>
                                             <td style={{ padding: '3px 5px' }}>
                                                 <div>{b.item_code || b.item_name || '—'}</div>
                                                 {/* Size / combo / shade of the scanned bag — same chips as the

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
+import { CODE_FONT } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -115,7 +116,7 @@ const BranchingPreview = memo(({ levels }: { levels: string[][] }) => (
         border: '2px inset #aaa',
         background: 'white',
         padding: '6px',
-        fontFamily: '"Courier New", Courier, monospace',
+        fontFamily: CODE_FONT,
         fontSize: 10,
         lineHeight: 1.8,
         minHeight: 120,

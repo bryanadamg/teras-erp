@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -1532,9 +1532,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                </button>
                                            )}
                                            <div>
-                                               <div style={classic ? { fontFamily: "'Courier New', monospace", fontWeight: s.is_unread ? '900' : 'bold', color: s.is_unread ? '#0a3a9a' : '#0047c8', fontSize: '10px' } : undefined} className={classic ? '' : `font-monospace text-primary${s.is_unread ? ' fw-bolder' : ' fw-bold'}`}>
-                                                   {s.code}
-                                               </div>
+                                               {/* Unread rows keep their extra weight — that is a state
+                                                   marker on top of the tier-1 code, not a second style. */}
+                                               <CodeChip
+                                                   code={s.code}
+                                                   classic={classic}
+                                                   tone="accent"
+                                                   style={s.is_unread ? { fontWeight: 900 } : undefined}
+                                               />
                                                <div style={classic ? { fontSize: '9px', color: '#555' } : undefined} className={classic ? '' : 'small text-muted'}>
                                                    {tzDate(s.created_at)}
                                                </div>

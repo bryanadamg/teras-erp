@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { xpFont, xpBtn, XPLoading, useSortable, SortMark } from '../shared/xpTheme';
+import { xpFont, xpBtn, XPLoading, useSortable, SortMark, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
@@ -157,7 +157,7 @@ export default function BookingStockView() {
                             <tr><td colSpan={2} style={{ ...cellFont, padding: '6px 8px', color: '#999', fontStyle: 'italic' }}>—</td></tr>
                         ) : items.map(m => (
                             <tr key={m.mo_id}>
-                                <td style={{ ...cellFont, padding: '2px 8px', fontFamily: 'monospace', color: '#1a3d90' }}>{m.mo_code}</td>
+                                <td style={{ ...cellFont, padding: '2px 8px', fontFamily: CODE_FONT, color: '#1a3d90' }}>{m.mo_code}</td>
                                 <td style={{ ...cellFont, padding: '2px 8px', textAlign: 'right', color, whiteSpace: 'nowrap' }}>{sign}{fmtQty(m.qty)}</td>
                             </tr>
                         ))}
@@ -383,7 +383,7 @@ export default function BookingStockView() {
                                             <td style={{ borderLeft: `3px solid ${h.color}` }}>
                                                 <i className={`bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'} me-1 text-muted small`} />
                                                 <span className="fw-medium">{r.item_name}</span>
-                                                <small className="text-muted font-monospace ms-2">{r.item_code}</small>
+                                                <CodeChip code={r.item_code} classic={false} tier={2} className="ms-2" />
                                             </td>
                                             <td><span className="badge bg-secondary-subtle text-secondary-emphasis" title="Netting is plant-wide, not per-location">Plant-wide</span></td>
                                             <td className="small">{variant

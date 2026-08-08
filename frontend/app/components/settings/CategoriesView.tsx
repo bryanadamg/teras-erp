@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { CODE_FONT } from '../shared/xpTheme';
 
 type Category = {
     id: string;
@@ -174,7 +175,7 @@ export default function CategoriesView({
                     gap: 4,
                 }}
             >
-                <span style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace', color: '#999' }}>—</span>
+                <span style={{ marginRight: 4, fontSize: 10, fontFamily: CODE_FONT, color: '#999' }}>—</span>
                 <AutoFocusInput
                     style={{ ...xpInput, flex: 1 }}
                     placeholder="New category name..."
@@ -219,7 +220,7 @@ export default function CategoriesView({
                             gap: 4,
                         }}
                     >
-                        <span style={{ marginRight: 4, fontSize: 10, color: '#fff', fontFamily: 'monospace' }}>{chevron}</span>
+                        <span style={{ marginRight: 4, fontSize: 10, color: '#fff', fontFamily: CODE_FONT }}>{chevron}</span>
                         <AutoFocusInput
                             style={{ ...xpInput, flex: 1 }}
                             value={editingState.value}
@@ -260,7 +261,7 @@ export default function CategoriesView({
                     onMouseLeave={() => setHoveredId(null)}
                 >
                     <span
-                        style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace', color: chevronColor, cursor: hasChildren ? 'pointer' : 'default' }}
+                        style={{ marginRight: 4, fontSize: 10, fontFamily: CODE_FONT, color: chevronColor, cursor: hasChildren ? 'pointer' : 'default' }}
                         onClick={hasChildren ? e => { e.stopPropagation(); toggleCollapse(node.id); } : undefined}
                     >{chevron}</span>
                     <span style={{ flex: 1 }}>{node.name}</span>
@@ -311,7 +312,7 @@ export default function CategoriesView({
                     gap: 4,
                 }}
             >
-                <span style={{ marginRight: 6, fontSize: 11, color: '#bbb', fontFamily: 'monospace' }}>—</span>
+                <span style={{ marginRight: 6, fontSize: 11, color: '#bbb', fontFamily: CODE_FONT }}>—</span>
                 <AutoFocusInput
                     className="form-control form-control-sm"
                     style={{ flex: 1, border: '1px dashed #0d6efd' }}
@@ -358,7 +359,7 @@ export default function CategoriesView({
                             gap: 4,
                         }}
                     >
-                        <span style={{ marginRight: 6, fontSize: 11, color: 'rgba(255,255,255,0.8)', fontFamily: 'monospace' }}>{chevron}</span>
+                        <span style={{ marginRight: 6, fontSize: 11, color: 'rgba(255,255,255,0.8)', fontFamily: CODE_FONT }}>{chevron}</span>
                         <AutoFocusInput
                             className="form-control form-control-sm"
                             style={{ flex: 1 }}
@@ -400,7 +401,7 @@ export default function CategoriesView({
                     onMouseLeave={() => setHoveredId(null)}
                 >
                     <span
-                        style={{ marginRight: 6, fontFamily: 'monospace', fontSize: 11, color: chevronColor, cursor: hasChildren ? 'pointer' : 'default' }}
+                        style={{ marginRight: 6, fontFamily: CODE_FONT, fontSize: 11, color: chevronColor, cursor: hasChildren ? 'pointer' : 'default' }}
                         onClick={hasChildren ? e => { e.stopPropagation(); toggleCollapse(node.id); } : undefined}
                     >{chevron}</span>
                     <span style={{ flex: 1 }}>{node.name}</span>

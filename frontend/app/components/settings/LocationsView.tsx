@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
-import { XPActionButton } from '../shared/xpTheme';
+import { XPActionButton, CodeChip } from '../shared/xpTheme';
 
 const ALL = '__all__';
 
@@ -506,7 +506,7 @@ export default function LocationsView({
         style={{ ...lvRow(false, i), cursor: 'grab', background: draggingId === loc.id ? '#fff7d6' : lvRow(false, i).background }}
       >
         <td style={{ ...lvTd(false), width: 24, textAlign: 'center' }}><i className="bi bi-grip-vertical text-muted" /></td>
-        <td style={{ ...lvTd(false), width: 150 }}><span className="fw-medium font-monospace text-primary">{loc.code}</span></td>
+        <td style={{ ...lvTd(false), width: 150 }}><CodeChip code={loc.code} classic={false} tone="accent" /></td>
         <td style={lvTd(false)}>
           {renaming ? (
             <input autoFocus className="form-control form-control-sm" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />

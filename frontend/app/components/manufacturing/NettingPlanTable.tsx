@@ -2,6 +2,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { CodeChip, CODE_FONT } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -101,7 +102,7 @@ export default function NettingPlanTable({
         color: classic ? '#444' : '#94a3b8',
     });
     const tdNum: React.CSSProperties = {
-        padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', color: classic ? '#000' : '#1e293b',
+        padding: '4px 6px', textAlign: 'right', fontFamily: CODE_FONT, color: classic ? '#000' : '#1e293b',
     };
 
     return (
@@ -164,7 +165,7 @@ export default function NettingPlanTable({
                                         }}>
                                             {indentOf(n) > 0 && <span style={{ color: '#cbd5e1' }}>└ </span>}{n.item_name}
                                         </div>
-                                        <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>{n.item_code}</div>
+                                        <CodeChip code={n.item_code} classic={classic} tier={2} style={{ display: 'block' }} />
                                     </td>
                                     <td style={{ padding: '4px 6px' }}>
                                         <span style={{

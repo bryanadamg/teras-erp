@@ -6,6 +6,7 @@ import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
+import { CodeChip, CODE_FONT } from '../shared/xpTheme';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -1369,9 +1370,7 @@ export default function BOMDesigner({
                                     <div style={{ fontWeight: 'bold', fontSize: 12, color: '#000080' }}>
                                         {getItemName(selectedNode.item_code) || 'Select an item'}
                                     </div>
-                                    <div style={{ fontSize: 9, color: '#555', fontFamily: '"Courier New", monospace' }}>
-                                        {selectedNode.item_code || '—'}
-                                    </div>
+                                    <CodeChip code={selectedNode.item_code || '—'} classic tier={2} style={{ display: 'block' }} />
                                 </div>
                                 <div style={{ display: 'flex', gap: 4 }}>
                                     {selectedShared && (
@@ -1399,7 +1398,7 @@ export default function BOMDesigner({
                                     <i className="bi bi-link-45deg" style={{ fontSize: 12, marginTop: 1 }} />
                                     <span>
                                         <strong>{selectedNode.item_code}</strong> already has BOM{' '}
-                                        <strong style={{ fontFamily: '"Courier New", monospace' }}>{selectedShared.code}</strong>
+                                        <strong style={{ fontFamily: CODE_FONT }}>{selectedShared.code}</strong>
                                         {' '}for this variant. This node is read-only and nothing is written for it
                                         on save — the existing recipe is reused. To change the recipe, open that BOM directly.
                                     </span>
@@ -1544,9 +1543,7 @@ export default function BOMDesigner({
                                         return (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eef4ff', border: '1px solid #b0c8e8', padding: '4px 8px', marginTop: 2 }}>
                                                 <span style={{ fontSize: 10, color: '#003080', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Linked Sample:</span>
-                                                <span style={{ fontFamily: '"Courier New", monospace', fontSize: 10, background: '#fff', border: '1px solid #b0c8e8', padding: '0 5px', color: '#0000cc', whiteSpace: 'nowrap' }}>
-                                                    {selItem.source_sample_code}
-                                                </span>
+                                                <CodeChip code={selItem.source_sample_code} classic tone="accent" />
                                                 {selItem.source_color_name && (
                                                     <span style={{ fontSize: 10, color: '#333', background: '#d8e8f8', border: '1px solid #b0c8e8', padding: '0 6px', whiteSpace: 'nowrap' }}>
                                                         {selItem.source_color_name}
