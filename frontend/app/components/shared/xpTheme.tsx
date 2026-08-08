@@ -313,6 +313,23 @@ export function workCenterChipStyle(centerType?: string | null, name?: string | 
     return { ...WC_NEUTRAL };
 }
 
+// Fully-decorated work-center type chip. `workCenterChipStyle` only returns the
+// palette (background/color/borderColor) — callers used to hand-roll the border,
+// padding and font on top, and one that forgot rendered as bare colored text.
+// Use this component for any work-center type badge.
+export function WorkCenterChip({ type, name, label }: { type?: string | null; name?: string | null; label?: string }) {
+    const text = label ?? type ?? '';
+    if (!text) return null;
+    return (
+        <span style={{
+            ...workCenterChipStyle(type, name),
+            display: 'inline-block', borderWidth: 1, borderStyle: 'solid',
+            fontSize: 9, padding: '1px 6px', whiteSpace: 'nowrap',
+            fontFamily: xpFont, fontWeight: 'bold', lineHeight: 1.5,
+        }}>{text}</span>
+    );
+}
+
 // Rounded, bordered track + filled bar for at-a-glance completion (receiving
 // progress, MO/WO progress, lineage) — the ONE progress bar shape for the
 // whole app; new progress UI should use this instead of hand-rolling a

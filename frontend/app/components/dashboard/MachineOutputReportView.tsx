@@ -21,7 +21,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSep, XPLoading, XPEmptyState,
-    useSortable, SortMark, workCenterChipStyle, StatusChip, SunkenPanel, ProgressBar,
+    useSortable, SortMark, WorkCenterChip, StatusChip, SunkenPanel, ProgressBar,
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
@@ -355,7 +355,7 @@ export default function MachineOutputReportView() {
             {
                 key: 'type', label: 'Type',
                 render: r => (r.center_type
-                    ? <span style={workCenterChipStyle(r.center_type, r.work_center_name)}>{r.center_type}</span>
+                    ? <WorkCenterChip type={r.center_type} name={r.work_center_name} />
                     : <span style={{ color: '#aaa', fontSize: 10 }}>-</span>),
                 csv: r => r.center_type || '',
             },
