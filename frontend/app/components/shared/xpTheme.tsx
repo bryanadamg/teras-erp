@@ -523,10 +523,20 @@ export function ModalFooterActions({
 // Sample Request, Inventory, …). Classic: raised bevel box with a solid-blue gradient
 // header bar (white text). Modern: neutral header bar over a bordered white card.
 // Do not hand-roll per-page group boxes — use this so all forms stay identical.
-export function FormSection({ title, classic, children }: { title: React.ReactNode; classic: boolean; children: React.ReactNode }) {
+// `style` / `bodyStyle` exist for callers that own their own vertical rhythm
+// (a gap-spaced stack passes `marginBottom: 0`) or that put a full-bleed table
+// where the 10px form padding would inset it (`bodyStyle={{ padding: 0 }}`).
+// They are overrides on this one chrome — not a licence to re-declare the box.
+export function FormSection({ title, classic, children, style, bodyStyle }: {
+    title: React.ReactNode;
+    classic: boolean;
+    children: React.ReactNode;
+    style?: React.CSSProperties;
+    bodyStyle?: React.CSSProperties;
+}) {
     const box: React.CSSProperties = classic
-        ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10 }
-        : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden' };
+        ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10, ...style }
+        : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden', ...style };
     // Blue header in BOTH themes so every sectioned form reads the same:
     // classic = XP solid-blue gradient, modern = flat blue gradient. White text both.
     const header: React.CSSProperties = classic
@@ -535,7 +545,7 @@ export function FormSection({ title, classic, children }: { title: React.ReactNo
     return (
         <div style={box}>
             <div style={header}>{title}</div>
-            <div style={{ background: '#fff', padding: '10px' }}>{children}</div>
+            <div style={{ background: '#fff', padding: '10px', ...bodyStyle }}>{children}</div>
         </div>
     );
 }

@@ -6,8 +6,12 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBtn, xpInput, CodeChip, CODE_FONT } from '../shared/xpTheme';
-import { xpBevel, xpTitleBar, xpSectionHead, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
+import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel } from '../shared/xpTheme';
+import {
+    xpTableHeader, xpThCell, tdBase,
+    settingsStack, settingsHint, SETTINGS_FIELD_GAP,
+} from './settingsStyles';
+import SettingsPanel from './SettingsPanel';
 import ModalWrapper from '../shared/ModalWrapper';
 
 const xpDangerBtn: React.CSSProperties = {
@@ -42,11 +46,11 @@ function StatusTile({ classic, label, icon, ok, detail }: { classic: boolean; la
     const dotBg = ok === null ? '#aaa' : ok ? '#4caf50' : '#e53935';
     return (
         <div style={classic ? {
-            flex: '1 1 150px', minWidth: 150, background: '#fff', border: '1px solid #b0a898',
+            background: '#fff', border: '1px solid #b0a898',
             padding: '6px 8px', display: 'flex', flexDirection: 'column' as const, gap: 2,
         } : {
-            flex: '1 1 150px', minWidth: 150, background: '#f8f9fa', border: '1px solid #e2e6ea',
-            borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column' as const, gap: 2,
+            background: '#f8f9fa', border: '1px solid #e2e6ea',
+            borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column' as const, gap: 2,
         }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? 11 : 12, fontWeight: 'bold', color: classic ? '#333' : '#495057' }}>
                 <i className={`bi ${icon}`} />
@@ -276,209 +280,179 @@ export default function SettingsDatabaseTab() {
         }
     };
 
+    const refreshButton = (
+        <button
+            type="button"
+            style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
+            className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+            onClick={fetchSystemStatus}
+            disabled={isStatusLoading}
+        >
+            {isStatusLoading ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }}></i>Refresh</>}
+        </button>
+    );
+
     return (
-        <>
-            {/* System Status */}
-            <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0 mb-4 border-start border-4 border-success'}>
-                {classic ? (
-                    <div style={xpTitleBar('linear-gradient(to right, #2e7d32 0%, #4caf50 100%)', '#1b5e20')}>
-                        <span><i className="bi bi-activity" style={{ marginRight: 6 }}></i>System Status</span>
-                        <button style={xpBtn()} onClick={fetchSystemStatus} disabled={isStatusLoading}>
-                            {isStatusLoading ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }}></i>Refresh</>}
-                        </button>
-                    </div>
-                ) : (
-                    <div className="card-header bg-success bg-opacity-10 text-success-emphasis d-flex justify-content-between align-items-center">
-                        <h5 className="card-title mb-0"><i className="bi bi-activity me-2"></i>System Status</h5>
-                        <button className="btn btn-sm btn-outline-success" onClick={fetchSystemStatus} disabled={isStatusLoading}>
-                            {isStatusLoading ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-arrow-clockwise me-1"></i>Refresh</>}
-                        </button>
+        <div style={settingsStack}>
+            <SettingsPanel classic={classic} icon="bi-activity" title="System Status" right={refreshButton}>
+                {/* Five tiles: auto-fit shares the row evenly instead of leaving
+                    a 2-tile orphan row at intermediate widths. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+                    <StatusTile classic={classic} label="WebSocket" icon="bi-broadcast"
+                        ok={wsStatus === 'open' ? true : wsStatus === 'closed' ? false : null}
+                        detail={wsStatus === 'connecting' ? 'Connecting…' : 'Live event feed'} />
+                    <StatusTile classic={classic} label="Backend API" icon="bi-hdd-network"
+                        ok={beOnline}
+                        detail={beOnline === false ? 'Unreachable' : 'REST API'} />
+                    <StatusTile classic={classic} label="Database" icon="bi-database"
+                        ok={dbPing?.ok ?? (beOnline === false ? false : null)}
+                        detail={dbPing?.ok ? `${dbPing.latency_ms} ms` : 'PostgreSQL'} />
+                    <StatusTile classic={classic} label="Redis" icon="bi-lightning-charge"
+                        ok={redisPing?.ok ?? (beOnline === false ? false : null)}
+                        detail={redisPing?.ok ? `${redisPing.latency_ms} ms` : 'Event bus'} />
+                    <StatusTile classic={classic} label="DB Storage" icon="bi-hdd-stack"
+                        ok={dbSizeBytes != null ? true : null}
+                        detail={prettyBytes(dbSizeBytes)} />
+                </div>
+                {statusCheckedAt && (
+                    <div style={{ ...settingsHint(classic), marginTop: 6, textAlign: 'right' }}>
+                        Last checked {statusCheckedAt.toLocaleTimeString()}
                     </div>
                 )}
-                <div style={classic ? { padding: '12px 14px', background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body'}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 8 }}>
-                        <StatusTile classic={classic} label="WebSocket" icon="bi-broadcast"
-                            ok={wsStatus === 'open' ? true : wsStatus === 'closed' ? false : null}
-                            detail={wsStatus === 'connecting' ? 'Connecting…' : 'Live event feed'} />
-                        <StatusTile classic={classic} label="Backend API" icon="bi-hdd-network"
-                            ok={beOnline}
-                            detail={beOnline === false ? 'Unreachable' : 'REST API'} />
-                        <StatusTile classic={classic} label="Database" icon="bi-database"
-                            ok={dbPing?.ok ?? (beOnline === false ? false : null)}
-                            detail={dbPing?.ok ? `${dbPing.latency_ms} ms` : 'PostgreSQL'} />
-                        <StatusTile classic={classic} label="Redis" icon="bi-lightning-charge"
-                            ok={redisPing?.ok ?? (beOnline === false ? false : null)}
-                            detail={redisPing?.ok ? `${redisPing.latency_ms} ms` : 'Event bus'} />
-                        <StatusTile classic={classic} label="DB Storage" icon="bi-hdd-stack"
-                            ok={dbSizeBytes != null ? true : null}
-                            detail={prettyBytes(dbSizeBytes)} />
-                    </div>
-                    {statusCheckedAt && (
-                        <div style={{ marginTop: 6, textAlign: 'right', fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: 10, color: '#999' }}>
-                            Last checked {statusCheckedAt.toLocaleTimeString()}
+            </SettingsPanel>
+
+            <SettingsPanel
+                classic={classic}
+                icon="bi-database-fill-gear"
+                title={<span data-testid="db-infrastructure-header">Database Infrastructure</span>}
+                right="Admin only"
+            >
+                <div style={{ marginBottom: SETTINGS_FIELD_GAP }}>
+                    <FieldLabel classic={classic}>Current Connection</FieldLabel>
+                    {classic ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333' }}>
+                                <i className="bi bi-link-45deg"></i>
+                            </span>
+                            <input style={xpInput({ flex: 1, fontFamily: CODE_FONT, background: '#f0ede6', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })} value={currentDbUrl} readOnly />
+                        </div>
+                    ) : (
+                        <div className="input-group input-group-sm">
+                            <span className="input-group-text bg-light"><i className="bi bi-link-45deg"></i></span>
+                            <input className="form-control bg-light small" style={{ fontFamily: CODE_FONT }} value={currentDbUrl} readOnly />
                         </div>
                     )}
                 </div>
-            </div>
 
-            {/* Database Infrastructure */}
-            <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0 mb-4 border-start border-4 border-info'}>
-                {classic ? (
-                    <div style={xpTitleBar('linear-gradient(to right, #006e8e 0%, #00a8c8 100%)', '#004a5e')}>
-                        <span><i className="bi bi-database-fill-gear" style={{ marginRight: 6 }}></i>Database Infrastructure</span>
-                        <span style={{ background: '#004a5e', border: '1px solid #003040', color: '#aaeeff', padding: '1px 6px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif', fontWeight: 'bold' }}>Admin Only</span>
-                    </div>
-                ) : (
-                    <div className="card-header bg-info bg-opacity-10 text-info-emphasis d-flex justify-content-between align-items-center">
-                        <h5 className="card-title mb-0" data-testid="db-infrastructure-header"><i className="bi bi-database-fill-gear me-2"></i>Database Infrastructure</h5>
-                        <span className="badge bg-info">Admin Only</span>
-                    </div>
-                )}
-                <div style={classic ? { padding: '12px 14px', background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body'}>
-                    <div className="mb-3">
-                        <label
-                            style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2, fontWeight: 'bold', textTransform: 'uppercase' as const, letterSpacing: '0.5px' } : undefined}
-                            className={classic ? '' : 'form-label small fw-bold text-muted'}
-                        >Current Connection</label>
+                {/* Switching is the action, saved profiles are the shortcut into
+                    it — 7/5 at desktop, stacked in reading order below it. */}
+                <div className="row g-3">
+                    <div className="col-md-7">
+                        <FieldLabel classic={classic}>Switch to New Database</FieldLabel>
                         {classic ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333' }}>
-                                    <i className="bi bi-link-45deg"></i>
-                                </span>
-                                <input style={xpInput({ flex: 1, background: '#f0ede6', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })} value={currentDbUrl} readOnly />
+                            <div style={{ display: 'flex', gap: 4 }}>
+                                <input
+                                    style={xpInput({ flex: 1, fontFamily: CODE_FONT, boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })}
+                                    placeholder="postgresql+psycopg2://user:pass@host:port/db"
+                                    value={newDbUrl}
+                                    onChange={e => setNewDbUrl(e.target.value)}
+                                />
+                                <button
+                                    style={xpBtn({ background: 'linear-gradient(to bottom, #006e8e, #004a5e)', borderColor: '#004a5e #001a2e #001a2e #004a5e', color: '#ffffff', whiteSpace: 'nowrap' })}
+                                    onClick={() => handleSwitchDatabase(newDbUrl)}
+                                    disabled={!newDbUrl || isDbLoading}
+                                >
+                                    {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
+                                </button>
                             </div>
                         ) : (
-                            <div className="input-group">
-                                <span className="input-group-text bg-light"><i className="bi bi-link-45deg"></i></span>
-                                <input className="form-control bg-light small" style={{ fontFamily: CODE_FONT }} value={currentDbUrl} readOnly />
+                            <div className="input-group input-group-sm">
+                                <input
+                                    className="form-control small"
+                                    style={{ fontFamily: CODE_FONT }}
+                                    placeholder="postgresql+psycopg2://user:pass@host:port/db"
+                                    value={newDbUrl}
+                                    onChange={e => setNewDbUrl(e.target.value)}
+                                />
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={() => handleSwitchDatabase(newDbUrl)}
+                                    disabled={!newDbUrl || isDbLoading}
+                                >
+                                    {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
+                                </button>
+                            </div>
+                        )}
+                        <div style={{ ...settingsHint(classic), color: '#8b0000' }}>
+                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>
+                            Switching databases changes the entire data context.
+                        </div>
+                    </div>
+                    <div className="col-md-5">
+                        <FieldLabel classic={classic}>Saved Profiles</FieldLabel>
+                        {classic ? (
+                            <div style={{ border: '1px solid #b0a898', background: '#ffffff', maxHeight: 118, overflowY: 'auto' as const }}>
+                                {dbProfiles.map((p, i) => (
+                                    <button
+                                        key={i}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '3px 8px', background: 'none', border: 'none', borderBottom: '1px solid #e0dfd8', cursor: 'pointer', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', textAlign: 'left' as const }}
+                                        onClick={() => setNewDbUrl(p.url)}
+                                    >
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: '90%' }}>{p.name}: {p.url}</span>
+                                        <i className="bi bi-arrow-right-short"></i>
+                                    </button>
+                                ))}
+                                {dbProfiles.length === 0 && (
+                                    <div style={{ ...settingsHint(classic), padding: 8, margin: 0, textAlign: 'center', fontStyle: 'italic' }}>No saved profiles</div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="list-group list-group-flush border rounded overflow-auto" style={{ maxHeight: 118 }}>
+                                {dbProfiles.map((p, i) => (
+                                    <button
+                                        key={i}
+                                        className="list-group-item list-group-item-action d-flex justify-content-between align-items-center small"
+                                        onClick={() => setNewDbUrl(p.url)}
+                                    >
+                                        <span className="text-truncate" style={{ maxWidth: '80%' }}>{p.name}: {p.url}</span>
+                                        <i className="bi bi-arrow-right-short"></i>
+                                    </button>
+                                ))}
+                                {dbProfiles.length === 0 && <div className="p-3 text-center text-muted extra-small">No saved profiles</div>}
                             </div>
                         )}
                     </div>
-
-                    <div className="row g-4">
-                        <div className="col-md-7">
-                            <div style={classic ? xpSectionHead : undefined}>
-                                {classic ? 'Switch to New Database' : <label className="form-label small fw-bold text-primary">Switch to New Database</label>}
-                            </div>
-                            {classic ? (
-                                <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-                                    <input
-                                        style={xpInput({ flex: 1, fontFamily: CODE_FONT, boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })}
-                                        placeholder="postgresql+psycopg2://user:pass@host:port/db"
-                                        value={newDbUrl}
-                                        onChange={e => setNewDbUrl(e.target.value)}
-                                    />
-                                    <button
-                                        style={xpBtn({ background: 'linear-gradient(to bottom, #006e8e, #004a5e)', borderColor: '#004a5e #001a2e #001a2e #004a5e', color: '#ffffff' })}
-                                        onClick={() => handleSwitchDatabase(newDbUrl)}
-                                        disabled={!newDbUrl || isDbLoading}
-                                    >
-                                        {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="input-group mb-2">
-                                    <input
-                                        className="form-control small"
-                                        style={{ fontFamily: CODE_FONT }}
-                                        placeholder="postgresql+psycopg2://user:pass@host:port/db"
-                                        value={newDbUrl}
-                                        onChange={e => setNewDbUrl(e.target.value)}
-                                    />
-                                    <button
-                                        className="btn btn-info text-white"
-                                        onClick={() => handleSwitchDatabase(newDbUrl)}
-                                        disabled={!newDbUrl || isDbLoading}
-                                    >
-                                        {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
-                                    </button>
-                                </div>
-                            )}
-                            <div
-                                style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#8b0000', marginTop: 2 } : undefined}
-                                className={classic ? '' : 'form-text extra-small text-danger'}
-                            >
-                                <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>
-                                WARNING: Switching databases will change the entire data context.
-                            </div>
-                        </div>
-                        <div className="col-md-5">
-                            <div style={classic ? xpSectionHead : undefined}>
-                                {classic ? 'Saved Profiles' : <label className="form-label small fw-bold text-muted">Saved Profiles</label>}
-                            </div>
-                            {classic ? (
-                                <div style={{ border: '1px solid #b0a898', background: '#ffffff', maxHeight: 120, overflowY: 'auto' as const }}>
-                                    {dbProfiles.map((p, i) => (
-                                        <button
-                                            key={i}
-                                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '3px 8px', background: 'none', border: 'none', borderBottom: '1px solid #e0dfd8', cursor: 'pointer', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', textAlign: 'left' as const }}
-                                            onClick={() => setNewDbUrl(p.url)}
-                                        >
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: '90%' }}>{p.name}: {p.url}</span>
-                                            <i className="bi bi-arrow-right-short"></i>
-                                        </button>
-                                    ))}
-                                    {dbProfiles.length === 0 && (
-                                        <div style={{ padding: '8px', textAlign: 'center', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#888', fontStyle: 'italic' }}>No saved profiles</div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="list-group list-group-flush border rounded overflow-auto" style={{maxHeight: '120px'}}>
-                                    {dbProfiles.map((p, i) => (
-                                        <button
-                                            key={i}
-                                            className="list-group-item list-group-item-action d-flex justify-content-between align-items-center small"
-                                            onClick={() => setNewDbUrl(p.url)}
-                                        >
-                                            <span className="text-truncate" style={{maxWidth: '80%'}}>{p.name}: {p.url}</span>
-                                            <i className="bi bi-arrow-right-short"></i>
-                                        </button>
-                                    ))}
-                                    {dbProfiles.length === 0 && <div className="p-3 text-center text-muted extra-small">No saved profiles</div>}
-                                </div>
-                            )}
-                        </div>
-                    </div>
                 </div>
-            </div>
+            </SettingsPanel>
 
-            {/* Snapshot & Context Migration */}
-            <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0 mb-4 border-start border-4 border-primary'}>
-                {classic ? (
-                    <div style={xpTitleBar()}>
-                        <span><i className="bi bi-camera-fill" style={{ marginRight: 6 }}></i>Snapshot &amp; Context Migration</span>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                            <label style={xpBtn()}>
-                                <i className="bi bi-cloud-upload" style={{ marginRight: 4 }}></i>Upload Snapshot
-                                <input type="file" hidden onChange={handleUploadSnapshot} disabled={isSnapshotLoading} />
-                            </label>
-                            <button
-                                style={xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff' })}
-                                onClick={handleCreateSnapshot}
-                                disabled={isSnapshotLoading}
-                            >
-                                {isSnapshotLoading ? <span className="spinner-border spinner-border-sm" style={{ marginRight: 4 }}></span> : <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>}
-                                Create New Snapshot
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center">
-                        <h5 className="card-title mb-0"><i className="bi bi-camera-fill me-2"></i>Snapshot &amp; Context Migration</h5>
-                        <div className="d-flex gap-2">
-                            <label className="btn btn-sm btn-outline-primary mb-0" style={{cursor: 'pointer'}}>
-                                <i className="bi bi-cloud-upload me-1"></i>Upload Snapshot
-                                <input type="file" hidden onChange={handleUploadSnapshot} disabled={isSnapshotLoading} />
-                            </label>
-                            <button className="btn btn-primary btn-sm" onClick={handleCreateSnapshot} disabled={isSnapshotLoading}>
-                                {isSnapshotLoading ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-plus-lg me-1"></i>}
-                                Create New Snapshot
-                            </button>
-                        </div>
-                    </div>
-                )}
-                <div style={classic ? { background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body p-0'}>
-                    <div className="table-responsive">
+            <SettingsPanel
+                classic={classic}
+                icon="bi-camera-fill"
+                title="Snapshots"
+                flush
+                right={
+                    <span style={{ display: 'flex', gap: 4 }}>
+                        <label
+                            style={classic ? xpBtn({ padding: '1px 8px', marginBottom: 0 }) : { cursor: 'pointer', marginBottom: 0 }}
+                            className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                        >
+                            <i className="bi bi-cloud-upload" style={{ marginRight: 4 }}></i>Upload
+                            <input type="file" hidden onChange={handleUploadSnapshot} disabled={isSnapshotLoading} />
+                        </label>
+                        <button
+                            type="button"
+                            style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
+                            className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                            onClick={handleCreateSnapshot}
+                            disabled={isSnapshotLoading}
+                        >
+                            {isSnapshotLoading ? <span className="spinner-border spinner-border-sm" style={{ marginRight: 4 }}></span> : <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>}
+                            New Snapshot
+                        </button>
+                    </span>
+                }
+            >
+                <div className="table-responsive">
                         <table
                             style={classic ? { width: '100%', borderCollapse: 'collapse' as const, background: '#fff' } : undefined}
                             className={classic ? '' : 'table table-hover align-middle mb-0 small'}
@@ -545,27 +519,18 @@ export default function SettingsDatabaseTab() {
                             </tbody>
                         </table>
                     </div>
-                </div>
-            </div>
+            </SettingsPanel>
 
-            {/* Danger Zone */}
-            <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0 mb-4 border-start border-4 border-danger'}>
-                {classic ? (
-                    <div style={xpTitleBar('linear-gradient(to right, #d32f2f 0%, #8b0000 100%)', '#4a0000')}>
-                        <span><i className="bi bi-exclamation-octagon-fill" style={{ marginRight: 6 }}></i>Danger Zone</span>
-                    </div>
-                ) : (
-                    <div className="card-header bg-danger bg-opacity-10 text-danger-emphasis">
-                        <h5 className="card-title mb-0"><i className="bi bi-exclamation-octagon-fill me-2"></i>Danger Zone</h5>
-                    </div>
-                )}
-                <div style={classic ? { padding: '12px 14px', background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body'}>
-                    <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div>
+            <SettingsPanel classic={classic} icon="bi-exclamation-octagon-fill" title="Danger Zone">
+                {/* Severity is carried by the copy and the button, not by a red
+                    window bar — the panel is a peer of the others, its action
+                    is not. */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ flex: '1 1 340px', minWidth: 0 }}>
                             <div style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 12, fontWeight: 'bold', color: '#333' } : undefined} className={classic ? '' : 'fw-bold'}>
                                 Wipe &amp; Reset Database
                             </div>
-                            <div style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#8b0000', marginTop: 2 } : undefined} className={classic ? '' : 'form-text extra-small text-danger'}>
+                            <div style={{ ...settingsHint(classic), color: '#8b0000' }}>
                                 <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>
                                 Permanently deletes every row in the current database, then rebuilds it blank (migrations + seed data). Use this before importing a snapshot from another environment. Cannot be undone.
                             </div>
@@ -582,9 +547,8 @@ export default function SettingsDatabaseTab() {
                                 <i className="bi bi-trash3-fill me-1"></i>Wipe Database
                             </button>
                         )}
-                    </div>
                 </div>
-            </div>
+            </SettingsPanel>
 
             <ModalWrapper
                 isOpen={showWipeModal}
@@ -640,6 +604,6 @@ export default function SettingsDatabaseTab() {
                     />
                 )}
             </ModalWrapper>
-        </>
+        </div>
     );
 }

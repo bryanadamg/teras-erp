@@ -6,8 +6,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
-import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
+import { xpBtn } from '../shared/xpTheme';
+import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
+import SettingsPanel from './SettingsPanel';
+import PermissionBreakdown from './PermissionBreakdown';
 import RoleFormModal, { RoleFormPayload, RoleLike } from './RoleFormModal';
 import { API_BASE } from '../shared/apiBase';
 import { groupPermissionsBySection } from '../shared/permissionMatrix';
@@ -133,27 +135,21 @@ export default function SettingsRolesTab({
     };
 
     return (
-        <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0'}>
-            {classic ? (
-                <div style={{ ...xpTitleBar('linear-gradient(to right, #8e5000 0%, #c87c00 100%)', '#5e3000'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span><i className="bi bi-diagram-3" style={{ marginRight: 6 }}></i>Roles</span>
-                    <button
-                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', padding: '2px 10px' })}
-                        onClick={() => { setFormRole(undefined); setFormMode('create'); }}
-                    ><i className="bi bi-plus-lg me-1"></i>Add Role</button>
-                </div>
-            ) : (
-                <div className="card-header bg-warning bg-opacity-10 text-warning-emphasis d-flex justify-content-between align-items-center">
-                    <h5 className="card-title mb-0"><i className="bi bi-diagram-3 me-2"></i>Roles</h5>
-                    <button
-                        className="btn btn-sm btn-success"
-                        onClick={() => { setFormRole(undefined); setFormMode('create'); }}
-                    ><i className="bi bi-plus-lg me-1"></i>Add Role</button>
-                </div>
-            )}
-
-            <div style={classic ? { background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body p-0'}>
-                <div className="table-responsive">
+        <SettingsPanel
+            classic={classic}
+            icon="bi-diagram-3"
+            title="Roles"
+            flush
+            right={
+                <button
+                    type="button"
+                    style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
+                    className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                    onClick={() => { setFormRole(undefined); setFormMode('create'); }}
+                ><i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add Role</button>
+            }
+        >
+            <div className="table-responsive">
                     <table
                         style={classic ? { width: '100%', borderCollapse: 'collapse' as const, background: '#fff' } : undefined}
                         className={classic ? '' : 'table table-hover align-middle mb-0'}
@@ -292,31 +288,7 @@ export default function SettingsRolesTab({
                                     {isExpanded && sections.length > 0 && (
                                         <tr style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}>
                                             <td colSpan={6} style={classic ? { padding: '0 12px 8px 12px', border: 'none' } : undefined} className={classic ? '' : 'pb-3 px-4'}>
-                                                <SunkenPanel classic={classic}>
-                                                    <SunkenPanelBody classic={classic}>
-                                                        {sections.map(({ section, permissions }) => (
-                                                            <div key={section} style={{ marginBottom: 6 }}>
-                                                                <div style={classic
-                                                                    ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', fontWeight: 'bold', color: '#333', marginBottom: 3 }
-                                                                    : { fontSize: '0.7rem', fontWeight: 'bold', color: '#333', marginBottom: 3 }}
-                                                                >{section}</div>
-                                                                <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
-                                                                    {permissions.map(p => (
-                                                                        classic ? (
-                                                                            <span key={p.id} title={p.code} style={{ background: '#dde8f5', border: '1px solid #7f9db9', color: '#00006e', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>
-                                                                                {p.description}
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span key={p.id} title={p.code} className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{ fontSize: '0.65rem' }}>
-                                                                                {p.description}
-                                                                            </span>
-                                                                        )
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </SunkenPanelBody>
-                                                </SunkenPanel>
+                                                <PermissionBreakdown permissions={role.permissions} classic={classic} />
                                             </td>
                                         </tr>
                                     )}
@@ -332,7 +304,6 @@ export default function SettingsRolesTab({
                             )}
                         </tbody>
                     </table>
-                </div>
             </div>
 
             <RoleFormModal
@@ -344,6 +315,6 @@ export default function SettingsRolesTab({
                 classic={classic}
                 onSubmit={(payload) => formMode === 'create' ? submitCreate(payload) : submitEdit(formRole!.id, payload)}
             />
-        </div>
+        </SettingsPanel>
     );
 }

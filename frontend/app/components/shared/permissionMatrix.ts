@@ -153,6 +153,42 @@ const RESOURCE_SECTION: Map<string, string> = new Map(
     PERMISSION_MATRIX.flatMap(sec => sec.resources.map(r => [r.resource, sec.section] as const))
 );
 
+const RESOURCE_LABEL: Map<string, string> = new Map(
+    PERMISSION_MATRIX.flatMap(sec => sec.resources.map(r => [r.resource, r.label] as const))
+);
+
+/**
+ * Splits `sales_order.print` into the matrix's own words — "Sales Order" /
+ * "Print". A permission list rendered as one chip per stored description
+ * ("Print Purchase Orders", "View Purchase Orders", "Close Purchase Orders")
+ * repeats the resource on every chip, which is what made a 54-permission role
+ * read as a wall. Rendering resource once with its actions beside it says the
+ * same thing in a fifth of the marks. Falls back to the stored description when
+ * a code isn't in the matrix.
+ */
+export function describePermission(code: string, description?: string): { resource: string; action: string } {
+    const [resource, action] = code.split('.');
+    const resourceLabel = RESOURCE_LABEL.get(resource);
+    if (!resourceLabel) return { resource: 'Other', action: description || code };
+    const actionLabel = (RESOURCE_ACTIONS[resource] || [CREATE, EDIT, DELETE, VIEW])
+        .find(a => a.code === action)?.label;
+    return { resource: resourceLabel, action: actionLabel || action.replace(/_/g, ' ') };
+}
+
+/** Buckets a permission list by resource, in matrix order, keeping each resource's actions together. */
+export function groupPermissionsByResource<T extends { code: string; description?: string }>(
+    permissions: T[],
+): { resource: string; permissions: T[] }[] {
+    const byResource = new Map<string, T[]>();
+    const order: string[] = [];
+    for (const p of permissions) {
+        const { resource } = describePermission(p.code, p.description);
+        if (!byResource.has(resource)) { byResource.set(resource, []); order.push(resource); }
+        byResource.get(resource)!.push(p);
+    }
+    return order.map(r => ({ resource: r, permissions: byResource.get(r)! }));
+}
+
 /** Buckets a flat permission list into PERMISSION_MATRIX section order (unmatched codes fall into "Other"). */
 export function groupPermissionsBySection<T extends { code: string }>(permissions: T[]): { section: string; permissions: T[] }[] {
     const bySection = new Map<string, T[]>();

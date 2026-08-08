@@ -1,21 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { xpFont, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
-import { groupPermissionsBySection } from '../shared/permissionMatrix';
+import { xpFont } from '../shared/xpTheme';
+import PermissionBreakdown from './PermissionBreakdown';
 
 interface Permission { id: string; code: string; description: string }
-
-const badgeStyle = (classic: boolean, kind: 'inherited' | 'direct', p: Permission) => {
-    if (classic) {
-        return kind === 'inherited'
-            ? { key: p.id, title: `${p.code} (via role)`, style: { background: '#e8e8e8', border: '1px solid #999', color: '#555', padding: '0 4px', fontSize: '9px', fontFamily: xpFont } }
-            : { key: p.id, title: `${p.code} (direct grant)`, style: { background: '#dde8f5', border: '1px solid #7f9db9', color: '#00006e', padding: '0 4px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' as const } };
-    }
-    return kind === 'inherited'
-        ? { key: p.id, title: `${p.code} (via role)`, className: 'badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25', style: { fontSize: '0.65rem' } }
-        : { key: p.id, title: `${p.code} (direct grant)`, className: 'badge bg-info bg-opacity-10 text-info border border-info border-opacity-25', style: { fontSize: '0.65rem' } };
-};
 
 /**
  * Shows the union of role-inherited and directly-granted permissions on a
@@ -74,10 +63,10 @@ export default function EffectivePermissions({
         );
     }
 
-    const sections = groupPermissionsBySection([
+    const all = [
         ...inherited.map(p => ({ ...p, _direct: false })),
         ...directPermissions.map(p => ({ ...p, _direct: true })),
-    ]);
+    ];
 
     return (
         <div>
@@ -92,24 +81,7 @@ export default function EffectivePermissions({
                 <i className="bi bi-caret-down-fill" style={{ fontSize: 8 }} />
                 {summary}
             </button>
-            <SunkenPanel classic={classic}>
-                <SunkenPanelBody classic={classic}>
-                    {sections.map(({ section, permissions }) => (
-                        <div key={section} style={{ marginBottom: 6 }}>
-                            <div style={classic
-                                ? { fontFamily: xpFont, fontSize: '10px', fontWeight: 'bold', color: '#333', marginBottom: 3 }
-                                : { fontSize: '0.7rem', fontWeight: 'bold', color: '#333', marginBottom: 3 }}
-                            >{section}</div>
-                            <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
-                                {permissions.map(p => {
-                                    const { key, ...rest } = badgeStyle(classic, p._direct ? 'direct' : 'inherited', p);
-                                    return <span key={key} {...rest}>{p.description}</span>;
-                                })}
-                            </div>
-                        </div>
-                    ))}
-                </SunkenPanelBody>
-            </SunkenPanel>
+            <PermissionBreakdown permissions={all} classic={classic} showDirect />
         </div>
     );
 }

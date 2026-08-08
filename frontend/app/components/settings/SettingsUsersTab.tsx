@@ -8,7 +8,8 @@ import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { xpBtn, xpInput, CodeChip } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
-import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
+import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
+import SettingsPanel from './SettingsPanel';
 import PixelAvatar from '../shared/PixelAvatar';
 import Pager from '../shared/Pager';
 import UserFormModal, { UserFormPayload } from './UserFormModal';
@@ -141,25 +142,20 @@ export default function SettingsUsersTab({
     };
 
     return (
-        <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0'}>
-            {classic ? (
-                <div style={{ ...xpTitleBar('linear-gradient(to right, #8e0000 0%, #c84040 100%)', '#4a0000'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span><i className="bi bi-shield-lock" style={{ marginRight: 6 }}></i>Users</span>
-                    <button
-                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', padding: '2px 10px' })}
-                        onClick={() => { setFormUser(undefined); setFormMode('create'); }}
-                    ><i className="bi bi-person-plus me-1"></i>Add User</button>
-                </div>
-            ) : (
-                <div className="card-header bg-danger bg-opacity-10 text-danger-emphasis d-flex justify-content-between align-items-center">
-                    <h5 className="card-title mb-0"><i className="bi bi-shield-lock me-2"></i>Users</h5>
-                    <button
-                        className="btn btn-sm btn-success"
-                        onClick={() => { setFormUser(undefined); setFormMode('create'); }}
-                    ><i className="bi bi-person-plus me-1"></i>Add User</button>
-                </div>
-            )}
-
+        <SettingsPanel
+            classic={classic}
+            icon="bi-people-fill"
+            title="Users"
+            flush
+            right={
+                <button
+                    type="button"
+                    style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
+                    className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                    onClick={() => { setFormUser(undefined); setFormMode('create'); }}
+                ><i className="bi bi-person-plus" style={{ marginRight: 4 }}></i>Add User</button>
+            }
+        >
             {/* Search + status filter toolbar */}
             {classic ? (
                 <div style={{
@@ -191,7 +187,7 @@ export default function SettingsUsersTab({
                     </ToolbarCount>
                 </div>
             ) : (
-                <div className="card-body border-bottom py-2">
+                <div className="border-bottom p-2">
                     <div className="row g-2 align-items-center">
                         <div className="col-md-5">
                             <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search username or name…" width={400} grow style={{ display: 'flex', width: '100%' }} />
@@ -223,7 +219,7 @@ export default function SettingsUsersTab({
                 </div>
             )}
 
-            <div style={classic ? { background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body p-0'}>
+            <div>
                 <div className="table-responsive">
                     <table
                         style={classic ? { width: '100%', borderCollapse: 'collapse' as const, background: '#fff' } : undefined}
@@ -362,6 +358,6 @@ export default function SettingsUsersTab({
                 classic={classic}
                 onSubmit={(payload) => formMode === 'create' ? submitCreate(payload) : submitEdit(formUser!.id, payload)}
             />
-        </div>
+        </SettingsPanel>
     );
 }

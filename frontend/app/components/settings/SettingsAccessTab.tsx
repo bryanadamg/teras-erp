@@ -5,6 +5,7 @@ import SettingsRolesTab from './SettingsRolesTab';
 import SettingsUsersTab from './SettingsUsersTab';
 import { RoleLike } from './RoleFormModal';
 import { API_BASE } from '../shared/apiBase';
+import { settingsStack } from './settingsStyles';
 
 /**
  * Access Control — the roles panel and the users panel stacked in one tab.
@@ -32,7 +33,7 @@ export default function SettingsAccessTab() {
     useEffect(() => { loadAuthData(); }, [loadAuthData]);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={settingsStack}>
             <SettingsRolesTab
                 roles={roles}
                 allPermissions={allPermissions}
