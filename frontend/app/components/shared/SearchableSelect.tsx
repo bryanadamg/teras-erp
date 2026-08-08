@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { CODE_FONT } from './xpTheme';
 
 interface Option {
     value: string;
@@ -239,10 +240,13 @@ export default function SearchableSelect({
                                 <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {label}
                                 </span>
+                                {/* subLabel is the option's code — a reference next to its
+                                    name, so it renders at the tier-2 code style (muted,
+                                    one step down) rather than as its own chip. */}
                                 {sub && (
                                     <span style={{
-                                        fontFamily: '"Courier New", monospace', fontSize: 9,
-                                        color: selected ? 'rgba(255,255,255,0.75)' : '#555',
+                                        fontFamily: CODE_FONT, fontSize: 9,
+                                        color: selected ? 'rgba(255,255,255,0.75)' : '#666',
                                         // Shrinkable and capped: a long code trims itself
                                         // instead of pushing the name out of the row.
                                         flex: '0 1 auto', minWidth: 0, maxWidth: '45%',
@@ -317,7 +321,7 @@ export default function SearchableSelect({
                 </span>
                 {selectedOption && !subIsRedundant(selectedOption) && (
                     <span style={{
-                        fontFamily: '"Courier New", monospace', fontSize: 9, color: '#555',
+                        fontFamily: CODE_FONT, fontSize: 9, color: '#666',
                         marginLeft: 5, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80,
                     }}>
                         {selectedOption.subLabel}

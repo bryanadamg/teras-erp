@@ -3,7 +3,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { STATUS_COLORS } from './xpTheme';
+import { STATUS_COLORS, CodeChip } from './xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from './shellTheme';
 
 interface QRScannerViewProps {
@@ -234,7 +234,9 @@ export default function QRScannerView({
                             <div style={{ background: '#f5f4ef', border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', padding: '8px 10px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
                                     <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#666' }}>Active Work Order</div>
-                                    <div style={{ fontFamily: "'Courier New', monospace", fontSize: '20px', fontWeight: 'bold', color: '#0058e6' }}>{scannedWO.code}</div>
+                                    {/* Hero size — an operator reads this across a machine, so
+                                        it overrides the tier-1 step while keeping its face/color. */}
+                                    <CodeChip code={scannedWO.code} classic tone="accent" style={{ fontSize: 20 }} />
                                     <div style={{ marginTop: 4 }}>
                                         <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#444', marginRight: 6 }}>{getItemName(scannedWO._mo?.item_id)}</span>
                                         <span style={xpStatusBadge(scannedWO.status)}>{scannedWO.status}</span>
@@ -326,7 +328,7 @@ export default function QRScannerView({
                         <div className="d-flex align-items-center justify-content-between mb-4 bg-white p-3 rounded border shadow-sm">
                             <div>
                                 <div className="extra-small text-muted text-uppercase fw-bold">Active Work Order</div>
-                                <h2 className="fw-bold mb-0 font-monospace text-primary">{scannedWO.code}</h2>
+                                <h2 className="mb-0"><CodeChip code={scannedWO.code} classic={false} tone="accent" style={{ fontSize: 24 }} /></h2>
                                 <div className="mt-1">
                                     <span className="small text-muted me-2">{getItemName(scannedWO._mo?.item_id)}</span>
                                     <span className={`badge ${scannedWO.status === 'COMPLETED' ? 'bg-success' : 'bg-warning text-dark'} extra-small`}>{scannedWO.status}</span>

@@ -410,7 +410,7 @@ export function ProgressBar({
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {track}
-            <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 32 }}>{pctLabel}%</span>
+            <span style={{ fontSize: 10, fontFamily: CODE_FONT, minWidth: 32 }}>{pctLabel}%</span>
         </div>
     );
 }

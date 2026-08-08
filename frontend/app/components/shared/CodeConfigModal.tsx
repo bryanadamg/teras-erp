@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from './ModalWrapper';
+import { CODE_FONT } from './xpTheme';
 
 export interface CodeConfig {
     prefix: string;
@@ -323,7 +324,7 @@ function SegmentChipDefault({
               placeholder="PREFIX"
               style={{
                 background: 'transparent', border: '1px solid rgba(255,255,255,0.4)',
-                borderRadius: '3px', color: '#fff', fontFamily: "'Courier New', monospace",
+                borderRadius: '3px', color: '#fff', fontFamily: CODE_FONT,
                 fontSize: '12px', fontWeight: 700, letterSpacing: '1px',
                 width: Math.max(50, (seg as Extract<Segment, { type: 'prefix' }>).value.length * 9 + 12) + 'px',
                 padding: '1px 4px', outline: 'none',
@@ -337,7 +338,7 @@ function SegmentChipDefault({
               placeholder="SUFFIX"
               style={{
                 background: 'transparent', border: '1px solid rgba(255,255,255,0.4)',
-                borderRadius: '3px', color: '#fff', fontFamily: "'Courier New', monospace",
+                borderRadius: '3px', color: '#fff', fontFamily: CODE_FONT,
                 fontSize: '12px', fontWeight: 700, letterSpacing: '1px',
                 width: Math.max(50, (seg as Extract<Segment, { type: 'suffix' }>).value.length * 9 + 12) + 'px',
                 padding: '1px 4px', outline: 'none',
@@ -346,7 +347,7 @@ function SegmentChipDefault({
           )}
           {!isEditable && (
             <span style={{
-              fontFamily: "'Courier New', monospace", fontSize: '12px', fontWeight: 700,
+              fontFamily: CODE_FONT, fontSize: '12px', fontWeight: 700,
               letterSpacing: '0.5px', color: '#fff',
             }}>
               {seg.type === 'item' ? 'ITEM001'
@@ -579,7 +580,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                 border: '1px solid',
                 borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                 padding: isPrefix || isSuffix ? '2px 5px' : '2px 8px',
-                fontFamily: "'Courier New', monospace",
+                fontFamily: CODE_FONT,
                 fontSize: '11px', fontWeight: 'bold',
                 color: isCounter ? '#333' : textColor,
                 cursor: 'grab',
@@ -595,7 +596,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                   onChange={e => handlePrefixChange(e.target.value)}
                   placeholder="PREFIX"
                   style={{
-                    fontFamily: "'Courier New', monospace", fontSize: '11px', fontWeight: 'bold',
+                    fontFamily: CODE_FONT, fontSize: '11px', fontWeight: 'bold',
                     color: textColor, background: '#fff',
                     border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
                     boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
@@ -611,7 +612,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                   onChange={e => handleSuffixChange(e.target.value)}
                   placeholder="SUFFIX"
                   style={{
-                    fontFamily: "'Courier New', monospace", fontSize: '11px', fontWeight: 'bold',
+                    fontFamily: CODE_FONT, fontSize: '11px', fontWeight: 'bold',
                     color: textColor, background: '#fff',
                     border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
                     boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
@@ -671,7 +672,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
             padding: '2px 8px',
             border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
             background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
-            fontFamily: "'Courier New', monospace", fontSize: '10px',
+            fontFamily: CODE_FONT, fontSize: '10px',
             color: CHIP_COLORS_CLASSIC_TEXT[seg.type] ?? '#333',
             cursor: 'grab', userSelect: 'none',
           }}
@@ -769,7 +770,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                             textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 <i className="bi bi-eye" style={{ marginRight: '4px' }}></i>Preview
               </div>
-              <div style={{ fontFamily: "'Courier New', monospace", fontSize: '14px',
+              <div style={{ fontFamily: CODE_FONT, fontSize: '14px',
                             fontWeight: 'bold', color: '#000', letterSpacing: '0.5px' }}>
                 {getPreview(segments, separator, attributes)}
               </div>
@@ -901,7 +902,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                         padding: '4px 10px', borderRadius: '5px', cursor: 'grab',
                         border: `1.5px solid ${color}`, background: '#fff',
                         color: color, fontSize: '12px', fontWeight: 600,
-                        fontFamily: "'Courier New', monospace", letterSpacing: '0.3px',
+                        fontFamily: CODE_FONT, letterSpacing: '0.3px',
                         userSelect: 'none',
                       }}
                     >
@@ -918,7 +919,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
           <div style={{ background: '#1e293b', borderRadius: '7px', padding: '9px 13px',
                         display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="bi bi-code-slash" style={{ color: '#64748b', fontSize: '12px', flexShrink: 0 }}></i>
-            <span style={{ fontFamily: "'Courier New', monospace", fontSize: '14px', fontWeight: 700,
+            <span style={{ fontFamily: CODE_FONT, fontSize: '14px', fontWeight: 700,
                            color: '#e2e8f0', letterSpacing: '1.2px' }}>
               {getPreview(segments, separator, attributes)}
             </span>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { API_BASE } from './apiBase';
+import { CODE_FONT } from './xpTheme';
 
 interface HistoryPaneProps {
     entityType: 'Item' | 'SampleRequest' | 'BOM' | 'WorkOrder';
@@ -176,7 +177,7 @@ const S = {
         border: '1px solid',
         borderColor: '#808080 #dfdfdf #dfdfdf #808080',
         padding: '4px 6px',
-        fontFamily: '"Courier New", Courier, monospace',
+        fontFamily: CODE_FONT,
         fontSize: 10,
         marginTop: 4,
         overflowX: 'auto' as const,

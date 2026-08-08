@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { CODE_FONT } from './xpTheme';
 
 /**
  * Shared lot-identity chips for lot/beam pickers (WO staging, WO completion,
@@ -99,7 +100,11 @@ export function LotChip({
                 fontSize: 9, fontWeight: 'bold', padding: '0 4px',
                 borderRadius: rounded ? 8 : 0, lineHeight: '14px',
                 color: t.fg, background: t.bg, border: `1px solid ${t.border}`,
-                whiteSpace: 'nowrap', fontFamily: mono ? 'monospace' : undefined,
+                // `mono` marks the two chips that hold a CODE (supplier lot, producing
+                // order) rather than an attribute value. They stay chips — inside a
+                // LotChipRow they are peers of the size/combo/shade chips and bare text
+                // would break the row — but they share the app-wide code face.
+                whiteSpace: 'nowrap', fontFamily: mono ? CODE_FONT : undefined,
             }}
         >
             {swatch ? (
