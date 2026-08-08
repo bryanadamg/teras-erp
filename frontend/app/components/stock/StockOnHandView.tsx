@@ -988,13 +988,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span style={{ fontSize: '10px', opacity: 0.85 }}>{filtered.length} records</span>
                     </div>
                     <div style={xpToolbar}>
-                        <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }} />
-                        <input
-                            style={{ ...xpInput, width: 180 }}
-                            placeholder="Search item, location, lot, notes..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                        />
+                        <SearchField classic value={search} onChange={setSearch} placeholder="Search item, location, lot, notes..." width={220} />
                         <div style={xpSep} />
                         <TreeSelect
                             options={catTreeOptions}
@@ -1100,12 +1094,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <div className="card-body pb-0" style={{ flexShrink: 0 }}>
                     <div className="row g-2 mb-3">
                         <div className="col-md-3">
-                            <input
-                                className="form-control form-control-sm"
-                                placeholder="Search item, location, category, lot, notes..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
+                            <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search item, location, category, lot, notes..." width={400} grow style={{ display: 'flex', width: '100%' }} />
                         </div>
                         <div className="col-md-3">
                             <TreeSelect

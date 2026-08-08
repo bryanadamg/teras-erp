@@ -200,11 +200,6 @@ export default function BookingStockView() {
         const xpBevel: React.CSSProperties = sharedXpBevel();
         const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
         const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
-        const xpInputS: React.CSSProperties = {
-            fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
-            boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
-            background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
-        };
         const xpTableHeader: React.CSSProperties = {
             background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
             borderRight: '1px solid #b0aa9c',

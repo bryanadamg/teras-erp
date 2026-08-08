@@ -8,6 +8,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { SearchField, FilterChipBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -213,20 +214,14 @@ export default function ColorLibraryView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                <input
-                    style={{ ...lvInput(classic), width: 240, flexBasis: 240 }}
-                    placeholder="Search code, name, Pantone, customer code…"
-                    value={searchInput}
-                    onChange={e => setSearchInput(e.target.value)}
-                />
+                <SearchField classic={classic} value={searchInput} onChange={setSearchInput} placeholder="Search code, name, Pantone, customer code…" width={260} />
                 <span style={lvSep(classic)} />
-                <div style={{ display: 'flex' }}>
-                    {STATUS_FILTERS.map(s => (
-                        <button key={s} style={statusFilter === s ? lvPrimaryBtn(classic) : lvBtn(classic)} onClick={() => onStatusChange(s)}>
-                            {s === 'ALL' ? 'All' : s}
-                        </button>
-                    ))}
-                </div>
+                <FilterChipBar
+                    classic={classic}
+                    options={STATUS_FILTERS.map(s => ({ value: s, label: s === 'ALL' ? 'All' : s }))}
+                    value={statusFilter}
+                    onChange={onStatusChange}
+                />
                 <span style={lvSep(classic)} />
                 <div style={{ width: 170 }}>
                     <SearchableSelect options={variantFilterOptions} value={variantFilter || ''} onChange={v => onVariantFilterChange?.(v)} placeholder="All Color Variants" />

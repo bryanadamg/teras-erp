@@ -297,14 +297,7 @@ export default function QuarantinePackingView() {
         <div style={classic
             ? sharedXpToolbar({ gap: '6px' })
             : { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid #e6eaf1' }}>
-            <i className="bi bi-search" style={{ fontSize: 11, color: '#666' }} />
-            <input
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                placeholder="MO, lot, item or SO..."
-                style={lvInput(classic, { width: 210 })}
-                className={classic ? '' : 'form-control form-control-sm'}
-            />
+            <SearchField classic={classic} value={searchInput} onChange={setSearchInput} placeholder="MO, lot, item or SO..." width={230} />
             <div style={lvSep(classic)} />
             <span style={lvLabel(classic)}>Status</span>
             <select

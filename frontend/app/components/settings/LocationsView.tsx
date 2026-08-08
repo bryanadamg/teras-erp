@@ -390,8 +390,7 @@ export default function LocationsView({
                     {selectedZoneObj ? selectedZoneObj.name : 'Bins'}
                   </span>
                   <div style={{ flex: 1 }} />
-                  <i className="bi bi-search" style={{ fontSize: 11, color: '#666' }} />
-                  <input style={{ ...xpInput, width: 150 }} placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <SearchField classic value={searchTerm} onChange={setSearchTerm} placeholder="Search..." width={160} />
                   {canManage && selectedZoneObj && (
                     <button style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })} onClick={() => setShowBinForm(v => !v)}>
                       <i className="bi bi-plus-lg" style={{ marginRight: 3 }} />Add bin
@@ -579,10 +578,7 @@ export default function LocationsView({
                 <div className="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
                   <h6 className="mb-0 text-primary">{selectedZoneObj ? selectedZoneObj.name : 'Bins'}</h6>
                   <div className="flex-grow-1" />
-                  <div className="input-group input-group-sm" style={{ width: 200 }}>
-                    <span className="input-group-text"><i className="bi bi-search" /></span>
-                    <input className="form-control" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                  </div>
+                  <SearchField classic={false} value={searchTerm} onChange={setSearchTerm} placeholder="Search..." width={200} />
                   {canManage && selectedZoneObj && <button className="btn btn-sm btn-success text-nowrap" onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg me-1" />Add bin</button>}
                 </div>
                 {canManage && selectedZoneObj && showBinForm && (

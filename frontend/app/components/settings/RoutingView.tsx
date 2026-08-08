@@ -421,11 +421,10 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               padding: classic ? '4px 8px' : '8px 10px',
               display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0,
           }}>
-              <i className="bi bi-search" style={{ fontSize: 11, color: '#666' }}></i>
-              <input style={{ ...lvInput(classic), width: 220, flexBasis: 220 }} placeholder="Search work centers…" value={wcSearch} onChange={e => setWcSearch(e.target.value)} />
-              <span style={{ marginLeft: 'auto', fontSize: classic ? 11 : 12, color: classic ? '#444' : '#64748b', fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined }}>
+              <SearchField classic={classic} value={wcSearch} onChange={setWcSearch} placeholder="Search work centers…" width={240} />
+              <ToolbarCount classic={classic} right>
                   {filteredWCRows.length.toLocaleString()} station{filteredWCRows.length !== 1 ? 's' : ''}
-              </span>
+              </ToolbarCount>
               {canManage && (
                   <>
                       <span style={lvSep(classic)} />
@@ -575,12 +574,11 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               padding: classic ? '4px 8px' : '8px 10px',
               display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0,
           }}>
-              <i className="bi bi-search" style={{ fontSize: 11, color: '#666' }}></i>
-              <input style={{ ...lvInput(classic), width: 220, flexBasis: 220 }} placeholder="Search operations…" value={opSearch} onChange={e => setOpSearch(e.target.value)} />
+              <SearchField classic={classic} value={opSearch} onChange={setOpSearch} placeholder="Search operations…" width={240} />
               <span style={lvSep(classic)} />
-              <span style={{ marginLeft: 'auto', fontSize: classic ? 11 : 12, color: classic ? '#444' : '#64748b', fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined }}>
+              <ToolbarCount classic={classic} right>
                   {filteredOp.length.toLocaleString()} operation{filteredOp.length !== 1 ? 's' : ''}
-              </span>
+              </ToolbarCount>
           </div>
 
           {/* Table */}

@@ -6,6 +6,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, CodeChip } from '../shared/xpTheme';
+import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -103,21 +104,17 @@ export default function ComboLibraryView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                <input
-                    style={{ ...lvInput(classic), width: 240, flexBasis: 240 }}
-                    placeholder="Search code, name, description…"
-                    value={searchInput}
-                    onChange={e => setSearchInput(e.target.value)}
-                />
+                <SearchField classic={classic} value={searchInput} onChange={setSearchInput} placeholder="Search code, name, description…" width={260} />
                 <span style={lvSep(classic)} />
-                {STATUS_FILTERS.map(s => (
-                    <button key={s} style={statusFilter === s ? lvPrimaryBtn(classic) : lvBtn(classic)} onClick={() => onStatusChange(s)}>
-                        {s === 'ALL' ? 'All' : s}
-                    </button>
-                ))}
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                <FilterChipBar
+                    classic={classic}
+                    options={STATUS_FILTERS.map(s => ({ value: s, label: s === 'ALL' ? 'All' : s }))}
+                    value={statusFilter}
+                    onChange={onStatusChange}
+                />
+                <ToolbarCount classic={classic} right>
                     {total.toLocaleString()} combo{total !== 1 ? 's' : ''}
-                </span>
+                </ToolbarCount>
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />

@@ -1302,16 +1302,7 @@ export default function InventoryView({
               {/* Filter Bar */}
               <div className="row g-2 align-items-center bg-light p-2 rounded border">
                   <div className="col-md-5">
-                      <div className="input-group input-group-sm">
-                          <span className="input-group-text bg-white border-end-0"><i className="bi bi-search"></i></span>
-                          <input
-                              type="text"
-                              className="form-control border-start-0"
-                              placeholder={`${t('search')}...`}
-                              value={searchTerm}
-                              onChange={e => onSearchChange(e.target.value)}
-                          />
-                      </div>
+                      <SearchField classic={false} value={searchTerm} onChange={onSearchChange} placeholder={`${t('search')}...`} width={420} grow style={{ display: 'flex', width: '100%' }} />
                   </div>
                   {!forcedCategory && (
                   <>
@@ -1342,16 +1333,7 @@ export default function InventoryView({
           {/* ── XP Toolbar (search + filter) ── */}
           {classic && (
             <div style={{ ...xpToolbar, gap: 8 }}>
-              <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', fontWeight: 'bold' }}>
-                <i className="bi bi-search" style={{ marginRight: '4px', fontSize: '10px' }}></i>
-              </span>
-              <input
-                type="text"
-                style={{ ...xpInput, width: '180px' }}
-                placeholder={`${t('search')} items…`}
-                value={searchTerm}
-                onChange={e => onSearchChange(e.target.value)}
-              />
+              <SearchField classic value={searchTerm} onChange={onSearchChange} placeholder={`${t('search')} items…`} width={200} />
               {!forcedCategory && (
                 <>
                   <span style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap', fontFamily: 'Tahoma, Arial, sans-serif' }}>Category:</span>

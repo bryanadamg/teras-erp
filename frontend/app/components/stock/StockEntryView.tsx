@@ -182,15 +182,9 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                           <span style={{ fontSize: '10px', opacity: 0.85 }}>{(stockBalance || []).length} records</span>
                       </div>
                       <div style={xpToolbar}>
-                          <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
-                          <input
-                              style={{ ...xpInput, flex: 1, minWidth: 100 }}
-                              placeholder="Search item or location..."
-                              value={balanceSearch}
-                              onChange={e => setBalanceSearch(e.target.value)}
-                          />
+                          <SearchField classic value={balanceSearch} onChange={setBalanceSearch} placeholder="Search item or location..." width={240} grow />
                           <div style={xpSep} />
-                          <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>{filteredBalance.length} row{filteredBalance.length === 1 ? '' : 's'}</span>
+                          <ToolbarCount classic>{filteredBalance.length} row{filteredBalance.length === 1 ? '' : 's'}</ToolbarCount>
                       </div>
                       <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(100vh - 200px)' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -333,10 +327,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-white py-3 border-bottom-0 d-flex justify-content-between align-items-center">
                       <h5 className="card-title mb-0">{t('stock_ledger')} (Live)</h5>
-                      <div className="input-group input-group-sm" style={{ width: 220 }}>
-                          <span className="input-group-text"><i className="bi bi-search"></i></span>
-                          <input className="form-control" placeholder="Search..." value={balanceSearch} onChange={e => setBalanceSearch(e.target.value)} />
-                      </div>
+                      <SearchField classic={false} value={balanceSearch} onChange={setBalanceSearch} placeholder="Search..." width={220} />
                   </div>
                   <div className="card-body p-0">
                       <div className="table-responsive">
