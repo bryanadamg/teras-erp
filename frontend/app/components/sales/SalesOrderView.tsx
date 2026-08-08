@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -1716,57 +1716,29 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    </>
                                );
 
+                               // One row, icon-only, right-aligned. Lineage is deliberately
+                               // LEFT-most so PR keeps the same slot whether or not a lineage
+                               // button is present (buttons flow from the right edge).
                                const actionsCellContent = (
-                                   <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
-                                       {(so.status === 'PENDING' || soPRs.length > 0) && (
-                                           <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, justifyContent:'flex-end' }}>
-                                               {so.status === 'PENDING' && (classic ? (
-                                                   <button title="Create Production Run" onClick={() => onGenerateWO(so)}
-                                                       style={{ fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#5a9ae0,#0058e6)', border:'1px solid', borderColor:'#003080 #001840 #001840 #003080', color:'#fff', fontWeight:'bold' }}>
-                                                       <i className="bi bi-collection-play" style={{ marginRight:2 }}></i>PR
-                                                   </button>
-                                               ) : (
-                                                   <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize:10, whiteSpace:'nowrap' as const }} title="Create Production Run" onClick={() => onGenerateWO(so)}>
-                                                       <i className="bi bi-collection-play me-1"></i>PR
-                                                   </button>
-                                               ))}
-                                               {soPRs.length > 0 && (classic ? (
-                                                   <button key="lineage" title="View full production lineage — PR, MO, WO and beams created for this SO" onClick={() => openLineage(so)}
-                                                       style={{ fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#fff,#d4d0c8)', border:'1px solid', borderColor:'#dfdfdf #808080 #808080 #dfdfdf', color:'#003ea6', fontWeight:'bold' }}>
-                                                       <i className="bi bi-diagram-3" style={{ marginRight:2 }}></i>Lineage
-                                                   </button>
-                                               ) : (
-                                                   <button key="lineage" className="btn btn-sm btn-outline-primary py-0 px-2" style={{ fontSize:9, whiteSpace:'nowrap' as const }} title="View full production lineage — PR, MO, WO and beams created for this SO" onClick={() => openLineage(so)}>
-                                                       <i className="bi bi-diagram-3 me-1"></i>Lineage
-                                                   </button>
-                                               ))}
-                                           </div>
+                                   <div style={classic ? { display:'flex', gap:2, justifyContent:'flex-end', alignItems:'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-1'}>
+                                       {soPRs.length > 0 && (
+                                           <XPActionButton classic={classic} tone="neutral" icon="bi-diagram-3"
+                                               title="View full production lineage — PR, MO, WO and beams created for this SO"
+                                               onClick={() => openLineage(so)} />
                                        )}
-                                       <div style={classic ? { display:'flex', gap:2, justifyContent:'flex-end', alignItems:'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-1'}>
+                                       {so.status === 'PENDING' && (
+                                           <XPActionButton classic={classic} tone="primary" icon="bi-collection-play"
+                                               title="Create Production Run" onClick={() => onGenerateWO(so)} />
+                                       )}
                                        {canManage && (so.status === 'READY' || so.status === 'PARTIAL') && (
-                                           classic ? (
-                                               <button style={xpBtn({ padding:'1px 5px' })} title="Mark as Sent" onClick={() => onUpdateSOStatus(so.id, 'SENT')}>
-                                                   <i className="bi bi-send"></i>
-                                               </button>
-                                           ) : (
-                                               <button className="btn btn-sm btn-light border py-0 px-2" style={{fontSize:12}} title="Mark as Sent" onClick={() => onUpdateSOStatus(so.id, 'SENT')}>
-                                                   <i className="bi bi-send"></i>
-                                               </button>
-                                           )
+                                           <XPActionButton classic={classic} tone="neutral" icon="bi-send"
+                                               title="Mark as Sent" onClick={() => onUpdateSOStatus(so.id, 'SENT')} />
                                        )}
                                        {canManage && so.status === 'SENT' && (
-                                           classic ? (
-                                               <button style={xpBtn({ background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color:'#fff', padding:'1px 5px' })} title="Mark as Delivered" onClick={() => onUpdateSOStatus(so.id, 'DELIVERED')}>
-                                                   <i className="bi bi-check2-all"></i>
-                                               </button>
-                                           ) : (
-                                               <button className="btn btn-sm btn-light border py-0 px-2" style={{fontSize:12}} title="Mark as Delivered" onClick={() => onUpdateSOStatus(so.id, 'DELIVERED')}>
-                                                   <i className="bi bi-check2-all"></i>
-                                               </button>
-                                           )
+                                           <XPActionButton classic={classic} tone="success" icon="bi-check2-all"
+                                               title="Mark as Delivered" onClick={() => onUpdateSOStatus(so.id, 'DELIVERED')} />
                                        )}
                                        <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(so.id, e)} />
-                                       </div>
                                    </div>
                                );
 

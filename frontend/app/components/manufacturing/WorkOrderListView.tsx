@@ -26,6 +26,17 @@ import { Tabs, TabDef } from '../shared/Tabs';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
+// Reserves a fixed-width slot for one row action. When the row can't perform
+// the action the slot renders empty instead of collapsing, so the remaining
+// icons stay in the same column across every row.
+function ActionSlot({ width, show, children }: { width: number; show: boolean; children: React.ReactNode }) {
+    return (
+        <span style={{ width, flex: `0 0 ${width}px`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            {show ? children : null}
+        </span>
+    );
+}
+
 type WOTabKey = 'ALL' | 'BEAMING' | 'WEAVING' | 'DYEING' | 'OTHERS';
 const WO_TABS: TabDef<WOTabKey>[] = [
     { key: 'ALL',     label: 'All',     icon: 'bi-collection' },
@@ -996,39 +1007,39 @@ export default function WorkOrderListView({
                                                     })()}
                                                 </td>
                                                 <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                                                    {classic ? (
-                                                        <>
-                                                            {canStage(wo) && (
-                                                                <span style={{ marginRight: 2 }}>
+                                                    {/* Fixed action slots — every row reserves the same slot per action so
+                                                        icons line up in columns even when a row can't do that action. */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: classic ? 2 : 4 }}>
+                                                        {classic ? (
+                                                            <>
+                                                                <ActionSlot width={22} show={canStage(wo)}>
                                                                     <XPActionButton classic tone="primary" icon="bi-box-seam" title="Stage — issue this step's materials to the line" onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))} />
-                                                                </span>
-                                                            )}
-                                                            {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
-                                                                <span style={{ marginRight: 2 }}>
+                                                                </ActionSlot>
+                                                                <ActionSlot width={22} show={canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS')}>
                                                                     <XPActionButton classic tone="success" icon="bi-plus-lg" title="Log production output" onClick={() => openLog(wo)} />
-                                                                </span>
-                                                            )}
-                                                            <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            {canStage(wo) && (
-                                                                <button className="btn btn-sm btn-outline-primary py-0 px-2 me-1" title="Stage — issue this step's materials to the line" onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}><i className="bi bi-box-seam" /></button>
-                                                            )}
-                                                            {canManage && wo.status === 'PENDING' && (
-                                                                <button className="btn btn-sm btn-primary py-0 px-2 me-1" title="Start work order" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
-                                                            )}
-                                                            {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
-                                                                <button className="btn btn-sm btn-success py-0 px-2 me-1" title="Log production output" onClick={() => openLog(wo)}><i className="bi bi-plus-lg" /></button>
-                                                            )}
-                                                            {canManage && wo.status === 'IN_PROGRESS' && (
-                                                                <button className="btn btn-sm btn-outline-success py-0 px-2 me-1"
-                                                                    title={!canComplete(wo) ? `Target ${wo.qty} not reached — mark complete anyway` : 'Finish work order'}
-                                                                    onClick={() => handleComplete(wo)}><i className="bi bi-check-lg" /></button>
-                                                            )}
-                                                            <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
-                                                        </>
-                                                    )}
+                                                                </ActionSlot>
+                                                                <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <ActionSlot width={30} show={canStage(wo)}>
+                                                                    <button className="btn btn-sm btn-outline-primary py-0 px-2" title="Stage — issue this step's materials to the line" onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}><i className="bi bi-box-seam" /></button>
+                                                                </ActionSlot>
+                                                                <ActionSlot width={30} show={canManage && wo.status === 'PENDING'}>
+                                                                    <button className="btn btn-sm btn-primary py-0 px-2" title="Start work order" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
+                                                                </ActionSlot>
+                                                                <ActionSlot width={30} show={canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS')}>
+                                                                    <button className="btn btn-sm btn-success py-0 px-2" title="Log production output" onClick={() => openLog(wo)}><i className="bi bi-plus-lg" /></button>
+                                                                </ActionSlot>
+                                                                <ActionSlot width={30} show={canManage && wo.status === 'IN_PROGRESS'}>
+                                                                    <button className="btn btn-sm btn-outline-success py-0 px-2"
+                                                                        title={!canComplete(wo) ? `Target ${wo.qty} not reached — mark complete anyway` : 'Finish work order'}
+                                                                        onClick={() => handleComplete(wo)}><i className="bi bi-check-lg" /></button>
+                                                                </ActionSlot>
+                                                                <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                             {isExpanded && renderDetailPanel(wo)}
