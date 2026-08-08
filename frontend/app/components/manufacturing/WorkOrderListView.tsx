@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -417,7 +417,7 @@ export default function WorkOrderListView({
                                 ? <img src={woQrUrls[wo.id]} alt="QR" style={{ width: 76, height: 76, border: '1px solid #ccc' }} />
                                 : <div style={{ width: 76, height: 76, background: '#ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#888' }}>...</div>
                             }
-                            <div style={{ fontFamily: 'monospace', fontSize: 6, color: '#bbb', wordBreak: 'break-all', textAlign: 'center', maxWidth: 96 }}>{wo.id}</div>
+                            <div style={{ fontFamily: CODE_FONT, fontSize: 6, color: '#bbb', wordBreak: 'break-all', textAlign: 'center', maxWidth: 96 }}>{wo.id}</div>
                         </div>
 
                         {/* Timeline & Info — compact two-column key/value */}
@@ -429,9 +429,8 @@ export default function WorkOrderListView({
                                     onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.mo_code)}`)}
                                     title={`Go to ${wo.mo_code}`}
                                     style={{
-                                        fontFamily: 'monospace', fontWeight: 'bold', fontSize: 9, color: '#0058e6',
-                                        background: '#e8f0fe', border: '1px solid #b0c8f8', borderRadius: 2,
-                                        padding: '0 5px', cursor: 'pointer',
+                                        fontFamily: CODE_FONT, fontWeight: 'bold', fontSize: 9, color: '#0058e6',
+                                        textDecoration: 'underline', cursor: 'pointer',
                                     }}
                                 >{wo.mo_code}</span>
                             </div>
@@ -799,12 +798,12 @@ export default function WorkOrderListView({
                                                         onChange={e => setForm(f => ({ ...f, sequence: e.target.value }))} />
                                                 </td>
                                                 <td style={tdBase}>
-                                                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#555' }}>
+                                                    <span style={{ fontFamily: CODE_FONT, fontSize: 10, color: '#666' }}>
                                                         {(wo as any).code || wo.name}
                                                     </span>
                                                 </td>
                                                 <td style={tdBase}>
-                                                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#555' }}>{wo.item_name || '—'}</span>
+                                                    <span style={{ fontSize: 10, color: '#666' }}>{wo.item_name || '—'}</span>
                                                 </td>
                                                 <td style={tdBase}>
                                                     <select style={{ ...xpInput, width: '100%' }} value={form.work_center_id}
@@ -874,16 +873,15 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
                                                     {wo.root_mo_code ? (
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 3, overflow: 'hidden' }}>
-                                                            <span
+                                                            <CodeChip
+                                                                code={wo.root_mo_code}
+                                                                classic={classic}
+                                                                tier={2}
+                                                                link
                                                                 onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.root_mo_code!)}`)}
                                                                 title={`Go to root MO ${wo.root_mo_code}`}
-                                                                style={{
-                                                                    fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11,
-                                                                    color: '#0058e6', background: '#e8f0fe', border: '1px solid #b0c8f8',
-                                                                    borderRadius: classic ? 2 : 4, padding: '0 5px', cursor: 'pointer',
-                                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                                                }}
-                                                            >{wo.root_mo_code}</span>
+                                                                style={{ fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                                            />
                                                             {(wo.root_mo_count ?? 0) > 1 && (
                                                                 <span
                                                                     title={`Shared component — feeds ${wo.root_mo_count} root MOs: ${(wo.root_mo_codes || []).join(', ')}`}
@@ -894,12 +892,15 @@ export default function WorkOrderListView({
                                                     ) : <span style={{ color: '#bbb' }}>—</span>}
                                                 </td>
                                                 <td style={{ ...tdBase, color: '#888', width: 36 }} className={classic ? '' : 'ps-3'}>{wo.sequence}</td>
-                                                <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080', overflow: 'hidden' }}
+                                                <td style={{ ...tdBase, overflow: 'hidden' }}
                                                     title={(wo as any).code || wo.name}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                                                        <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                            {(wo as any).code || wo.name}
-                                                        </span>
+                                                        <CodeChip
+                                                            code={(wo as any).code || wo.name}
+                                                            classic={classic}
+                                                            tone="accent"
+                                                            style={{ fontWeight: 'bold', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                                        />
                                                         <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
                                                             <PrintChips wo={wo} />
                                                         </span>

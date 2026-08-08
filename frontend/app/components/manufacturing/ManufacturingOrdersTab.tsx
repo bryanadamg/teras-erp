@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -522,7 +522,9 @@ export default function ManufacturingOrdersTab({
                                         {level === 0 ? '●' : (isShared ? '⇒' : '└')}
                                     </span>
                                     <div style={{ flex: 1, overflow: 'hidden' }}>
-                                        <div title={node.code} style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {/* Tree label, not a table cell — stays unboxed (a chip per node would
+                                            fight the selection fill), but shares CODE_FONT with every other code. */}
+                                        <div title={node.code} style={{ fontFamily: CODE_FONT, fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {node.code}
                                         </div>
                                         <div title={node.item_name} style={{ fontSize: '10px', color: isActive ? '#e0ecff' : '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -584,7 +586,7 @@ export default function ManufacturingOrdersTab({
                         borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
                         padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'
                     }}>
-                        <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>{selectedNode.code}</span>
+                        <CodeChip code={selectedNode.code} classic={classic} style={{ fontSize: 12, fontWeight: 'bold' }} />
                         <span style={{ fontSize: '12px', color: '#000' }}>{selectedNode.item_name}</span>
                         {(selectedNode.attribute_value_ids || []).map((id: string) => (
                             <span key={id} style={{ fontSize: '9px', padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 2, fontWeight: 700 }}>
@@ -644,7 +646,7 @@ export default function ManufacturingOrdersTab({
                                 <i className="bi bi-pencil"></i>
                             </button>
                         )}
-                        {bom && <span style={{ fontSize: '10px', color: '#444' }}>BOM: <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{bom.code}</span></span>}
+                        {bom && <span style={{ fontSize: '10px', color: '#444' }}>BOM: <CodeChip code={bom.code} classic={classic} tier={2} /></span>}
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
                             {canManage && selectedNode.status === 'PENDING' && (
                                 <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(selectedNode.id, 'IN_PROGRESS')}>
@@ -808,7 +810,7 @@ export default function ManufacturingOrdersTab({
                                             <tr key={line.id} style={{ background: rowBg }}>
                                                 <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#000' }}>
                                                     <div style={{ fontWeight: 500 }}>{line.item_name || getItemName(line.item_id)}</div>
-                                                    <div style={{ fontSize: '9px', color: '#555', fontFamily: 'monospace' }}>{line.item_code || getItemCode(line.item_id)}</div>
+                                                    <CodeChip code={line.item_code || getItemCode(line.item_id)} classic={classic} tier={2} style={{ display: 'block' }} />
                                                     {hasSubBOM && <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
                                                 </td>
                                                 <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#333', fontSize: '10px' }}>{attrLabel || '—'}</td>
@@ -817,7 +819,7 @@ export default function ManufacturingOrdersTab({
                                                         {(line.percentage || 0) > 0 && (
                                                             <span title={`${line.percentage}% of MO qty`} style={{ background: '#b46a00', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold' }}>{line.percentage}%</span>
                                                         )}
-                                                        <span style={{ fontFamily: 'monospace', color: '#000', fontWeight: 'bold' }}>{req.toFixed(2)}</span>
+                                                        <span style={{ fontFamily: CODE_FONT, color: '#000', fontWeight: 'bold' }}>{req.toFixed(2)}</span>
                                                         {getItemUom(line.item_id) && (
                                                             <span style={uomBadgeStyle}>{getItemUom(line.item_id)}</span>
                                                         )}
@@ -830,8 +832,8 @@ export default function ManufacturingOrdersTab({
                                                             const componentShare = req * proportion;
                                                             return (
                                                                 <div key={mo.id} style={{ fontSize: '10px', display: 'flex', gap: 6, whiteSpace: 'nowrap', justifyContent: 'space-between' }}>
-                                                                    <span style={{ fontFamily: 'monospace', color: '#666' }}>{mo.code}:</span>
-                                                                    <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{componentShare.toFixed(2)}</span>
+                                                                    <span style={{ fontFamily: CODE_FONT, color: '#666' }}>{mo.code}:</span>
+                                                                    <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#000' }}>{componentShare.toFixed(2)}</span>
                                                                 </div>
                                                             );
                                                         })}
@@ -839,7 +841,7 @@ export default function ManufacturingOrdersTab({
                                                 )}
                                                 <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                                                        <span style={{ fontFamily: 'monospace', color: isEnough ? '#004400' : total > 0 ? '#664400' : '#880000', fontWeight: 'bold' }}>{total.toFixed(2)}</span>
+                                                        <span style={{ fontFamily: CODE_FONT, color: isEnough ? '#004400' : total > 0 ? '#664400' : '#880000', fontWeight: 'bold' }}>{total.toFixed(2)}</span>
                                                         <span style={{ display: 'inline-block', width: 8, height: 8, background: dc.dot, border: `1px solid ${dc.border}`, flexShrink: 0 }} />
                                                         {stockLevel === 'low' && <span style={{ fontSize: 8, background: '#886600', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Low</span>}
                                                         {stockLevel === 'out' && <span style={{ fontSize: 8, background: '#880000', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Out</span>}
@@ -853,7 +855,7 @@ export default function ManufacturingOrdersTab({
                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                                             {locs.map(l => (
                                                                 <span key={l.locId} style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', fontSize: 8, padding: '0 4px', whiteSpace: 'nowrap' }}>
-                                                                    {l.code} <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
+                                                                    {l.code} <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
                                                                 </span>
                                                             ))}
                                                         </div>
@@ -941,7 +943,7 @@ export default function ManufacturingOrdersTab({
                                         <div key={b.item_id} style={{ marginBottom: '4px' }}>
                                             <div style={{ fontSize: '9px', color: '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={b.item_name}>{b.item_name}</div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                <span style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', color: total > 0 ? '#004400' : '#880000' }}>{total.toFixed(2)}</span>
+                                                <span style={{ fontFamily: CODE_FONT, fontSize: '10px', fontWeight: 'bold', color: total > 0 ? '#004400' : '#880000' }}>{total.toFixed(2)}</span>
                                                 {getItemUom(b.item_id) && <span style={uomBadgeStyle}>{getItemUom(b.item_id)}</span>}
                                                 <span style={{ fontSize: 9, background: '#e8d8ff', border: '1px solid #c4a8ee', color: '#440099', padding: '0 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{bc} beam{bc !== 1 ? 's' : ''}</span>
                                             </div>
@@ -968,7 +970,7 @@ export default function ManufacturingOrdersTab({
                                     {outputBatch && (
                                         <div style={{ fontSize: '10px', marginBottom: '4px' }}>
                                             <span style={{ color: '#555', fontSize: '9px' }}>Output: </span>
-                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#1a6e1a', fontSize: '10px', background: '#f0fdf4', border: '1px solid #86efac', padding: '0 4px', borderRadius: 2 }}>
+                                            <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#1a6e1a', fontSize: '10px', background: '#f0fdf4', border: '1px solid #86efac', padding: '0 4px', borderRadius: 2 }}>
                                                 {outputBatch}
                                             </span>
                                         </div>
@@ -976,7 +978,7 @@ export default function ManufacturingOrdersTab({
                                     <div style={{ fontSize: '9px', color: '#555', marginBottom: '2px' }}>Input batches:</div>
                                     {trace.map((c: any, i: number) => (
                                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px', fontSize: '9px' }}>
-                                            <span style={{ fontFamily: 'monospace', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #93c5fd', padding: '0 3px', borderRadius: 2, fontSize: '9px' }}>
+                                            <span style={{ fontFamily: CODE_FONT, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #93c5fd', padding: '0 3px', borderRadius: 2, fontSize: '9px' }}>
                                                 {c.input_batch_number}
                                             </span>
                                             <span style={{ color: '#666', fontSize: '9px' }}>{Number(c.qty_consumed).toFixed(2)}</span>
@@ -1167,9 +1169,9 @@ export default function ManufacturingOrdersTab({
 
                                         {/* MO Code */}
                                         <td style={{ ...tdStyle, paddingLeft: classic ? '10px' : undefined }}
-                                            className={!classic ? 'ps-4 fw-bold font-monospace small' : ''}>
+                                            className={!classic ? 'ps-4' : ''}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', color: '#000', flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.code}</span>
+                                                <CodeChip code={wo.code} classic={classic} style={{ fontWeight: 'bold', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} />
                                                 <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
                                                     <PrintChip variant={wo.card_printed_at ? 'green' : 'gray'} label="Card"
                                                         title={wo.card_printed_at ? `SPK Produksi printed ${tzFmt(wo.card_printed_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }, 'id-ID')}` : 'SPK Produksi not printed yet'} />
@@ -1209,7 +1211,7 @@ export default function ManufacturingOrdersTab({
                                         {/* BOM — code + originating SO + nested marker */}
                                         <td style={tdStyle}>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '9px', color: '#555' }}>
-                                                <span style={{ fontFamily: 'monospace', color: '#000' }}>{getBOMCode(wo.bom_id)}</span>
+                                                <CodeChip code={getBOMCode(wo.bom_id)} classic={classic} tier={2} />
                                                 {wo.sales_order_id && (
                                                     <span style={classic ? {
                                                         fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
@@ -1230,7 +1232,7 @@ export default function ManufacturingOrdersTab({
                                         </td>
 
                                         {/* Qty */}
-                                        <td style={{ ...tdStyle, fontWeight: 'bold', color: '#000', fontFamily: 'monospace' }}
+                                        <td style={{ ...tdStyle, fontWeight: 'bold', color: '#000', fontFamily: CODE_FONT }}
                                             className={!classic ? 'fw-bold' : ''}>
                                             {(() => {
                                                 const qtyStr = typeof wo.qty === 'number' ? wo.qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(wo.qty);
@@ -1382,7 +1384,7 @@ export default function ManufacturingOrdersTab({
                         isOpen
                         modeless
                         onClose={() => setEditAttrsModal(null)}
-                        title={<><i className="bi bi-tags me-1"></i>Edit Attributes — <span style={{ fontFamily: 'monospace' }}>{editAttrsModal.mo.code}</span></>}
+                        title={<><i className="bi bi-tags me-1"></i>Edit Attributes — <span style={{ fontFamily: CODE_FONT }}>{editAttrsModal.mo.code}</span></>}
                         size="md"
                         level={2}
                         footer={isClassic ? (
@@ -1469,7 +1471,7 @@ export default function ManufacturingOrdersTab({
                         isOpen
                         modeless
                         onClose={() => setEditColorModal(null)}
-                        title={<><i className="bi bi-palette me-1"></i>Set Color — <span style={{ fontFamily: 'monospace' }}>{mo.code}</span></>}
+                        title={<><i className="bi bi-palette me-1"></i>Set Color — <span style={{ fontFamily: CODE_FONT }}>{mo.code}</span></>}
                         size="md"
                         level={2}
                         footer={isClassic ? (
@@ -1565,7 +1567,7 @@ export default function ManufacturingOrdersTab({
                         isOpen
                         modeless
                         onClose={() => setPutawayModal(null)}
-                        title={<><i className="bi bi-box-arrow-in-down me-1"></i>Putaway Bin — <span style={{ fontFamily: 'monospace' }}>{pm.mo.code}</span></>}
+                        title={<><i className="bi bi-box-arrow-in-down me-1"></i>Putaway Bin — <span style={{ fontFamily: CODE_FONT }}>{pm.mo.code}</span></>}
                         size="md"
                         level={2}
                         footer={isClassic ? (
@@ -1654,7 +1656,7 @@ export default function ManufacturingOrdersTab({
                         isOpen
                         modeless
                         onClose={() => setToleranceModal(null)}
-                        title={<><i className="bi bi-arrow-bar-up me-1"></i>Overdelivery Tolerance — <span style={{ fontFamily: 'monospace' }}>{tm.mo.code}</span></>}
+                        title={<><i className="bi bi-arrow-bar-up me-1"></i>Overdelivery Tolerance — <span style={{ fontFamily: CODE_FONT }}>{tm.mo.code}</span></>}
                         size="md"
                         level={2}
                         footer={isClassic ? (

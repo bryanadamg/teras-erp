@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -190,7 +190,7 @@ export default function PackingOrderView() {
                             const closed = po.status === 'COMPLETED' || po.status === 'CANCELLED';
                             return (
                                 <tr key={po.id} style={rowStyle(idx)}>
-                                    <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{po.code}</td>
+                                    <td style={td}><CodeChip code={po.code} classic={CLASSIC} tone="accent" style={{ fontWeight: 'bold' }} /></td>
                                     <td style={td}>
                                         <div>{po.item_name || it?.name || po.item_id}</div>
                                         <div style={{ fontSize: 9, color: '#888' }}>{po.item_code || it?.code}</div>
@@ -885,7 +885,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                                             onChange={e => toggleLot(id, e.target.checked)} />
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
+                                                                <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{b.batch_number}</span>
                                                                 <span style={{ color: '#555' }}>{Number(b.remaining ?? 0).toFixed(2)} {uom}</span>
                                                                 {/* What this log takes off the lot — the rest stays on it for
                                                                     the next pack event. FIFO, so later lots may draw 0. */}
@@ -985,7 +985,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                         {units.map((u: any, idx: number) => (
                                             <tr key={u.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
                                                 <td style={{ padding: '2px 6px' }}>{u.package_no}</td>
-                                                <td style={{ padding: '2px 6px', fontFamily: 'monospace', color: '#00309c' }}>{u.batch_number}</td>
+                                                <td style={{ padding: '2px 6px', fontFamily: CODE_FONT, color: '#00309c' }}>{u.batch_number}</td>
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
                                                     {num(u.qty).toLocaleString()}
                                                 </td>
@@ -1029,7 +1029,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                                     {num(c.qty_rejected) ? num(c.qty_rejected).toFixed(2) : '—'}
                                                     {c.package_count_rejected ? <span style={{ fontWeight: 'normal', fontSize: 9 }}> ({c.package_count_rejected})</span> : null}
                                                 </td>
-                                                <td style={{ padding: '2px 6px', color: '#555', fontFamily: c.source_batch_number ? 'monospace' : undefined }}>
+                                                <td style={{ padding: '2px 6px', color: '#555', fontFamily: c.source_batch_number ? CODE_FONT : undefined }}>
                                                     {c.source_batch_number || '—'}
                                                 </td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator || '—'}</td>
@@ -1082,7 +1082,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                                         ? [...prev, String(u.id)]
                                                         : prev.filter(x => x !== String(u.id)))}
                                                 />
-                                                <span style={{ fontFamily: 'monospace' }}>{u.batch_number}</span>
+                                                <span style={{ fontFamily: CODE_FONT }}>{u.batch_number}</span>
                                                 <span style={{ color: '#777' }}>{num(u.qty).toFixed(2)} {uom}</span>
                                             </label>
                                         ))}

@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
@@ -923,8 +923,8 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                            <i className={`bi bi-chevron-${expandedRows[po.id] ? 'down' : 'right'}`}></i>
                                        </button>
                                    </td>
-                                   <td style={classic ? { ...tdBase, fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0058e6' } : undefined} className={classic ? '' : 'ps-2 fw-bold font-monospace text-primary'}>
-                                       {po.po_number}
+                                   <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-2'}>
+                                       <CodeChip code={po.po_number} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                    </td>
                                    <td style={classic ? tdBase : undefined}>{getSupplierName(po.supplier_id)}</td>
                                    <td style={classic ? { ...tdBase, fontSize: '10px' } : undefined} className={classic ? '' : 'small'}>

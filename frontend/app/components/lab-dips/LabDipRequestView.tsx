@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -134,10 +134,10 @@ const itemColorNames = (req: any, item: any): string[] => {
 
 // Two distinct chips: the request sequence (neutral) and the item's variant letter (accent).
 const seqBadge = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: "'Courier New', monospace", fontSize: 11, fontWeight: 'bold', color: '#333',
+    fontFamily: CODE_FONT, fontSize: 11, fontWeight: 'bold', color: '#333',
     background: '#e4e1d8', border: '1px solid #a0988c', padding: '1px 7px', whiteSpace: 'nowrap' as const,
 } : {
-    fontFamily: "'Courier New', monospace", fontSize: 12, fontWeight: 700, color: '#475569',
+    fontFamily: CODE_FONT, fontSize: 12, fontWeight: 700, color: '#475569',
     background: '#eef1f6', border: '1px solid #d4dce6', borderRadius: 5, padding: '2px 9px', whiteSpace: 'nowrap' as const,
 };
 const variantBadge = (classic: boolean): React.CSSProperties => classic ? {
@@ -577,9 +577,7 @@ export default function LabDipRequestView({
                                                     {expandedIds.has(r.id) ? '▼' : '▶'}
                                                 </button>
                                                 <div>
-                                                    <div style={classic
-                                                        ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 10 }
-                                                        : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{r.code}</div>
+                                                    <CodeChip code={r.code} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                                     <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.created_at ? tzDate(r.created_at) : ''}</div>
                                                 </div>
                                             </div>
@@ -677,7 +675,7 @@ export default function LabDipRequestView({
                                                     it.approved_color_code ? (
                                                         <span title="Approved color code (saved to library)" style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 6px', background: classic ? '#1b7a34' : '#dcfce7', color: classic ? '#fff' : '#166534', borderColor: classic ? '#0f5a22' : '#a7e3bf' }}>{it.approved_color_code}</span>
                                                     ) : (
-                                                        <span style={{ ...seqBadge(classic), fontFamily: "'Courier New', monospace", fontSize: classic ? 10 : 11 }}>{variantCode}</span>
+                                                        <span style={{ ...seqBadge(classic), fontFamily: CODE_FONT, fontSize: classic ? 10 : 11 }}>{variantCode}</span>
                                                     ),
                                                     <StatusChip status={status} tint />,
                                                     // Rejections column: a clear "log" button (icon + count) that opens the
@@ -848,9 +846,7 @@ export default function LabDipRequestView({
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                 <div>
                                     <label style={xpLbl(classic)}>Request Code</label>
-                                    <div style={classic
-                                        ? { fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 'bold', color: '#0047c8', padding: '2px 0' }
-                                        : { fontFamily: "'Courier New', monospace", fontSize: 15, fontWeight: 700, color: '#2563eb', padding: '3px 0' }}>
+                                    <div style={{ fontFamily: CODE_FONT, fontSize: classic ? 14 : 15, fontWeight: 'bold', color: '#000055', padding: classic ? '2px 0' : '3px 0' }}>
                                         {displayCode}
                                         {!editing && <span style={{ fontFamily: modernFont, fontSize: classic ? 9 : 10, fontWeight: 400, color: classic ? '#888' : '#94a3b8', marginLeft: 6 }}>(on save)</span>}
                                     </div>
@@ -1005,7 +1001,7 @@ export default function LabDipRequestView({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                             <span style={{ ...seqBadge(classic), fontSize: classic ? 11 : 13 }}>{approval.seq}</span>
                             <span style={{ ...variantBadge(classic), fontSize: classic ? 11 : 13 }}>{approval.variant}</span>
-                            <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 700, color: classic ? '#555' : '#94a3b8' }}>–</span>
+                            <span style={{ fontFamily: CODE_FONT, fontWeight: 700, color: classic ? '#555' : '#94a3b8' }}>–</span>
                             <input autoFocus style={{ ...xpInput(classic), width: 90 }} value={approvalSet}
                                 onChange={e => setApprovalSet(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') confirmApproval(); }}
@@ -1013,7 +1009,7 @@ export default function LabDipRequestView({
                         </div>
                         <div style={{ fontSize: classic ? 11 : 12, color: classic ? '#555' : '#64748b', marginBottom: 10 }}>
                             Approved color code:{' '}
-                            <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 700, color: classic ? '#1b7a34' : '#16a34a' }}>
+                            <span style={{ fontFamily: CODE_FONT, fontWeight: 700, color: classic ? '#1b7a34' : '#16a34a' }}>
                                 {approval.seq}-{approval.variant}-{approvalSet.trim() || '…'}
                             </span>
                             {' '}— saved to the Color library.

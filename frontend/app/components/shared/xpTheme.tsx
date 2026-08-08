@@ -11,6 +11,54 @@ import React, { useMemo, useState, useEffect } from 'react';
 export const xpFont = 'Tahoma, "Segoe UI", Arial, sans-serif';
 export const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
+// Single monospace stack for every identifier and every aligned number. Views used
+// to pick between `'Courier New', monospace` and a bare `monospace` per file, which
+// resolve to different faces on Windows — the same MO code rendered two widths on
+// two pages. Always import this; never hand-write a mono stack.
+export const CODE_FONT = "'Courier New', Consolas, monospace";
+
+// ── Identifier typography ─────────────────────────────────────────────────────
+// Codes are tiered by ROLE, not by page:
+//   tier 1 — the code that identifies THIS row (item code on the items table, BOM
+//            code on the BOM table, mo.code on the MO table). Boxed chip.
+//   tier 2 — a code pointing at ANOTHER entity from inside the row (item code under
+//            an item name, BOM code under a PR, a parent/contributing MO). Bare,
+//            muted, one step smaller. Box means "this row IS that thing", so a
+//            reference must never box.
+// Status is never a code — use StatusChip. And a code never gets a solid color fill:
+// solid fill is reserved for status families and numeric emphasis, so filling a code
+// makes it read as a state.
+// `link` marks a code that navigates (root MO on the WO table, contributing MOs on a
+// PR) — blue + underline, so "clickable" is carried by link affordance instead of a
+// tinted pill that competes with the status column.
+export function CodeChip({ code, classic, tier = 1, tone = 'default', link = false, title, style, className, onClick }: {
+    code: React.ReactNode; classic: boolean; tier?: 1 | 2;
+    tone?: 'default' | 'accent'; link?: boolean; title?: string;
+    style?: React.CSSProperties; className?: string; onClick?: () => void;
+}) {
+    const base: React.CSSProperties = { fontFamily: CODE_FONT, whiteSpace: 'nowrap' };
+    const linkStyle: React.CSSProperties = link
+        ? { color: '#0058e6', textDecoration: 'underline', cursor: 'pointer' } : {};
+    const s: React.CSSProperties = tier === 2
+        ? { ...base, fontSize: classic ? 9 : 10.5, color: '#666', ...linkStyle }
+        : {
+            ...base,
+            fontSize: classic ? 10 : 11.5,
+            color: tone === 'accent' ? '#000055' : (classic ? '#000' : '#0f172a'),
+            background: '#fff',
+            border: classic ? '1px solid #888' : '1px solid #d5dbe5',
+            borderRadius: classic ? 0 : 4,
+            padding: classic ? '1px 5px' : '1px 6px',
+            display: 'inline-block',
+            ...linkStyle,
+        };
+    return (
+        <span className={className} onClick={onClick} title={title ?? (typeof code === 'string' ? code : undefined)} style={{ ...s, ...style }}>
+            {code}
+        </span>
+    );
+}
+
 // Every domain status collapses into one of five semantic families, so a status
 // means the same color everywhere regardless of which module (SO/PO/MO/sample)
 // it came from. Add a new domain status here — not a new per-view color map.

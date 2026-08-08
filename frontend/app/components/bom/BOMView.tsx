@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont, colorHexFor } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
 const xpTh: React.CSSProperties = {
@@ -349,7 +349,7 @@ export default function BOMView({
                                 <span style={{ width: '12px', display: 'inline-block', marginRight: '4px', flexShrink: 0 }} />
                             )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingBottom: '2px', borderBottom: classic ? '1px solid #e0ddd4' : '1px solid #f0f0f0', width: '100%', overflow: 'hidden' }}>
-                                <span className="text-truncate me-1" style={{ fontFamily: "'Courier New', monospace", fontSize: '9px', color: '#555' }}>{getItemCode(line.item_id, line.item_code)}</span>
+                                <CodeChip code={getItemCode(line.item_id, line.item_code)} classic={classic} tier={2} className="text-truncate me-1" />
                                 <span className="text-truncate" style={{ color: '#000' }}>{getItemName(line.item_id, line.item_name)}</span>
                                 <div className="text-truncate flex-grow-1" style={{ fontSize: '0.7rem', color: '#555', fontStyle: 'italic' }}>
                                     {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
@@ -363,7 +363,7 @@ export default function BOMView({
                                     {(line.percentage || 0) > 0 ? (
                                         <span style={{ background: '#b46a00', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold' }}>{line.percentage}%</span>
                                     ) : (line.qty || 0) > 0 ? (
-                                        <span style={{ fontFamily: "'Courier New', monospace", fontSize: 9, fontWeight: 'bold', color: '#000' }}>{Number(line.qty)}</span>
+                                        <span style={{ fontFamily: CODE_FONT, fontSize: 9, fontWeight: 'bold', color: '#000' }}>{Number(line.qty)}</span>
                                     ) : null}
                                     {getItemUom(line.item_id) && (
                                         <span style={uomBadge}>{getItemUom(line.item_id)}</span>
@@ -522,7 +522,7 @@ export default function BOMView({
                                         </span>
                                         {(displayBOM.attribute_value_ids || []).length > 0 && renderVariantChips(displayBOM.attribute_value_ids)}
                                     </div>
-                                    <div style={{ fontSize: 9, color: '#555', fontFamily: "'Courier New', monospace" }}>
+                                    <div style={{ fontSize: 9, color: '#666', fontFamily: CODE_FONT }}>
                                         {displayBOM.item_code} · BOM: {displayBOM.code}
                                     </div>
                                 </div>
@@ -557,9 +557,7 @@ export default function BOMView({
                                                     return (
                                                         <tr key={line.id} style={{ background: i % 2 === 0 ? '#fff' : '#f5f3ee' }}>
                                                             <td style={xpTd}>
-                                                                <span style={{ fontFamily: "'Courier New', monospace", fontSize: 10, background: '#f0f0f0', border: '1px solid #d0d0d0', padding: '0 3px', color: '#0000cc' }}>
-                                                                    {line.item_code}
-                                                                </span>
+                                                                <CodeChip code={line.item_code} classic={classic} tone="accent" />
                                                                 <span style={{ marginLeft: 5, color: '#000' }}>{line.item_name}</span>
                                                                 {isSubBOM && (
                                                                     <span style={{ marginLeft: 5, background: '#e6eeff', border: '1px solid #0058e6', color: '#003080', fontSize: 9, padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
@@ -569,7 +567,7 @@ export default function BOMView({
                                                                 {(line.percentage || 0) > 0 ? (
                                                                     <span style={{ background: '#b46a00', color: '#fff', fontSize: 9, padding: '1px 5px', fontWeight: 'bold' }}>{line.percentage}%</span>
                                                                 ) : (line.qty || 0) > 0 ? (
-                                                                    <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 'bold' }}>{Number(line.qty)}</span>
+                                                                    <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{Number(line.qty)}</span>
                                                                 ) : <span style={{ color: '#888' }}>—</span>}
                                                                 {getItemUom(line.item_id) && (
                                                                     <span style={{ ...uomBadge, marginLeft: 4 }}>{getItemUom(line.item_id)}</span>
@@ -645,12 +643,12 @@ export default function BOMView({
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px', marginBottom: 6 }}>
                                         <div style={{ gridColumn: '1/-1' }}>
                                             <div style={lbl}>BOM Code</div>
-                                            <div style={{ fontFamily: "'Courier New', monospace", color: '#0000cc', fontSize: 10 }}>{displayBOM.code}</div>
+                                            <CodeChip code={displayBOM.code} classic={classic} tone="accent" />
                                         </div>
                                         <div style={{ gridColumn: '1/-1' }}>
                                             <div style={lbl}>Item</div>
                                             <div style={{ ...val, fontSize: 11 }}>{displayBOM.item_name || displayBOM.item_code}</div>
-                                            <div style={{ fontFamily: "'Courier New', monospace", color: '#666', fontSize: 9 }}>{displayBOM.item_code}</div>
+                                            <CodeChip code={displayBOM.item_code} classic={classic} tier={2} />
                                         </div>
                                         {(displayBOM.attribute_value_ids || []).length > 0 && (
                                             <div style={{ gridColumn: '1/-1' }}>
@@ -984,9 +982,7 @@ export default function BOMView({
                                                     >
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                             <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ fontSize: '9px', color: '#0058e6', flexShrink: 0 }} />
-                                                            <span style={classic ? { fontFamily: "'Courier New', monospace", fontSize: '10px', background: '#fff', border: '1px solid #888', padding: '0 4px', color: '#000', whiteSpace: 'nowrap' } : undefined} className={classic ? '' : 'badge bg-light text-dark border font-monospace'}>
-                                                                {bom.code}
-                                                            </span>
+                                                            <CodeChip code={bom.code} classic={classic} />
                                                         </div>
                                                     </td>
                                                     {/* Finished Good — item name */}
@@ -1003,9 +999,9 @@ export default function BOMView({
                                                         onClick={() => toggleBOMRow(bom.id, bom.item_id)}
                                                         style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle', cursor: 'pointer' } : { cursor: 'pointer' }}
                                                     >
-                                                        <span style={{ fontFamily: "'Courier New', monospace", fontSize: 10, color: '#000055', background: '#fff', border: '1px solid #aaa', padding: '1px 5px', whiteSpace: 'nowrap' }}>
-                                                            {getItemCode(bom.item_id, bom.item_code)}
-                                                        </span>
+                                                        {/* Reference to the item, not this row's identity — tier 2 so it
+                                                            doesn't compete with the BOM code chip two columns over. */}
+                                                        <CodeChip code={getItemCode(bom.item_id, bom.item_code)} classic={classic} tier={2} />
                                                     </td>
                                                     {/* Variant — color swatches + combo values */}
                                                     <td style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined}>

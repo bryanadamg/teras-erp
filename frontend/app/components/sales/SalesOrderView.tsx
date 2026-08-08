@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
@@ -82,6 +82,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   };
 
   // Clickable code chip (MO / PR). onClick navigates to the relevant page.
+  // Deliberate exception to the CodeChip tiering: inside the lineage tree the tint
+  // encodes WHICH ENTITY the code belongs to (green = PR, blue = MO), which is the
+  // whole point of the view. Elsewhere a code must not carry a fill. Font stays on
+  // CODE_FONT so it still matches the rest of the app.
   const lineageCodeChip = (code: string, onClick: () => void, scheme: 'mo' | 'pr') => {
     const colors = scheme === 'pr'
       ? { bg: '#e4f5e4', bd: '#90c090', fg: '#1a5e1a' }
@@ -92,7 +96,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
         onClick={onClick}
         title={`Open ${code}`}
         style={{
-          fontFamily: 'monospace', fontWeight: 'bold', fontSize: '0.72rem',
+          fontFamily: CODE_FONT, fontWeight: 'bold', fontSize: '0.72rem',
           background: colors.bg, border: `1px solid ${colors.bd}`, color: colors.fg,
           padding: '1px 7px', borderRadius: classic ? 0 : 4, cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
@@ -118,7 +122,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       <div style={{ flex: 1, minWidth: 50, maxWidth: 130, height: 6, background: '#e4e4e4', borderRadius: 3, border: classic ? '1px solid #b0b0b0' : undefined, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#2d7a2d' : '#0058e6', transition: 'width 0.3s' }} />
       </div>
-      <span style={{ fontSize: '0.66rem', fontFamily: 'monospace', color: '#666', minWidth: 28 }}>{pct}%</span>
+      <span style={{ fontSize: '0.66rem', fontFamily: CODE_FONT, color: '#666', minWidth: 28 }}>{pct}%</span>
     </div>
   );
 
@@ -156,7 +160,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
             </div>
           </td>
           <td style={lineageTd()}><span style={itemStyle}>{mo.item_code}</span></td>
-          <td style={lineageTd({ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.72rem' })}>{mo.qty}</td>
+          <td style={lineageTd({ textAlign: 'right', fontFamily: CODE_FONT, fontSize: '0.72rem' })}>{mo.qty}</td>
           <td style={lineageTd()}>{lineageStatusBadge(mo.status)}</td>
           <td style={lineageTd({ minWidth: 120 })}>{lineageProgressBar(pct)}</td>
         </tr>
@@ -168,7 +172,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       <tr key={key}>
         <td style={lineageTd({ paddingLeft: indent })}>
           <span title={`Beam ${bm.batch_number}`} style={{ fontSize: '0.68rem', background: '#fdf3e0', border: '1px solid #e0c08a', color: '#8a5a00', padding: '1px 7px', borderRadius: classic ? 0 : 4, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <i className="bi bi-box-seam"></i><span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{bm.batch_number}</span>
+            <i className="bi bi-box-seam"></i><span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{bm.batch_number}</span>
           </span>
         </td>
         <td style={lineageTd()}><span style={itemStyle}>{bm.item_code}{bm.ends != null ? ` · ${bm.ends}e` : ''}</span></td>
@@ -988,7 +992,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        <div style={{ flex: 1, minWidth: 80, maxWidth: 180, height: 8, background: '#e4e4e4', borderRadius: 4, overflow: 'hidden' }}>
                                            <div style={{ height: '100%', width: `${prPct}%`, background: prPct === 100 ? '#2d7a2d' : '#0058e6' }} />
                                        </div>
-                                       <span style={{ fontSize: '0.7rem', fontFamily: 'monospace', color: '#555' }}>{prPct}%</span>
+                                       <span style={{ fontSize: '0.7rem', fontFamily: CODE_FONT, color: '#555' }}>{prPct}%</span>
                                    </div>
                                    {rows.length === 0 ? (
                                        <div style={{ padding: '8px', color: '#999', fontStyle: 'italic', border: sectBorder }}>No manufacturing orders.</div>
@@ -1528,7 +1532,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                            <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
-                                   <span style={{color:classic?'#555':'',marginLeft:8,fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 font-monospace small'}>{getItemCode(line.item_id, line.item_code)}</span>
+                                   <CodeChip code={getItemCode(line.item_id, line.item_code)} classic={classic} tier={2} style={{ marginLeft: 8 }} />
                                    {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
                                    {(() => {
                                        const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], line.color_label, line.color_hex, !line.color_id ? line.labdip_variant_code : null);
@@ -1742,9 +1746,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
                                const poCellContent = (
                                    <>
-                                       <div style={classic ? { fontFamily:"'Courier New',monospace", fontWeight:'bold', color:'#0058e6', fontSize:'11px' } : undefined} className={classic ? '' : 'fw-bold font-monospace text-primary small'}>
-                                           {so.po_number}
-                                       </div>
+                                       <CodeChip code={so.po_number} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                        {so.customer_po_ref && (
                                            <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color:'#666', marginTop:1 }}>
                                                {so.customer_po_ref}

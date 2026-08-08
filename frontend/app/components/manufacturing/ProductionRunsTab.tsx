@@ -5,7 +5,7 @@ import ManufacturingSearchBar from './ManufacturingSearchBar';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 export default function ProductionRunsTab({
@@ -203,8 +203,8 @@ export default function ProductionRunsTab({
                                                 style={{ color: hasShortfall && isExpanded ? '#c00000' : '#555' }}
                                             ></i>
                                         </td>
-                                        <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>
-                                            <div>{pr.code}</div>
+                                        <td style={tdStyle}>
+                                            <CodeChip code={pr.code} classic={classic} style={{ fontWeight: 'bold' }} />
                                             {pr.sales_order_id && (
                                                 <div style={{ marginTop: 3 }}>
                                                     <span style={classic ? {
@@ -229,11 +229,14 @@ export default function ProductionRunsTab({
                                                 ? pr.bom_entries.map((e: any) => e.bom?.code).filter(Boolean).join(' / ')
                                                 : pr.bom?.code
                                             ) && (
-                                                <div style={{ fontSize: 9, color: '#666', fontFamily: 'monospace' }}>
-                                                    {pr.bom_entries?.length > 0
+                                                <CodeChip
+                                                    classic={classic}
+                                                    tier={2}
+                                                    style={{ display: 'block' }}
+                                                    code={pr.bom_entries?.length > 0
                                                         ? pr.bom_entries.map((e: any) => e.bom?.code).filter(Boolean).join(' / ')
                                                         : pr.bom?.code}
-                                                </div>
+                                                />
                                             )}
                                         </td>
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>{total}</td>
@@ -310,20 +313,16 @@ export default function ProductionRunsTab({
                                                                                 key={mo.id}
                                                                                 onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(mo.code)}`)}
                                                                                 title={`View ${mo.code} in Manufacturing Orders (${mo.status})`}
-                                                                                style={classic ? {
-                                                                                    fontSize: 9, fontFamily: 'Tahoma, Arial, sans-serif',
-                                                                                    padding: '1px 6px', cursor: 'pointer',
-                                                                                    background: 'linear-gradient(to bottom,#4da6ff,#0058e6)',
-                                                                                    border: '1px solid', borderColor: '#dfdfdf #003080 #003080 #dfdfdf',
-                                                                                    color: '#fff', fontWeight: 'bold',
-                                                                                } : {
-                                                                                    fontSize: 11, fontFamily: 'monospace',
-                                                                                    padding: '2px 7px', cursor: 'pointer',
-                                                                                    background: '#0d6efd', border: '1px solid #0a58ca',
-                                                                                    color: '#fff', fontWeight: 'bold', borderRadius: 3,
-                                                                                }}
+                                                                                style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
                                                                             >
-                                                                                {mo.code}
+                                                                                {/* Navigates to the MO, but it is still a code — a solid blue
+                                                                                    fill would read as a status. Chip + accent + underline. */}
+                                                                                <CodeChip
+                                                                                    code={mo.code}
+                                                                                    classic={classic}
+                                                                                    tone="accent"
+                                                                                    style={{ fontWeight: 'bold', textDecoration: 'underline' }}
+                                                                                />
                                                                             </button>
                                                                         ))}
                                                                 </div>
@@ -357,14 +356,14 @@ export default function ProductionRunsTab({
                                                                     const moSummary = (req.mo_contributions || []).map((c: any) => `${c.mo_code} (${parseFloat(c.required_qty).toFixed(2)})`).join(', ');
                                                                     return (
                                                                         <tr key={ri}>
-                                                                            <td style={{ ...cellStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>{req.item_code}</td>
+                                                                            <td style={cellStyle}><CodeChip code={req.item_code} classic={classic} /></td>
                                                                             <td style={cellStyle}>{req.item_name}</td>
                                                                             <td style={cellStyle}>{req.uom}</td>
-                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(req.total_required).toFixed(2)}</td>
-                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
+                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT }}>{parseFloat(req.total_required).toFixed(2)}</td>
+                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
                                                                                 {parseFloat(req.qty_available).toFixed(2)}
                                                                             </td>
-                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
+                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
                                                                                 {short ? `-${parseFloat(req.shortfall).toFixed(2)}` : 'OK'}
                                                                             </td>
                                                                             <td style={{ ...cellStyle, fontSize: classic ? 9 : 11, color: '#555' }}>{moSummary}</td>

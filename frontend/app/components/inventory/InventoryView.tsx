@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChip } from '../shared/xpTheme';
+import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -160,20 +160,12 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                     onChange={() => onToggleSelect(item.id)}
                 />
             </td>
-            <td style={classic ? { ...tdBase, width: '110px' } : undefined} className={classic ? '' : 'ps-4 fw-medium font-monospace'}>
-                {classic ? (
-                    <span style={{
-                        fontFamily: "'Courier New', monospace",
-                        fontSize: '10px',
-                        background: isSelected ? 'rgba(255,255,255,0.15)' : '#ffffff',
-                        border: '1px solid #888',
-                        padding: '1px 5px',
-                        color: isSelected ? '#fff' : '#000',
-                        whiteSpace: 'nowrap',
-                    }}>
-                        {item.code}
-                    </span>
-                ) : item.code}
+            <td style={classic ? { ...tdBase, width: '110px' } : undefined} className={classic ? '' : 'ps-4'}>
+                <CodeChip
+                    code={item.code}
+                    classic={classic}
+                    style={isSelected ? { background: 'rgba(255,255,255,0.15)', color: '#fff' } : undefined}
+                />
             </td>
             <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined}>
                 {item.name}

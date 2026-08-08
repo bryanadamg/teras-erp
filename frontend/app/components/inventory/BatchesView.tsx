@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
@@ -451,7 +451,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
         display: 'inline-block', fontSize: classic ? 9 : 10, fontWeight: 'bold',
         padding: '0 5px', borderRadius: classic ? 0 : 8, lineHeight: classic ? '14px' : '16px',
         color: fg, background: bg, border: `1px solid ${border}`, whiteSpace: 'nowrap',
-        fontFamily: opts.mono ? 'monospace' : undefined,
+        fontFamily: opts.mono ? CODE_FONT : undefined,
       }}
     >
       {label}

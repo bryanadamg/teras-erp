@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -290,9 +290,7 @@ export default function ColorLibraryView({
                             <tr key={c.id} style={lvRow(classic, idx)}>
                                 <td style={{ ...lvTd(classic), textAlign: 'center' }}>{swatch(c.hex)}</td>
                                 <td style={lvTd(classic)}>
-                                    <span style={classic
-                                        ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 11 }
-                                        : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{c.code}</span>
+                                    <CodeChip code={c.code} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                 </td>
                                 <td style={lvTd(classic)}>{c.name}</td>
                                 <td style={lvTd(classic)}>{c.variant_attribute_value_label
@@ -301,7 +299,7 @@ export default function ColorLibraryView({
                                 <td style={lvTd(classic)}>{c.colour_index || <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>
                                     {c.l_star != null
-                                        ? <span style={{ fontFamily: "'Courier New', monospace", fontSize: classic ? 11 : 12 }}>
+                                        ? <span style={{ fontFamily: CODE_FONT, fontSize: classic ? 11 : 12 }}>
                                             {c.l_star}/{c.a_star ?? '—'}/{c.b_star ?? '—'}
                                           </span>
                                         : <span style={{ color: '#aaa' }}>—</span>}
@@ -314,9 +312,7 @@ export default function ColorLibraryView({
                                         // The two lab dip books are separate pages, each listing only its own
                                         // requests — route by the source code's prefix or the deep-link no-ops.
                                         onClick={e => { e.stopPropagation(); router.push(`${String(c.source_lab_dip_code).startsWith('LDY-') ? '/lab-dips-yarn' : '/lab-dips'}?open=${encodeURIComponent(c.source_lab_dip_request_id)}`); }}
-                                        style={classic
-                                            ? { fontFamily: "'Courier New', monospace", color: '#0047c8', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }
-                                            : { fontFamily: "'Courier New', monospace", color: '#2563eb', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>{c.source_lab_dip_code}</span>
+                                        style={{ fontFamily: CODE_FONT, color: '#0058e6', fontSize: classic ? 9 : 10.5, cursor: 'pointer', textDecoration: 'underline' }}>{c.source_lab_dip_code}</span>
                                     : <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>{c.source_item_name
                                     ? <span title={c.source_item_code || undefined}>{c.source_item_name}</span>
@@ -427,14 +423,14 @@ export default function ColorLibraryView({
                             ] as const).map(f => (
                                 <div key={f.key}>
                                     <label style={{ ...lvLabel(classic), display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                                        <span style={{ fontWeight: 'bold', fontSize: classic ? 13 : 15, fontFamily: "'Courier New', monospace", color: classic ? '#0047c8' : '#2563eb' }}>{f.axis}</span>
+                                        <span style={{ fontWeight: 'bold', fontSize: classic ? 13 : 15, fontFamily: CODE_FONT, color: classic ? '#0047c8' : '#2563eb' }}>{f.axis}</span>
                                     </label>
                                     <input
                                         type="number" inputMode="decimal" step="0.01" min={f.min} max={f.max}
                                         value={(form as any)[f.key]}
                                         onChange={e => setForm({ ...form, [f.key]: e.target.value })}
                                         placeholder="—"
-                                        style={{ ...lvInput(classic), textAlign: 'center', fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: classic ? 13 : 15 }}
+                                        style={{ ...lvInput(classic), textAlign: 'center', fontFamily: CODE_FONT, fontWeight: 700, fontSize: classic ? 13 : 15 }}
                                     />
                                     <div style={{ marginTop: 3, fontSize: classic ? 9 : 10, color: classic ? '#556' : '#64748b' }}>{f.hint}</div>
                                 </div>

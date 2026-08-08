@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, XPLoading, XPActionButton, FormSection, FieldLabel } from '../shared/xpTheme';
+import { useSortable, SortMark, XPLoading, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -529,7 +529,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     style={{ background: qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' }}>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider }}>
                         <div title={bal.item_name} style={{ fontSize: '11px', fontWeight: 'bold', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_name}</div>
-                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_code}</div>
+                        <CodeChip code={bal.item_code} classic tier={2} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                         {(getComboLabel(bal) || bal.size_label) && (
                             <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 }}>
                                 {getComboLabel(bal) && (
@@ -573,7 +573,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                     {batchLabel}
                                 </span>
                                 {bal.vendor_lot && (
-                                    <span title={`Supplier lot: ${bal.vendor_lot}`} style={{ background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: '"Courier New", Courier, monospace', fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }}>
+                                    <span title={`Supplier lot: ${bal.vendor_lot}`} style={{ background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }}>
                                         SUP {bal.vendor_lot}
                                     </span>
                                 )}
@@ -600,7 +600,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             )}
                         </div>
                     </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: '"Courier New", Courier, monospace', fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap', ...colDivider }}>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: CODE_FONT, fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap', ...colDivider }}>
                         {Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap', ...colDivider }}>
@@ -647,7 +647,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}>
                 <td style={{ overflow: 'hidden', ...colDivider }}>
                     <div title={bal.item_name} className="fw-medium text-truncate">{bal.item_name}</div>
-                    <small className="text-muted font-monospace text-truncate d-block">{bal.item_code}</small>
+                    <CodeChip code={bal.item_code} classic={false} tier={2} className="text-truncate d-block" />
                     {(getComboLabel(bal) || bal.size_label) && (
                         <div className="d-flex flex-wrap gap-1 mt-1">
                             {getComboLabel(bal) && (
@@ -706,7 +706,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span className="text-muted small">Standard</span>
                     )}
                 </td>
-                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap', fontFamily: '"Courier New", Courier, monospace', ...colDivider }}>{Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
+                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap', fontFamily: CODE_FONT, ...colDivider }}>{Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
                 <td className="text-muted small" style={{ whiteSpace: 'nowrap', ...colDivider }}>{bal.item_uom || ''}</td>
                 <td className="small" style={{ whiteSpace: 'nowrap', ...colDivider }}>
                     {pkgParts(bal).length === 0
