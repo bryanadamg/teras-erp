@@ -164,7 +164,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                 <CodeChip
                     code={item.code}
                     classic={classic}
-                    style={isSelected ? { background: 'rgba(255,255,255,0.15)', color: '#fff' } : undefined}
+                    style={isSelected ? { color: '#fff' } : undefined}
                 />
             </td>
             <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined}>

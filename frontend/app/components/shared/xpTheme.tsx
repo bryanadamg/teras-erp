@@ -18,16 +18,17 @@ export const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
 export const CODE_FONT = "'Courier New', Consolas, monospace";
 
 // ── Identifier typography ─────────────────────────────────────────────────────
-// Codes are tiered by ROLE, not by page:
+// Codes are UNBOXED — plain monospace text. The box the items/BOM tables used to
+// draw around a code read as a control, not as data, and made a dense table look
+// like a row of buttons. Weight, size and color carry the tier instead:
 //   tier 1 — the code that identifies THIS row (item code on the items table, BOM
-//            code on the BOM table, mo.code on the MO table). Boxed chip.
+//            code on the BOM table, mo.code on the MO table). Bold, full size.
 //   tier 2 — a code pointing at ANOTHER entity from inside the row (item code under
-//            an item name, BOM code under a PR, a parent/contributing MO). Bare,
-//            muted, one step smaller. Box means "this row IS that thing", so a
-//            reference must never box.
-// Status is never a code — use StatusChip. And a code never gets a solid color fill:
-// solid fill is reserved for status families and numeric emphasis, so filling a code
-// makes it read as a state.
+//            an item name, BOM code under a PR, a parent/contributing MO). Regular
+//            weight, muted, one step smaller.
+// Status is never a code — use StatusChip. And a code never gets a fill or a border:
+// those are reserved for status families and interactive controls, so a boxed code
+// reads as a state or a button.
 // `link` marks a code that navigates (root MO on the WO table, contributing MOs on a
 // PR) — blue + underline, so "clickable" is carried by link affordance instead of a
 // tinted pill that competes with the status column.
@@ -43,13 +44,9 @@ export function CodeChip({ code, classic, tier = 1, tone = 'default', link = fal
         ? { ...base, fontSize: classic ? 9 : 10.5, color: '#666', ...linkStyle }
         : {
             ...base,
-            fontSize: classic ? 10 : 11.5,
-            color: tone === 'accent' ? '#000055' : (classic ? '#000' : '#0f172a'),
-            background: '#fff',
-            border: classic ? '1px solid #888' : '1px solid #d5dbe5',
-            borderRadius: classic ? 0 : 4,
-            padding: classic ? '1px 5px' : '1px 6px',
-            display: 'inline-block',
+            fontSize: classic ? 11 : 12,
+            fontWeight: 'bold',
+            color: tone === 'accent' ? '#000055' : '#000',
             ...linkStyle,
         };
     return (
