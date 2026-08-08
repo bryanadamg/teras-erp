@@ -16,6 +16,7 @@ import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
+import { lvThead } from '../shared/listViewTheme';
 
 const SO_PAGE_SIZE = 50;
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
@@ -203,8 +204,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   };
 
   const xpTableHeader: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-      borderBottom: '2px solid #808080',
+      ...lvThead(true),
       fontSize: '10px',
       fontWeight: 'bold',
       color: '#000000',
@@ -219,8 +219,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       position: 'sticky' as const,
       top: 0,
       zIndex: 5,
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-      borderBottom: '2px solid #808080',
+      ...lvThead(true)
   };
 
   const tdBase: React.CSSProperties = {

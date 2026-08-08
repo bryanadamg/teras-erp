@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { lvThead } from '../shared/listViewTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
   const itemOptions = (selectItems ?? items);
@@ -87,7 +88,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
       width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
   };
   const xpTableHeader: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
+      ...lvThead(true),
       fontSize: '10px', fontWeight: 'bold', color: '#000000',
   };
   const xpLabel: React.CSSProperties = {

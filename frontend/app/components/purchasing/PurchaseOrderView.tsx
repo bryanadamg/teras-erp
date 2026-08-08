@@ -14,6 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
+import { lvThead } from '../shared/listViewTheme';
 
 const PO_PAGE_SIZE = 50;
 
@@ -124,8 +125,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
   };
 
   const xpTableHeader: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-      borderBottom: '2px solid #808080',
+      ...lvThead(true),
       fontSize: '10px',
       fontWeight: 'bold',
       color: '#000000',
@@ -140,8 +140,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       position: 'sticky' as const,
       top: 0,
       zIndex: 5,
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-      borderBottom: '2px solid #808080',
+      ...lvThead(true)
   };
 
   const tdBase: React.CSSProperties = {

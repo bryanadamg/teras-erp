@@ -12,7 +12,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CodeChip, xpFont } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -465,7 +465,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     // tables match the library tables; classic adds the XP thead gradient/underline
     // that lvTh leaves to the parent thead.
     const thStyle = (extra?: React.CSSProperties): React.CSSProperties => classic
-        ? { ...lvTh(true), background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', ...extra }
+        ? { ...lvTh(true), ...lvThead(true), ...extra }
         : { ...lvTh(false), ...extra };
 
     // Expandable-row detail: full recipe breakdown (chemical lines, wash baths,
@@ -634,9 +634,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={classic
-                        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
-                        : { background: '#eef1f6' }}>
+                    <thead style={lvThead(classic)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 30 }}></th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Code</th>

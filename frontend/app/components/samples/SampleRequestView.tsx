@@ -18,6 +18,7 @@ import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
+import { lvThead } from '../shared/listViewTheme';
 
 // Request classification, chosen at create time. Values are the `Sample Category`
 // system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
@@ -287,8 +288,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   };
 
   const xpTableHeader: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-      borderBottom: '2px solid #808080',
+      ...lvThead(true),
       fontSize: '10px',
       fontWeight: 'bold',
       color: '#000000',

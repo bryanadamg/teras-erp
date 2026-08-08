@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
 
 interface Props {
     uoms: any[];
@@ -93,9 +93,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={classic
-                        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
-                        : { background: '#eef1f6' }}>
+                    <thead style={lvThead(classic)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 34 }}></th>
                             <th style={{ ...lvTh(classic), width: 160 }}>Name</th>

@@ -3,6 +3,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { statusColor, statusTint, xpFont } from './xpTheme';
 import { xpBevel as sharedXpBevel } from './shellTheme';
+import { lvThead } from './listViewTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -287,7 +288,7 @@ export default function CalendarView({
                     </div>
                 </div>
                 <div style={xpBevel}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', ...lvThead(true) }}>
                         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
                             <div key={i} style={{ textAlign: 'center', padding: compact ? '2px 0' : '3px 0', fontFamily: xpFont, fontSize: '10px', fontWeight: 'bold', color: '#000', borderRight: i < 6 ? '1px solid #b0aaa0' : 'none' }}>{d}</div>
                         ))}

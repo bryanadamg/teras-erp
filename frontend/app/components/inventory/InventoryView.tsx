@@ -14,6 +14,7 @@ import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChi
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
+import { lvThead } from '../shared/listViewTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryTabIcon(name: string): string {
@@ -764,8 +765,7 @@ export default function InventoryView({
   };
 
   const xpTableHeader: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-      borderBottom: '2px solid #808080',
+      ...lvThead(true),
       fontSize: '10px',
       fontWeight: 'bold',
       color: '#000000',
@@ -779,8 +779,7 @@ export default function InventoryView({
       position: 'sticky' as const,
       top: 0,
       zIndex: 5,
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-      borderBottom: '2px solid #808080',
+      ...lvThead(true)
   };
 
   const xpStatusBar: React.CSSProperties = {

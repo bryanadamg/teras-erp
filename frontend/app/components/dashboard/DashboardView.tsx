@@ -9,7 +9,7 @@ import {
     CodeChip, CODE_FONT,
 } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
-import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 
 // ── Local table chrome ───────────────────────────────────────────────────────
 // Cells/rows come from listViewTheme (lvTh/lvTd/lvRow); only the sticky+gradient
@@ -20,8 +20,7 @@ const xpTable: React.CSSProperties = {
 
 const stickyTh = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     ...lvTh(true),
-    background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-    borderBottom: '2px solid #808080',
+    ...lvThead(true),
     position: 'sticky', top: 0, zIndex: 1,
     ...extra,
 });

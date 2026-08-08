@@ -4,7 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
-import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
+import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT, lvThead } from '../shared/listViewTheme';
 import { StatusChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
@@ -152,7 +152,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
               {/* Table */}
               <div style={{ flex: 1, minHeight: 0, background: '#ffffff', overflowY: 'auto', overflowX: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                      <thead style={{ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', position: 'sticky', top: 0, zIndex: 1 }}>
+                      <thead style={{ ...lvThead(true), position: 'sticky', top: 0, zIndex: 1 }}>
                           <tr>
                               <th style={{ ...lvTh(true), width: 140 }}>Timestamp</th>
                               <th style={{ ...lvTh(true), width: 110 }}>User</th>

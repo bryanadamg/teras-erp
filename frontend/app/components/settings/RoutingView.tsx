@@ -10,7 +10,7 @@ import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpFont } from '../shared/xpTheme';
-import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
+import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
 
 const WC_PAGE_SIZE = 20;
 const OP_PAGE_SIZE = 20;
@@ -438,7 +438,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           {/* Table */}
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={classic ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' } : { background: '#eef1f6' }}>
+                  <thead style={lvThead(classic)}>
                       <tr>
                           <th style={{ ...lvTh(classic), width: 100, paddingLeft: classic ? 10 : 14 }}>Code</th>
                           <th style={lvTh(classic)}>{t('station_name')}</th>
@@ -584,7 +584,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           {/* Table */}
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={classic ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' } : { background: '#eef1f6' }}>
+                  <thead style={lvThead(classic)}>
                       <tr>
                           <th style={{ ...lvTh(classic), width: 100, paddingLeft: classic ? 10 : 14 }}>Code</th>
                           <th style={lvTh(classic)}>{t('operation_name')}</th>

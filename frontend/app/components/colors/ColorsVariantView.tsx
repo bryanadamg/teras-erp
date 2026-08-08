@@ -4,7 +4,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 
 interface Props {
     values: any[];                 // AttributeValue rows of the Colors variant attribute
@@ -89,9 +89,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
 
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={classic
-                        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
-                        : { background: '#eef1f6' }}>
+                    <thead style={lvThead(classic)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 60 }}>Swatch</th>
                             <th style={lvTh(classic)}>Color</th>

@@ -7,6 +7,7 @@ import { useData } from '../../context/DataContext';
 import { xpFont, xpBtn, XPLoading, useSortable, SortMark, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
+import { lvThead } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -201,7 +202,7 @@ export default function BookingStockView() {
         const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
         const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
         const xpTableHeader: React.CSSProperties = {
-            background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
+            ...lvThead(true),
             borderRight: '1px solid #b0aa9c',
             fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
             padding: '3px 8px', position: 'sticky', top: 0, whiteSpace: 'nowrap', userSelect: 'none',

@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar, SearchField } from '../shared/shellTheme';
-import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 import { XPActionButton, CodeChip, xpFont } from '../shared/xpTheme';
 
 const ALL = '__all__';
@@ -320,7 +320,7 @@ export default function LocationsView({
       if (bins.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>No bins{q ? ' match' : ' yet — add one above'}.</div>;
       return (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', position: 'sticky', top: 0 }}>
+          <thead style={{ ...lvThead(true), position: 'sticky', top: 0 }}>
             <tr>
               <th style={{ ...lvTh(true), width: 24 }}></th>
               <th style={{ ...lvTh(true), width: 150 }}>Code</th>

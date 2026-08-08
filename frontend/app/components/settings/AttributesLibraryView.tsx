@@ -4,7 +4,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
 
 // Attributes with a dedicated management home are hidden here so they are not
 // hand-edited in two places:
@@ -140,9 +140,7 @@ export default function AttributesLibraryView({
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={classic
-                        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
-                        : { background: '#eef1f6' }}>
+                    <thead style={lvThead(classic)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 200 }}>Name</th>
                             <th style={{ ...lvTh(classic), width: 140 }}>Role</th>

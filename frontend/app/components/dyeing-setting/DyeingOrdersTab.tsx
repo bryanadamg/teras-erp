@@ -7,6 +7,7 @@ import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
+import { lvThead } from '../shared/listViewTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -53,8 +54,7 @@ const makePanel = (classic: boolean): React.CSSProperties => classic ? {
     background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9,
 };
 const makeThCell = (classic: boolean): React.CSSProperties => classic ? {
-    background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-    borderBottom: '2px solid #808080', borderRight: '1px solid #b0aaa0',
+    ...lvThead(true), borderRight: '1px solid #b0aaa0',
     padding: '3px 6px', textAlign: 'left', whiteSpace: 'nowrap',
     fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
 } : {

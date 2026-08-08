@@ -8,6 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { xpFont, StatusChip, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { NAV_SECTIONS, navLabel, NavSection } from '../shared/navConfig';
+import { lvThead } from '../shared/listViewTheme';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section Home — a focused mini-dashboard per sidebar section. Reuses the data
@@ -236,7 +237,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
         {/* list panel */}
         {section.list && (
           <div style={{ border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#fff', marginBottom: 6 }}>
-            <div style={{ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', padding: '3px 8px', fontWeight: 'bold', fontSize: 11 }}>
+            <div style={{ ...lvThead(true), padding: '3px 8px', fontWeight: 'bold', fontSize: 11 }}>
               {section.list.title}
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>

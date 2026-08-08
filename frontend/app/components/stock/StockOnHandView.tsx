@@ -9,6 +9,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
+import { lvThead } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
 
@@ -459,7 +460,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     };
     const xpSelect: React.CSSProperties = { ...xpInput, height: '22px' };
     const xpTableHeader: React.CSSProperties = {
-        background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
+        ...lvThead(true),
         borderRight: '1px solid #a8a29a',
         fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
         padding: '3px 8px', position: 'sticky' as const, top: 0,

@@ -8,7 +8,7 @@ import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont } from '../shared/xpTheme';
-import { lvBtn, lvInput, lvTh, lvTd, lvLabel } from '../shared/listViewTheme';
+import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
@@ -74,8 +74,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     };
     const xpThCell: React.CSSProperties = lvTh(true);
     const xpTableHeader: React.CSSProperties = {
-        background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-        borderBottom: '2px solid #808080',
+        ...lvThead(true)
     };
     const tdBase: React.CSSProperties = lvTd(true);
     const xpLabel: React.CSSProperties = lvLabel(true);
