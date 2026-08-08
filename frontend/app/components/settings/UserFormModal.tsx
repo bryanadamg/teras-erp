@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpBtn, xpInput, xpLabel, CODE_FONT } from '../shared/xpTheme';
+import { xpBtn, xpInput, xpLabel, CODE_FONT, xpFont } from '../shared/xpTheme';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
@@ -122,7 +122,7 @@ export default function UserFormModal({
             }
         >
             {error && (
-                <div className={classic ? '' : 'alert alert-danger py-2 small'} style={classic ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: 'Tahoma,Arial,sans-serif' } : undefined}>
+                <div className={classic ? '' : 'alert alert-danger py-2 small'} style={classic ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: xpFont } : undefined}>
                     {error}
                 </div>
             )}
@@ -219,13 +219,13 @@ export default function UserFormModal({
                             )}
                         </div>
                         {passwordVisible && password && (
-                            <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
+                            <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: xpFont, fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
                                 Copy this now — it won&apos;t be shown again after saving.
                             </small>
                         )}
                     </>
                 ) : (
-                    <div style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'small text-muted fst-italic'}>
+                    <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'small text-muted fst-italic'}>
                         Leave unchanged, or reset it above.
                     </div>
                 )}
@@ -240,7 +240,7 @@ export default function UserFormModal({
                     classic={classic}
                     disabledIds={rolePermissionIds}
                 />
-                <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
+                <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: xpFont, fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
                     Greyed-out permissions are already granted by the selected role. Category/location/station
                     scoping is configured on the Role, not per user.
                 </small>

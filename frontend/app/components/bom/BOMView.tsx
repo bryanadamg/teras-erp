@@ -21,14 +21,14 @@ const xpTh: React.CSSProperties = {
     textAlign: 'left',
     whiteSpace: 'nowrap',
     color: '#000',
-    fontFamily: 'Tahoma, Arial, sans-serif',
+    fontFamily: xpFont,
 };
 
 const xpTd: React.CSSProperties = {
     border: '1px solid #d4d0c8',
     padding: '3px 7px',
     verticalAlign: 'middle',
-    fontFamily: 'Tahoma, Arial, sans-serif',
+    fontFamily: xpFont,
     fontSize: 11,
     color: '#000',
 };
@@ -49,7 +49,7 @@ const xpSectionHdr: React.CSSProperties = {
     fontSize: 10,
     color: '#000',
     marginBottom: 3,
-    fontFamily: 'Tahoma, Arial, sans-serif',
+    fontFamily: xpFont,
 };
 
 // --- Dense-row display helpers -----------------------------------------
@@ -223,7 +223,7 @@ export default function BOMView({
                 const label = getAttributeValueName(valId);
                 const hex = getAttributeValueHex(valId) ?? colorHexFor(label);
                 return (
-                    <span key={valId} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: compact ? 9 : 10, padding: compact ? '0 4px' : '1px 5px', fontFamily: 'Tahoma, Arial, sans-serif', whiteSpace: 'nowrap' }}>
+                    <span key={valId} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: compact ? 9 : 10, padding: compact ? '0 4px' : '1px 5px', fontFamily: xpFont, whiteSpace: 'nowrap' }}>
                         {hex && <span style={{ width: compact ? 9 : 10, height: compact ? 9 : 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
                         {label}
                     </span>
@@ -431,7 +431,7 @@ export default function BOMView({
                         background: isSelected ? '#316ac5' : 'transparent',
                         color: isSelected ? '#fff' : '#000',
                         borderBottom: '1px solid #e8e4d8',
-                        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
+                        fontFamily: xpFont, fontSize: 11,
                         userSelect: 'none',
                     }}
                     onMouseEnter={e => { if (!isSelected && isSelectable) (e.currentTarget as HTMLElement).style.background = '#d0e4f8'; }}
@@ -475,7 +475,7 @@ export default function BOMView({
         return (
             <tr key={`${bom.id}-detail`}>
                 <td colSpan={8} style={{ padding: 0, borderTop: 'none' }}>
-                    <div style={{ display: 'flex', height: 420, background: '#ece9d8', borderTop: '2px solid #0058e6', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 }}>
+                    <div style={{ display: 'flex', height: 420, background: '#ece9d8', borderTop: '2px solid #0058e6', fontFamily: xpFont, fontSize: 11 }}>
 
                         {/* LEFT: Tree */}
                         <div style={{ width: 320, flexShrink: 0, borderRight: '2px solid #aca899', display: 'flex', flexDirection: 'column', background: '#ddd9c8' }}>
@@ -495,7 +495,7 @@ export default function BOMView({
                                         color: isRootSelected ? '#fff' : '#000',
                                         borderBottom: '1px solid #e8e4d8',
                                         userSelect: 'none',
-                                        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
+                                        fontFamily: xpFont, fontSize: 11,
                                     }}
                                     onMouseEnter={e => { if (!isRootSelected) (e.currentTarget as HTMLElement).style.background = '#d0e4f8'; }}
                                     onMouseLeave={e => { if (!isRootSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
@@ -542,7 +542,7 @@ export default function BOMView({
                                     {lines.length === 0 ? (
                                         <div style={{ fontSize: 10, color: '#555', fontStyle: 'italic', padding: '4px 6px' }}>No components defined.</div>
                                     ) : (
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', fontFamily: xpFont, fontSize: 11 }}>
                                             <thead>
                                                 <tr>
                                                     <th style={xpTh}>Item</th>
@@ -633,7 +633,7 @@ export default function BOMView({
                                         <button
                                             onClick={() => setPrintBOM(displayBOM)}
                                             title="Print BOM"
-                                            style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }}
+                                            style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }}
                                         >
                                             <i className="bi bi-printer" style={{ marginRight: 3 }} />Print
                                         </button>
@@ -811,7 +811,7 @@ export default function BOMView({
                                         <button
                                             onClick={() => setStartPRBom(displayBOM)}
                                             style={{
-                                                fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10,
+                                                fontFamily: xpFont, fontSize: 10,
                                                 padding: '2px 8px', width: '100%',
                                                 background: 'linear-gradient(to bottom, #b4d0f8, #7aacf0)',
                                                 border: '1px solid', borderColor: '#c8e0ff #003080 #003080 #c8e0ff',
@@ -871,33 +871,33 @@ export default function BOMView({
                 >
                     {/* Toolbar */}
                     {classic ? (
-                        <div style={{ background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', fontFamily: xpFont, fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span><i className="bi bi-diagram-3-fill" style={{ marginRight: '6px' }} />{t('active_boms')}</span>
                                 <input type="text" value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..."
-                                    style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
+                                    style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
                                 <div style={{ display: 'flex', border: '1px solid #808080', overflow: 'hidden', flexShrink: 0 }}>
                                     <button
                                         onClick={() => setShowRootOnly?.(true)}
-                                        style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', background: showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: showRootOnly ? '#fff' : '#000', fontWeight: showRootOnly ? 'bold' : 'normal' }}
+                                        style={{ fontFamily: xpFont, fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', background: showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: showRootOnly ? '#fff' : '#000', fontWeight: showRootOnly ? 'bold' : 'normal' }}
                                     >Root BOMs</button>
                                     <button
                                         onClick={() => setShowRootOnly?.(false)}
-                                        style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', borderLeft: '1px solid #808080', background: !showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: !showRootOnly ? '#fff' : '#000', fontWeight: !showRootOnly ? 'bold' : 'normal' }}
+                                        style={{ fontFamily: xpFont, fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', borderLeft: '1px solid #808080', background: !showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: !showRootOnly ? '#fff' : '#000', fontWeight: !showRootOnly ? 'bold' : 'normal' }}
                                     >All BOMs</button>
                                 </div>
                                 {canManage && selectedIds.size > 0 && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#fff' }}>{selectedIds.size} selected</span>
-                                        <button style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' }} onClick={handleBulkDelete}>
+                                        <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#fff' }}>{selectedIds.size} selected</span>
+                                        <button style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' }} onClick={handleBulkDelete}>
                                             <i className="bi bi-trash" style={{ marginRight: '4px' }} />Delete Selected
                                         </button>
-                                        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', textDecoration: 'underline', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: 0 }} onClick={() => setSelectedIds(new Set())}>Clear</button>
+                                        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', textDecoration: 'underline', fontFamily: xpFont, fontSize: '11px', padding: 0 }} onClick={() => setSelectedIds(new Set())}>Clear</button>
                                     </div>
                                 )}
                             </div>
                             {canManage && (
-                            <button data-testid="create-bom-btn" style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold', background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' }} onClick={() => setIsDesignerOpen(true)}>
+                            <button data-testid="create-bom-btn" style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold', background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' }} onClick={() => setIsDesignerOpen(true)}>
                                 <i className="bi bi-plus-lg" style={{ marginRight: '4px' }} />{t('create_recipe')}
                             </button>
                             )}
@@ -932,7 +932,7 @@ export default function BOMView({
                         <div className={classic ? '' : 'table-responsive'}>
                             <table
                                 className={classic ? '' : 'table table-hover align-middle mb-0'}
-                                style={classic ? { width: '100%', borderCollapse: 'collapse', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', background: '#fff' } : undefined}
+                                style={classic ? { width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: '11px', background: '#fff' } : undefined}
                             >
                                 <thead>
                                     <tr style={classic ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', fontSize: '10px', fontWeight: 'bold', color: '#000', letterSpacing: '0.2px' } : undefined} className={classic ? '' : 'table-light'}>
@@ -990,7 +990,7 @@ export default function BOMView({
                                                         onClick={() => toggleBOMRow(bom.id, bom.item_id)}
                                                         style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle', cursor: 'pointer' } : { cursor: 'pointer' }}
                                                     >
-                                                        <span style={{ fontWeight: 'bold', color: '#000', fontSize: 11, fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                                                        <span style={{ fontWeight: 'bold', color: '#000', fontSize: 11, fontFamily: xpFont }}>
                                                             {getItemName(bom.item_id, bom.item_name)}
                                                         </span>
                                                     </td>
@@ -1021,7 +1021,7 @@ export default function BOMView({
                                                     </td>
                                                     {/* Smart stats — glyph shows only when it carries signal */}
                                                     <td style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'align-middle'}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#555' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: xpFont, fontSize: 10, color: '#555' }}>
                                                             <span title="Components (materials)" style={{ whiteSpace: 'nowrap', color: '#003080' }}>
                                                                 <i className="bi bi-gear-fill" style={{ marginRight: 2, fontSize: 9 }} />{bom.lines?.length ?? 0}
                                                             </span>

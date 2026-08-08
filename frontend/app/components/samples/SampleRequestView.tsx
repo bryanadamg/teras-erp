@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip, xpFont } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -245,7 +245,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
   // Section chrome now comes from the shared <FormSection> (xpTheme).
   const xpLbl: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '11px',
       color: '#000',
       display: 'block',
@@ -254,7 +254,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
   // ── XP shared inline styles ──────────────────────────────────────────────
   const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '11px',
       padding: '2px 10px',
       cursor: 'pointer',
@@ -267,7 +267,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   });
 
   const xpInput: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '11px',
       border: '1px solid #7f9db9',
       boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
@@ -299,7 +299,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       borderRight: '1px solid #b0aaa0',
       textAlign: 'left' as const,
       whiteSpace: 'nowrap' as const,
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
   };
 
   const tdBase: React.CSSProperties = {
@@ -307,7 +307,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       borderRight: '1px solid #c0bdb5',
       borderBottom: '1px solid #d0cdc8',
       verticalAlign: 'middle' as const,
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '11px',
   };
 
@@ -523,7 +523,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
   // ── Color panel status-button styles (segmented control) ─────────────────────
   const cbBase: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '10px',
       padding: '1px 7px',
       cursor: 'pointer',
@@ -883,7 +883,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                type="button"
                                                onClick={() => switchTab(tab)}
                                                style={{
-                                                   fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
+                                                   fontFamily: xpFont, fontSize: 11,
                                                    padding: '2px 12px', cursor: 'pointer',
                                                    border: '1px solid', borderBottom: active ? '2px solid #fff' : '1px solid #c0bdb5',
                                                    marginBottom: active ? -2 : 0,
@@ -895,7 +895,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        );
                                    })}
                                    {activeAttrName && (
-                                       <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px', marginLeft: 'auto', alignSelf: 'center' }}>
+                                       <span style={{ fontFamily: xpFont, fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px', marginLeft: 'auto', alignSelf: 'center' }}>
                                            attr: {activeAttrName}
                                        </span>
                                    )}
@@ -907,14 +907,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    display: 'flex', flexWrap: 'wrap' as const, alignContent: 'flex-start' as const,
                                }}>
                                    {newSample.colors.length === 0
-                                       ? <span style={{ fontFamily: 'Tahoma', fontSize: 11, color: '#999', fontStyle: 'italic' }}>No variants added yet…</span>
+                                       ? <span style={{ fontFamily: xpFont, fontSize: 11, color: '#999', fontStyle: 'italic' }}>No variants added yet…</span>
                                        : newSample.colors.map((c, idx) => (
                                            <span key={idx} style={{
                                                display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px',
                                                marginRight: 4, marginBottom: 4,
                                                background: c.is_repeat ? '#dce8f8' : '#e8f4e8',
                                                border: `1px solid ${c.is_repeat ? '#7ab0d8' : '#7aba7a'}`,
-                                               fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
+                                               fontFamily: xpFont, fontSize: 11,
                                            }}>
                                                <span style={{ fontSize: 9, fontWeight: 'bold', color: c.is_repeat ? '#0047c8' : '#228b22', textTransform: 'uppercase' as const }}>
                                                    {c.is_repeat ? 'RPT' : 'NEW'}
@@ -1210,7 +1210,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                onClick={() => (document.getElementById('xp-completion-image') as HTMLInputElement)?.click()}>
                                            Browse…
                                        </button>
-                                       <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#444' }}>
+                                       <span style={{ fontFamily: xpFont, fontSize: 10, color: '#444' }}>
                                            {completionImageFile ? completionImageFile.name : 'No file chosen'}
                                        </span>
                                    </div>
@@ -1230,7 +1230,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                onClick={() => (document.getElementById('xp-design-pdf') as HTMLInputElement)?.click()}>
                                            Browse…
                                        </button>
-                                       <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#444' }}>
+                                       <span style={{ fontFamily: xpFont, fontSize: 10, color: '#444' }}>
                                            {designPdfFile ? designPdfFile.name : 'No file chosen'}
                                        </span>
                                    </div>
@@ -1350,7 +1350,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        {categoryOptions.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
                    </select>
                    <div style={xpSep}></div>
-                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>Created</span>
+                   <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#333' }}>Created</span>
                    <input
                        type="date"
                        style={{ ...xpInput, width: 118 }}
@@ -1358,7 +1358,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        onChange={e => setCreatedFrom(e.target.value)}
                        title="Created from"
                    />
-                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#333' }}>–</span>
+                   <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#333' }}>–</span>
                    <input
                        type="date"
                        style={{ ...xpInput, width: 118 }}
@@ -1484,7 +1484,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            {classic ? (
                                                <button
                                                    onClick={e => { e.stopPropagation(); toggleExpand(s.id); }}
-                                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontFamily: 'Tahoma', fontSize: 10, color: '#333' }}
+                                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontFamily: xpFont, fontSize: 10, color: '#333' }}
                                                >
                                                    {expandedIds.has(s.id) ? '▼' : '▶'}
                                                </button>
@@ -1513,19 +1513,19 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        </div>
                                    </td>
                                    <td style={classic ? tdBase : undefined}>
-                                       <span style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px' } : undefined}
+                                       <span style={classic ? { fontFamily: xpFont, fontSize: '10px' } : undefined}
                                              className={classic ? '' : 'small'}>
                                            {categoryLabel(s.category)}
                                        </span>
                                    </td>
                                    <td style={classic ? tdBase : undefined}>
                                        {s.customer_id ? (
-                                           <span style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px' } : undefined}
+                                           <span style={classic ? { fontFamily: xpFont, fontSize: '11px' } : undefined}
                                                  className={classic ? '' : 'fw-medium'}>
                                                {getCustomerName(s.customer_id)}
                                            </span>
                                        ) : (
-                                           <span style={classic ? { fontSize: '9px', color: '#555', fontStyle: 'italic', fontFamily: 'Tahoma, Arial, sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>
+                                           <span style={classic ? { fontSize: '9px', color: '#555', fontStyle: 'italic', fontFamily: xpFont } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>
                                                Internal
                                            </span>
                                        )}
@@ -1543,14 +1543,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            </div>
                                        )}
                                        {!s.customer_article_code && !s.project && (
-                                           <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma, Arial, sans-serif' } : undefined}
+                                           <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: xpFont } : undefined}
                                                  className={classic ? '' : 'text-muted small fst-italic'}>—</span>
                                        )}
                                    </td>
                                    {/* Specs */}
                                    <td style={classic ? tdBase : undefined}>
                                        {s.width && (
-                                           <div style={classic ? { fontSize: '10px', fontFamily: 'Tahoma, Arial, sans-serif' } : undefined}
+                                           <div style={classic ? { fontSize: '10px', fontFamily: xpFont } : undefined}
                                                 className={classic ? '' : 'small'}>
                                                <i className="bi bi-rulers me-1 opacity-50"></i>{s.width}
                                            </div>
@@ -1559,7 +1559,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                             className={classic ? '' : 'small text-muted d-flex gap-1 flex-wrap mt-1'}>
                                            {s.colors && s.colors.map((c: any, i: number) => (
                                                classic ? (
-                                                   <span key={i} style={{ background: c.is_repeat ? '#e8e8ff' : '#e8f5e8', border: `1px solid ${c.is_repeat ? '#8888cc' : '#88aa88'}`, color: c.is_repeat ? '#333' : '#1a3a1a', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                                                   <span key={i} style={{ background: c.is_repeat ? '#e8e8ff' : '#e8f5e8', border: `1px solid ${c.is_repeat ? '#8888cc' : '#88aa88'}`, color: c.is_repeat ? '#333' : '#1a3a1a', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>
                                                        {c.name}{c.is_repeat ? ' (R)' : ''}
                                                    </span>
                                                ) : (
@@ -1596,7 +1596,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                </div>
                                            );
                                        })() : (
-                                           <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma, Arial, sans-serif' } : undefined}
+                                           <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: xpFont } : undefined}
                                                  className={classic ? '' : 'text-muted small fst-italic'}>—</span>
                                        )}
                                    </td>
@@ -1676,7 +1676,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            cells: [
                                                <span style={{ fontWeight: classic ? 'bold' : 500, color: '#111' }}>{c.name}</span>,
                                                classic ? (
-                                                   <span style={{ background: c.is_repeat ? '#dce4f5' : '#d4edda', border: `1px solid ${c.is_repeat ? '#6878c8' : '#5aaa68'}`, color: c.is_repeat ? '#0d2a6e' : '#0c3a1a', padding: '0 4px', fontSize: 9, fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold' }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
+                                                   <span style={{ background: c.is_repeat ? '#dce4f5' : '#d4edda', border: `1px solid ${c.is_repeat ? '#6878c8' : '#5aaa68'}`, color: c.is_repeat ? '#0d2a6e' : '#0c3a1a', padding: '0 4px', fontSize: 9, fontFamily: xpFont, fontWeight: 'bold' }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
                                                ) : (
                                                    <span className={`badge ${c.is_repeat ? 'bg-primary bg-opacity-10 text-primary' : 'bg-success bg-opacity-10 text-success'} border`} style={{ fontSize: 10 }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
                                                ),
@@ -1687,7 +1687,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                    {(c.process_count > 1 || c.reject_count > 0) && (
                                                        <span
                                                            title={`${c.process_count || 0} process run(s), ${c.reject_count || 0} rejection(s), ${c.approve_count || 0} approval(s)`}
-                                                           style={{ fontSize: 9, fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined, color: '#555', whiteSpace: 'nowrap' }}
+                                                           style={{ fontSize: 9, fontFamily: classic ? xpFont : undefined, color: '#555', whiteSpace: 'nowrap' }}
                                                        >
                                                            {c.process_count > 1 && <span>run {c.process_count}&#215;</span>}
                                                            {c.process_count > 1 && c.reject_count > 0 && ' · '}
@@ -1697,12 +1697,12 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                </span>,
                                                isApproved ? (
                                                    classic
-                                                       ? <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Approved</span>
+                                                       ? <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: xpFont }}>Approved</span>
                                                        : <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>
                                                ) : isRejected ? (
                                                    <div style={{ textAlign: 'center' as const }}>
-                                                       <div className={classic ? '' : 'fw-bold text-danger'} style={classic ? { fontSize: 10, color: '#a01a1a', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' } : { fontSize: 10 }}>Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}</div>
-                                                       {c.rejection_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: 'Tahoma, Arial, sans-serif', fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.rejection_notes}</div>}
+                                                       <div className={classic ? '' : 'fw-bold text-danger'} style={classic ? { fontSize: 10, color: '#a01a1a', fontWeight: 'bold', fontFamily: xpFont } : { fontSize: 10 }}>Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}</div>
+                                                       {c.rejection_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: xpFont, fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.rejection_notes}</div>}
                                                        {/* Rejected rests but is reopenable — remaking the variant is a new attempt,
                                                            which is what the sample report counts. Only exit is back to In Production. */}
                                                        {canManage && (
@@ -1731,7 +1731,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                isApproved ? (
                                                    c.item_id ? (
                                                        classic
-                                                           ? <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Item: {c.item_code}</span>
+                                                           ? <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: xpFont }}>Item: {c.item_code}</span>
                                                            : <span className="badge bg-success bg-opacity-10 text-success border" style={{ fontSize: 10 }}>Item: {c.item_code}</span>
                                                    ) : canManage ? (
                                                        classic
@@ -1793,8 +1793,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                designType === 'image'
                                                    ? <img src={designUrl} alt="Design" onClick={() => setFilePreview({ url: designUrl, type: 'image', filename: designFilename })} style={{ maxHeight: 80, maxWidth: 180, border: '1px solid #b0a898', cursor: 'pointer', display: 'block' }} title="Click to preview" />
                                                    : designType === 'excel'
-                                                       ? <button onClick={() => window.open(designUrl, '_blank')} style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, color: '#0047c8', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{designFilename}</button>
-                                                       : <button onClick={() => setFilePreview({ url: designUrl, type: 'pdf', filename: designFilename })} style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, color: '#0047c8', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>View / Download</button>
+                                                       ? <button onClick={() => window.open(designUrl, '_blank')} style={{ fontFamily: xpFont, fontSize: 11, color: '#0047c8', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{designFilename}</button>
+                                                       : <button onClick={() => setFilePreview({ url: designUrl, type: 'pdf', filename: designFilename })} style={{ fontFamily: xpFont, fontSize: 11, color: '#0047c8', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>View / Download</button>
                                            ) });
                                        }
                                        sections.push({ title: '④ Attachments', fields: attach });
@@ -1856,7 +1856,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    alignItems: 'center',
                    gap: '5px',
                    flexWrap: 'wrap' as const,
-                   fontFamily: 'Tahoma, Arial, sans-serif',
+                   fontFamily: xpFont,
                    fontSize: '10px',
                    color: '#333',
                }}>
@@ -1903,7 +1903,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                footer={
                    <>
                        <span style={classic
-                           ? { flex: 1, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#555', textAlign: 'left' as const }
+                           ? { flex: 1, fontFamily: xpFont, fontSize: 10, color: '#555', textAlign: 'left' as const }
                            : { flex: 1, fontSize: 12, color: '#666' }
                        }>
                            {filePreview.filename}

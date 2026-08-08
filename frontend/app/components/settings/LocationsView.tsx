@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar, SearchField } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
-import { XPActionButton, CodeChip } from '../shared/xpTheme';
+import { XPActionButton, CodeChip, xpFont } from '../shared/xpTheme';
 
 const ALL = '__all__';
 
@@ -57,9 +57,9 @@ export default function LocationsView({
 
   // ---------- styles (classic XP) ----------
   const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: 6 });
-  const xpBtn = (extra: any = {}) => ({ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra });
-  const xpInput: React.CSSProperties = { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, outline: 'none' };
-  const xpLabel: React.CSSProperties = { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#000', display: 'block', marginBottom: 2 };
+  const xpBtn = (extra: any = {}) => ({ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra });
+  const xpInput: React.CSSProperties = { fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, outline: 'none' };
+  const xpLabel: React.CSSProperties = { fontFamily: xpFont, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 };
 
   // ---------- derived data ----------
   const all = (locations || []);
@@ -209,7 +209,7 @@ export default function LocationsView({
           onClick={() => !renaming && setSelectedStore(loc.id)}
           onMouseEnter={() => setHoveredStore(loc.id)}
           onMouseLeave={() => setHoveredStore(null)}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' }}
         >
           <i className={`bi ${cnt > 0 ? 'bi-building-fill' : 'bi-building'}`} style={{ color: active ? '#fff' : '#caa55a' }} />
           {renaming ? (
@@ -251,7 +251,7 @@ export default function LocationsView({
           onDragOver={(e) => onZoneDragOver(e, loc.id)}
           onDragLeave={() => onZoneDragLeave(loc.id)}
           onDrop={(e) => onZoneDrop(e, loc.id)}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' }}
         >
           <i className={`bi ${cnt > 0 ? 'bi-folder-fill' : 'bi-folder'}`} style={{ color: active ? '#fff' : '#c8a030' }} />
           {renaming ? (
@@ -305,19 +305,19 @@ export default function LocationsView({
 
     const renderZonePanel = () => {
       if (selectedStore === ALL) {
-        return <div style={{ textAlign: 'center', padding: 24, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#888' }}>Select a store to manage zones.</div>;
+        return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>Select a store to manage zones.</div>;
       }
       const zones = zonesOf(selectedStore).filter(matches);
-      if (zones.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#888' }}>No zones{q ? ' match' : ' yet — add one above'}.</div>;
+      if (zones.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>No zones{q ? ' match' : ' yet — add one above'}.</div>;
       return zones.map(zoneRow);
     };
 
     const bins = selectedZone ? binsOf(selectedZone).filter(matches) : [];
     const renderBinPanel = () => {
       if (!selectedZone) {
-        return <div style={{ textAlign: 'center', padding: 24, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#888' }}>Select a zone to manage bins.</div>;
+        return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>Select a zone to manage bins.</div>;
       }
-      if (bins.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#888' }}>No bins{q ? ' match' : ' yet — add one above'}.</div>;
+      if (bins.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>No bins{q ? ' match' : ' yet — add one above'}.</div>;
       return (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', position: 'sticky', top: 0 }}>
@@ -341,7 +341,7 @@ export default function LocationsView({
               {/* LEFT: stores */}
               <div className="loc-pane" style={{ width: 210, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold' }}>Stores</span>
+                  <span style={{ fontFamily: xpFont, fontSize: 11, fontWeight: 'bold' }}>Stores</span>
                   {canManage && <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>}
                 </div>
                 {addingStore && (
@@ -352,14 +352,14 @@ export default function LocationsView({
                   </form>
                 )}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
-                  <div onClick={() => setSelectedStore(ALL)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold', color: selectedStore === ALL ? '#fff' : '#000', background: selectedStore === ALL ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent' }}>
+                  <div onClick={() => setSelectedStore(ALL)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: selectedStore === ALL ? '#fff' : '#000', background: selectedStore === ALL ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent' }}>
                     <i className="bi bi-collection" style={{ color: selectedStore === ALL ? '#fff' : '#888' }} /><span style={{ flex: 1 }}>All stores</span><span style={{ fontSize: 10, color: selectedStore === ALL ? '#dde' : '#777' }}>{stores.length}</span>
                   </div>
                   <div style={{ height: 1, background: '#d8d4c8', margin: '2px 6px' }} />
                   {stores.map(storeRow)}
-                  {stores.length === 0 && <div style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#888' }}>No stores yet</div>}
+                  {stores.length === 0 && <div style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: 11, color: '#888' }}>No stores yet</div>}
                 </div>
-                <div style={{ background: 'linear-gradient(to bottom,#e8e6df,#d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#333' }}>
+                <div style={{ background: 'linear-gradient(to bottom,#e8e6df,#d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: xpFont, fontSize: 11, color: '#333' }}>
                   <b>{stores.length}</b> stores · <b>{all.length}</b> total
                 </div>
               </div>
@@ -367,7 +367,7 @@ export default function LocationsView({
               {/* MIDDLE: zones */}
               <div className="loc-pane" style={{ width: 200, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold', color: '#003080' }}>
+                  <span style={{ fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: '#003080' }}>
                     {selectedStoreObj ? selectedStoreObj.name : 'Zones'}
                   </span>
                   {canManage && selectedStoreObj && (
@@ -386,7 +386,7 @@ export default function LocationsView({
               {/* RIGHT: bins */}
               <div className="loc-pane" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={xpToolbar}>
-                  <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 12, fontWeight: 'bold', color: '#003080' }}>
+                  <span style={{ fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', color: '#003080' }}>
                     {selectedZoneObj ? selectedZoneObj.name : 'Bins'}
                   </span>
                   <div style={{ flex: 1 }} />
@@ -403,7 +403,7 @@ export default function LocationsView({
                       <label style={xpLabel}>Bin / shelf name (e.g. A1, A2, B1)</label>
                       <input autoFocus style={{ ...xpInput, width: '100%' }} placeholder="A1" value={newBinName} onChange={(e) => setNewBinName(e.target.value)} required />
                     </div>
-                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#666' }}>code: {selectedZoneObj.code}-{newBinName || '…'}</span>
+                    <span style={{ fontFamily: xpFont, fontSize: 10, color: '#666' }}>code: {selectedZoneObj.code}-{newBinName || '…'}</span>
                     <button type="submit" disabled={savingBin} style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingBin ? 0.6 : 1 })}>{savingBin ? '...' : 'Save'}</button>
                     <button type="button" onClick={() => setShowBinForm(false)} style={xpBtn()}><i className="bi bi-x-lg" /></button>
                   </form>

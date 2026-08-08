@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn } from '../shared/xpTheme';
+import { xpBtn, xpFont } from '../shared/xpTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import PermissionBreakdown from './PermissionBreakdown';
@@ -179,18 +179,18 @@ export default function SettingsRolesTab({
                                         <td style={classic ? tdBase : undefined}>
                                             {isAdminRole ? (
                                                 classic ? (
-                                                    <span style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif', fontWeight: 'bold' }}>All Permissions</span>
+                                                    <span style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>All Permissions</span>
                                                 ) : (
                                                     <span className="badge bg-dark bg-opacity-75">All Permissions</span>
                                                 )
                                             ) : role.permissions.length === 0 ? (
-                                                <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>None</span>
+                                                <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: xpFont } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>None</span>
                                             ) : (
                                                 <button
                                                     onClick={() => toggleExpanded(role.id)}
                                                     style={classic ? {
                                                         background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                                                        fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#00006e',
+                                                        fontFamily: xpFont, fontSize: '10px', color: '#00006e',
                                                         display: 'flex', alignItems: 'center', gap: 4,
                                                     } : { background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.8rem', color: '#0d6efd', display: 'flex', alignItems: 'center', gap: 4 }}
                                                 >
@@ -203,34 +203,34 @@ export default function SettingsRolesTab({
                                             <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
                                                 {(role.allowed_work_center_types || []).map(t => (
                                                     classic ? (
-                                                        <span key={`wc-${t}`} style={{ background: '#fff3d6', border: '1px solid #c8a04a', color: '#5e3000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{t}</span>
+                                                        <span key={`wc-${t}`} style={{ background: '#fff3d6', border: '1px solid #c8a04a', color: '#5e3000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>{t}</span>
                                                     ) : (
                                                         <span key={`wc-${t}`} className="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25" style={{ fontSize: '0.65rem' }}>{t}</span>
                                                     )
                                                 ))}
                                                 {(role.allowed_categories || []).map(id => (
                                                     classic ? (
-                                                        <span key={`cat-${id}`} style={{ background: '#e6f0ff', border: '1px solid #6a8fc8', color: '#0a2a5e', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{categoryName.get(id) || id}</span>
+                                                        <span key={`cat-${id}`} style={{ background: '#e6f0ff', border: '1px solid #6a8fc8', color: '#0a2a5e', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>{categoryName.get(id) || id}</span>
                                                     ) : (
                                                         <span key={`cat-${id}`} className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style={{ fontSize: '0.65rem' }}>{categoryName.get(id) || id}</span>
                                                     )
                                                 ))}
                                                 {(role.allowed_locations || []).map(id => (
                                                     classic ? (
-                                                        <span key={`loc-${id}`} style={{ background: '#f0e6ff', border: '1px solid #8f6ac8', color: '#2a0a5e', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{locationName.get(id) || id}</span>
+                                                        <span key={`loc-${id}`} style={{ background: '#f0e6ff', border: '1px solid #8f6ac8', color: '#2a0a5e', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>{locationName.get(id) || id}</span>
                                                     ) : (
                                                         <span key={`loc-${id}`} className="badge bg-purple bg-opacity-10 border" style={{ fontSize: '0.65rem', color: '#5e2ac8', borderColor: 'rgba(94,42,200,.25)' }}>{locationName.get(id) || id}</span>
                                                     )
                                                 ))}
                                                 {!(role.allowed_work_center_types?.length || role.allowed_categories?.length || role.allowed_locations?.length) && (
-                                                    <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>Unrestricted</span>
+                                                    <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: xpFont } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>Unrestricted</span>
                                                 )}
                                             </div>
                                         </td>
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'text-center'}>
                                             {count === 0 ? (
                                                 classic ? (
-                                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#888' }}>0</span>
+                                                    <span style={{ fontFamily: xpFont, fontSize: 10, color: '#888' }}>0</span>
                                                 ) : (
                                                     <span className="badge bg-light text-muted border">0</span>
                                                 )
@@ -240,7 +240,7 @@ export default function SettingsRolesTab({
                                                     title={isFiltered ? 'Clear filter on the users list below' : 'Show these users in the list below'}
                                                     onClick={() => onFilterUsers(role.id)}
                                                     style={classic ? {
-                                                        fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer',
+                                                        fontFamily: xpFont, fontSize: 10, cursor: 'pointer',
                                                         background: isFiltered ? '#dde8f5' : 'none',
                                                         border: `1px solid ${isFiltered ? '#7f9db9' : 'transparent'}`,
                                                         color: '#00006e', padding: '0 5px', textDecoration: isFiltered ? 'none' : 'underline',

@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont as XP_FONT } from '../shared/xpTheme';
 
-const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
 
 const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties => ({

@@ -7,9 +7,8 @@ import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import LotLabelPrintModal from './LotLabelPrintModal';
 import { LotChips } from '../shared/LotChips';
-import { CodeChip } from '../shared/xpTheme';
+import { CodeChip, xpFont } from '../shared/xpTheme';
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 13, border: '1px solid #7f9db9',
     background: 'white', height: 28, padding: '0 6px', outline: 'none', boxSizing: 'border-box', width: '100%',

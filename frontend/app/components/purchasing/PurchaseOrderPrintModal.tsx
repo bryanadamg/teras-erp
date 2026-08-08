@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import PrintModalShell from '../shared/PrintModalShell';
+import { xpFont } from '../shared/xpTheme';
 
 // PO document fields (SSN, rate, kurs, code, payment, category, VAT, discount, notes)
 // now live on the PurchaseOrder record — entered at PO creation, read here from `po`.
@@ -332,10 +333,10 @@ export default function PurchaseOrderPrintModal({
     };
 
     const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: 'Tahoma', fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }
+        ? { fontFamily: xpFont, fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }
         : {};
     const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: 'Tahoma', fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
+        ? { fontFamily: xpFont, fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
         : {};
 
     const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' as const, color: '#111', letterSpacing: '0.5px', marginBottom: 6 };

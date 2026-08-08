@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -453,7 +453,7 @@ export default function ManufacturingOrdersTab({
                 <button
                     onClick={() => setDetailTab('bom')}
                     style={{
-                        fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                        fontFamily: xpFont, fontSize: 11,
                         padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'bom' ? -2 : -1,
                         border: classic ? '1px solid #808080' : '1px solid #dee2e6',
                         borderBottom: detailTab === 'bom' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
@@ -468,7 +468,7 @@ export default function ManufacturingOrdersTab({
                 <button
                     onClick={() => setDetailTab('steps')}
                     style={{
-                        fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                        fontFamily: xpFont, fontSize: 11,
                         padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'steps' ? -2 : -1,
                         border: classic ? '1px solid #808080' : '1px solid #dee2e6',
                         borderBottom: detailTab === 'steps' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
@@ -668,7 +668,7 @@ export default function ManufacturingOrdersTab({
                             <button
                                 title="Print this MO"
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary py-0 px-2'}
-                                style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', padding: '1px 8px', background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' } : { fontSize: '0.72rem' }}
+                                style={classic ? { fontFamily: xpFont, fontSize: '10px', padding: '1px 8px', background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' } : { fontSize: '0.72rem' }}
                                 onClick={() => handlePrintWO(selectedNode, true)}
                             >
                                 <i className="bi bi-printer me-1"></i>Print
@@ -1056,7 +1056,7 @@ export default function ManufacturingOrdersTab({
                         width: '100%',
                         tableLayout: 'fixed',
                         borderCollapse: 'collapse',
-                        fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                        fontFamily: classic ? xpFont : undefined,
                         fontSize: classic ? '11px' : undefined,
                         background: classic ? '#fff' : undefined,
                     }} className={classic ? '' : 'table table-hover align-middle mb-0'}>
@@ -1152,7 +1152,7 @@ export default function ManufacturingOrdersTab({
                                     };
                                     return (
                                         <button key={label || title} onClick={onClick} title={title} style={{
-                                            fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
+                                            fontFamily: xpFont, fontSize: '10px',
                                             padding: '2px 7px', cursor: 'pointer', border: '1px solid',
                                             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             ...schemes[colorScheme],
@@ -1363,7 +1363,7 @@ export default function ManufacturingOrdersTab({
                     <button
                         onClick={onClick}
                         style={{
-                            fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                            fontFamily: xpFont, fontSize: 11,
                             padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
                             background: primary
                                 ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
@@ -1408,7 +1408,7 @@ export default function ManufacturingOrdersTab({
                                         <tr key={attr.id}>
                                             <td style={{
                                                 padding: isClassic ? '3px 8px 3px 0' : '4px 10px 4px 0',
-                                                fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined,
+                                                fontFamily: isClassic ? xpFont : undefined,
                                                 fontSize: isClassic ? 11 : 12,
                                                 fontWeight: isClassic ? 'normal' : 500,
                                                 color: '#333',
@@ -1428,7 +1428,7 @@ export default function ManufacturingOrdersTab({
                                                         });
                                                     }}
                                                     style={isClassic ? {
-                                                        fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                                                        fontFamily: xpFont, fontSize: 11,
                                                         border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
                                                         background: '#fff', height: 20, padding: '0 2px',
                                                         outline: 'none', width: '100%', borderRadius: 0,
@@ -1457,7 +1457,7 @@ export default function ManufacturingOrdersTab({
                     <button
                         onClick={onClick}
                         style={{
-                            fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                            fontFamily: xpFont, fontSize: 11,
                             padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
                             background: primary ? 'linear-gradient(to bottom, #b0e8b0, #70c870)' : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
                             border: '1px solid',
@@ -1486,7 +1486,7 @@ export default function ManufacturingOrdersTab({
                             </div>
                         )}
                     >
-                        <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 13 }}>
+                        <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 13 }}>
                             {mo.color_code && (
                                 <div style={{ marginBottom: 8 }}>Current color: <b>{mo.color_code}</b>{mo.color_name && mo.color_name !== mo.color_code ? ` — ${mo.color_name}` : ''}</div>
                             )}
@@ -1509,7 +1509,7 @@ export default function ManufacturingOrdersTab({
                                 placeholder="Search color code / name / Pantone..."
                                 value={colorModalSearch}
                                 onChange={e => setColorModalSearch(e.target.value)}
-                                style={isClassic ? { fontFamily: 'Tahoma, sans-serif', fontSize: 11, border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080', background: '#fff', height: 22, padding: '0 4px', outline: 'none', width: '100%', borderRadius: 0 } : { fontSize: 12, width: '100%' }}
+                                style={isClassic ? { fontFamily: xpFont, fontSize: 11, border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080', background: '#fff', height: 22, padding: '0 4px', outline: 'none', width: '100%', borderRadius: 0 } : { fontSize: 12, width: '100%' }}
                                 className={isClassic ? undefined : 'form-control form-control-sm'}
                             />
                             <div style={{ maxHeight: 200, overflowY: 'auto', border: colorModalResults.length ? '1px solid #ccc' : 'none', marginTop: 4 }}>
@@ -1533,7 +1533,7 @@ export default function ManufacturingOrdersTab({
                     <button
                         onClick={onClick}
                         style={{
-                            fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                            fontFamily: xpFont, fontSize: 11,
                             padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
                             background: primary
                                 ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
@@ -1557,7 +1557,7 @@ export default function ManufacturingOrdersTab({
                     : pm.reason === 'first_bin' ? 'first bin by code'
                     : null;
                 const selStyle = isClassic ? {
-                    fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                    fontFamily: xpFont, fontSize: 11,
                     border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
                     background: '#fff', height: 20, padding: '0 2px',
                     outline: 'none', width: '100%', borderRadius: 0,
@@ -1582,7 +1582,7 @@ export default function ManufacturingOrdersTab({
                             </div>
                         )}
                     >
-                        <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 8 }}>
+                        <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 8 }}>
                             Where this output will be stored when produced. Operators see this on the work order — they do not choose it.
                         </div>
                         {pm.loading ? (
@@ -1626,7 +1626,7 @@ export default function ManufacturingOrdersTab({
                     <button
                         onClick={onClick}
                         style={{
-                            fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                            fontFamily: xpFont, fontSize: 11,
                             padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
                             background: primary
                                 ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
@@ -1642,7 +1642,7 @@ export default function ManufacturingOrdersTab({
                     >{label}</button>
                 );
                 const inpStyle = isClassic ? {
-                    fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                    fontFamily: xpFont, fontSize: 11,
                     border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
                     background: '#fff', height: 20, padding: '0 4px',
                     outline: 'none', width: 90, borderRadius: 0,
@@ -1671,7 +1671,7 @@ export default function ManufacturingOrdersTab({
                             </div>
                         )}
                     >
-                        <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 10 }}>
+                        <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 10 }}>
                             How far past the order quantity the floor may log. Set this on the order
                             when a run is deliberately over-issued (spare beams against bad yarn) —
                             editing the BOM instead would loosen every future order of this article.

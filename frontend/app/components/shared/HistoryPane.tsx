@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { API_BASE } from './apiBase';
-import { CODE_FONT } from './xpTheme';
+import { CODE_FONT, xpFont } from './xpTheme';
 
 interface HistoryPaneProps {
     entityType: 'Item' | 'SampleRequest' | 'BOM' | 'WorkOrder';
@@ -27,7 +27,7 @@ const S = {
         width: 460,
         display: 'flex',
         flexDirection: 'column' as const,
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
         fontSize: 11,
         background: '#ece9d8',
         border: '2px solid',
@@ -48,7 +48,7 @@ const S = {
         color: '#fff',
         fontWeight: 'bold',
         fontSize: 12,
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
         textShadow: '1px 1px 1px rgba(0,0,0,0.4)',
         display: 'flex',
         alignItems: 'center',
@@ -69,7 +69,7 @@ const S = {
         justifyContent: 'center',
         flexShrink: 0,
         lineHeight: 1,
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
     },
     toolbar: {
         background: '#ece9d8',

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from './ModalWrapper';
-import { CODE_FONT } from './xpTheme';
+import { CODE_FONT, xpFont } from './xpTheme';
 
 export interface CodeConfig {
     prefix: string;
@@ -509,12 +509,12 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
   const footer = classic ? (
     <>
       <button onClick={onClose} style={{
-        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '4px 18px',
+        fontFamily: xpFont, fontSize: '11px', padding: '4px 18px',
         background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
         border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer',
       }}>Cancel</button>
       <button onClick={handleSave} style={{
-        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '4px 18px',
+        fontFamily: xpFont, fontSize: '11px', padding: '4px 18px',
         fontWeight: 'bold', background: 'linear-gradient(to bottom, #6699cc, #3366aa)',
         border: '1px solid', borderColor: '#99bbee #224477 #224477 #99bbee',
         color: '#fff', cursor: 'pointer',
@@ -546,7 +546,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
           borderLeft: activeGap === gapIndex ? '2px solid #0058e6' : 'none',
           transition: 'width 0.1s',
           cursor: 'crosshair', userSelect: 'none', flexShrink: 0,
-          fontFamily: 'Tahoma, Arial, sans-serif',
+          fontFamily: xpFont,
         }}
       >
         {activeGap !== gapIndex && gapIndex > 0 ? separator : ''}
@@ -644,7 +644,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                 >×</button>
               )}
             </div>
-            <div style={{ fontSize: '8px', color: '#333', fontFamily: 'Tahoma, Arial, sans-serif' }}>
+            <div style={{ fontSize: '8px', color: '#333', fontFamily: xpFont }}>
               {label}
             </div>
           </div>
@@ -684,7 +684,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
 
     return (
       <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} footer={footer} size="lg" variant="primary" modeless>
-        <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ fontFamily: xpFont, fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
             {/* Separator row */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px' }}>
@@ -693,7 +693,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                 value={separator}
                 onChange={e => setSeparator(e.target.value)}
                 style={{
-                  fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
+                  fontFamily: xpFont, fontSize: '11px',
                   border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
                   boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
                   padding: '1px 4px', background: '#fff',

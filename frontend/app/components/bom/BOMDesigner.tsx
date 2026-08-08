@@ -6,7 +6,7 @@ import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
-import { CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -66,7 +66,6 @@ interface BOMNodeData {
 }
 
 // --- XP style constants ---
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 
 const xpBtn: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11,

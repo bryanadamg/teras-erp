@@ -11,11 +11,10 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CodeChip } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CodeChip, xpFont } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
@@ -1073,7 +1072,7 @@ function DetailField({ label, value, classic }: { label: string; value?: string 
         <div>
             <div style={{ fontSize: classic ? 10 : 12, color: classic ? '#555' : '#64748b', marginBottom: classic ? 1 : 3 }}>{label}</div>
             <div style={classic ? {
-                fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                fontFamily: xpFont, fontSize: 11,
                 color: value ? '#1a1a1a' : '#aaa',
                 background: '#f7f9fc', border: '1px solid #c8d8e8',
                 padding: '1px 5px', minHeight: 18,

@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, CODE_FONT } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
@@ -605,7 +605,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
   const renderExpandedPanel = (b: Batch) => {
     const state = rowTraceData[b.id];
-    const fnt: React.CSSProperties = classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 } : { fontSize: 13 };
+    const fnt: React.CSSProperties = classic ? { fontFamily: xpFont, fontSize: 11 } : { fontSize: 13 };
     const focalMeta = classifyLot(b.batch_number);
 
     // Ancestor levels: level 0 = immediate inputs, deepest last — reversed for
@@ -763,14 +763,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const xpTitleBar: React.CSSProperties = classic ? sharedXpTitleBar() : {};
 
   const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => classic ? ({
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px',
+    fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
     cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000',
     borderRadius: 0, ...extra,
   }) : { cursor: 'pointer', ...extra };
 
   const xpInput: React.CSSProperties = classic ? {
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9',
+    fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
     padding: '1px 6px', background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
   } : {};
 
@@ -779,7 +779,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const TABLE_MIN_W = 1500;
 
   const xpTable: React.CSSProperties = classic ? {
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', width: '100%', minWidth: TABLE_MIN_W,
+    fontFamily: xpFont, fontSize: '11px', width: '100%', minWidth: TABLE_MIN_W,
     borderCollapse: 'collapse', whiteSpace: 'nowrap',
   } : { width: '100%', minWidth: TABLE_MIN_W, whiteSpace: 'nowrap' };
 
@@ -823,12 +823,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
             />
-            <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Item:</span>
+            <span style={{ fontFamily: xpFont, fontSize: 11 }}>Item:</span>
             <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
             </select>
-            <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Location:</span>
+            <span style={{ fontFamily: xpFont, fontSize: 11 }}>Location:</span>
             <TreeSelect
               options={locationTree}
               value={locationFilter}
@@ -838,7 +838,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               placeholder="All Locations"
               style={{ width: 200 }}
             />
-            <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Status:</span>
+            <span style={{ fontFamily: xpFont, fontSize: 11 }}>Status:</span>
             <select style={{ ...xpInput, width: 110 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
               <option value="active">Active</option>
               <option value="depleted">Depleted</option>
@@ -1076,7 +1076,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           </>}
         >
           <div className="mb-3">
-            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Item</label>
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Item</label>
             <select
               className={classic ? '' : 'form-select form-select-sm mt-1'}
               style={classic ? { ...xpInput, width: '100%', height: 22 } : {}}
@@ -1088,7 +1088,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
             </select>
           </div>
           <div className="mb-3">
-            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Notes (optional)</label>
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Notes (optional)</label>
             <textarea
               className={classic ? '' : 'form-control form-control-sm mt-1'}
               style={classic ? { ...xpInput, width: '100%', height: 60, resize: 'vertical' } : {}}
@@ -1125,13 +1125,13 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
             </button>
           </>}
         >
-          <div className="mb-2" style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>
+          <div className="mb-2" style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>
             <strong>{batchItemCode(rejectBatch)}</strong>
             {rejectBatch.remaining != null && <> — {rem.toFixed(2)} remaining</>}
             {rejectBatch.mo_code && <> (MO {rejectBatch.mo_code})</>}
           </div>
           <div className="mb-3">
-            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Reject quantity</label>
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Reject quantity</label>
             <input
               type="number"
               min={0}
@@ -1142,14 +1142,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               value={rejectQty}
               onChange={e => setRejectQty(e.target.value)}
             />
-            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+            <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
               {partial
                 ? `Splits off ${q.toFixed(2)} into a REJECTED sub-lot; ${goodLeft.toFixed(2)} stays active.`
                 : 'Full quantity — rejects the whole lot.'}
             </div>
           </div>
           <div className="mb-3">
-            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Move to defect store</label>
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Move to defect store</label>
             <div className="mt-1">
               <TreeSelect
                 options={locationPickerTree}
@@ -1161,30 +1161,30 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                 style={classic ? { width: '100%' } : undefined}
               />
             </div>
-            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+            <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
               {rejectLocId
                 ? `Rejected stock is transferred out of ${rejectBatch.location_name || 'its current location'} into the selected store.`
                 : 'Routed automatically: the producing work centre’s reject location (inherited from its group/type), then the item’s default. With none configured the stock stays put, flagged.'}
             </div>
           </div>
           <div className="mb-3">
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, ...(classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}) }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, ...(classic ? { fontFamily: xpFont, fontSize: 11 } : {}) }}>
               <input type="checkbox" checked={rejectUsable} onChange={e => setRejectUsable(e.target.checked)} />
               Still usable (downgrade, not scrap)
             </label>
-            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+            <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
               {rejectUsable
                 ? 'Quarantined and out of availability planning, but still offered in consumption and staging pickers — a rejected beam can be re-mounted for certain items.'
                 : 'Scrap-bound: excluded from availability and from every consumption picker.'}
             </div>
           </div>
-          <div className="mb-3" style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#663300' } : { fontSize: 13, color: '#664d03' }}>
+          <div className="mb-3" style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#663300' } : { fontSize: 13, color: '#664d03' }}>
             {partial
               ? `The rejected ${q.toFixed(2)} moves to a new REJECTED sub-lot (excluded from availability/consumption) and is physically pulled out; the rest stays GOOD. If produced by a work order, that qty returns to the MO's progress — add a WO to refill.`
               : `The lot is marked REJECTED: it stays in stock but is excluded from availability and consumption. If it was produced by a work order log, that quantity is returned to the MO's progress — create a new WO to refill the shortfall.`}
           </div>
           <div className="mb-3">
-            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Reason</label>
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Reason</label>
             <textarea
               className={classic ? '' : 'form-control form-control-sm mt-1'}
               style={classic ? { ...xpInput, width: '100%', height: 50, resize: 'vertical' } : {}}
@@ -1222,12 +1222,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
             </button>
           </>}
         >
-          <div className="mb-2" style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>
+          <div className="mb-2" style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>
             <strong>{batchItemCode(splitBatch)}</strong>
             {splitBatch.remaining != null && <> — {rem.toFixed(2)} remaining</>}
           </div>
           <div className="mb-3">
-            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Quantity to peel off</label>
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Quantity to peel off</label>
             <input
               type="number"
               min={0}
@@ -1239,14 +1239,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               onChange={e => setSplitQty(e.target.value)}
               placeholder={`0 – ${rem.toFixed(2)}`}
             />
-            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+            <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
               {valid
                 ? `Peels ${q.toFixed(2)} into a new GOOD lot; original keeps ${origLeft.toFixed(2)}.`
                 : `Enter a qty between 0 and ${rem.toFixed(2)}.`}
             </div>
           </div>
           <div className="mb-3">
-            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Reason (optional)</label>
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Reason (optional)</label>
             <textarea
               className={classic ? '' : 'form-control form-control-sm mt-1'}
               style={classic ? { ...xpInput, width: '100%', height: 50, resize: 'vertical' } : {}}

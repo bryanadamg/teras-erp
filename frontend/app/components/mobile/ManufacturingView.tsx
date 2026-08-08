@@ -3,9 +3,8 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
-import { STATUS_COLORS, CodeChip } from '../shared/xpTheme';
+import { STATUS_COLORS, CodeChip, xpFont as XP_FONT } from '../shared/xpTheme';
 
-const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
 
 const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties => ({

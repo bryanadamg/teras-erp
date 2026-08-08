@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -215,7 +215,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       borderRight: '1px solid #b0aaa0',
       textAlign: 'left' as const,
       whiteSpace: 'nowrap' as const,
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       position: 'sticky' as const,
       top: 0,
       zIndex: 5,
@@ -228,7 +228,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       borderRight: '1px solid #c0bdb5',
       borderBottom: '1px solid #d0cdc8',
       verticalAlign: 'middle' as const,
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '11px',
   };
 
@@ -813,7 +813,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                   borderRadius:classic?0:10,
                   padding:'1px 6px 1px 4px',
                   fontSize:'9px',
-                  fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,
+                  fontFamily:classic?xpFont:undefined,
                   color:c.pending?'#8a6d00':(classic?'#333':'#495057')}}>
                   {c.pending && <i className="bi bi-eyedropper" style={{fontSize:'8px'}}></i>}
                   {c.hex && <span style={{width:8,height:8,borderRadius:'50%',flexShrink:0,display:'inline-block',background:c.hex,border:'1px solid rgba(0,0,0,0.25)'}}></span>}
@@ -853,7 +853,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
   const fulfilmentCell = (line: any) => {
       const f = lineFulfilment(line);
-      if (f.ordered <= 0) return <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>;
+      if (f.ordered <= 0) return <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>;
       const seg = (width: number, color: string, z: number) => (
           <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${width}%`, background:color, zIndex:z }} />
       );
@@ -866,7 +866,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                   {seg(f.pct(f.packed), classic ? '#5a9ae0' : '#3b82f6', 2)}
                   {seg(f.pct(f.shipped), classic ? '#2d7a2d' : '#16a34a', 3)}
               </div>
-              <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: f.isReady ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
+              <div style={{ fontFamily:xpFont, fontSize:'9px', color: f.isReady ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
                   {f.shipped > 0
                       ? `${fmtQty(f.shipped)} shipped`
                       : f.packed > 0
@@ -960,7 +960,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                modeless
                footer={<button className={classic ? '' : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>}
            >
-                       <div style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined }}>
+                       <div style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? xpFont : undefined }}>
                            {lineageLoading && <p className="text-muted">Loading lineage...</p>}
                            {!lineageLoading && lineageData && (lineageData.production_runs || []).length === 0 && (
                                <p className="text-muted">No Production Runs created from this Sales Order yet. Everything produced for this order will appear here once a PR is created.</p>
@@ -1085,7 +1085,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                <span
                                    title="Only items in the Finished Goods category can be ordered"
                                    style={{
-                                       fontFamily: 'Tahoma, Arial, sans-serif', fontSize: classic ? '9px' : '10px',
+                                       fontFamily: xpFont, fontSize: classic ? '9px' : '10px',
                                        fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.4px',
                                        background: classic ? '#e8f5e9' : '#e8f5e9', border: '1px solid #2e7d32',
                                        color: '#1b4620', padding: '0 5px', borderRadius: classic ? 0 : 3, whiteSpace: 'nowrap',
@@ -1113,7 +1113,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    {/* LENGTH GROUP */}
                                    <div style={classic ? { border: '1px solid #a0988c', padding: '4px 8px 8px', marginBottom: 8, position: 'relative' } : { marginBottom: 10 }}>
                                        {classic
-                                           ? <span style={{ position: 'absolute', top: -7, left: 8, background: '#f8f7f2', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Length</span>
+                                           ? <span style={{ position: 'absolute', top: -7, left: 8, background: '#f8f7f2', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: xpFont }}>Length</span>
                                            : <div className="text-muted fw-bold mb-2" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Length</div>
                                        }
                                        <div style={{ paddingTop: classic ? 4 : 0, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: classic ? 5 : 8 }}>
@@ -1135,7 +1135,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    {/* WEIGHT GROUP */}
                                    <div style={classic ? { border: '1px solid #a0988c', padding: '4px 8px 8px', marginBottom: 8, position: 'relative' } : { marginBottom: 10 }}>
                                        {classic
-                                           ? <span style={{ position: 'absolute', top: -7, left: 8, background: '#f8f7f2', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Weight</span>
+                                           ? <span style={{ position: 'absolute', top: -7, left: 8, background: '#f8f7f2', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: xpFont }}>Weight</span>
                                            : <div className="text-muted fw-bold mb-2" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Weight</div>
                                        }
                                        <div style={{ paddingTop: classic ? 4 : 0 }}>
@@ -1152,19 +1152,19 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                <div style={{ paddingBottom: 1 }}>
                                                    {kgAuto ? (
                                                        <button type="button" onClick={toggleKgAuto} title="Click to enter manually"
-                                                           style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'9px',padding:'1px 6px',background:'linear-gradient(to bottom,#4a9ae8,#1a5ec8)',border:'1px solid',borderColor:'#1a3a8a #0a2a6a #0a2a6a #1a3a8a',color:'#fff',cursor:'pointer',borderRadius:0} : undefined}
+                                                           style={classic ? {fontFamily:xpFont,fontSize:'9px',padding:'1px 6px',background:'linear-gradient(to bottom,#4a9ae8,#1a5ec8)',border:'1px solid',borderColor:'#1a3a8a #0a2a6a #0a2a6a #1a3a8a',color:'#fff',cursor:'pointer',borderRadius:0} : undefined}
                                                            className={classic ? '' : 'badge bg-primary border-0'}
                                                        >AUTO</button>
                                                    ) : (
                                                        <button type="button" onClick={toggleKgAuto} title="Click to restore auto calculation"
-                                                           style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'9px',padding:'1px 6px',background:'linear-gradient(to bottom,#ffffff,#d4d0c8)',border:'1px solid',borderColor:'#dfdfdf #808080 #808080 #dfdfdf',color:'#000',cursor:'pointer',borderRadius:0} : undefined}
+                                                           style={classic ? {fontFamily:xpFont,fontSize:'9px',padding:'1px 6px',background:'linear-gradient(to bottom,#ffffff,#d4d0c8)',border:'1px solid',borderColor:'#dfdfdf #808080 #808080 #dfdfdf',color:'#000',cursor:'pointer',borderRadius:0} : undefined}
                                                            className={classic ? '' : 'badge bg-secondary border-0'}
                                                        >&larr; Auto</button>
                                                    )}
                                                </div>
                                            </div>
                                            {kgAuto && isAutoCalcSupported(newLine.item_id) && (
-                                               <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color:'#666', fontStyle:'italic', marginTop:2 }}>
+                                               <div style={{ fontFamily:xpFont, fontSize:'10px', color:'#666', fontStyle:'italic', marginTop:2 }}>
                                                    {getItemWeightUnit(newLine.item_id) === 'g/y'
                                                        ? `${getItemWeight(newLine.item_id)} g/y ↔ Yd`
                                                        : `${getItemWeight(newLine.item_id)} g/m ↔ m`}
@@ -1188,7 +1188,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                            style={xpInput({ flex: 1, borderRight: 'none', minWidth: 0 })}
                                                            placeholder="0" value={newLine.qty2} onChange={e => handleQty2Change(e.target.value)} />
                                                        <select
-                                                           style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 4px', background:'#ffffff', outline:'none', color:'#000', flexShrink: 0 }}
+                                                           style={{ fontFamily:xpFont, fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 4px', background:'#ffffff', outline:'none', color:'#000', flexShrink: 0 }}
                                                            value={newLine.uom2} onChange={e => { setNewLine(prev => ({ ...prev, uom2: e.target.value, uom2_factor: null })); }}
                                                        >
                                                            <option value="">Unit</option>
@@ -1207,7 +1207,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                                const active = newLine.uom2_factor === fVal;
                                                                return (
                                                                    <button key={f.id} type="button"
-                                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', padding:'1px 6px', cursor:'pointer', borderRadius:0, border: active ? '1px solid #1a3a8a' : '1px solid #7f9db9', background: active ? 'linear-gradient(to bottom,#4a9ae8,#1a5ec8)' : 'linear-gradient(to bottom,#fff,#e8e4d8)', color: active ? '#fff' : '#000' }}
+                                                                       style={{ fontFamily:xpFont, fontSize:'10px', padding:'1px 6px', cursor:'pointer', borderRadius:0, border: active ? '1px solid #1a3a8a' : '1px solid #7f9db9', background: active ? 'linear-gradient(to bottom,#4a9ae8,#1a5ec8)' : 'linear-gradient(to bottom,#fff,#e8e4d8)', color: active ? '#fff' : '#000' }}
                                                                        onClick={() => handleUom2FactorChange(String(fVal))}
                                                                    >
                                                                        ×{fVal} {unitLabel}{totalYd !== null ? ` = ${totalYd} Yd` : ''}{f.label ? ` (${f.label})` : ''}
@@ -1218,9 +1218,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                    )}
                                                    {factors.length > 0 && !isSystem && (
                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                                                           <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color:'#804800', whiteSpace:'nowrap' }}>1 {newLine.uom2} =</span>
+                                                           <span style={{ fontFamily:xpFont, fontSize:'10px', color:'#804800', whiteSpace:'nowrap' }}>1 {newLine.uom2} =</span>
                                                            <select
-                                                               style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 4px', background: newLine.uom2_factor ? '#fff8e8' : '#ffffff', outline:'none', color:'#000', flex: 1 }}
+                                                               style={{ fontFamily:xpFont, fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 4px', background: newLine.uom2_factor ? '#fff8e8' : '#ffffff', outline:'none', color:'#000', flex: 1 }}
                                                                value={newLine.uom2_factor ?? ''}
                                                                onChange={e => handleUom2FactorChange(e.target.value)}
                                                            >
@@ -1302,7 +1302,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        {currentBoundAttrs.length > 0 && (
                            <div className="col-12 mt-1">
                                <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                   <div style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Variants</div>
+                                   <div style={classic ? {fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Variants</div>
                                    <div className="row g-2">
                                        {currentBoundAttrs.map((attr: any) => {
                                            const isCombo = comboAttr && attr.id === comboAttr.id;
@@ -1365,16 +1365,16 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        {currentVariantType === 'color' && newLine.item_id && (
                            <div className="col-12 mt-1">
                                <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                   <div style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Color Code</div>
+                                   <div style={classic ? {fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Color Code</div>
                                    {newLine.color_id ? (
                                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                                           <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000'}:undefined} className={classic?'':'small'}>{newLine.color_label}</span>
-                                           <button type="button" onClick={clearColor} style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',border:'1px solid #7f9db9',background:'#ece9d8',padding:'1px 6px',cursor:'pointer'}:undefined} className={classic?'':'btn btn-sm btn-outline-secondary py-0'}>Change</button>
+                                           <span style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000'}:undefined} className={classic?'':'small'}>{newLine.color_label}</span>
+                                           <button type="button" onClick={clearColor} style={classic?{fontFamily:xpFont,fontSize:'10px',border:'1px solid #7f9db9',background:'#ece9d8',padding:'1px 6px',cursor:'pointer'}:undefined} className={classic?'':'btn btn-sm btn-outline-secondary py-0'}>Change</button>
                                        </div>
                                    ) : newLine.labdip_variant_code ? (
                                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                                           <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#8a6d00'}:{color:'#8a6d00'}} className={classic?'':'small'}>Pending lab dip: {newLine.labdip_label}</span>
-                                           <button type="button" onClick={clearLabdip} style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',border:'1px solid #7f9db9',background:'#ece9d8',padding:'1px 6px',cursor:'pointer'}:undefined} className={classic?'':'btn btn-sm btn-outline-secondary py-0'}>Change</button>
+                                           <span style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#8a6d00'}:{color:'#8a6d00'}} className={classic?'':'small'}>Pending lab dip: {newLine.labdip_label}</span>
+                                           <button type="button" onClick={clearLabdip} style={classic?{fontFamily:xpFont,fontSize:'10px',border:'1px solid #7f9db9',background:'#ece9d8',padding:'1px 6px',cursor:'pointer'}:undefined} className={classic?'':'btn btn-sm btn-outline-secondary py-0'}>Change</button>
                                        </div>
                                    ) : (
                                        <div style={{position:'relative'}}>
@@ -1385,19 +1385,19 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                onChange={e => setColorSearch(e.target.value)}
                                                onFocus={() => setColorFocused(true)}
                                                onBlur={() => setTimeout(() => setColorFocused(false), 150)}
-                                               style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
+                                               style={classic?{fontFamily:xpFont,fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
                                                className={classic?'':'form-control form-control-sm'}
                                            />
                                            {colorFocused && (colorResults.length > 0 || labdipResults.length > 0) && (
                                                <div style={{position:'absolute',zIndex:20,top:'100%',left:0,right:0,maxHeight:220,overflowY:'auto',background:'#ffffff',border:'1px solid #7f9db9'}}>
                                                    {labdipResults.length > 0 && (
                                                        <>
-                                                           <div style={{padding:'2px 6px',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'10px',fontWeight:'bold',color:'#8a6d00',background:'#fbf4dd',borderBottom:'1px solid #e8dca8'}}>Pending (Lab Dip) — not yet approved</div>
+                                                           <div style={{padding:'2px 6px',fontFamily:classic?xpFont:undefined,fontSize:'10px',fontWeight:'bold',color:'#8a6d00',background:'#fbf4dd',borderBottom:'1px solid #e8dca8'}}>Pending (Lab Dip) — not yet approved</div>
                                                            {labdipResults.map((v: any) => (
                                                                <div
                                                                    key={v.labdip_item_id}
                                                                    onClick={() => selectLabdip(v)}
-                                                                   style={{padding:'3px 6px',cursor:'pointer',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'11px',borderBottom:'1px solid #eee'}}
+                                                                   style={{padding:'3px 6px',cursor:'pointer',fontFamily:classic?xpFont:undefined,fontSize:'11px',borderBottom:'1px solid #eee'}}
                                                                    onMouseDown={e => e.preventDefault()}
                                                                >
                                                                    <b>{v.variant_code}</b>{v.request_code ? <span style={{color:'#888'}}> · {v.request_code}</span> : null}<span style={{color:'#8a6d00'}}> · {v.status}</span>
@@ -1407,12 +1407,12 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                    )}
                                                    {colorResults.length > 0 && (
                                                        <>
-                                                           {labdipResults.length > 0 && <div style={{padding:'2px 6px',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'10px',fontWeight:'bold',color:'#444',background:'#f0f0f0',borderBottom:'1px solid #ddd'}}>Approved Colors</div>}
+                                                           {labdipResults.length > 0 && <div style={{padding:'2px 6px',fontFamily:classic?xpFont:undefined,fontSize:'10px',fontWeight:'bold',color:'#444',background:'#f0f0f0',borderBottom:'1px solid #ddd'}}>Approved Colors</div>}
                                                            {colorResults.map((c: any) => (
                                                                <div
                                                                    key={c.id}
                                                                    onClick={() => selectColor(c)}
-                                                                   style={{padding:'3px 6px',cursor:'pointer',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'11px',borderBottom:'1px solid #eee'}}
+                                                                   style={{padding:'3px 6px',cursor:'pointer',fontFamily:classic?xpFont:undefined,fontSize:'11px',borderBottom:'1px solid #eee'}}
                                                                    onMouseDown={e => e.preventDefault()}
                                                                >
                                                                    <b>{c.code}</b>{c.name ? ` — ${c.name}` : ''}{c.pantone_ref ? <span style={{color:'#888'}}> · {c.pantone_ref}</span> : null}
@@ -1441,8 +1441,8 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            className={classic?'':'form-check-input mt-0'}
                                            style={classic?{margin:0}:undefined}
                                        />
-                                       <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000'}:undefined} className={classic?'':'small'}>No Color Swatch</span>
-                                       <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',color:'#888'}:{color:'#888'}} className={classic?'':'small'}>— customer has not supplied a physical swatch yet</span>
+                                       <span style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000'}:undefined} className={classic?'':'small'}>No Color Swatch</span>
+                                       <span style={classic?{fontFamily:xpFont,fontSize:'10px',color:'#888'}:{color:'#888'}} className={classic?'':'small'}>— customer has not supplied a physical swatch yet</span>
                                    </label>
                                </div>
                            </div>
@@ -1459,10 +1459,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    {itemBoms.length > 1 && (
                                        <div className="col-12 mt-1">
                                            <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                               <div style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>BOM</div>
+                                               <div style={classic?{fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>BOM</div>
                                                <select
                                                    className="form-select form-select-sm"
-                                                   style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
+                                                   style={classic?{fontFamily:xpFont,fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
                                                    value={newLine.bom_id}
                                                    onChange={e => setNewLine({...newLine, bom_id: e.target.value, bom_size_id: ''})}
                                                >
@@ -1477,10 +1477,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    {bomSizes.length > 0 && (
                                        <div className="col-12 mt-1">
                                            <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                               <div style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>Size / Measurement</div>
+                                               <div style={classic?{fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>Size / Measurement</div>
                                                <select
                                                    className="form-select form-select-sm"
-                                                   style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
+                                                   style={classic?{fontFamily:xpFont,fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
                                                    value={newLine.bom_size_id}
                                                    onChange={e => setNewLine({...newLine, bom_size_id: e.target.value})}
                                                >
@@ -1500,7 +1500,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                    {/* Add Line button — full width, bottom of form */}
                    <div style={{ marginTop: classic ? 6 : 10, marginBottom: classic ? 6 : 10 }}>
                        {newLineVariantErr && (
-                           <div style={{ fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? '10px' : '12px', fontWeight: 'bold', color: '#8a6d00', marginBottom: 4 }}>
+                           <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? '10px' : '12px', fontWeight: 'bold', color: '#8a6d00', marginBottom: 4 }}>
                                <i className="bi bi-exclamation-triangle me-1"></i>{newLineVariantErr}
                            </div>
                        )}
@@ -1529,11 +1529,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                    {/* Lines list */}
                    <div>
                        {newSO.lines.map((line: any, idx) => (
-                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
                                    <CodeChip code={getItemCode(line.item_id, line.item_code)} classic={classic} tier={2} style={{ marginLeft: 8 }} />
-                                   {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
+                                   {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?xpFont:'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
                                    {(() => {
                                        const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], line.color_label, line.color_hex, !line.color_id ? line.labdip_variant_code : null);
                                        return (
@@ -1586,7 +1586,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                </div>
                            </div>
                        ))}
-                       {newSO.lines.length === 0 && <div style={{textAlign:'center',padding:classic?'8px':'8px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'11px':'',color:classic?'#888':'',fontStyle:'italic'}} className={classic?'':'text-center text-muted small fst-italic py-2'}>No items added yet</div>}
+                       {newSO.lines.length === 0 && <div style={{textAlign:'center',padding:classic?'8px':'8px',fontFamily:classic?xpFont:'',fontSize:classic?'11px':'',color:classic?'#888':'',fontStyle:'italic'}} className={classic?'':'text-center text-muted small fst-italic py-2'}>No items added yet</div>}
                    </div>
                </FormSection>
            </form>
@@ -1690,7 +1690,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    <>
                                        <CodeChip code={so.po_number} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                        {so.customer_po_ref && (
-                                           <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color:'#666', marginTop:1 }}>
+                                           <div style={{ fontFamily:xpFont, fontSize:'10px', color:'#666', marginTop:1 }}>
                                                {so.customer_po_ref}
                                            </div>
                                        )}
@@ -1698,7 +1698,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, marginTop:3 }}>
                                                {soPRs.map((pr: any) => classic ? (
                                                    <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`}
-                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
+                                                       style={{ fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
                                                        <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{pr.code}
                                                    </span>
                                                ) : (
@@ -1725,7 +1725,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, justifyContent:'flex-end' }}>
                                                {so.status === 'PENDING' && (classic ? (
                                                    <button title="Create Production Run" onClick={() => onGenerateWO(so)}
-                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#5a9ae0,#0058e6)', border:'1px solid', borderColor:'#003080 #001840 #001840 #003080', color:'#fff', fontWeight:'bold' }}>
+                                                       style={{ fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#5a9ae0,#0058e6)', border:'1px solid', borderColor:'#003080 #001840 #001840 #003080', color:'#fff', fontWeight:'bold' }}>
                                                        <i className="bi bi-collection-play" style={{ marginRight:2 }}></i>PR
                                                    </button>
                                                ) : (
@@ -1735,7 +1735,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                ))}
                                                {soPRs.length > 0 && (classic ? (
                                                    <button key="lineage" title="View full production lineage — PR, MO, WO and beams created for this SO" onClick={() => openLineage(so)}
-                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#fff,#d4d0c8)', border:'1px solid', borderColor:'#dfdfdf #808080 #808080 #dfdfdf', color:'#003ea6', fontWeight:'bold' }}>
+                                                       style={{ fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#fff,#d4d0c8)', border:'1px solid', borderColor:'#dfdfdf #808080 #808080 #dfdfdf', color:'#003ea6', fontWeight:'bold' }}>
                                                        <i className="bi bi-diagram-3" style={{ marginRight:2 }}></i>Lineage
                                                    </button>
                                                ) : (
@@ -1801,7 +1801,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
                                            {/* Item */}
                                            <td style={lineTd(isFirst, isLast)}>
-                                               <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', fontWeight:'bold', lineHeight:1.3 }} className={classic ? '' : 'fw-semibold'}>
+                                               <div style={{ fontFamily:xpFont, fontSize:'10px', fontWeight:'bold', lineHeight:1.3 }} className={classic ? '' : 'fw-semibold'}>
                                                    {getItemName(line.item_id, line.item_name)}
                                                    {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize:'0.6rem'}}></i>}
                                                </div>
@@ -1811,7 +1811,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                    return (
                                                        <>
                                                            {plainIds.length > 0 && (
-                                                               <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#666', fontStyle:'italic' }}>
+                                                               <div style={{ fontFamily:xpFont, fontSize:'9px', color:'#666', fontStyle:'italic' }}>
                                                                    {plainIds.map(getAttributeValueName).join(', ')}
                                                                </div>
                                                            )}
@@ -1821,7 +1821,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                })()}
                                                {line.no_color_swatch && (
                                                    <div
-                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', fontWeight:'bold', color:'#a33' }}
+                                                       style={{ fontFamily:xpFont, fontSize:'9px', fontWeight:'bold', color:'#a33' }}
                                                        title="Customer has not supplied a physical color swatch"
                                                    >
                                                        <i className="bi bi-palette me-1"></i>No Color Swatch
@@ -1832,21 +1832,21 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            {/* Size */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                {line.bom_size_id ? (
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', fontWeight:'bold', color: classic?'#005':'#0d6efd' }}>
+                                                   <div style={{ fontFamily:xpFont, fontSize:'10px', fontWeight:'bold', color: classic?'#005':'#0d6efd' }}>
                                                        <i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}
                                                    </div>
                                                ) : (
-                                                   <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>
                                                )}
                                            </td>
 
                                            {/* Qty */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                <div style={{ display:'flex', flexWrap:'nowrap' as const, gap:3, alignItems:'center' }}>
-                                                   <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', fontWeight:'bold', color: classic?'#003ea6':'#fff', background: classic?'#dce8ff':'#0d6efd', border: classic?'1px solid #9ab0e0':'none', padding:'1px 5px', borderRadius: classic?0:3 }}>{line.qty} Yd</span>
-                                                   <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: classic?'#444':'#555', background: classic?'#efefef':'#f0f0f0', border: classic?'1px solid #c0bdb5':'1px solid #ddd', padding:'1px 5px', borderRadius: classic?0:3 }}>{Math.round(line.qty * 0.9144 * 100) / 100} m</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', fontWeight:'bold', color: classic?'#003ea6':'#fff', background: classic?'#dce8ff':'#0d6efd', border: classic?'1px solid #9ab0e0':'none', padding:'1px 5px', borderRadius: classic?0:3 }}>{line.qty} Yd</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#444':'#555', background: classic?'#efefef':'#f0f0f0', border: classic?'1px solid #c0bdb5':'1px solid #ddd', padding:'1px 5px', borderRadius: classic?0:3 }}>{Math.round(line.qty * 0.9144 * 100) / 100} m</span>
                                                    {line.qty_kg != null && line.qty_kg !== '' && (
-                                                       <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: classic?'#1a5e1a':'#166534', background: classic?'#e4f5e4':'#dcfce7', border: classic?'1px solid #90c090':'1px solid #86efac', padding:'1px 5px', borderRadius: classic?0:3 }}>{line.qty_kg} KG</span>
+                                                       <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#1a5e1a':'#166534', background: classic?'#e4f5e4':'#dcfce7', border: classic?'1px solid #90c090':'1px solid #86efac', padding:'1px 5px', borderRadius: classic?0:3 }}>{line.qty_kg} KG</span>
                                                    )}
                                                </div>
                                            </td>
@@ -1854,18 +1854,18 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            {/* Alt Unit */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                {line.qty2 != null && line.qty2 !== '' && line.uom2 ? (
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color: classic?'#444':'' }}>{line.qty2} {line.uom2}</div>
+                                                   <div style={{ fontFamily:xpFont, fontSize:'10px', color: classic?'#444':'' }}>{line.qty2} {line.uom2}</div>
                                                ) : (
-                                                   <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>
                                                )}
                                            </td>
 
                                            {/* Stock Notes */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                {line.ket_stock ? (
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: classic?'#555':'#666', fontStyle:'italic' }}>{line.ket_stock}</div>
+                                                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#555':'#666', fontStyle:'italic' }}>{line.ket_stock}</div>
                                                ) : (
-                                                   <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>
                                                )}
                                            </td>
 
@@ -1874,7 +1874,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                {line.due_date ? (
                                                    // Past its requested date with no cartons ready to ship — the one
                                                    // case where the date itself is the alarm, so it carries the tint.
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px',
+                                                   <div style={{ fontFamily:xpFont, fontSize:'9px',
                                                        color: isLineLate(line) ? (classic?'#a80000':'#dc2626') : (classic?'#555':''),
                                                        fontWeight: isLineLate(line) ? 'bold' : undefined }}
                                                        title={isLineLate(line) ? 'Past requested date and not ready to ship' : undefined}>
@@ -1883,12 +1883,12 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                    </div>
                                                ) : null}
                                                {line.internal_confirmation_date ? (
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: classic?'#555':'' }}>
+                                                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#555':'' }}>
                                                        <span style={{ color:'#999' }}>Conf</span> {formatShortDate(line.internal_confirmation_date)}
                                                    </div>
                                                ) : null}
                                                {!line.due_date && !line.internal_confirmation_date && (
-                                                   <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>
                                                )}
                                            </td>
 
@@ -1962,7 +1962,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                    padding: '2px 8px',
                    display: 'flex',
                    gap: '12px',
-                   fontFamily: 'Tahoma, Arial, sans-serif',
+                   fontFamily: xpFont,
                    fontSize: '10px',
                    color: '#333',
                }}>

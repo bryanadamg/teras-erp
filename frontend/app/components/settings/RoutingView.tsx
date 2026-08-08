@@ -9,7 +9,7 @@ import { ShellWindow, ShellTitleBar, SearchField, ToolbarCount } from '../shared
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
-import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel } from '../shared/xpTheme';
+import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpFont } from '../shared/xpTheme';
 import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
 
 const WC_PAGE_SIZE = 20;
@@ -535,7 +535,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               <div style={{
                   background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
                   padding: '2px 8px', display: 'flex', gap: 16,
-                  fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, color: '#333',
+                  fontFamily: xpFont, fontSize: 11, color: '#333',
               }}>
                   <span><b>{wcList.length}</b> Total</span>
                   <span><b>{typeNodes.length}</b> Types</span>
@@ -619,7 +619,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               <div style={{
                   background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
                   padding: '2px 8px', display: 'flex', gap: 16,
-                  fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, color: '#333',
+                  fontFamily: xpFont, fontSize: 11, color: '#333',
               }}>
                   <span><b>{(operations || []).length}</b> Total</span>
               </div>

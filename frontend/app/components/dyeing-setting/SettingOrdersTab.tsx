@@ -5,10 +5,9 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip } from '../shared/xpTheme';
+import { CodeChip, xpFont } from '../shared/xpTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 // ── Style helpers (theme-aware) ───────────────────────────────────────────────

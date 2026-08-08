@@ -1,13 +1,18 @@
 'use client';
 import React from 'react';
+import { xpFont, modernFont } from './xpTheme';
 
 // Shared dual-theme (classic XP / modern) style helpers for master-data list views
 // (Color Library, Combo Library, Colors variant, …). xpTheme's xpBtn/xpInput are
 // classic-only; these carry both branches so the library views don't each re-declare
 // the same style objects. Prefix `lv` (list-view) avoids clashing with xpTheme exports.
 
-export const LV_XP_FONT = 'Tahoma, "Segoe UI", sans-serif';
-export const LV_MODERN_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+// Aliases, not second definitions: these used to declare their own stacks, and
+// LV_XP_FONT's ('Tahoma, "Segoe UI", sans-serif') dropped Arial, so a list view
+// and a form fell back to different faces wherever Tahoma was missing.
+// xpTheme owns both stacks — keep these as re-exports for the existing call sites.
+export const LV_XP_FONT = xpFont;
+export const LV_MODERN_FONT = modernFont;
 
 // `extra` must be spread last — callers pass an explicit `width` to sit an input in
 // a toolbar row, and the default `width: '100%'` would otherwise silently win and

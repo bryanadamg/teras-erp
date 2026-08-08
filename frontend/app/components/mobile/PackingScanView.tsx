@@ -2,12 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { StatusChip } from '../shared/xpTheme';
+import { StatusChip, xpFont as XP_FONT } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
 const XP_BEIGE = '#ece9d8';
-const XP_FONT = 'Tahoma, "Segoe UI", Arial, sans-serif';
 
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',

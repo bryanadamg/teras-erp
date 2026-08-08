@@ -3,7 +3,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
-import { CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
   const itemOptions = (selectItems ?? items);
@@ -71,12 +71,12 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
   const xpTitleBar = (extra: any = {}): React.CSSProperties => sharedXpTitleBar(extra);
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
   const xpBtn = (extra: any = {}) => ({
-      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
+      fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
       background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
       borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0, ...extra,
   });
   const xpInput: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9',
+      fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
       boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
       background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
   };
@@ -91,10 +91,10 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
       fontSize: '10px', fontWeight: 'bold', color: '#000000',
   };
   const xpLabel: React.CSSProperties = {
-      fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2,
+      fontFamily: xpFont, fontSize: '11px', color: '#000', display: 'block', marginBottom: 2,
   };
   const xpSectionHead: React.CSSProperties = {
-      fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', fontWeight: 'bold', color: '#444',
+      fontFamily: xpFont, fontSize: '10px', fontWeight: 'bold', color: '#444',
       textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: 4, paddingBottom: 2,
       borderBottom: '1px solid #c0bdb5',
   };
@@ -203,21 +203,21 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                   {filteredBalance.map((bal: any, i: number) => (
                                       <tr key={i} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
                                           <td style={{ padding: '4px 8px' }}>
-                                              <div style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(bal)}</div>
-                                              <div style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{getItemCode(bal)}</div>
+                                              <div style={{ fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(bal)}</div>
+                                              <div style={{ fontFamily: xpFont, fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{getItemCode(bal)}</div>
                                           </td>
                                           <td style={{ padding: '4px 8px' }}>
                                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                                                   {bal.attribute_value_ids && bal.attribute_value_ids.length > 0 ? (
                                                       bal.attribute_value_ids.map((vid: string) => (
-                                                          <span key={vid} style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#333' }}>{getAttributeValueName(vid)}</span>
+                                                          <span key={vid} style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontFamily: xpFont, fontSize: '10px', color: '#333' }}>{getAttributeValueName(vid)}</span>
                                                       ))
                                                   ) : (
-                                                      <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#888', fontStyle: 'italic' }}>Standard</span>
+                                                      <span style={{ fontFamily: xpFont, fontSize: '10px', color: '#888', fontStyle: 'italic' }}>Standard</span>
                                                   )}
                                               </div>
                                           </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' }}>
+                                          <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
                                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                                                   {getWarehouseName(bal) && (
                                                       <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>{getWarehouseName(bal)}</span>
@@ -225,13 +225,13 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                                   <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>{getLocationName(bal)}</span>
                                               </div>
                                           </td>
-                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b', whiteSpace: 'nowrap' }}>
+                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b', whiteSpace: 'nowrap' }}>
                                               {bal.qty}
                                           </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
+                                          <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
                                               {getItemUom(bal) || ''}
                                           </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', whiteSpace: 'nowrap' }}>
+                                          <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap' }}>
                                               {pkgParts(bal).length === 0
                                                   ? <span style={{ color: '#999' }}>-</span>
                                                   : pkgParts(bal).map((p, idx) => (
@@ -240,13 +240,13 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                                       </span>
                                                   ))}
                                           </td>
-                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
+                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
                                               {getItemEnds(bal) != null ? getItemEnds(bal) : ''}
                                           </td>
                                       </tr>
                                   ))}
                                   {filteredBalance.length === 0 && (
-                                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>Warehouse is empty</td></tr>
+                                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>Warehouse is empty</td></tr>
                                   )}
                               </tbody>
                           </table>
@@ -254,7 +254,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                       <div style={{
                           background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
                           padding: '2px 8px', display: 'flex', gap: 16,
-                          fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333',
+                          fontFamily: xpFont, fontSize: '11px', color: '#333',
                       }}>
                           <span><b>{(stockBalance || []).length}</b> Total SKUs</span>
                           <span style={{ color: '#c00000' }}><b>{(stockBalance || []).filter((b: any) => b.qty < 0).length}</b> Negative</span>

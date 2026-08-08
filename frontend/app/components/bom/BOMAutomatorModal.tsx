@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { CODE_FONT } from '../shared/xpTheme';
+import { CODE_FONT, xpFont } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -41,7 +41,7 @@ const normalizeInherit = (flags: boolean[] | null | undefined, levelCount: numbe
 
 // --- XP style helpers ---
 const xpBtn: React.CSSProperties = {
-    fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+    fontFamily: xpFont,
     fontSize: 11,
     padding: '2px 10px',
     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
@@ -75,7 +75,7 @@ const xpBtnDanger: React.CSSProperties = {
 };
 
 const xpInput: React.CSSProperties = {
-    fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+    fontFamily: xpFont,
     fontSize: 11,
     border: '1px solid #7f9db9',
     borderTopColor: '#5a7fa8',
@@ -104,7 +104,7 @@ const xpGroupbox = (label: string): { wrapper: React.CSSProperties; labelStyle: 
         fontSize: 10,
         fontWeight: 'bold',
         color: '#000080',
-        fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+        fontFamily: xpFont,
     },
 });
 
@@ -169,9 +169,9 @@ const LevelCard = memo(({
                 <span style={{
                     background: badgeColor, color: 'white',
                     fontSize: 9, fontWeight: 'bold', padding: '1px 6px',
-                    borderRadius: 1, fontFamily: 'Tahoma, sans-serif',
+                    borderRadius: 1, fontFamily: xpFont,
                 }}>L{lIdx + 1}</span>
-                <span style={{ flex: 1, fontSize: 10, color: '#555', fontFamily: 'Tahoma, sans-serif' }}>
+                <span style={{ flex: 1, fontSize: 10, color: '#555', fontFamily: xpFont }}>
                     Processing Level
                 </span>
                 <button style={xpBtnDanger} onClick={() => onRemoveLevel(lIdx)}>
@@ -186,7 +186,7 @@ const LevelCard = memo(({
                         <span style={{
                             background: '#ddd', border: '1px solid #aaa',
                             padding: '1px 5px', fontSize: 10, minWidth: 18,
-                            textAlign: 'center', fontFamily: 'Tahoma, sans-serif',
+                            textAlign: 'center', fontFamily: xpFont,
                         }}>{pIdx + 1}</span>
                         <input
                             type="text"
@@ -207,7 +207,7 @@ const LevelCard = memo(({
                 style={{
                     background: 'none', border: 'none',
                     color: '#0000aa', fontSize: 10, cursor: 'pointer',
-                    padding: '4px 0 0', fontFamily: 'Tahoma, sans-serif',
+                    padding: '4px 0 0', fontFamily: xpFont,
                     textDecoration: 'underline',
                 }}
                 onClick={() => onAddPattern(lIdx)}
@@ -222,7 +222,7 @@ const LevelCard = memo(({
                     marginTop: 6, paddingTop: 5, borderTop: '1px solid #e0ddd4',
                     fontSize: 10, color: attributeSummary ? '#333' : '#999',
                     cursor: attributeSummary ? 'pointer' : 'default',
-                    fontFamily: 'Tahoma, sans-serif',
+                    fontFamily: xpFont,
                 }}
                 title={attributeSummary
                     ? `Children on this level are created with the root's ${attributeSummary}`
@@ -394,7 +394,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                     display: 'flex',
                     flexDirection: 'column',
                     maxHeight: '70vh',
-                    fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+                    fontFamily: xpFont,
                     fontSize: 11,
                 }}
             >

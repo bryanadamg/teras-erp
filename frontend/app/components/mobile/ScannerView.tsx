@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { STATUS_COLORS } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont as XP_FONT } from '../shared/xpTheme';
 
 interface MobileScannerViewProps {
     manufacturingOrders: any[];
@@ -27,7 +27,6 @@ interface MaterialRow {
 }
 
 const XP_BEIGE = '#ece9d8';
-const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',

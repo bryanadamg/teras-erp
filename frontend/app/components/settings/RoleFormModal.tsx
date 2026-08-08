@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpBtn, xpInput, xpLabel } from '../shared/xpTheme';
+import { xpBtn, xpInput, xpLabel, xpFont } from '../shared/xpTheme';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
 import { useData } from '../../context/DataContext';
 
@@ -143,7 +143,7 @@ export default function RoleFormModal({
             }
         >
             {error && (
-                <div className={classic ? '' : 'alert alert-danger py-2 small'} style={classic ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: 'Tahoma,Arial,sans-serif' } : undefined}>
+                <div className={classic ? '' : 'alert alert-danger py-2 small'} style={classic ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: xpFont } : undefined}>
                     {error}
                 </div>
             )}
@@ -183,12 +183,12 @@ export default function RoleFormModal({
             {hasWorkOrderPerm && wcTypes.length > 0 && (
                 <div className="mt-3">
                     <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Work Order Station Scope</label>
-                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
+                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
                         Leave all unchecked to allow this role's Work Order actions on any station. Check one or more to restrict.
                     </div>
                     <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6 } : undefined} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
                         {wcTypes.map(t => (
-                            <label key={t} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
+                            <label key={t} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
                                 <input type="checkbox" checked={allowedWcTypes.includes(t)} onChange={() => toggleWcType(t)} />
                                 {t}
                             </label>
@@ -200,12 +200,12 @@ export default function RoleFormModal({
             {hasCategoryScopedPerm && categories.length > 0 && (
                 <div className="mt-3">
                     <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Item/Stock Category Scope</label>
-                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
+                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
                         Leave all unchecked to allow Item/Stock actions on any category. Check one or more to restrict.
                     </div>
                     <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6, maxHeight: 160, overflowY: 'auto' as const } : { maxHeight: 160, overflowY: 'auto' as const }} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
                         {categories.map((c: any) => (
-                            <label key={c.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
+                            <label key={c.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
                                 <input type="checkbox" checked={allowedCategories.includes(c.id)} onChange={() => toggleCategory(c.id)} />
                                 {(c.path_names || [c.name]).join(' / ')}
                             </label>
@@ -217,12 +217,12 @@ export default function RoleFormModal({
             {hasLocationScopedPerm && locations.length > 0 && (
                 <div className="mt-3">
                     <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Lot Management Location Scope</label>
-                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
+                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
                         Leave all unchecked to allow Lot actions at any location. Check one or more to restrict.
                     </div>
                     <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6, maxHeight: 160, overflowY: 'auto' as const } : { maxHeight: 160, overflowY: 'auto' as const }} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
                         {locations.map((l: any) => (
-                            <label key={l.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
+                            <label key={l.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
                                 <input type="checkbox" checked={allowedLocations.includes(l.id)} onChange={() => toggleLocation(l.id)} />
                                 {l.full_path || l.name}
                             </label>

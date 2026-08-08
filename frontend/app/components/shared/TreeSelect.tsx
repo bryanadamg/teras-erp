@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { xpFont } from './xpTheme';
 
 export interface TreeSelectOption {
   value: string;
@@ -152,9 +153,9 @@ export default function TreeSelect({
   }, [value, options, allowEmpty, emptyLabel, placeholder]);
 
   // ── XP styles ──────────────────────────────────────────────────────────────
-  const xpFont = { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 } as const;
+  const xpFontStyle = { fontFamily: xpFont, fontSize: 11 } as const;
   const xpTrigger: React.CSSProperties = {
-    ...xpFont,
+    ...xpFontStyle,
     display: 'flex',
     alignItems: 'center',
     width: '100%',
@@ -183,7 +184,7 @@ export default function TreeSelect({
         <div key={opt.value || `_d${depth}`}>
           <div
             style={{
-              ...xpFont,
+              ...xpFontStyle,
               display: 'flex',
               alignItems: 'center',
               paddingLeft: 4 + depth * 14,
@@ -324,7 +325,7 @@ export default function TreeSelect({
   const emptyRow = allowEmpty && (
     <div
       style={classic ? {
-        ...xpFont,
+        ...xpFontStyle,
         padding: '2px 4px',
         cursor: 'pointer',
         background: !value ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent',
@@ -383,7 +384,7 @@ export default function TreeSelect({
           onClick={() => !disabled && setOpen(v => !v)}
           disabled={disabled}
         >
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', ...xpFont, color: (value || (allowEmpty && !value)) ? '#000' : '#777' }}>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', ...xpFontStyle, color: (value || (allowEmpty && !value)) ? '#000' : '#777' }}>
             {triggerLabel}
           </span>
           <i

@@ -7,9 +7,9 @@ import { Tabs, TabDef } from '../shared/Tabs';
 import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
+import { xpFont } from '../shared/xpTheme';
 
 // ── XP Style Constants ────────────────────────────────────────────────────────
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',

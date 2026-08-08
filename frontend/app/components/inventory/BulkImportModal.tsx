@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
+import { xpFont } from '../shared/xpTheme';
 
 interface BulkImportModalProps {
     isOpen: boolean;
@@ -23,7 +24,7 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
 
     // ── XP style constants ────────────────────────────────────────────────────
     const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
         fontSize: '11px',
         padding: '2px 10px',
         cursor: 'pointer',
@@ -36,7 +37,7 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
     });
 
     const xpInput: React.CSSProperties = {
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
         fontSize: '11px',
         border: '1px solid #7f9db9',
         boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
@@ -111,7 +112,7 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
             {!results ? (
                 <>
                     <p
-                        style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#444', marginBottom: 10 } : undefined}
+                        style={classic ? { fontFamily: xpFont, fontSize: '11px', color: '#444', marginBottom: 10 } : undefined}
                         className={classic ? '' : 'text-muted small'}
                     >
                         Upload a CSV file to bulk create items. Please use the provided template to ensure correct formatting.
@@ -127,7 +128,7 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
                     </div>
                     <div style={classic ? { marginBottom: 8 } : undefined} className={classic ? '' : 'mb-3'}>
                         <label
-                            style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                            style={classic ? { fontFamily: xpFont, fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
                             className={classic ? '' : 'form-label small fw-bold'}
                         >Select File</label>
                         {classic ? (
@@ -142,7 +143,7 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
                                         ref={fileInputRef}
                                     />
                                 </label>
-                                <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: file ? '#000' : '#888', background: '#ffffff', border: '1px solid #7f9db9', padding: '1px 8px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, height: 20, display: 'flex', alignItems: 'center' }}>
+                                <span style={{ fontFamily: xpFont, fontSize: '11px', color: file ? '#000' : '#888', background: '#ffffff', border: '1px solid #7f9db9', padding: '1px 8px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, height: 20, display: 'flex', alignItems: 'center' }}>
                                     {file ? file.name : 'No file selected'}
                                 </span>
                             </div>
@@ -163,8 +164,8 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
                         classic ? (
                             <div style={{ textAlign: 'center', padding: '12px 0' }}>
                                 <i className="bi bi-check-circle-fill" style={{ fontSize: 32, color: '#2e7d32', display: 'block', marginBottom: 8 }}></i>
-                                <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '13px', fontWeight: 'bold', color: '#2e7d32', marginBottom: 4 }}>Import Successful!</div>
-                                <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#444' }}>{results.imported} items imported.</div>
+                                <div style={{ fontFamily: xpFont, fontSize: '13px', fontWeight: 'bold', color: '#2e7d32', marginBottom: 4 }}>Import Successful!</div>
+                                <div style={{ fontFamily: xpFont, fontSize: '11px', color: '#444' }}>{results.imported} items imported.</div>
                             </div>
                         ) : (
                             <div className="text-success mb-3">
@@ -178,13 +179,13 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
                             <div style={{ textAlign: 'left' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                                     <i className="bi bi-exclamation-triangle-fill" style={{ fontSize: 18, color: '#c77800' }}></i>
-                                    <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '13px', fontWeight: 'bold', color: '#4a3000' }}>Partial Success</span>
+                                    <span style={{ fontFamily: xpFont, fontSize: '13px', fontWeight: 'bold', color: '#4a3000' }}>Partial Success</span>
                                 </div>
-                                <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#555', marginBottom: 6 }}>
+                                <div style={{ fontFamily: xpFont, fontSize: '11px', color: '#555', marginBottom: 6 }}>
                                     Imported: {results.imported}
                                 </div>
                                 <div style={{ background: '#fffbe6', border: '1px solid #c77800', borderLeft: '4px solid #c77800', padding: '6px 10px', maxHeight: 150, overflowY: 'auto' as const }}>
-                                    <ul style={{ margin: 0, paddingLeft: 16, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#4a3000' }}>
+                                    <ul style={{ margin: 0, paddingLeft: 16, fontFamily: xpFont, fontSize: '11px', color: '#4a3000' }}>
                                         {results.errors.map((err: string, i: number) => (
                                             <li key={i}>{err}</li>
                                         ))}

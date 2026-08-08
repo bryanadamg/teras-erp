@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { CODE_FONT } from '../shared/xpTheme';
+import { CODE_FONT, xpFont } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 type Category = {
@@ -135,7 +135,7 @@ export default function CategoriesView({
         border: '1px solid',
         borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
         padding: '2px 8px',
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
         fontSize: 11,
         cursor: 'pointer',
         borderRadius: 0,
@@ -145,7 +145,7 @@ export default function CategoriesView({
         background: 'none',
         border: 'none',
         padding: '0 2px',
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
         fontSize: 11,
         cursor: 'pointer',
         borderRadius: 0,
@@ -153,7 +153,7 @@ export default function CategoriesView({
         ...extra,
     });
     const xpInput: React.CSSProperties = {
-        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontFamily: xpFont,
         fontSize: 11,
         border: '1px solid #7f9db9',
         boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
@@ -249,7 +249,7 @@ export default function CategoriesView({
                         padding: '1px 4px',
                         paddingLeft: indent + 4,
                         cursor: 'pointer',
-                        fontFamily: 'Tahoma, Arial, sans-serif',
+                        fontFamily: xpFont,
                         fontSize: 11,
                         fontWeight: node.level === 1 ? 'bold' : 'normal',
                         background: rowBg,
@@ -267,7 +267,7 @@ export default function CategoriesView({
                     >{chevron}</span>
                     <span style={{ flex: 1 }}>{node.name}</span>
                     {node.is_system && (
-                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px', marginRight: 4 }}>SYSTEM</span>
+                        <span style={{ fontFamily: xpFont, fontSize: 9, color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px', marginRight: 4 }}>SYSTEM</span>
                     )}
                     {canManage && (
                     <span style={{ display: 'flex', gap: 2, opacity: actionsOpacity, transition: 'opacity 0.1s' }}>
@@ -466,7 +466,7 @@ export default function CategoriesView({
                     padding: 4,
                 }}>
                     {tree.length === 0 && !addingState && (
-                        <div style={{ color: '#888', fontSize: 11, padding: 8, fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                        <div style={{ color: '#888', fontSize: 11, padding: 8, fontFamily: xpFont }}>
                             No categories found.
                         </div>
                     )}
@@ -476,7 +476,7 @@ export default function CategoriesView({
                 {/* Add row */}
                 {canManage && (
                 <div style={{ ...xpToolbar, borderTop: '1px solid #b0a898', borderBottom: 'none' }}>
-                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', whiteSpace: 'nowrap' }}>New category:</span>
+                    <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#000', whiteSpace: 'nowrap' }}>New category:</span>
                     <input
                         style={{ ...xpInput, flex: 1, minWidth: 120 }}
                         placeholder="Category name..."
@@ -502,7 +502,7 @@ export default function CategoriesView({
                     color: '#333',
                     display: 'flex',
                     gap: 16,
-                    fontFamily: 'Tahoma, Arial, sans-serif',
+                    fontFamily: xpFont,
                 }}>
                     {selectedNode ? (
                         <>

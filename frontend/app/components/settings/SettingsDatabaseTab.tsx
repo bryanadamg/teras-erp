@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont } from '../shared/xpTheme';
 import {
     xpTableHeader, xpThCell, tdBase,
     settingsStack, settingsHint, SETTINGS_FIELD_GAP,
@@ -15,7 +15,7 @@ import SettingsPanel from './SettingsPanel';
 import ModalWrapper from '../shared/ModalWrapper';
 
 const xpDangerBtn: React.CSSProperties = {
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 20px',
+    fontFamily: xpFont, fontSize: 11, padding: '3px 20px',
     cursor: 'pointer', borderRadius: 0, border: '1px solid',
     background: 'linear-gradient(to bottom, #e08080, #c03030)',
     borderColor: '#e04040 #801010 #801010 #e04040',
@@ -23,7 +23,7 @@ const xpDangerBtn: React.CSSProperties = {
 };
 
 const xpCancelBtn: React.CSSProperties = {
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 16px',
+    fontFamily: xpFont, fontSize: 11, padding: '3px 16px',
     cursor: 'pointer', borderRadius: 0, border: '1px solid',
     borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',
@@ -52,15 +52,15 @@ function StatusTile({ classic, label, icon, ok, detail }: { classic: boolean; la
             background: '#f8f9fa', border: '1px solid #e2e6ea',
             borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column' as const, gap: 2,
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? 11 : 12, fontWeight: 'bold', color: classic ? '#333' : '#495057' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : 12, fontWeight: 'bold', color: classic ? '#333' : '#495057' }}>
                 <i className={`bi ${icon}`} />
                 <span>{label}</span>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotBg, marginLeft: 'auto', flexShrink: 0 }} />
             </div>
-            <div style={{ fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? 11 : 12, color, fontWeight: 600 }}>
+            <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : 12, color, fontWeight: 600 }}>
                 {ok === null ? 'Checking…' : ok ? 'Online' : 'Offline'}
             </div>
-            <div style={{ fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? 10 : 11, color: '#888' }}>{detail}</div>
+            <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 10 : 11, color: '#888' }}>{detail}</div>
         </div>
     );
 }
@@ -331,7 +331,7 @@ export default function SettingsDatabaseTab() {
                     <FieldLabel classic={classic}>Current Connection</FieldLabel>
                     {classic ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333' }}>
+                            <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: xpFont, fontSize: '11px', color: '#333' }}>
                                 <i className="bi bi-link-45deg"></i>
                             </span>
                             <input style={xpInput({ flex: 1, fontFamily: CODE_FONT, background: '#f0ede6', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })} value={currentDbUrl} readOnly />
@@ -395,7 +395,7 @@ export default function SettingsDatabaseTab() {
                                 {dbProfiles.map((p, i) => (
                                     <button
                                         key={i}
-                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '3px 8px', background: 'none', border: 'none', borderBottom: '1px solid #e0dfd8', cursor: 'pointer', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', textAlign: 'left' as const }}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '3px 8px', background: 'none', border: 'none', borderBottom: '1px solid #e0dfd8', cursor: 'pointer', fontFamily: xpFont, fontSize: '11px', textAlign: 'left' as const }}
                                         onClick={() => setNewDbUrl(p.url)}
                                     >
                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: '90%' }}>{p.name}: {p.url}</span>
@@ -527,7 +527,7 @@ export default function SettingsDatabaseTab() {
                     is not. */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                     <div style={{ flex: '1 1 340px', minWidth: 0 }}>
-                            <div style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 12, fontWeight: 'bold', color: '#333' } : undefined} className={classic ? '' : 'fw-bold'}>
+                            <div style={classic ? { fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', color: '#333' } : undefined} className={classic ? '' : 'fw-bold'}>
                                 Wipe &amp; Reset Database
                             </div>
                             <div style={{ ...settingsHint(classic), color: '#8b0000' }}>
@@ -577,11 +577,11 @@ export default function SettingsDatabaseTab() {
                     </>
                 }
             >
-                <p className={classic ? '' : 'small'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#333' } : undefined}>
+                <p className={classic ? '' : 'small'} style={classic ? { fontFamily: xpFont, fontSize: 11, color: '#333' } : undefined}>
                     This will <strong>permanently delete every row</strong> in the current database and rebuild it blank. Enter your password to confirm.
                 </p>
                 <label
-                    style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, display: 'block', marginBottom: 2, fontWeight: 'bold' } : undefined}
+                    style={classic ? { fontFamily: xpFont, fontSize: 11, display: 'block', marginBottom: 2, fontWeight: 'bold' } : undefined}
                     className={classic ? '' : 'form-label small fw-bold'}
                 >Password</label>
                 {classic ? (

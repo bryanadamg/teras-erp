@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { CodeChip } from '../shared/xpTheme';
+import { CodeChip, xpFont } from '../shared/xpTheme';
 
 /**
  * Save-time confirmation for the BOM Designer.
@@ -67,7 +67,6 @@ interface BOMConfirmModalProps {
     onClose: () => void;
 }
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 
 const xpBtn: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, padding: '2px 10px',

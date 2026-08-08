@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { STATUS_COLORS } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 const makeInput = (classic: boolean): React.CSSProperties => classic ? {

@@ -8,12 +8,11 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const xpInput = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',

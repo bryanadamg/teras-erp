@@ -13,9 +13,8 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', height: 20, padding: '0 4px', outline: 'none',

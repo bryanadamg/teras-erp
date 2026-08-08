@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
-import { CODE_FONT } from '../shared/xpTheme';
+import { CODE_FONT, xpFont } from '../shared/xpTheme';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -434,8 +434,8 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
                     <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <span style={{ fontSize: 10, color: '#666' }}>Settings saved automatically.</span>
                         <div style={{ display: 'flex', gap: 6 }}>
-                            <button style={{ fontFamily: 'Tahoma', fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }} onClick={onClose}>Close</button>
-                            <button style={{ fontFamily: 'Tahoma', fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}
+                            <button style={{ fontFamily: xpFont, fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }} onClick={onClose}>Close</button>
+                            <button style={{ fontFamily: xpFont, fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}
                                 onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>
                                 Print
                             </button>

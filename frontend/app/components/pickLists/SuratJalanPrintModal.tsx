@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
+import { xpFont as font } from '../shared/xpTheme';
 
-const font = 'Tahoma, "Segoe UI", sans-serif';
 
 function SJDocument({ pl, so, attributes, companyProfile, customerAddr, preparedBy }: any) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');

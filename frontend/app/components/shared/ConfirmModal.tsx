@@ -3,6 +3,7 @@
 import React from 'react';
 import ModalWrapper from './ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
+import { xpFont } from './xpTheme';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -16,7 +17,7 @@ interface ConfirmModalProps {
 
 const xpConfirmBtn = (variant: 'danger' | 'primary' | 'warning' | 'success'): React.CSSProperties => {
     const base: React.CSSProperties = {
-        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 20px',
+        fontFamily: xpFont, fontSize: 11, padding: '3px 20px',
         cursor: 'pointer', borderRadius: 0, border: '1px solid',
         borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
         background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',
@@ -43,7 +44,7 @@ const xpConfirmBtn = (variant: 'danger' | 'primary' | 'warning' | 'success'): Re
 };
 
 const xpCancelBtn: React.CSSProperties = {
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 16px',
+    fontFamily: xpFont, fontSize: 11, padding: '3px 16px',
     cursor: 'pointer', borderRadius: 0, border: '1px solid',
     borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',

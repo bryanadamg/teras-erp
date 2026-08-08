@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont } from '../shared/xpTheme';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 
@@ -196,7 +196,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 {canManage && someSelected && (
                     classic ? (
                         <div style={xpToolbar({ background: '#fff8e1', borderBottom: '1px solid #e0c060' })}>
-                            <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#665500', fontWeight: 'bold' }}>
+                            <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#665500', fontWeight: 'bold' }}>
                                 {selectedIds.size} selected
                             </span>
                             <div style={xpSep}></div>
@@ -307,7 +307,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                         padding: '2px 8px',
                         display: 'flex',
                         gap: '12px',
-                        fontFamily: 'Tahoma, Arial, sans-serif',
+                        fontFamily: xpFont,
                         fontSize: '10px',
                         color: '#333',
                     }}>
@@ -429,7 +429,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     </>
                 }
             >
-                <p style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', margin: 0 } : undefined} className={classic ? '' : 'mb-0'}>
+                <p style={classic ? { fontFamily: xpFont, fontSize: '11px', margin: 0 } : undefined} className={classic ? '' : 'mb-0'}>
                     Delete <strong>{deletingPartner?.name}</strong>? This action cannot be undone.
                 </p>
             </ModalWrapper>
@@ -458,7 +458,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     </>
                 }
             >
-                <p style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', margin: 0 } : undefined} className={classic ? '' : 'mb-0'}>
+                <p style={classic ? { fontFamily: xpFont, fontSize: '11px', margin: 0 } : undefined} className={classic ? '' : 'mb-0'}>
                     Delete <strong>{selectedIds.size} {typeLabel.toLowerCase()}{selectedIds.size !== 1 ? 's' : ''}</strong>? This action cannot be undone.
                 </p>
             </ModalWrapper>
@@ -543,7 +543,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                 onChange={e => setEditingPartner({...editingPartner, active: e.target.checked})}
                             />
                             <label
-                                style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
+                                style={classic ? { fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
                                 className={classic ? '' : 'form-check-label small fw-bold'}
                                 htmlFor="activeCheck"
                             >Active {typeLabel}</label>

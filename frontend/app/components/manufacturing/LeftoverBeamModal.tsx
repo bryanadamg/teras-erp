@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
+import { xpFont } from '../shared/xpTheme';
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', height: 20, padding: '0 4px', outline: 'none', width: '100%',

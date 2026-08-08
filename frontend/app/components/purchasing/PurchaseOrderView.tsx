@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
@@ -136,7 +136,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       borderRight: '1px solid #b0aaa0',
       textAlign: 'left' as const,
       whiteSpace: 'nowrap' as const,
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       position: 'sticky' as const,
       top: 0,
       zIndex: 5,
@@ -149,7 +149,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       borderRight: '1px solid #c0bdb5',
       borderBottom: '1px solid #d0cdc8',
       verticalAlign: 'middle' as const,
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '11px',
   };
 
@@ -594,11 +594,11 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                        {currentBoundAttrs.length > 0 && (
                            <div className="col-12 mt-1">
                                <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                   <div style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>Variants</div>
+                                   <div style={classic?{fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>Variants</div>
                                    <div className="row g-2">
                                        {currentBoundAttrs.map((attr: any) => (
                                            <div key={attr.id} className="col-md-4">
-                                               <select className="form-select form-select-sm" style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none'}:undefined} value={newLine.attribute_value_ids.find(vid => attr.values.some((v: any) => v.id === vid)) || ''} onChange={e => handleValueChange(e.target.value, attr.id)}>
+                                               <select className="form-select form-select-sm" style={classic?{fontFamily:xpFont,fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none'}:undefined} value={newLine.attribute_value_ids.find(vid => attr.values.some((v: any) => v.id === vid)) || ''} onChange={e => handleValueChange(e.target.value, attr.id)}>
                                                    <option value="">Any {attr.name}</option>
                                                    {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
                                                </select>
@@ -611,7 +611,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                    </div>
                    <div>
                        {newPO.lines.map((line: any, idx) => (
-                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:classic?'11px':undefined}}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id)}</span>
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontSize:classic?'10px':''}}>{getItemCode(line.item_id)}</span>
@@ -637,7 +637,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                </div>
                            </div>
                        ))}
-                       {newPO.lines.length === 0 && <div style={{textAlign:'center',padding:'8px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'11px':'',color:classic?'#888':'',fontStyle:'italic'}}>No items added yet</div>}
+                       {newPO.lines.length === 0 && <div style={{textAlign:'center',padding:'8px',fontFamily:classic?xpFont:'',fontSize:classic?'11px':'',color:classic?'#888':'',fontStyle:'italic'}}>No items added yet</div>}
                    </div>
                </FormSection>
            </form>
@@ -667,34 +667,34 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                <div>
                    <div className="row g-2 mb-3">
                        <div className="col-md-3">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receipt Date</label>
+                           <label style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receipt Date</label>
                            <input type="date" className="form-control" style={classic?xpInput({width:'100%',height:'22px'}):undefined} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
                        </div>
                        <div className="col-md-4">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
+                           <label style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
                            <TreeSelect options={locPickerTreeOptions} value={receiptLocationId} onChange={(val) => setReceiptLocationId(val)} placeholder="Select warehouse…" size="sm" style={{ width: '100%' }} />
                        </div>
                        <div className="col-md-5">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Notes</label>
+                           <label style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Notes</label>
                            <input type="text" className="form-control" style={classic?xpInput():undefined} placeholder="e.g. Short delivery, weighed on arrival" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} />
                        </div>
                    </div>
                    <div className="row g-2 mb-3">
                        <div className="col-md-3">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note No. <span style={{color:'#888'}}>(Surat Jalan)</span></label>
+                           <label style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note No. <span style={{color:'#888'}}>(Surat Jalan)</span></label>
                            <input type="text" className="form-control" style={classic?xpInput({width:'100%'}):undefined} placeholder="Supplier's DN number" value={receiptDnNumber} onChange={e => setReceiptDnNumber(e.target.value)} />
                        </div>
                        <div className="col-md-3">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note Date</label>
+                           <label style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note Date</label>
                            <input type="date" className="form-control" style={classic?xpInput({width:'100%',height:'22px'}):undefined} value={receiptDnDate} onChange={e => setReceiptDnDate(e.target.value)} />
                        </div>
                        <div className="col-md-6">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Attach Delivery Note <span style={{color:'#888'}}>(PDF / image)</span></label>
+                           <label style={classic?{fontFamily:xpFont,fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Attach Delivery Note <span style={{color:'#888'}}>(PDF / image)</span></label>
                            <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="form-control" style={classic?xpInput({width:'100%'}):undefined} onChange={e => setReceiptDnFile(e.target.files?.[0] || null)} />
                        </div>
                    </div>
                    <div style={{overflowX:'auto'}}>
-                   <table className={classic?'':'table table-sm'} style={classic?{width:'100%',borderCollapse:'collapse',fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px'}:{minWidth:480}}>
+                   <table className={classic?'':'table table-sm'} style={classic?{width:'100%',borderCollapse:'collapse',fontFamily:xpFont,fontSize:'11px'}:{minWidth:480}}>
                        <thead>
                            <tr style={classic?{background:'linear-gradient(to bottom,#ffffff,#d4d0c8)',borderBottom:'2px solid #808080',fontSize:'10px',fontWeight:'bold'}:undefined} className={classic?'':'table-light'}>
                                <th style={classic?xpThCell:undefined}>Item</th>
@@ -896,7 +896,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                        {classic ? (
                                            <span
                                                onClick={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
-                                               style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#222', padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold', cursor: 'pointer' }}
+                                               style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#222', padding: '1px 5px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold', cursor: 'pointer' }}
                                                title="Click to view item breakdown"
                                            >
                                                {po.lines.length} item{po.lines.length !== 1 ? 's' : ''}
@@ -918,7 +918,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                            return (
                                                <>
                                                    <ProgressBar pct={pct} />
-                                                   <div style={{ fontSize: '9px', color: '#666', marginTop: 2, fontFamily: 'Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
+                                                   <div style={{ fontSize: '9px', color: '#666', marginTop: 2, fontFamily: xpFont, fontVariantNumeric: 'tabular-nums' }}>
                                                        {fullLines}/{totalLines} line{totalLines !== 1 ? 's' : ''} · {pct}%
                                                    </div>
                                                </>
@@ -931,7 +931,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                    <td style={classic ? tdBase : undefined}>
                                        {statusBadge(po.status)}
                                        {poOverdueDays(po) != null && (
-                                           <span style={{ display: 'block', color: '#c00000', fontSize: '9px', fontWeight: 'bold', marginTop: 2, fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                                           <span style={{ display: 'block', color: '#c00000', fontSize: '9px', fontWeight: 'bold', marginTop: 2, fontFamily: xpFont }}>
                                                ● {poOverdueDays(po)}d overdue
                                            </span>
                                        )}
@@ -965,7 +965,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                {/* Expanded: order lines + receipt history */}
                                {expandedRows[po.id] && (
                                    <tr key={`${po.id}-receipts`} style={classic ? { background: '#f0ede4', borderBottom: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'bg-light'}>
-                                       <td colSpan={9} style={classic ? { padding: '6px 16px 8px 32px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' } : undefined} className={classic ? '' : 'px-4 py-3'}>
+                                       <td colSpan={9} style={classic ? { padding: '6px 16px 8px 32px', fontFamily: xpFont, fontSize: '11px' } : undefined} className={classic ? '' : 'px-4 py-3'}>
                                            <div style={{ marginBottom: 10 }}>
                                                <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
                                                    Order Lines
@@ -1130,7 +1130,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                    padding: '2px 8px',
                    display: 'flex',
                    gap: '12px',
-                   fontFamily: 'Tahoma, Arial, sans-serif',
+                   fontFamily: xpFont,
                    fontSize: '10px',
                    color: '#333',
                }}>

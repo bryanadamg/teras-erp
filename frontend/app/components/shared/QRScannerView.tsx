@@ -3,7 +3,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { STATUS_COLORS, CodeChip } from './xpTheme';
+import { STATUS_COLORS, CodeChip, xpFont } from './xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from './shellTheme';
 
 interface QRScannerViewProps {
@@ -56,7 +56,7 @@ export default function QRScannerView({
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)', borderBottom: '1px solid #0a0a1e',
     });
     const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px',
+        fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
         cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
         border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
         color: '#000000', borderRadius: 0, ...extra,
@@ -193,7 +193,7 @@ export default function QRScannerView({
 
     const xpStatusBadge = (status: string): React.CSSProperties => ({
         background: STATUS_COLORS[status] || STATUS_COLORS.PENDING, color: '#ffffff',
-        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold',
+        fontFamily: xpFont, fontSize: '9px', fontWeight: 'bold',
         padding: '1px 6px', display: 'inline-block',
     });
 
@@ -219,10 +219,10 @@ export default function QRScannerView({
                                 <div id="reader" style={{ border: '2px solid #7f9db9', background: '#ffffff', width: '100%', maxWidth: '500px', overflow: 'hidden' }}></div>
                             </div>
                             <div style={{ textAlign: 'center', marginTop: 12 }}>
-                                <p style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '13px', fontWeight: 'bold', color: '#333', margin: '0 0 4px 0' }}>Ready to Scan</p>
-                                <span style={{ fontSize: '11px', color: '#666', fontFamily: 'Tahoma, Arial, sans-serif' }}>Point your camera at a Work Order QR Code</span>
+                                <p style={{ fontFamily: xpFont, fontSize: '13px', fontWeight: 'bold', color: '#333', margin: '0 0 4px 0' }}>Ready to Scan</p>
+                                <span style={{ fontSize: '11px', color: '#666', fontFamily: xpFont }}>Point your camera at a Work Order QR Code</span>
                                 {error && (
-                                    <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '6px 10px', marginTop: 10, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#6b0000' }}>
+                                    <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '6px 10px', marginTop: 10, fontFamily: xpFont, fontSize: '11px', color: '#6b0000' }}>
                                         <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>{error}
                                     </div>
                                 )}
@@ -233,12 +233,12 @@ export default function QRScannerView({
                             {/* Active WO sub-panel */}
                             <div style={{ background: '#f5f4ef', border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', padding: '8px 10px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#666' }}>Active Work Order</div>
+                                    <div style={{ fontFamily: xpFont, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#666' }}>Active Work Order</div>
                                     {/* Hero size — an operator reads this across a machine, so
                                         it overrides the tier-1 step while keeping its face/color. */}
                                     <CodeChip code={scannedWO.code} classic tone="accent" style={{ fontSize: 20 }} />
                                     <div style={{ marginTop: 4 }}>
-                                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#444', marginRight: 6 }}>{getItemName(scannedWO._mo?.item_id)}</span>
+                                        <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#444', marginRight: 6 }}>{getItemName(scannedWO._mo?.item_id)}</span>
                                         <span style={xpStatusBadge(scannedWO.status)}>{scannedWO.status}</span>
                                     </div>
                                 </div>
@@ -248,13 +248,13 @@ export default function QRScannerView({
                             </div>
 
                             {error && (
-                                <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '6px 10px', marginBottom: 10, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#6b0000' }}>
+                                <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '6px 10px', marginBottom: 10, fontFamily: xpFont, fontSize: '11px', color: '#6b0000' }}>
                                     <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>{error}
                                 </div>
                             )}
 
                             {/* Section label */}
-                            <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555', borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 10 }}>
+                            <div style={{ fontFamily: xpFont, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555', borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 10 }}>
                                 Factory Floor Actions
                             </div>
 
@@ -280,14 +280,14 @@ export default function QRScannerView({
                                 {scannedWO.status === 'COMPLETED' && (
                                     <div style={{ background: '#e8f5e9', border: '1px solid #2e7d32', padding: '20px', textAlign: 'center' }}>
                                         <i className="bi bi-check-circle-fill" style={{ color: '#2e7d32', fontSize: 32, display: 'block', marginBottom: 8 }}></i>
-                                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '13px', fontWeight: 'bold', color: '#2e7d32' }}>PRODUCTION COMPLETE</span>
+                                        <span style={{ fontFamily: xpFont, fontSize: '13px', fontWeight: 'bold', color: '#2e7d32' }}>PRODUCTION COMPLETE</span>
                                         <br />
-                                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#2e7d32', opacity: 0.85 }}>This order has been received into inventory.</span>
+                                        <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#2e7d32', opacity: 0.85 }}>This order has been received into inventory.</span>
                                     </div>
                                 )}
                                 <div style={{ textAlign: 'center', marginTop: 4 }}>
                                     <button
-                                        style={{ background: 'none', border: 'none', color: '#cc0000', cursor: 'pointer', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', textDecoration: 'underline', marginTop: 8 }}
+                                        style={{ background: 'none', border: 'none', color: '#cc0000', cursor: 'pointer', fontFamily: xpFont, fontSize: '11px', textDecoration: 'underline', marginTop: 8 }}
                                         type="button"
                                         onClick={() => handleUpdate('CANCELLED')}
                                     >
@@ -300,7 +300,7 @@ export default function QRScannerView({
                 </div>
 
                 {/* XP Footer */}
-                <div style={{ background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#666', textAlign: 'center' }}>
+                <div style={{ background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', textAlign: 'center' }}>
                     Terminal ID: {terminalId.current} | Secured by Terras Auth
                 </div>
             </div>

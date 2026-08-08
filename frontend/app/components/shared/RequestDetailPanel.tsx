@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { xpFont } from './xpTheme';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared expanded-row detail panel for request-style pages (Sample Requests,
@@ -63,7 +64,6 @@ interface Props {
 export default function RequestDetailPanel({
     classic, leftTitle, leftWidth = '56%', columns, rows, emptyText = 'No rows.', sections, rightHeader, minHeight = 160, height,
 }: Props) {
-    const xpFont = 'Tahoma, Arial, sans-serif';
 
     // A fixed height clamps the panel and lets each pane scroll its own overflow;
     // otherwise it grows with content (minHeight floor). `overflow: hidden` keeps

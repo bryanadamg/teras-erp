@@ -3,6 +3,7 @@ import React, { useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { MODAL_Z, MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { xpFont } from './xpTheme';
 
 interface PrintModalShellProps {
     title: React.ReactNode;
@@ -71,7 +72,7 @@ export default function PrintModalShell({
 
     const headerStyle: React.CSSProperties = classic ? {
         background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff',
-        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 12, fontWeight: 'bold',
+        fontFamily: xpFont, fontSize: 12, fontWeight: 'bold',
         padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
         cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined,
     } : {

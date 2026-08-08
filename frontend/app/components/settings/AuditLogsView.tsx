@@ -5,7 +5,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
-import { StatusChip, CODE_FONT } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
 // entity_type is a raw model name (WorkOrder, attribute_value, work_center_holiday, ...) — humanize for display.
@@ -117,7 +117,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
   // ── XP inline styles ─────────────────────────────────────────────────────
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
   const xpSelect: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9',
+      fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
       boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 4px',
       background: '#ffffff', color: '#000000', height: '22px', outline: 'none',
   };
@@ -133,7 +133,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
               {/* Filters toolbar */}
               <div style={xpToolbar}>
                   <i className="bi bi-funnel" style={{ fontSize: '11px', color: '#666' }}></i>
-                  <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>Entity:</span>
+                  <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#444' }}>Entity:</span>
                   <select style={{ ...xpSelect, width: 150 }} value={filterType} onChange={e => onFilterChange(e.target.value)}>
                       <option value="">All Entities</option>
                       <option value="Item">Items</option>
@@ -144,7 +144,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                       <option value="StockEntry">Stock</option>
                   </select>
                   <div style={xpSep} />
-                  <span style={{ marginLeft: 'auto', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>
+                  <span style={{ marginLeft: 'auto', fontFamily: xpFont, fontSize: '11px', color: '#444' }}>
                       <b>{totalItems}</b> total entries · click a row to expand diff
                   </span>
               </div>
@@ -168,7 +168,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                               </React.Fragment>
                           ))}
                           {auditLogs.length === 0 && (
-                              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No activity logs found</td></tr>
+                              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No activity logs found</td></tr>
                           )}
                       </tbody>
                   </table>

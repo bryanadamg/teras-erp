@@ -3,6 +3,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
 import { useTheme } from '../../context/ThemeContext';
 import { NAV_SECTIONS, navLabel, NavSection } from './navConfig';
+import { xpFont } from './xpTheme';
 
 interface SidebarProps {
   activeTab: string;
@@ -12,7 +13,6 @@ interface SidebarProps {
   isOpen?: boolean;
 }
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 
 const SIDEBAR_BG   = '#d6dff7';
 const SUB_BG       = '#bcc9e8';

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, XPLoading, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { useSortable, SortMark, XPLoading, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -449,7 +449,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const pageRows = sortedRows.slice((clampedPage - 1) * STOCK_PAGE_SIZE, clampedPage * STOCK_PAGE_SIZE);
 
     // ── XP style helpers ─────────────────────────────────────────────────────
-    const xpFont = 'Tahoma, "Segoe UI", sans-serif';
     const xpBevel: React.CSSProperties = sharedXpBevel();
     const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
     const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });

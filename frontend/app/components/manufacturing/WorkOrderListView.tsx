@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -353,7 +353,6 @@ export default function WorkOrderListView({
         }
     };
 
-    const xpFont = 'Tahoma, "Segoe UI", sans-serif';
     const xpInput: React.CSSProperties = {
         fontFamily: xpFont, fontSize: 11,
         border: '1px solid #7f9db9', background: 'white', height: 20, padding: '0 4px', outline: 'none',
@@ -658,7 +657,7 @@ export default function WorkOrderListView({
                         {selectedWOIds.size > 0 && (
                             <button
                                 onClick={() => setBulkPrintOpen(true)}
-                                style={classic ? { fontFamily: 'Tahoma', fontSize: 10, padding: '1px 8px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginLeft: 8 } : undefined}
+                                style={classic ? { fontFamily: xpFont, fontSize: 10, padding: '1px 8px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginLeft: 8 } : undefined}
                                 className={classic ? '' : 'btn btn-sm btn-success ms-2'}
                             >
                                 {classic ? '' : <i className="bi bi-printer me-1" />}

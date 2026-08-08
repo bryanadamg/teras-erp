@@ -411,7 +411,7 @@ export default function ManufacturingView({
                               <button
                                   type="button"
                                   onClick={() => setIsConfigOpen(true)}
-                                  style={{ fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11, height: 24, padding: '0 7px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', borderRadius: 0, cursor: 'pointer', boxSizing: 'border-box' as const }}
+                                  style={{ fontFamily: xpFont, fontSize: 11, height: 24, padding: '0 7px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', borderRadius: 0, cursor: 'pointer', boxSizing: 'border-box' as const }}
                                   title="Configure code format"
                               ><i className="bi bi-gear-fill" style={{ fontSize: 10 }}></i></button>
                           </div>
@@ -532,7 +532,7 @@ export default function ManufacturingView({
                       {/* Left: title + view switcher */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <span style={{
-                              fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                              fontFamily: classic ? xpFont : undefined,
                               fontSize: classic ? '12px' : undefined,
                               fontWeight: 'bold',
                               color: classic ? '#fff' : '#000',
@@ -558,7 +558,7 @@ export default function ManufacturingView({
                                               key={key}
                                               onClick={handleClick}
                                               style={{
-                                                  fontFamily: 'Tahoma, Arial, sans-serif',
+                                                  fontFamily: xpFont,
                                                   fontSize: '11px',
                                                   padding: '2px 8px',
                                                   background: isActive
@@ -594,7 +594,7 @@ export default function ManufacturingView({
                                   <button
                                       onClick={() => setIsPRModalOpen(true)}
                                       style={{
-                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
+                                          fontFamily: xpFont, fontSize: '11px',
                                           padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
                                           background: 'linear-gradient(to bottom,#5a9ae0,#0058e6)',
                                           border: '1px solid', borderColor: '#003080 #001840 #001840 #003080',
@@ -608,7 +608,7 @@ export default function ManufacturingView({
                                   <button
                                       onClick={() => setIsCreateOpen(true)}
                                       style={{
-                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
+                                          fontFamily: xpFont, fontSize: '11px',
                                           padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
                                           background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)',
                                           border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
@@ -621,7 +621,7 @@ export default function ManufacturingView({
                                   <button
                                       onClick={handlePrintList}
                                       style={{
-                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
+                                          fontFamily: xpFont, fontSize: '11px',
                                           padding: '2px 10px', cursor: 'pointer',
                                           background: 'linear-gradient(to bottom,#fff,#d4d0c8)',
                                           border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
@@ -659,7 +659,7 @@ export default function ManufacturingView({
                                       key={key}
                                       onClick={() => setActiveTab(key as any)}
                                       style={{
-                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
+                                          fontFamily: xpFont, fontSize: '11px',
                                           padding: '3px 12px',
                                           background: isActive ? '#ece9d8' : 'linear-gradient(to bottom,#d4d0c8,#b8b4ac)',
                                           border: '1px solid #808080',

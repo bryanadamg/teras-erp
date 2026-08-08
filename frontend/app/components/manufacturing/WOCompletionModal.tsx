@@ -8,12 +8,11 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
-import { ProgressBar, LegendPanel, CodeChip } from '../shared/xpTheme';
+import { ProgressBar, LegendPanel, CodeChip, xpFont } from '../shared/xpTheme';
 import { LotChips } from '../shared/LotChips';
 import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', height: 20, padding: '0 4px', outline: 'none', width: '100%',

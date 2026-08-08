@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useId } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { xpFont } from './xpTheme';
 
 // Shared z-index tier for anything that must render as an overlay but can't use
 // ModalWrapper directly (e.g. a full-screen designer canvas with its own custom
@@ -199,7 +200,7 @@ export default function ModalWrapper({
                     style={{
                         background: xpTitleGradients[variant] || xpTitleGradients.primary,
                         color: '#ffffff',
-                        fontFamily: 'Tahoma, Arial, sans-serif',
+                        fontFamily: xpFont,
                         fontSize: '12px', fontWeight: 'bold',
                         padding: '4px 6px 4px 8px',
                         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
@@ -219,7 +220,7 @@ export default function ModalWrapper({
                         onMouseEnter={() => setCloseBtnHov(true)}
                         onMouseLeave={() => setCloseBtnHov(false)}
                         style={{
-                            fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold',
+                            fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold',
                             width: 21, height: 21, minWidth: 21, cursor: 'pointer',
                             background: closeBtnHov
                                 ? 'linear-gradient(to bottom, #e8a0a0, #c84040)'

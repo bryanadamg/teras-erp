@@ -7,6 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import BagLabelCard from './BagLabelCard';
 import PrintModalShell from '../shared/PrintModalShell';
+import { xpFont } from '../shared/xpTheme';
 
 // Code 128 (1D) so the factory's existing laser barcode scanners can read the
 // lot number too — not everyone has a phone/2D imager. Rendered to a PNG data
@@ -100,10 +101,10 @@ export default function BagLabelPrintModal({
     );
 
     const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
+        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
         : {};
     const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
+        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
         : {};
     return (
         <>
@@ -117,7 +118,7 @@ export default function BagLabelPrintModal({
             >
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
                         {bags.length === 0 && (
-                            <div style={{ color: '#555', fontSize: '12px', marginTop: '40px', fontFamily: 'Tahoma, sans-serif' }}>
+                            <div style={{ color: '#555', fontSize: '12px', marginTop: '40px', fontFamily: xpFont }}>
                                 No weighed bags to label yet. Log a completion (one per bag) first.
                             </div>
                         )}

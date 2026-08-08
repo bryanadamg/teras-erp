@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip } from '../shared/xpTheme';
+import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -85,7 +85,7 @@ const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: st
                 boxShadow: '2px 3px 8px rgba(0,0,0,0.3)',
                 borderRadius: classic ? 0 : 4,
                 padding: '2px 0',
-                fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                fontFamily: classic ? xpFont : undefined,
                 fontSize: classic ? '11px' : '13px',
             }}
         >
@@ -179,7 +179,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             color: isSelected ? '#fff' : catStyle!.color,
                             padding: '1px 5px',
                             fontSize: '9px',
-                            fontFamily: 'Tahoma, Arial, sans-serif',
+                            fontFamily: xpFont,
                             fontWeight: 'bold',
                             whiteSpace: 'nowrap',
                         }}>
@@ -202,7 +202,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                     classic ? (
                         <a
                             href={`/samples?highlight=${item.source_sample_id}`}
-                            style={{ color: isSelected ? '#cce0ff' : '#0047c8', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif', textDecoration: 'underline', cursor: 'pointer' }}
+                            style={{ color: isSelected ? '#cce0ff' : '#0047c8', fontSize: '9px', fontFamily: xpFont, textDecoration: 'underline', cursor: 'pointer' }}
                             onClick={e => e.stopPropagation()}
                         >
                             ↖ {item.source_sample_code}{item.source_color_name ? ` · ${item.source_color_name}` : ''}
@@ -288,7 +288,7 @@ InventoryRow.displayName = 'InventoryRow';
 
 // XP bevel button helper
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: 'Tahoma, Arial, sans-serif',
+    fontFamily: xpFont,
     fontSize: '11px',
     padding: '2px 10px',
     cursor: 'pointer',
@@ -711,7 +711,7 @@ export default function InventoryView({
                   <label
                       key={o.val || 'none'}
                       htmlFor={`${keyPrefix}-vt-${o.val || 'none'}`}
-                      style={classic ? { display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
+                      style={classic ? { display: 'flex', alignItems: 'center', gap: 6, fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
                       className={classic ? '' : 'form-check d-flex align-items-center gap-2'}
                   >
                       <input
@@ -736,7 +736,7 @@ export default function InventoryView({
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
 
   const xpInput: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '11px',
       border: '1px solid #7f9db9',
       boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
@@ -748,7 +748,7 @@ export default function InventoryView({
   };
 
   const xpSelect: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: 11,
       border: '1px solid #7f9db9',
       background: '#fff',
@@ -787,7 +787,7 @@ export default function InventoryView({
       background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)',
       borderTop: '1px solid #b0a898',
       padding: '2px 8px',
-      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontFamily: xpFont,
       fontSize: '10px',
       color: '#222222',
       display: 'flex',
@@ -899,11 +899,11 @@ export default function InventoryView({
                           const active = newItem.packaging_factor_ids.includes(String(f.id));
                           return (
                             <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
-                              <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.from_uom_name}</span>
+                              <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#000' }}>{f.from_uom_name}</span>
                               <div>
                                 <button type="button"
                                   style={{
-                                    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
+                                    fontFamily: xpFont, fontSize: '10px',
                                     padding: '0 5px', height: '18px', cursor: 'pointer',
                                     borderRadius: 0, border: '1px solid',
                                     borderColor: active ? '#1a3a7a #0a2a5a #0a2a5a #1a3a7a' : '#dfdfdf #808080 #808080 #dfdfdf',
@@ -1007,13 +1007,13 @@ export default function InventoryView({
                           onChange={e => setNewItem({ ...newItem, lot_tracked: e.target.checked })}
                       />
                       <label
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                          style={classic ? { fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
                           className={classic ? '' : 'form-check-label small fw-semibold'}
                           htmlFor="new-lot-tracked"
                       >Lot tracked</label>
                   </div>
                   <div
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                      style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
                       className={classic ? '' : 'text-muted small fst-italic mb-1'}
                   >Every receipt, production output and transfer requires a lot number</div>
               </div>
@@ -1029,13 +1029,13 @@ export default function InventoryView({
                           onChange={e => setNewItem({ ...newItem, is_decoupling_point: e.target.checked })}
                       />
                       <label
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                          style={classic ? { fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
                           className={classic ? '' : 'form-check-label small fw-semibold'}
                           htmlFor="new-decoupling-point"
                       >Make-to-stock (decoupling point)</label>
                   </div>
                   <div
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                      style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
                       className={classic ? '' : 'text-muted small fst-italic mb-1'}
                   >Never auto-planned inside a parent order — demand is pooled and produced on its own standalone order</div>
               </div>
@@ -1101,7 +1101,7 @@ export default function InventoryView({
               {newItem.source_sample_id && (
                   <div className="mb-3">
                       {classic ? (
-                          <div style={{ border: '1px solid #7f9db9', background: '#dce4f5', padding: '4px 8px', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#0d2a6e' }}>
+                          <div style={{ border: '1px solid #7f9db9', background: '#dce4f5', padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', color: '#0d2a6e' }}>
                               ↖ Derived from sample: <strong>{newItem.source_sample_code}{newItem.source_color_name ? ` · ${newItem.source_color_name}` : ''}</strong>
                           </div>
                       ) : (
@@ -1117,7 +1117,7 @@ export default function InventoryView({
                   <div className="mb-0">
                       {classic ? (
                           <div style={{ border: '1px solid #aca899', borderRadius: 3, padding: '10px 8px 8px', background: '#f5f4ee', position: 'relative', marginTop: 4 }}>
-                              <span style={{ position: 'absolute', top: -8, left: 8, background: '#f5f4ee', padding: '0 4px', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#444' }}>Also Create Beam Item</span>
+                              <span style={{ position: 'absolute', top: -8, left: 8, background: '#f5f4ee', padding: '0 4px', fontFamily: xpFont, fontSize: '10px', color: '#444' }}>Also Create Beam Item</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: createBeam ? 8 : 0 }}>
                                   <input
                                       type="checkbox"
@@ -1126,7 +1126,7 @@ export default function InventoryView({
                                       onChange={e => { setCreateBeam(e.target.checked); setBeamNameManuallyEdited(false); }}
                                       style={{ cursor: 'pointer' }}
                                   />
-                                  <label htmlFor="create-beam-check" style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer', margin: 0 }}>
+                                  <label htmlFor="create-beam-check" style={{ fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer', margin: 0 }}>
                                       Create beam item <strong>BEAM-{newItem.code || '...'}</strong>
                                   </label>
                               </div>
@@ -1134,18 +1134,18 @@ export default function InventoryView({
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
                                           <div style={{ flex: 1 }}>
-                                              <label style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555', display: 'block', marginBottom: 2 }}>Beam Name</label>
+                                              <label style={{ fontFamily: xpFont, fontSize: '10px', color: '#555', display: 'block', marginBottom: 2 }}>Beam Name</label>
                                               <input
-                                                  style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 4px', background: '#fff', color: '#000', width: '100%' }}
+                                                  style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 4px', background: '#fff', color: '#000', width: '100%' }}
                                                   value={beamName}
                                                   onChange={e => { setBeamNameManuallyEdited(true); setBeamName(e.target.value); }}
                                                   placeholder={`Beam - ${newItem.name}`}
                                               />
                                           </div>
                                           <div style={{ width: 80 }}>
-                                              <label style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555', display: 'block', marginBottom: 2 }}>UOM</label>
+                                              <label style={{ fontFamily: xpFont, fontSize: '10px', color: '#555', display: 'block', marginBottom: 2 }}>UOM</label>
                                               <select
-                                                  style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9', padding: '2px 4px', background: '#fff', color: '#000', width: '100%' }}
+                                                  style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9', padding: '2px 4px', background: '#fff', color: '#000', width: '100%' }}
                                                   value={beamUom}
                                                   onChange={e => setBeamUom(e.target.value)}
                                               >
@@ -1154,7 +1154,7 @@ export default function InventoryView({
                                               </select>
                                           </div>
                                       </div>
-                                      <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', color: '#888' }}>
+                                      <div style={{ fontFamily: xpFont, fontSize: '9px', color: '#888' }}>
                                           Code: BEAM-{newItem.code || '...'} · Category: Beam (WIP) · BOM defined manually in BOM Designer
                                       </div>
                                   </div>
@@ -1241,7 +1241,7 @@ export default function InventoryView({
                       <i className="bi bi-trash"></i> Delete ({selectedIds.size})
                     </button>
                     <button
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cce8ff', textDecoration: 'underline', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', padding: 0 }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cce8ff', textDecoration: 'underline', fontFamily: xpFont, fontSize: '10px', padding: 0 }}
                       onClick={() => setSelectedIds(new Set())}
                     >
                       Clear
@@ -1336,7 +1336,7 @@ export default function InventoryView({
               <SearchField classic value={searchTerm} onChange={onSearchChange} placeholder={`${t('search')} items…`} width={200} />
               {!forcedCategory && (
                 <>
-                  <span style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap', fontFamily: 'Tahoma, Arial, sans-serif' }}>Category:</span>
+                  <span style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap', fontFamily: xpFont }}>Category:</span>
                   <TreeSelect
                     options={catTreeOptions}
                     value={categoryL3 || categoryL2 || categoryL1}
@@ -1350,7 +1350,7 @@ export default function InventoryView({
                   </button>
                 </>
               )}
-              <div style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555555' }}>
+              <div style={{ marginLeft: 'auto', fontFamily: xpFont, fontSize: '10px', color: '#555555' }}>
                 {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} on page
               </div>
             </div>
@@ -1365,7 +1365,7 @@ export default function InventoryView({
                     width: '100%',
                     borderCollapse: 'separate',
                     borderSpacing: 0,
-                    fontFamily: 'Tahoma, Arial, sans-serif',
+                    fontFamily: xpFont,
                     fontSize: '11px',
                     background: '#ffffff',
                 } : undefined}
@@ -1541,11 +1541,11 @@ export default function InventoryView({
                                 const active = (editingItem.packaging_factor_ids || []).includes(String(f.id));
                                 return (
                                   <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
-                                    <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.from_uom_name}</span>
+                                    <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#000' }}>{f.from_uom_name}</span>
                                     <div>
                                       <button type="button"
                                         style={{
-                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
+                                          fontFamily: xpFont, fontSize: '10px',
                                           padding: '0 5px', height: '18px', cursor: 'pointer',
                                           borderRadius: 0, border: '1px solid',
                                           borderColor: active ? '#1a3a7a #0a2a5a #0a2a5a #1a3a7a' : '#dfdfdf #808080 #808080 #dfdfdf',
@@ -1650,12 +1650,12 @@ export default function InventoryView({
                             />
                             <label
                               className={classic ? '' : 'form-check-label small fw-semibold'}
-                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                              style={classic ? { fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
                               htmlFor="edit-lot-tracked"
                             >Lot tracked</label>
                         </div>
                         <div
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                          style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
                           className={classic ? '' : 'text-muted small fst-italic mb-1'}
                         >Every receipt, production output and transfer requires a lot number</div>
                     </div>
@@ -1672,12 +1672,12 @@ export default function InventoryView({
                             />
                             <label
                               className={classic ? '' : 'form-check-label small fw-semibold'}
-                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                              style={classic ? { fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
                               htmlFor="edit-decoupling-point"
                             >Make-to-stock (decoupling point)</label>
                         </div>
                         <div
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                          style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
                           className={classic ? '' : 'text-muted small fst-italic mb-1'}
                         >Never auto-planned inside a parent order — demand is pooled and produced on its own standalone order</div>
                     </div>

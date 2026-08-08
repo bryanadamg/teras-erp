@@ -2,8 +2,8 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser } from '../../context/UserContext';
+import { xpFont as XP_FONT } from '../shared/xpTheme';
 
-const XP_FONT = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
 
 const TABS = [

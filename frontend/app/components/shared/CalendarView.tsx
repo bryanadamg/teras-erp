@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { statusColor, statusTint } from './xpTheme';
+import { statusColor, statusTint, xpFont } from './xpTheme';
 import { xpBevel as sharedXpBevel } from './shellTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
@@ -111,7 +111,7 @@ export default function CalendarView({
 
     // ── XP nav button ──────────────────────────────────────────────────────
     const xpNavBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', padding: '1px 6px', cursor: 'pointer',
+        fontFamily: xpFont, fontSize: '10px', padding: '1px 6px', cursor: 'pointer',
         background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
         border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
         color: '#000000', borderRadius: 0, ...extra,
@@ -145,7 +145,7 @@ export default function CalendarView({
                 <div key={day} title={holidayName || undefined}
                     style={{ background: bg, border: isToday ? '1px solid #316ac5' : '1px solid #c0bdb5', minHeight: compact ? 34 : 100, padding: compact ? '2px 3px' : '4px 6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: compact ? 2 : 4, minHeight: compact ? undefined : 14 }}>
-                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: compact ? '9px' : '11px', fontWeight: 'bold', color: holidayName ? '#994d00' : isToday ? '#0058e6' : '#555' }}>{day}</span>
+                        <span style={{ fontFamily: xpFont, fontSize: compact ? '9px' : '11px', fontWeight: 'bold', color: holidayName ? '#994d00' : isToday ? '#0058e6' : '#555' }}>{day}</span>
                         {!compact && endWOs.length > 0 && (
                             <span title={showLoad ? `${endWOs.length} MO · qty ${dayQty}` : `${endWOs.length} due`}
                                 style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -154,7 +154,7 @@ export default function CalendarView({
                                         <span style={{ display: 'block', height: '100%', width: `${loadPct}%`, background: statusColor('IN_PROGRESS') }}></span>
                                     </span>
                                 )}
-                                <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', color: '#888' }}>{endWOs.length}</span>
+                                <span style={{ fontFamily: xpFont, fontSize: '9px', fontWeight: 'bold', color: '#888' }}>{endWOs.length}</span>
                             </span>
                         )}
                     </div>
@@ -169,16 +169,16 @@ export default function CalendarView({
                                 return (
                                     <div key={wo.id} title={`${wo.code}${name ? ': ' + name : ''}`}
                                         onClick={onMOClick ? () => onMOClick(wo.id) : undefined}
-                                        style={{ ...chipStyle(wo.status), padding: '2px 5px', fontFamily: 'Tahoma, Arial, sans-serif', overflow: 'hidden', cursor: onMOClick ? 'pointer' : 'default' }}>
+                                        style={{ ...chipStyle(wo.status), padding: '2px 5px', fontFamily: xpFont, overflow: 'hidden', cursor: onMOClick ? 'pointer' : 'default' }}>
                                         <div style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.code}</div>
                                         {name && <div style={{ fontSize: '9px', lineHeight: 1.3, opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>}
                                     </div>
                                 );
                             })
                         )}
-                        {compact && endWOs.length > 3 && <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '8px', color: '#666' }}>+</span>}
+                        {compact && endWOs.length > 3 && <span style={{ fontFamily: xpFont, fontSize: '8px', color: '#666' }}>+</span>}
                         {!compact && endWOs.length > MAX_VISIBLE && (
-                            <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', color: '#888', paddingLeft: 2 }}>+{endWOs.length - MAX_VISIBLE} more</span>
+                            <span style={{ fontFamily: xpFont, fontSize: '9px', color: '#888', paddingLeft: 2 }}>+{endWOs.length - MAX_VISIBLE} more</span>
                         )}
                     </div>
                 </div>
@@ -240,13 +240,13 @@ export default function CalendarView({
         classic ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 6 }} className="no-print">
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search"
-                    style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', padding: '2px 6px', border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080', borderRadius: 0, width: 160 }} />
+                    style={{ fontFamily: xpFont, fontSize: '10px', padding: '2px 6px', border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080', borderRadius: 0, width: 160 }} />
                 {statusOptions.map(s => {
                     const on = statusFilter.has(s);
                     const c = statusTint(s);
                     return (
                         <button key={s} onClick={() => toggleStatus(s)}
-                            style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', cursor: 'pointer', borderRadius: 0, border: '1px solid', background: on ? c.background : '#f0ede6', borderColor: on ? c.borderColor : '#c0bdb5', color: on ? c.color : '#888' }}>
+                            style={{ fontFamily: xpFont, fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', cursor: 'pointer', borderRadius: 0, border: '1px solid', background: on ? c.background : '#f0ede6', borderColor: on ? c.borderColor : '#c0bdb5', color: on ? c.color : '#888' }}>
                             {s.replace(/_/g, ' ')}
                         </button>
                     );
@@ -281,7 +281,7 @@ export default function CalendarView({
                         <button style={xpNavBtn()} onClick={prevMonth}><i className="bi bi-chevron-left"></i></button>
                         {!compact && <button style={xpNavBtn({ padding: '1px 8px' })} onClick={goToToday}>Today</button>}
                         <button style={xpNavBtn()} onClick={nextMonth}><i className="bi bi-chevron-right"></i></button>
-                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: compact ? '11px' : '12px', fontWeight: 'bold', color: '#0058e6', marginLeft: 4 }}>
+                        <span style={{ fontFamily: xpFont, fontSize: compact ? '11px' : '12px', fontWeight: 'bold', color: '#0058e6', marginLeft: 4 }}>
                             {currentDate.toLocaleDateString(undefined, { month: compact ? 'short' : 'long', year: 'numeric' })}
                         </span>
                     </div>
@@ -289,7 +289,7 @@ export default function CalendarView({
                 <div style={xpBevel}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }}>
                         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                            <div key={i} style={{ textAlign: 'center', padding: compact ? '2px 0' : '3px 0', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', fontWeight: 'bold', color: '#000', borderRight: i < 6 ? '1px solid #b0aaa0' : 'none' }}>{d}</div>
+                            <div key={i} style={{ textAlign: 'center', padding: compact ? '2px 0' : '3px 0', fontFamily: xpFont, fontSize: '10px', fontWeight: 'bold', color: '#000', borderRight: i < 6 ? '1px solid #b0aaa0' : 'none' }}>{d}</div>
                         ))}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', backgroundColor: '#808080', gap: '1px' }}>{days}</div>

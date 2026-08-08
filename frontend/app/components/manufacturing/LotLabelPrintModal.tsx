@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell from '../shared/PrintModalShell';
-import { CODE_FONT } from '../shared/xpTheme';
+import { CODE_FONT, xpFont } from '../shared/xpTheme';
 
 // Code 128 (1D) alongside the QR so old laser scanners can read the lot too.
 function makeBarcodeDataUrl(text: string): string {
@@ -150,10 +150,10 @@ export default function LotLabelPrintModal({
     };
 
     const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
+        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
         : {};
     const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
+        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
         : {};
 
     return (
@@ -168,7 +168,7 @@ export default function LotLabelPrintModal({
             >
                 <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
                     {lots.length === 0 && (
-                        <div style={{ color: '#555', fontSize: '12px', marginTop: '40px', fontFamily: 'Tahoma, sans-serif' }}>No lots to label.</div>
+                        <div style={{ color: '#555', fontSize: '12px', marginTop: '40px', fontFamily: xpFont }}>No lots to label.</div>
                     )}
                     {lots.map(lot => (
                         <div key={lot.id} className="bag-label-paper" style={{ background: '#fff', width: '378px', minHeight: '535px', padding: '18px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>

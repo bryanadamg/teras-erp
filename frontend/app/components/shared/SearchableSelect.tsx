@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
-import { CODE_FONT } from './xpTheme';
+import { CODE_FONT, xpFont as font } from './xpTheme';
 
 interface Option {
     value: string;
@@ -24,7 +24,6 @@ interface SearchableSelectProps {
     size?: 'sm' | 'md';
 }
 
-const font = 'Tahoma, "Segoe UI", sans-serif';
 const DROPDOWN_MAX_HEIGHT = 280;
 // Cap rendered rows to keep the DOM bounded for large lists (combos number in the
 // thousands). Anything past the cap is reachable by typing — the footer hint tells

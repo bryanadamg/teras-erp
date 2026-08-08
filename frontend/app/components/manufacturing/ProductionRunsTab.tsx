@@ -5,7 +5,7 @@ import ManufacturingSearchBar from './ManufacturingSearchBar';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 export default function ProductionRunsTab({
@@ -138,7 +138,7 @@ export default function ProductionRunsTab({
                         // when a PR has many linked MOs. BOM/Style has no width -> it flexes to
                         // absorb the remaining space.
                         tableLayout: 'fixed',
-                        fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                        fontFamily: classic ? xpFont : undefined,
                         fontSize: classic ? '11px' : undefined,
                         background: classic ? '#fff' : undefined,
                     }} className={classic ? '' : 'table table-hover align-middle mb-0'}>
@@ -209,7 +209,7 @@ export default function ProductionRunsTab({
                                                 <div style={{ marginTop: 3 }}>
                                                     <span style={classic ? {
                                                         fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
-                                                        color: '#003ea6', padding: '0 5px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', fontFamily: 'Tahoma, Arial, sans-serif',
+                                                        color: '#003ea6', padding: '0 5px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', fontFamily: xpFont,
                                                     } : {
                                                         fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
                                                         color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center',
@@ -291,11 +291,11 @@ export default function ProductionRunsTab({
                                             <SunkenPanel classic={classic}>
                                             <SunkenPanelBody classic={classic}>
                                                 {isLoading ? (
-                                                    <span style={{ fontSize: 11, color: '#666', fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined }}>
+                                                    <span style={{ fontSize: 11, color: '#666', fontFamily: classic ? xpFont : undefined }}>
                                                         Loading material requirements...
                                                     </span>
                                                 ) : reqs.length === 0 ? (
-                                                    <span style={{ fontSize: 11, color: '#999', fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined }}>
+                                                    <span style={{ fontSize: 11, color: '#999', fontFamily: classic ? xpFont : undefined }}>
                                                         No component requirements found for this Production Run.
                                                     </span>
                                                 ) : (
@@ -305,7 +305,7 @@ export default function ProductionRunsTab({
                                                             if (rootMos.length === 0) return null;
                                                             return (
                                                                 <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                                    <span style={{ fontSize: classic ? 9 : 10, color: '#555', fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined, marginRight: 2, whiteSpace: 'nowrap' }}>
+                                                                    <span style={{ fontSize: classic ? 9 : 10, color: '#555', fontFamily: classic ? xpFont : undefined, marginRight: 2, whiteSpace: 'nowrap' }}>
                                                                         Linked MOs:
                                                                     </span>
                                                                     {rootMos.map((mo: any) => (
@@ -321,13 +321,13 @@ export default function ProductionRunsTab({
                                                                 </div>
                                                             );
                                                         })()}
-                                                        <div style={{ fontSize: classic ? 10 : 11, fontWeight: 'bold', marginBottom: 4, fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined, color: '#333' }}>
+                                                        <div style={{ fontSize: classic ? 10 : 11, fontWeight: 'bold', marginBottom: 4, fontFamily: classic ? xpFont : undefined, color: '#333' }}>
                                                             Consolidated Material Requirements — {reqs.length} component{reqs.length !== 1 ? 's' : ''}
                                                             {hasShortfall && <span style={{ marginLeft: 8, color: '#c00000', fontWeight: 'bold' }}>SHORTFALL DETECTED</span>}
                                                         </div>
                                                         <table style={{
                                                             width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 12,
-                                                            fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                                                            fontFamily: classic ? xpFont : undefined,
                                                         }}>
                                                             <thead>
                                                                 <tr style={{ background: classic ? '#d4d0c8' : '#e9ecef' }}>
@@ -381,7 +381,7 @@ export default function ProductionRunsTab({
             ) : (
                 <div style={{
                     padding: '32px', textAlign: 'center',
-                    fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                    fontFamily: classic ? xpFont : undefined,
                     fontSize: classic ? '11px' : undefined,
                     color: '#888',
                 }}>

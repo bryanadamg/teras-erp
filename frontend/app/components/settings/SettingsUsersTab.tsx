@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpInput, CodeChip } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, xpFont } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
@@ -175,7 +175,7 @@ export default function SettingsUsersTab({
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
                                 background: '#dde8f5', border: '1px solid #7f9db9', color: '#00006e',
-                                padding: '1px 5px', fontSize: 10, fontFamily: 'Tahoma, Arial, sans-serif',
+                                padding: '1px 5px', fontSize: 10, fontFamily: xpFont,
                             }}
                         >
                             Role: {roleFilterName}
@@ -257,7 +257,7 @@ export default function SettingsUsersTab({
                                         <td style={classic ? tdBase : undefined}>{user.full_name}</td>
                                         <td style={classic ? tdBase : undefined}>
                                             {classic ? (
-                                                <span style={{ display: 'inline-block', width: 'fit-content', maxWidth: '100%', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif', fontWeight: 'bold' }}>
+                                                <span style={{ display: 'inline-block', width: 'fit-content', maxWidth: '100%', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>
                                                     {user.role?.name || '-'}
                                                 </span>
                                             ) : (
@@ -277,13 +277,13 @@ export default function SettingsUsersTab({
                                         <td style={classic ? tdBase : undefined}>
                                             {user.is_active ? (
                                                 classic ? (
-                                                    <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Active</span>
+                                                    <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>Active</span>
                                                 ) : (
                                                     <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>Active</span>
                                                 )
                                             ) : (
                                                 classic ? (
-                                                    <span style={{ background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Inactive</span>
+                                                    <span style={{ background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>Inactive</span>
                                                 ) : (
                                                     <span className="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25" style={{fontSize: '0.65rem'}}>Inactive</span>
                                                 )
