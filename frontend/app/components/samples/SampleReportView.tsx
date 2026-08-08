@@ -6,7 +6,9 @@ import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
-import { lvTh, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
+import {
+    lvTh, lvThead, lvRow, lvBtn, lvInput, lvLabel, lvSep, LvSectionCaption, LV_XP_FONT, LV_MODERN_FONT,
+} from '../shared/listViewTheme';
 import {
     StatusChip, XPLoading, XPStatusBar, XPEmptyState, useSortable, SortMark,
     familyColor, familyTint, xpPanel, type StatusFamily,
@@ -44,6 +46,12 @@ const presetRange = (p: Preset): [string, string] => {
 };
 
 const GROUP_LABEL: Record<string, string> = { customer: 'Customer', category: 'Category', month: 'Month' };
+
+// Scroll region under a section caption — both tables on this page own their scroll
+// so neither can push the other off the window.
+const SCROLL_BODY: React.CSSProperties = {
+    flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', background: '#ffffff',
+};
 
 export default function SampleReportView() {
     const { uiStyle } = useTheme();
@@ -144,8 +152,8 @@ export default function SampleReportView() {
 
     const KpiTiles = () => (
         <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8,
-            padding: classic ? '8px 10px' : '12px 16px',
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, flexShrink: 0,
+            padding: classic ? '6px 8px' : '10px 16px',
             ...(classic ? xpPanel({ borderBottom: '1px solid #a0988c' }) : { borderBottom: '1px solid #e5e5e5' }),
         }}>
             {TILES.map(tile => {
@@ -176,17 +184,26 @@ export default function SampleReportView() {
     );
 
     // ── Filters ──────────────────────────────────────────────────────────────
+    // One flat row. `lvLabel` is a block-level form label (marginBottom, display:block);
+    // inline it here so a caption sits *beside* its field instead of pushing the row
+    // taller, and drop the toolbar gradient so the bar reads as a flat strip.
+    const inlineLabel: React.CSSProperties = {
+        ...lvLabel(classic), display: 'inline-block', marginBottom: 0, whiteSpace: 'nowrap',
+    };
+
     const Filters = () => (
-        <div style={classic ? sharedXpToolbar() : {
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
-            padding: '10px 16px', borderBottom: '1px solid #e5e5e5',
-        }}>
-            <span style={lvLabel(classic)}>From</span>
+        <div style={classic
+            ? sharedXpToolbar({ background: '#ece9d8', padding: '5px 8px', gap: 5, flexShrink: 0 })
+            : {
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+                padding: '8px 16px', borderBottom: '1px solid #e5e5e5', background: '#fff', flexShrink: 0,
+            }}>
+            <span style={inlineLabel}>From</span>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                style={lvInput(classic, { width: 130 })} className={classic ? '' : 'form-control form-control-sm'} />
-            <span style={lvLabel(classic)}>To</span>
+                style={lvInput(classic, { width: 128 })} className={classic ? '' : 'form-control form-control-sm'} />
+            <span style={inlineLabel}>To</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                style={lvInput(classic, { width: 130 })} className={classic ? '' : 'form-control form-control-sm'} />
+                style={lvInput(classic, { width: 128 })} className={classic ? '' : 'form-control form-control-sm'} />
 
             <div style={lvSep(classic)} />
             {([['month', 'This Month'], ['last30', 'Last 30 Days'], ['quarter', 'This Quarter'], ['year', 'This Year']] as [Preset, string][]).map(([p, label]) => (
@@ -196,7 +213,7 @@ export default function SampleReportView() {
 
             <div style={lvSep(classic)} />
             <select value={customerId} onChange={e => setCustomerId(e.target.value)}
-                style={lvInput(classic, { width: 170 })} className={classic ? '' : 'form-select form-select-sm'}>
+                style={lvInput(classic, { width: 168 })} className={classic ? '' : 'form-select form-select-sm'}>
                 <option value="">All Customers</option>
                 {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -206,7 +223,7 @@ export default function SampleReportView() {
                 {categoryOptions.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
             <select value={groupBy} onChange={e => setGroupBy(e.target.value as any)}
-                style={lvInput(classic, { width: 130 })} className={classic ? '' : 'form-select form-select-sm'}
+                style={lvInput(classic, { width: 132 })} className={classic ? '' : 'form-select form-select-sm'}
                 title="Summary grouping">
                 <option value="customer">By Customer</option>
                 <option value="category">By Category</option>
@@ -214,7 +231,7 @@ export default function SampleReportView() {
             </select>
 
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ ...lvLabel(classic), whiteSpace: 'nowrap' }}>
+                <span style={inlineLabel}>
                     <b>{rows.length}</b> variant rows
                 </span>
                 <button type="button" onClick={load} style={lvBtn(classic)}
@@ -230,46 +247,48 @@ export default function SampleReportView() {
     );
 
     // ── Summary table (grouped) ──────────────────────────────────────────────
+    // Capped scroll region: the group list grows with the customer/category count,
+    // and unbounded it ate the whole window and squeezed the variant table below it
+    // down to a two-row sliver.
     const SummaryTable = () => (
-        <div style={{ padding: classic ? '8px 10px 0' : '12px 16px 0' }}>
-            <div style={{
-                fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: 11, fontWeight: 'bold',
-                color: classic ? '#333' : '#555', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4,
-            }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, maxHeight: '32%', minHeight: 92 }}>
+            <LvSectionCaption classic={classic} icon="bi-bar-chart-steps" right={`${groups.length} ${groups.length === 1 ? 'group' : 'groups'}`}>
                 Summary by {GROUP_LABEL[groupBy]}
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}
-                className={classic ? '' : 'table table-sm table-hover align-middle mb-0 small'}>
-                <thead style={classic ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' } : undefined}>
-                    <tr>
-                        <th style={lvTh(classic)}>{GROUP_LABEL[groupBy]}</th>
-                        <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Variants</th>
-                        <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Processed</th>
-                        <th style={{ ...lvTh(classic), width: 80, textAlign: 'right' }}>Sent</th>
-                        <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Approved</th>
-                        <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Rejected</th>
-                        <th style={{ ...lvTh(classic), width: 110, textAlign: 'right', borderRight: 'none' }}>Approval %</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {groups.map((g: any, i: number) => (
-                        <tr key={g.label} style={classic ? lvRow(true, i) : undefined}>
-                            <td style={{ padding: '3px 8px', fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: 11, fontWeight: 'bold' }}>{g.label}</td>
-                            <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.variants}</td>
-                            <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.processes}</td>
-                            <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.sent}</td>
-                            <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11, color: familyColor('green'), fontWeight: 'bold' }}>{g.approvals}</td>
-                            <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11, color: familyColor('red'), fontWeight: 'bold' }}>{g.rejects}</td>
-                            <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.approval_rate}%</td>
+            </LvSectionCaption>
+            <div style={SCROLL_BODY}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}
+                    className={classic ? '' : 'table table-sm table-hover align-middle mb-0 small'}>
+                    <thead style={lvThead(classic, true)}>
+                        <tr>
+                            <th style={lvTh(classic)}>{GROUP_LABEL[groupBy]}</th>
+                            <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Variants</th>
+                            <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Processed</th>
+                            <th style={{ ...lvTh(classic), width: 80, textAlign: 'right' }}>Sent</th>
+                            <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Approved</th>
+                            <th style={{ ...lvTh(classic), width: 90, textAlign: 'right' }}>Rejected</th>
+                            <th style={{ ...lvTh(classic), width: 110, textAlign: 'right', borderRight: 'none' }}>Approval %</th>
                         </tr>
-                    ))}
-                    {!groups.length && (
-                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: 14, fontSize: 11, fontStyle: 'italic', color: '#666' }}>
-                            No activity in this range
-                        </td></tr>
-                    )}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {groups.map((g: any, i: number) => (
+                            <tr key={g.label} style={classic ? lvRow(true, i) : undefined}>
+                                <td style={{ padding: '3px 8px', fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: 11, fontWeight: 'bold' }}>{g.label}</td>
+                                <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.variants}</td>
+                                <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.processes}</td>
+                                <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.sent}</td>
+                                <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11, color: familyColor('green'), fontWeight: 'bold' }}>{g.approvals}</td>
+                                <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11, color: familyColor('red'), fontWeight: 'bold' }}>{g.rejects}</td>
+                                <td style={{ padding: '3px 8px', textAlign: 'right', fontSize: 11 }}>{g.approval_rate}%</td>
+                            </tr>
+                        ))}
+                        {!groups.length && (
+                            <tr><td colSpan={7} style={{ textAlign: 'center', padding: 14, fontSize: 11, fontStyle: 'italic', color: '#666' }}>
+                                No activity in this range
+                            </td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 
@@ -293,60 +312,63 @@ export default function SampleReportView() {
     );
 
     const VariantTable = () => (
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', background: '#ffffff', margin: classic ? '8px 0 0' : '12px 0 0' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}
-                className={classic ? '' : 'table table-hover align-middle mb-0 small'}>
-                <thead style={classic
-                    ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', position: 'sticky', top: 0, zIndex: 1 }
-                    : { position: 'sticky', top: 0, zIndex: 1 }}>
-                    <tr>
-                        <Th colKey="sample_code" label="Sample" width={130} />
-                        <Th colKey="customer_name" label="Customer" width={150} />
-                        <Th colKey="variant_name" label="Variant" />
-                        <Th colKey="processes" label="Processed" width={90} align="right" />
-                        <Th colKey="sent" label="Sent" width={70} align="right" />
-                        <Th colKey="rejects" label="Rejected" width={90} align="right" />
-                        <Th colKey="approvals" label="Approved" width={90} align="right" />
-                        <Th colKey="status" label="Now" width={110} />
-                        <Th colKey="last_event_at" label="Last Activity" width={140} />
-                    </tr>
-                </thead>
-                <tbody>
-                    {sorted.map((r: any, i: number) => (
-                        <tr key={r.color_id} style={classic ? lvRow(true, i) : undefined}>
-                            <td style={{ padding: '3px 8px', fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: 11, fontWeight: 'bold', color: familyColor('blue') }}>
-                                {r.sample_code}
-                            </td>
-                            <td style={{ padding: '3px 8px', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.customer_name || ''}>
-                                {r.customer_name || '—'}
-                            </td>
-                            <td style={{ padding: '3px 8px', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                title={`${r.variant_name}${r.customer_article_code ? ` · ${r.customer_article_code}` : ''}`}>
-                                {r.variant_name}
-                                {r.is_repeat && (
-                                    <span style={{
-                                        marginLeft: 5, fontSize: 9, padding: '0 3px', border: '1px solid',
-                                        ...familyTint('amber'),
-                                    }}>REPEAT</span>
-                                )}
-                            </td>
-                            {countCell(r.processes, familyColor('amber'))}
-                            {countCell(r.sent, familyColor('blue'))}
-                            {countCell(r.rejects, familyColor('red'))}
-                            {countCell(r.approvals, familyColor('green'))}
-                            <td style={{ padding: '3px 8px' }}><StatusChip status={r.status} tint /></td>
-                            <td style={{ padding: '3px 8px', fontSize: 10, color: '#555' }}>
-                                {r.last_event_at ? tzDateTime(r.last_event_at) : '—'}
-                            </td>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 150 }}>
+            <LvSectionCaption classic={classic} icon="bi-list-ul" right={`${sorted.length} ${sorted.length === 1 ? 'row' : 'rows'}`}>
+                Variant Detail
+            </LvSectionCaption>
+            <div style={SCROLL_BODY}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}
+                    className={classic ? '' : 'table table-hover align-middle mb-0 small'}>
+                    <thead style={lvThead(classic, true)}>
+                        <tr>
+                            <Th colKey="sample_code" label="Sample" width={130} />
+                            <Th colKey="customer_name" label="Customer" width={150} />
+                            <Th colKey="variant_name" label="Variant" />
+                            <Th colKey="processes" label="Processed" width={90} align="right" />
+                            <Th colKey="sent" label="Sent" width={70} align="right" />
+                            <Th colKey="rejects" label="Rejected" width={90} align="right" />
+                            <Th colKey="approvals" label="Approved" width={90} align="right" />
+                            <Th colKey="status" label="Now" width={110} />
+                            <Th colKey="last_event_at" label="Last Activity" width={140} />
                         </tr>
-                    ))}
-                    {!sorted.length && !loading && (
-                        <tr><td colSpan={9} style={{ padding: 0 }}>
-                            <XPEmptyState message="No sample activity in this date range" icon="bi-graph-up" />
-                        </td></tr>
-                    )}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {sorted.map((r: any, i: number) => (
+                            <tr key={r.color_id} style={classic ? lvRow(true, i) : undefined}>
+                                <td style={{ padding: '3px 8px', fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: 11, fontWeight: 'bold', color: familyColor('blue') }}>
+                                    {r.sample_code}
+                                </td>
+                                <td style={{ padding: '3px 8px', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.customer_name || ''}>
+                                    {r.customer_name || '—'}
+                                </td>
+                                <td style={{ padding: '3px 8px', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                    title={`${r.variant_name}${r.customer_article_code ? ` · ${r.customer_article_code}` : ''}`}>
+                                    {r.variant_name}
+                                    {r.is_repeat && (
+                                        <span style={{
+                                            marginLeft: 5, fontSize: 9, padding: '0 3px', border: '1px solid',
+                                            ...familyTint('amber'),
+                                        }}>REPEAT</span>
+                                    )}
+                                </td>
+                                {countCell(r.processes, familyColor('amber'))}
+                                {countCell(r.sent, familyColor('blue'))}
+                                {countCell(r.rejects, familyColor('red'))}
+                                {countCell(r.approvals, familyColor('green'))}
+                                <td style={{ padding: '3px 8px' }}><StatusChip status={r.status} tint /></td>
+                                <td style={{ padding: '3px 8px', fontSize: 10, color: '#555' }}>
+                                    {r.last_event_at ? tzDateTime(r.last_event_at) : '—'}
+                                </td>
+                            </tr>
+                        ))}
+                        {!sorted.length && !loading && (
+                            <tr><td colSpan={9} style={{ padding: 0 }}>
+                                <XPEmptyState message="No sample activity in this date range" icon="bi-graph-up" />
+                            </td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 
