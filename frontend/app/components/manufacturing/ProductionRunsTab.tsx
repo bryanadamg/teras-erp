@@ -315,14 +315,7 @@ export default function ProductionRunsTab({
                                                                                 title={`View ${mo.code} in Manufacturing Orders (${mo.status})`}
                                                                                 style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
                                                                             >
-                                                                                {/* Navigates to the MO, but it is still a code — a solid blue
-                                                                                    fill would read as a status. Chip + accent + underline. */}
-                                                                                <CodeChip
-                                                                                    code={mo.code}
-                                                                                    classic={classic}
-                                                                                    tone="accent"
-                                                                                    style={{ fontWeight: 'bold', textDecoration: 'underline' }}
-                                                                                />
+                                                                                <CodeChip code={mo.code} classic={classic} link />
                                                                             </button>
                                                                         ))}
                                                                 </div>

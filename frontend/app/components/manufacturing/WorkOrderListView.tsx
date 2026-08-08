@@ -425,14 +425,14 @@ export default function WorkOrderListView({
                             <div style={colHeaderStyle}>Info</div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2, fontSize: 9 }}>
                                 <span style={{ color: '#888' }}>MO</span>
-                                <span
+                                <CodeChip
+                                    code={wo.mo_code}
+                                    classic={classic}
+                                    link
                                     onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.mo_code)}`)}
                                     title={`Go to ${wo.mo_code}`}
-                                    style={{
-                                        fontFamily: CODE_FONT, fontWeight: 'bold', fontSize: 9, color: '#0058e6',
-                                        textDecoration: 'underline', cursor: 'pointer',
-                                    }}
-                                >{wo.mo_code}</span>
+                                    style={{ fontSize: 9 }}
+                                />
                             </div>
                             {infoRow('Product', wo.item_name || '—')}
                             {wo.color_label && infoRow('Variant', wo.color_label)}

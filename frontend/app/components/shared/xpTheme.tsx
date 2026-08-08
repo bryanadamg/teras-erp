@@ -29,25 +29,47 @@ export const CODE_FONT = "'Courier New', Consolas, monospace";
 // Status is never a code — use StatusChip. And a code never gets a fill or a border:
 // those are reserved for status families and interactive controls, so a boxed code
 // reads as a state or a button.
-// `link` marks a code that navigates (root MO on the WO table, contributing MOs on a
-// PR) — blue + underline, so "clickable" is carried by link affordance instead of a
-// tinted pill that competes with the status column.
+// `link` is the one exception to the no-chrome rule: a code that JUMPS somewhere
+// else (root MO on the WO table, contributing MOs on a PR) renders as a blue tinted
+// badge. The tint is the affordance — it says "this cell is a door", which a plain
+// underline in a dense table does not. It never collides with status color because
+// blue-on-pale-blue is not in STATUS_FAMILY's chip set at this size, and a nav code
+// always sits in its own column.
 export function CodeChip({ code, classic, tier = 1, tone = 'default', link = false, title, style, className, onClick }: {
     code: React.ReactNode; classic: boolean; tier?: 1 | 2;
     tone?: 'default' | 'accent'; link?: boolean; title?: string;
     style?: React.CSSProperties; className?: string; onClick?: () => void;
 }) {
     const base: React.CSSProperties = { fontFamily: CODE_FONT, whiteSpace: 'nowrap' };
-    const linkStyle: React.CSSProperties = link
-        ? { color: '#0058e6', textDecoration: 'underline', cursor: 'pointer' } : {};
+    if (link) {
+        return (
+            <span
+                className={className}
+                onClick={onClick}
+                title={title ?? (typeof code === 'string' ? code : undefined)}
+                style={{
+                    ...base,
+                    fontSize: classic ? 10 : 11,
+                    fontWeight: 'bold',
+                    color: '#0058e6',
+                    background: '#e8f0fe',
+                    border: '1px solid #b0c8f8',
+                    borderRadius: classic ? 2 : 4,
+                    padding: '0 5px',
+                    cursor: 'pointer',
+                    display: 'inline-block',
+                    ...style,
+                }}
+            >{code}</span>
+        );
+    }
     const s: React.CSSProperties = tier === 2
-        ? { ...base, fontSize: classic ? 9 : 10.5, color: '#666', ...linkStyle }
+        ? { ...base, fontSize: classic ? 9 : 10.5, color: '#666' }
         : {
             ...base,
             fontSize: classic ? 11 : 12,
             fontWeight: 'bold',
             color: tone === 'accent' ? '#000055' : '#000',
-            ...linkStyle,
         };
     return (
         <span className={className} onClick={onClick} title={title ?? (typeof code === 'string' ? code : undefined)} style={{ ...s, ...style }}>
