@@ -127,7 +127,7 @@ export function PermissionSectionTable({
                     display: 'flex', alignItems: 'center', gap: 5,
                     background: headerActive ? '#eef1f5' : '#f4f3ef',
                     borderBottom: '1px solid #b8c2cc',
-                    padding: '5px 10px',
+                    padding: '5px 12px',
                     cursor: onHeaderClick ? 'pointer' : 'default',
                 }}
             >
@@ -146,7 +146,9 @@ export function PermissionSectionTable({
                                 fontFamily: font, fontSize: size, color: '#000',
                                 lineHeight: 1.5,
                                 padding: '6px 10px',
-                                paddingLeft: rowPaddingLeft,
+                                // Body text lines up with the section header's label,
+                                // not tight against the card edge.
+                                paddingLeft: rowPaddingLeft ?? 12,
                                 width: labelWidth,
                                 verticalAlign: 'top',
                                 borderRight: '1px solid #e6e3db',
