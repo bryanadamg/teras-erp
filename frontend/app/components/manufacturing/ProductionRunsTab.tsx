@@ -5,7 +5,7 @@ import ManufacturingSearchBar from './ManufacturingSearchBar';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 export default function ProductionRunsTab({
@@ -288,8 +288,8 @@ export default function ProductionRunsTab({
                                     {isExpanded && (
                                         <tr>
                                             <td colSpan={9} className="p-0 border-0">
-                                            <SunkenPanel classic={classic}>
-                                            <SunkenPanelBody classic={classic}>
+                                            <ExpandedRowPanel classic={classic}>
+                                            <ExpandedRowPanelBody classic={classic}>
                                                 {isLoading ? (
                                                     <span style={{ fontSize: 11, color: '#666', fontFamily: classic ? xpFont : undefined }}>
                                                         Loading material requirements...
@@ -367,8 +367,8 @@ export default function ProductionRunsTab({
                                                         </table>
                                                     </div>
                                                 )}
-                                            </SunkenPanelBody>
-                                            </SunkenPanel>
+                                            </ExpandedRowPanelBody>
+                                            </ExpandedRowPanel>
                                             </td>
                                         </tr>
                                     )}

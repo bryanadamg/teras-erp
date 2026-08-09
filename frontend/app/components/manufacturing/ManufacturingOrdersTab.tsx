@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -441,8 +441,10 @@ export default function ManufacturingOrdersTab({
             if (scanningWOId === wo.id) setScanningWOId(null);
         };
 
+        // padding 0: the tab strip and the two-pane body carry their own edges and run
+        // full-bleed to the panel's rules, so the panel adds no gutter around them
         return (
-            <SunkenPanel classic={classic} style={{ marginBottom: 6 }}>
+            <ExpandedRowPanel classic={classic} style={{ marginBottom: 6, padding: 0 }}>
             {/* ── TABS ── */}
             <div style={{
                 display: 'flex',
@@ -483,7 +485,7 @@ export default function ManufacturingOrdersTab({
             </div>
 
             {detailTab === 'bom' && (
-            <SunkenPanelBody classic={classic} style={{ display: 'flex', height: PANEL_BODY_H, padding: 0, border: classic ? '1px solid #808080' : undefined }}>
+            <ExpandedRowPanelBody classic={classic} style={{ display: 'flex', height: PANEL_BODY_H, padding: 0, border: classic ? '1px solid #808080' : undefined }}>
 
                 {/* ── LEFT: MO Tree ── */}
                 <div style={{
@@ -990,7 +992,7 @@ export default function ManufacturingOrdersTab({
                     </div>
 
                 </div>
-            </SunkenPanelBody>
+            </ExpandedRowPanelBody>
             )}
 
             {detailTab === 'steps' && (
@@ -1013,7 +1015,7 @@ export default function ManufacturingOrdersTab({
                     />
                 </div>
             )}
-        </SunkenPanel>
+        </ExpandedRowPanel>
         );
     };
 

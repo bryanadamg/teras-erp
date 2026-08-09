@@ -21,7 +21,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSep, XPLoading, XPEmptyState,
-    useSortable, SortMark, WorkCenterChip, StatusChip, SunkenPanel, ProgressBar,
+    useSortable, SortMark, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar,
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
@@ -553,12 +553,12 @@ export default function MachineOutputReportView() {
         );
 
         return (
-            <SunkenPanel classic={classic} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <ExpandedRowPanel classic={classic} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {isMachineLevel && block('By item', itemsTable)}
                 {isGroupMode && block(`Machines (${(r.machines || []).length})`, machinesTable)}
                 {isMachineLevel && block('Work orders', wosTable)}
                 {block(`QC rejects (${(r.rejects || []).length})`, rejectsTable)}
-            </SunkenPanel>
+            </ExpandedRowPanel>
         );
     };
 

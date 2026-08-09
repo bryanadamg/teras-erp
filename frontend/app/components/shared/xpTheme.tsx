@@ -958,23 +958,26 @@ export function FloatingMenu({ pos, items, minWidth = 175 }: { pos: { top: numbe
     );
 }
 
-// ── Sunken expanded-row panel ───────────────────────────────────────────────
+// ── Expanded-row panel ──────────────────────────────────────────────────────
 // Standard shape for any "expand this table row" detail panel (WO tree/detail,
-// PR material requirements, and any future one): an inset/recessed outer frame
-// — reads as "this dropped out of the row above it" — holding a lighter inner
-// content box so the two layers stay visually distinct instead of the content
-// floating directly on the recessed background. Always pair the two: SunkenPanel
-// is just the frame, SunkenPanelBody is the content box; a frame with no body
-// (or a body used standalone) loses the contrast this is built for.
-export function SunkenPanel({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
+// PR material requirements, and any future one). Two cues, no depth:
+//   • a saturated left rail in the row-selection blue — pegs the panel to the
+//     highlighted row it dropped out of, so the two read as one unit;
+//   • heavy top/bottom rules — bracket the expansion as a break in the list.
+// The body stays the same flat white as the rows, so wide content gets the full
+// row width instead of a nested frame eating padding on both sides. This
+// replaced an inset/recessed frame whose stacked shadows read as muddy rather
+// than deep, especially against Classic's beige. Do not reintroduce boxShadow.
+// Always pair the two: ExpandedRowPanel is the frame, ExpandedRowPanelBody the
+// padded content box.
+export function ExpandedRowPanel({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
     return (
         <div style={{
-            border: classic ? '1px solid #808080' : '1px solid #ced4da',
-            background: classic ? '#d8d3c8' : '#e9edf1',
-            boxShadow: classic
-                ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
-                : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
-            padding: 5,
+            borderLeft: classic ? '4px solid #316ac5' : '3px solid #2f6feb',
+            borderTop: classic ? '2px solid #808080' : '2px solid #adb5bd',
+            borderBottom: classic ? '2px solid #808080' : '2px solid #adb5bd',
+            background: '#fff',
+            padding: classic ? 5 : 6,
             ...style,
         }}>
             {children}
@@ -982,13 +985,11 @@ export function SunkenPanel({ classic, children, style }: { classic: boolean; ch
     );
 }
 
-/** Lighter content box that sits inside a SunkenPanel. Pass `style` to override background/border/padding for layouts that need their own (e.g. a fixed-height two-pane body). */
-export function SunkenPanelBody({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
+/** Padded, transparent content box inside an ExpandedRowPanel — the panel already supplies the ground, so this adds no second background or frame. Pass `style` to override padding/border for layouts that need their own (e.g. a fixed-height two-pane body). */
+export function ExpandedRowPanelBody({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
     return (
         <div style={{
-            background: classic ? '#f5f3ee' : '#f8f9fa',
-            border: classic ? '1px solid #808080' : '1px solid #dee2e6',
-            padding: classic ? '6px 12px' : '8px 16px',
+            padding: classic ? '4px 8px' : '6px 12px',
             ...style,
         }}>
             {children}

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { xpFont, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
+import { xpFont, ExpandedRowPanel, ExpandedRowPanelBody } from '../shared/xpTheme';
 import { describePermission, groupPermissionsBySection, groupPermissionsByResource } from '../shared/permissionMatrix';
 import { PermissionChip, PermissionSectionTable } from '../shared/permissionChips';
 
@@ -31,8 +31,8 @@ export default function PermissionBreakdown({ permissions, classic, showDirect =
     const font = classic ? xpFont : undefined;
 
     return (
-        <SunkenPanel classic={classic}>
-            <SunkenPanelBody classic={classic}>
+        <ExpandedRowPanel classic={classic}>
+            <ExpandedRowPanelBody classic={classic}>
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -72,7 +72,7 @@ export default function PermissionBreakdown({ permissions, classic, showDirect =
                         outlined in blue = granted directly to this user, not through the role.
                     </div>
                 )}
-            </SunkenPanelBody>
-        </SunkenPanel>
+            </ExpandedRowPanelBody>
+        </ExpandedRowPanel>
     );
 }

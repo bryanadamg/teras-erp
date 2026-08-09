@@ -11,7 +11,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import {
     xpFont, familyColor, StatusChip, XPActionButton, XPLoading, XPEmptyState,
-    SunkenPanel, SunkenPanelBody, FormSection, FieldLabel, ProgressBar,
+    ExpandedRowPanel, ExpandedRowPanelBody, FormSection, FieldLabel, ProgressBar,
     xpSelect, xpPanel, SectionTitle, CodeChip,
 } from '../shared/xpTheme';
 import { LvTabBar, LvTab, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
@@ -995,8 +995,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                             {unmountingId === m.id && (
                                                 <tr>
                                                     <td colSpan={5} style={{ padding: cls ? '4px 2px' : '4px 0' }}>
-                                                        <SunkenPanel classic={cls}>
-                                                            <SunkenPanelBody classic={cls}>
+                                                        <ExpandedRowPanel classic={cls}>
+                                                            <ExpandedRowPanelBody classic={cls}>
                                                                 <div style={{
                                                                     display: 'flex', flexWrap: 'wrap', alignItems: 'center',
                                                                     gap: 8, fontSize: cls ? 11 : 12,
@@ -1035,8 +1035,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                         />
                                                                     </div>
                                                                 </div>
-                                                            </SunkenPanelBody>
-                                                        </SunkenPanel>
+                                                            </ExpandedRowPanelBody>
+                                                        </ExpandedRowPanel>
                                                     </td>
                                                 </tr>
                                             )}
