@@ -1,27 +1,38 @@
 'use client';
 
-import { useState } from 'react';
 import { xpFont } from '../shared/xpTheme';
-import PermissionBreakdown from './PermissionBreakdown';
 
 interface Permission { id: string; code: string; description: string }
+
+/**
+ * Union of role-inherited and directly-granted permissions, direct ones
+ * flagged. The detail panel is rendered by the caller in a full-width row
+ * (same shape as the roles table), so this list is computed here and drawn
+ * there.
+ */
+export function effectivePermissionList(rolePermissions: Permission[], directPermissions: Permission[]) {
+    const directIds = new Set(directPermissions.map(p => p.id));
+    return [
+        ...rolePermissions.filter(p => !directIds.has(p.id)).map(p => ({ ...p, _direct: false })),
+        ...directPermissions.map(p => ({ ...p, _direct: true })),
+    ];
+}
 
 /**
  * Shows the union of role-inherited and directly-granted permissions on a
  * user row — previously only direct overrides were visible, which hid what a
  * user could actually do if their role already covered it. Collapses to a
- * one-line summary; expands into the full list grouped by section (same
- * grouping RoleFormModal's permission matrix uses) so a user with many
- * permissions doesn't blow out the row height.
+ * one-line summary; the caller expands it into a full-width detail row.
  */
 export default function EffectivePermissions({
-    rolePermissions, directPermissions, classic,
+    rolePermissions, directPermissions, classic, expanded, onToggle,
 }: {
     rolePermissions: Permission[];
     directPermissions: Permission[];
     classic: boolean;
+    expanded: boolean;
+    onToggle: () => void;
 }) {
-    const [expanded, setExpanded] = useState(false);
     const directIds = new Set(directPermissions.map(p => p.id));
     const inherited = rolePermissions.filter(p => !directIds.has(p.id));
     const isAdmin = rolePermissions.some(p => p.code === 'admin.access') || directPermissions.some(p => p.code === 'admin.access');
@@ -47,41 +58,17 @@ export default function EffectivePermissions({
 
     const summary = `${total} permission${total !== 1 ? 's' : ''}${directPermissions.length > 0 ? ` (${directPermissions.length} direct)` : ''}`;
 
-    if (!expanded) {
-        return (
-            <button
-                onClick={() => setExpanded(true)}
-                style={classic ? {
-                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                    fontFamily: xpFont, fontSize: '10px', color: '#00006e',
-                    display: 'flex', alignItems: 'center', gap: 4,
-                } : { background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.8rem', color: '#0d6efd', display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-                <i className="bi bi-caret-right-fill" style={{ fontSize: 8 }} />
-                {summary}
-            </button>
-        );
-    }
-
-    const all = [
-        ...inherited.map(p => ({ ...p, _direct: false })),
-        ...directPermissions.map(p => ({ ...p, _direct: true })),
-    ];
-
     return (
-        <div>
-            <button
-                onClick={() => setExpanded(false)}
-                style={classic ? {
-                    background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginBottom: 3,
-                    fontFamily: xpFont, fontSize: '10px', color: '#00006e',
-                    display: 'flex', alignItems: 'center', gap: 4,
-                } : { background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginBottom: 4, fontSize: '0.8rem', color: '#0d6efd', display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-                <i className="bi bi-caret-down-fill" style={{ fontSize: 8 }} />
-                {summary}
-            </button>
-            <PermissionBreakdown permissions={all} classic={classic} showDirect />
-        </div>
+        <button
+            onClick={onToggle}
+            style={classic ? {
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                fontFamily: xpFont, fontSize: '10px', color: '#00006e',
+                display: 'flex', alignItems: 'center', gap: 4,
+            } : { background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.8rem', color: '#0d6efd', display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+            <i className={`bi ${expanded ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}`} style={{ fontSize: 8 }} />
+            {summary}
+        </button>
     );
 }

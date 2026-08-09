@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { Fragment, useMemo, useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
@@ -13,7 +13,8 @@ import SettingsPanel from './SettingsPanel';
 import PixelAvatar from '../shared/PixelAvatar';
 import Pager from '../shared/Pager';
 import UserFormModal, { UserFormPayload } from './UserFormModal';
-import EffectivePermissions from './EffectivePermissions';
+import EffectivePermissions, { effectivePermissionList } from './EffectivePermissions';
+import PermissionBreakdown from './PermissionBreakdown';
 import { API_BASE } from '../shared/apiBase';
 
 const USERS_PAGE_SIZE = 10;
@@ -46,6 +47,14 @@ export default function SettingsUsersTab({
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [page, setPage] = useState(1);
+    /* Expansion is owned here (not in the cell) so the detail panel can render
+       as a full-width row, matching the roles table. */
+    const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+    const toggleExpanded = (id: string) => setExpandedUsers(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
 
     useEffect(() => {
         refreshUsers();
@@ -240,10 +249,14 @@ export default function SettingsUsersTab({
                         <tbody>
                             {pagedUsers.map((user, rowIndex) => {
                                 const isSelf = currentUser?.id === user.id;
+                                const isExpanded = expandedUsers.has(user.id);
+                                const detailPermissions = isExpanded
+                                    ? effectivePermissionList(user.role?.permissions || [], user.permissions || [])
+                                    : [];
                                 return (
+                                    <Fragment key={user.id}>
                                     <tr
-                                        key={user.id}
-                                        style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 } : { opacity: user.is_active ? 1 : 0.6 }}
+                                        style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 } : { opacity: user.is_active ? 1 : 0.6 }}
                                     >
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-4'}>
                                             <div style={classic ? { width: 28, height: 28, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' } : { width: 32, height: 32, border: '1px solid #dee2e6', borderRadius: 4, background: '#f8f9fa', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -269,6 +282,8 @@ export default function SettingsUsersTab({
                                                 rolePermissions={user.role?.permissions || []}
                                                 directPermissions={user.permissions || []}
                                                 classic={classic}
+                                                expanded={isExpanded}
+                                                onToggle={() => toggleExpanded(user.id)}
                                             />
                                         </td>
                                         <td style={classic ? { ...tdBase, fontSize: 9, whiteSpace: 'nowrap' as const } : undefined} className={classic ? '' : 'small text-muted'}>
@@ -327,11 +342,19 @@ export default function SettingsUsersTab({
                                             )}
                                         </td>
                                     </tr>
+                                    {isExpanded && detailPermissions.length > 0 && (
+                                        <tr style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 } : { opacity: user.is_active ? 1 : 0.6 }}>
+                                            <td colSpan={8} style={classic ? { padding: '0 12px 8px 12px', border: 'none' } : undefined} className={classic ? '' : 'pb-3 px-4'}>
+                                                <PermissionBreakdown permissions={detailPermissions} classic={classic} showDirect />
+                                            </td>
+                                        </tr>
+                                    )}
+                                    </Fragment>
                                 );
                             })}
                             {filteredUsers.length === 0 && (
                                 <tr>
-                                    <td colSpan={9} style={classic ? { ...tdBase, textAlign: 'center' as const, fontStyle: 'italic', color: '#888' } : undefined} className={classic ? '' : 'text-center text-muted py-4'}>
+                                    <td colSpan={8} style={classic ? { ...tdBase, textAlign: 'center' as const, fontStyle: 'italic', color: '#888' } : undefined} className={classic ? '' : 'text-center text-muted py-4'}>
                                         No users match this search/filter.
                                     </td>
                                 </tr>
