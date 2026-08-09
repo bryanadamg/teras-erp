@@ -1,8 +1,8 @@
 'use client';
 
-import { CSSProperties, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpBtn, xpInput, xpLabel, xpFont } from '../shared/xpTheme';
+import { xpInput, xpFont, FieldLabel, ToggleChip, ModalFooterActions } from '../shared/xpTheme';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
 import { useData } from '../../context/DataContext';
 
@@ -98,41 +98,19 @@ export default function RoleFormModal({
         setAllowedLocations(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     };
 
-    /* Scope pickers are toggle chips, matching the permission picker above —
-       a wall of bare checkboxes made a restricted role hard to read back. */
-    const scopeChip = (key: string, label: string, on: boolean, onToggle: () => void) => (
-        <button
-            key={key}
-            type="button"
-            aria-pressed={on}
-            onClick={onToggle}
-            style={{
-                fontFamily: classic ? xpFont : undefined,
-                fontSize: classic ? 10 : 11,
-                lineHeight: 1.6,
-                display: 'inline-flex', alignItems: 'center', gap: 3,
-                background: on ? '#dde8f5' : '#f6f5f1',
-                border: `1px solid ${on ? '#7f9db9' : '#d5d1c6'}`,
-                color: on ? '#1a3d7a' : '#8d8779',
-                fontWeight: on ? 'bold' : 'normal',
-                borderRadius: classic ? 0 : 3,
-                padding: '0 6px',
-                cursor: 'pointer',
-            }}
-        >
-            <i className={`bi ${on ? 'bi-check2' : 'bi-dash'}`} style={{ fontSize: 8, opacity: on ? 1 : 0.55 }} />
-            {label}
-        </button>
+    /* Scope pickers use the app-wide on/off chip (ToggleChip) rather than bare
+       checkboxes — a wall of checkboxes made a restricted role hard to read
+       back, and a per-view selected state would be a fourth chip look. */
+    const scopeBox = (scroll: boolean, children: React.ReactNode) => (
+        <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 4,
+            background: '#ffffff',
+            border: classic ? '1px solid #b0a898' : '1px solid #dee2e6',
+            borderRadius: classic ? 0 : 4,
+            padding: 6,
+            ...(scroll ? { maxHeight: 160, overflowY: 'auto' as const } : {}),
+        }}>{children}</div>
     );
-
-    const scopeBoxStyle = (scroll: boolean): CSSProperties => ({
-        display: 'flex', flexWrap: 'wrap', gap: 4,
-        background: '#ffffff',
-        border: classic ? '1px solid #b0a898' : '1px solid #dee2e6',
-        borderRadius: classic ? 0 : 4,
-        padding: 6,
-        ...(scroll ? { maxHeight: 160, overflowY: 'auto' as const } : {}),
-    });
 
     const handleSubmit = async () => {
         setError('');
@@ -166,16 +144,14 @@ export default function RoleFormModal({
             variant={mode === 'create' ? 'success' : 'primary'}
             size="md"
             footer={
-                <>
-                    <button type="button" style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-secondary'} onClick={onClose}>Cancel</button>
-                    <button
-                        type="button"
-                        disabled={submitting}
-                        style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
-                        className={classic ? '' : 'btn btn-success fw-bold px-4'}
-                        onClick={handleSubmit}
-                    >{submitting ? 'Saving…' : mode === 'create' ? 'Create Role' : 'Save Changes'}</button>
-                </>
+                <ModalFooterActions
+                    classic={classic}
+                    onCancel={onClose}
+                    onSubmit={handleSubmit}
+                    submitting={submitting}
+                    submitLabel={mode === 'create' ? 'Create Role' : 'Save Changes'}
+                    variant={mode === 'create' ? 'success' : 'primary'}
+                />
             }
         >
             {error && (
@@ -185,7 +161,7 @@ export default function RoleFormModal({
             )}
 
             <div className="mb-3">
-                <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Role Name</label>
+                <FieldLabel classic={classic}>Role Name</FieldLabel>
                 <input
                     style={classic ? xpInput({ width: '100%' }) : undefined}
                     className={classic ? '' : 'form-control form-control-sm'}
@@ -196,7 +172,7 @@ export default function RoleFormModal({
             </div>
 
             <div className="mb-3">
-                <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Description</label>
+                <FieldLabel classic={classic}>Description</FieldLabel>
                 <input
                     style={classic ? xpInput({ width: '100%' }) : undefined}
                     className={classic ? '' : 'form-control form-control-sm'}
@@ -207,7 +183,7 @@ export default function RoleFormModal({
             </div>
 
             <div className="mb-1">
-                <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Permissions</label>
+                <FieldLabel classic={classic}>Permissions</FieldLabel>
                 <PermissionsPicker
                     allPermissions={allPermissions}
                     selectedIds={permissionIds}
@@ -218,47 +194,38 @@ export default function RoleFormModal({
 
             {hasWorkOrderPerm && wcTypes.length > 0 && (
                 <div className="mt-3">
-                    <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Work Order Station Scope</label>
-                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
-                        Leave all unchecked to allow this role's Work Order actions on any station. Check one or more to restrict.
-                    </div>
-                    <div style={scopeBoxStyle(false)}>
-                        {wcTypes.map(t => scopeChip(t, t, allowedWcTypes.includes(t), () => toggleWcType(t)))}
-                    </div>
+                    <FieldLabel classic={classic} hint="Leave all off to allow this role's Work Order actions on any station. Turn one or more on to restrict.">
+                        Work Order Station Scope
+                    </FieldLabel>
+                    {scopeBox(false, wcTypes.map(t => (
+                        <ToggleChip key={t} on={allowedWcTypes.includes(t)} onClick={() => toggleWcType(t)} classic={classic}>{t}</ToggleChip>
+                    )))}
                 </div>
             )}
 
             {hasCategoryScopedPerm && categories.length > 0 && (
                 <div className="mt-3">
-                    <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Item/Stock Category Scope</label>
-                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
-                        Leave all unchecked to allow Item/Stock actions on any category. Check one or more to restrict.
-                    </div>
-                    <div style={scopeBoxStyle(true)}>
-                        {categories.map((c: any) => scopeChip(
-                            c.id,
-                            (c.path_names || [c.name]).join(' / '),
-                            allowedCategories.includes(c.id),
-                            () => toggleCategory(c.id),
-                        ))}
-                    </div>
+                    <FieldLabel classic={classic} hint="Leave all off to allow Item/Stock actions on any category. Turn one or more on to restrict.">
+                        Item/Stock Category Scope
+                    </FieldLabel>
+                    {scopeBox(true, categories.map((c: any) => (
+                        <ToggleChip key={c.id} on={allowedCategories.includes(c.id)} onClick={() => toggleCategory(c.id)} classic={classic}>
+                            {(c.path_names || [c.name]).join(' / ')}
+                        </ToggleChip>
+                    )))}
                 </div>
             )}
 
             {hasLocationScopedPerm && locations.length > 0 && (
                 <div className="mt-3">
-                    <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Lot Management Location Scope</label>
-                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
-                        Leave all unchecked to allow Lot actions at any location. Check one or more to restrict.
-                    </div>
-                    <div style={scopeBoxStyle(true)}>
-                        {locations.map((l: any) => scopeChip(
-                            l.id,
-                            l.full_path || l.name,
-                            allowedLocations.includes(l.id),
-                            () => toggleLocation(l.id),
-                        ))}
-                    </div>
+                    <FieldLabel classic={classic} hint="Leave all off to allow Lot actions at any location. Turn one or more on to restrict.">
+                        Lot Management Location Scope
+                    </FieldLabel>
+                    {scopeBox(true, locations.map((l: any) => (
+                        <ToggleChip key={l.id} on={allowedLocations.includes(l.id)} onClick={() => toggleLocation(l.id)} classic={classic}>
+                            {l.full_path || l.name}
+                        </ToggleChip>
+                    )))}
                 </div>
             )}
         </ModalWrapper>

@@ -2,10 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { xpFont } from '../shared/xpTheme';
-import {
-    PERMISSION_MATRIX, RESOURCE_ACTIONS, permissionCode, PermissionScope,
-    actionIntent, INTENT_CHIP,
-} from '../shared/permissionMatrix';
+import { PERMISSION_MATRIX, RESOURCE_ACTIONS, permissionCode, PermissionScope } from '../shared/permissionMatrix';
+import { PermissionChip, PermissionSectionTable, PermissionCountPill } from '../shared/permissionChips';
 
 export interface PermissionOption {
     id: string;
@@ -24,14 +22,12 @@ const SCOPE_BADGE: Record<PermissionScope, string> = {
  * layout — one row per resource, one toggle per action that resource supports
  * (not every resource has the same actions, so this isn't a uniform grid).
  *
- * Actions are toggle chips, not checkboxes, tinted by intent with the same
- * palette the read-only PermissionBreakdown uses (create green / edit blue /
- * delete red / print amber / view grey) — so the panel you configure a role in
- * and the panel you audit it in read as the same object. Granted chips are
- * filled and carry a check glyph; ungranted ones are flat grey, which makes a
- * half-configured section visible at a glance instead of requiring a read of
- * every checkbox. disabledIds render locked (role-inherited grants a direct
- * user override can't remove).
+ * Built from the same `PermissionSectionTable` + `PermissionChip` pair as the
+ * read-only PermissionBreakdown, so the panel a role is configured in and the
+ * panel it is audited in read as one object. Granted chips are filled and
+ * checked, ungranted ones flat grey, so a half-configured section is visible
+ * without reading every label. disabledIds render locked (role-inherited grants
+ * a direct user override can't remove).
  */
 export default function PermissionsPicker({
     allPermissions, selectedIds, onChange, classic, disabledIds,
@@ -84,14 +80,11 @@ export default function PermissionsPicker({
         });
     };
 
-    const size = classic ? 10 : 11;
-    const chipSize = classic ? 9.5 : 10.5;
     const font = classic ? xpFont : undefined;
-    const radius = classic ? 0 : 3;
 
     const wrapStyle = classic
-        ? { background: '#ffffff', border: '1px solid #b0a898', maxHeight: 320, overflowY: 'auto' as const }
-        : { border: '1px solid #dee2e6', borderRadius: 4, background: '#fff', maxHeight: 320, overflowY: 'auto' as const };
+        ? { background: '#ffffff', border: '1px solid #b0a898', maxHeight: 320, overflowY: 'auto' as const, padding: 4, display: 'flex', flexDirection: 'column' as const, gap: 6 }
+        : { background: '#fff', border: '1px solid #dee2e6', borderRadius: 4, maxHeight: 320, overflowY: 'auto' as const, padding: 6, display: 'flex', flexDirection: 'column' as const, gap: 8 };
 
     const linkBtn = (label: string, onClick: () => void, disabled: boolean) => (
         <button
@@ -109,7 +102,7 @@ export default function PermissionsPicker({
     );
 
     return (
-        <div style={wrapStyle} className={classic ? '' : 'bg-white'}>
+        <div style={wrapStyle}>
             {PERMISSION_MATRIX.map(section => {
                 const secIds = sectionIds(section);
                 if (!secIds.length) return null;
@@ -118,108 +111,61 @@ export default function PermissionsPicker({
                 const grantedCount = secIds.filter(id => selectedSet.has(id) || disabledSet.has(id)).length;
                 const allSelected = toggleable.length > 0 && toggleable.every(id => selectedSet.has(id));
 
+                const rows = isCollapsed ? [] : section.resources.flatMap(r => {
+                    const actions = RESOURCE_ACTIONS[r.resource] || [];
+                    const rowActions = actions
+                        .map(a => ({ action: a, id: idByCode.get(permissionCode(r.resource, a.code)) }))
+                        .filter((x): x is { action: typeof actions[number]; id: string } => !!x.id);
+                    if (!rowActions.length) return [];
+                    return [{
+                        key: r.resource,
+                        label: r.label,
+                        hint: r.scope ? SCOPE_BADGE[r.scope] : undefined,
+                        chips: rowActions.map(({ action, id }) => {
+                            const locked = disabledSet.has(id);
+                            const code = permissionCode(r.resource, action.code);
+                            return (
+                                <PermissionChip
+                                    key={id}
+                                    label={action.label}
+                                    code={code}
+                                    classic={classic}
+                                    state={locked ? 'locked' : selectedSet.has(id) ? 'on' : 'off'}
+                                    onClick={() => toggle(id)}
+                                    title={locked ? `${code} — granted by the role, can't be removed here` : code}
+                                />
+                            );
+                        }),
+                    }];
+                });
+
                 return (
-                    <div key={section.section} style={{ borderBottom: classic ? '1px solid #d8d4c8' : '1px solid #eee' }}>
-                        <div
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 5, padding: '3px 6px', cursor: 'pointer',
-                                background: grantedCount ? (classic ? '#e6ecf4' : '#eef1f5') : (classic ? '#f1f0ec' : '#f8f9fa'),
-                                borderBottom: isCollapsed ? 'none' : '1px solid #dcd8cc',
-                            }}
-                            onClick={() => toggleCollapse(section.section)}
-                        >
-                            <i className={`bi ${isCollapsed ? 'bi-caret-right-fill' : 'bi-caret-down-fill'}`} style={{ fontSize: 8, color: '#5a6472' }} />
-                            <span style={{
-                                fontFamily: font, fontSize: size, fontWeight: 'bold', color: '#33475b',
-                                textTransform: 'uppercase', letterSpacing: '0.5px',
-                            }}>{section.section}</span>
-                            <span style={{
-                                fontFamily: font, fontSize: classic ? 9 : 10,
-                                color: grantedCount ? '#1a3d7a' : '#8b8578',
-                                background: '#fff', border: `1px solid ${grantedCount ? '#a9bdd6' : '#d5d1c6'}`,
-                                borderRadius: radius, padding: '0 4px',
-                            }}>{grantedCount} / {secIds.length}</span>
-                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                    <PermissionSectionTable
+                        key={section.section}
+                        classic={classic}
+                        headerActive={grantedCount > 0}
+                        onHeaderClick={() => toggleCollapse(section.section)}
+                        labelWidth={132}
+                        title={
+                            <>
+                                <i className={`bi ${isCollapsed ? 'bi-caret-right-fill' : 'bi-caret-down-fill'}`} style={{ fontSize: 8, color: '#5a6472' }} />
+                                {section.section}
+                                <PermissionCountPill granted={grantedCount} total={secIds.length} classic={classic} />
+                            </>
+                        }
+                        right={
+                            <>
                                 {linkBtn('All', () => setIds(secIds, true), allSelected || !toggleable.length)}
                                 <span style={{ color: '#c3bfb3', fontSize: 9 }}>|</span>
                                 {linkBtn('Clear', () => setIds(secIds, false), !toggleable.some(id => selectedSet.has(id)))}
-                            </span>
-                        </div>
-                        {!isCollapsed && (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <tbody>
-                                    {section.resources.map((r, i) => {
-                                        const actions = RESOURCE_ACTIONS[r.resource] || [];
-                                        const rowActions = actions
-                                            .map(a => ({ action: a, id: idByCode.get(permissionCode(r.resource, a.code)) }))
-                                            .filter((x): x is { action: typeof actions[number]; id: string } => !!x.id);
-                                        if (!rowActions.length) return null;
-                                        return (
-                                            <tr key={r.resource} style={{ background: i % 2 === 0 ? '#ffffff' : '#fafaf7' }}>
-                                                <td style={{
-                                                    fontFamily: font, fontSize: size, color: '#000',
-                                                    padding: classic ? '3px 8px 3px 20px' : '4px 10px 4px 24px',
-                                                    width: 132, verticalAlign: 'top',
-                                                    borderRight: '1px solid #e6e3db',
-                                                }}>
-                                                    {r.label}
-                                                    {r.scope && (
-                                                        <div style={{ fontStyle: 'italic', color: '#9a948a', fontSize: classic ? 9 : 10 }}>
-                                                            {SCOPE_BADGE[r.scope]}
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td style={{ padding: '3px 6px' }}>
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                                                        {rowActions.map(({ action, id }) => {
-                                                            const locked = disabledSet.has(id);
-                                                            const on = selectedSet.has(id) || locked;
-                                                            const c = INTENT_CHIP[actionIntent(action.code)];
-                                                            return (
-                                                                <button
-                                                                    key={id}
-                                                                    type="button"
-                                                                    aria-pressed={on}
-                                                                    disabled={locked}
-                                                                    onClick={() => toggle(id)}
-                                                                    title={locked
-                                                                        ? `${permissionCode(r.resource, action.code)} — granted by the role, can't be removed here`
-                                                                        : permissionCode(r.resource, action.code)}
-                                                                    style={{
-                                                                        fontFamily: font, fontSize: chipSize, lineHeight: 1.6,
-                                                                        display: 'inline-flex', alignItems: 'center', gap: 3,
-                                                                        background: on ? c.bg : '#f6f5f1',
-                                                                        border: `1px solid ${on ? c.border : '#d5d1c6'}`,
-                                                                        color: on ? c.fg : '#8d8779',
-                                                                        fontWeight: on ? 'bold' : 'normal',
-                                                                        opacity: locked ? 0.7 : 1,
-                                                                        padding: '0 5px',
-                                                                        borderRadius: radius,
-                                                                        cursor: locked ? 'default' : 'pointer',
-                                                                        whiteSpace: 'nowrap',
-                                                                    }}
-                                                                >
-                                                                    <i
-                                                                        className={`bi ${locked ? 'bi-lock-fill' : on ? 'bi-check2' : 'bi-dash'}`}
-                                                                        style={{ fontSize: 8, opacity: on ? 1 : 0.55 }}
-                                                                    />
-                                                                    {action.label}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
+                            </>
+                        }
+                        rows={rows}
+                    />
                 );
             })}
             {PERMISSION_MATRIX.every(s => !sectionIds(s).length) && (
-                <div style={{ fontFamily: font, fontSize: size, padding: 8, color: '#888', fontStyle: 'italic' }}>No permissions defined</div>
+                <div style={{ fontFamily: font, fontSize: classic ? 10 : 11, padding: 8, color: '#888', fontStyle: 'italic' }}>No permissions defined</div>
             )}
         </div>
     );

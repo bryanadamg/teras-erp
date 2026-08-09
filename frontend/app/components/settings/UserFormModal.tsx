@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpBtn, xpInput, xpLabel, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { xpBtn, xpInput, CODE_FONT, xpFont, FieldLabel, ModalFooterActions } from '../shared/xpTheme';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
@@ -109,16 +109,14 @@ export default function UserFormModal({
             variant={mode === 'create' ? 'success' : 'primary'}
             size="md"
             footer={
-                <>
-                    <button type="button" style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-secondary'} onClick={onClose}>Cancel</button>
-                    <button
-                        type="button"
-                        disabled={submitting}
-                        style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
-                        className={classic ? '' : 'btn btn-success fw-bold px-4'}
-                        onClick={handleSubmit}
-                    >{submitting ? 'Saving…' : mode === 'create' ? 'Create User' : 'Save Changes'}</button>
-                </>
+                <ModalFooterActions
+                    classic={classic}
+                    onCancel={onClose}
+                    onSubmit={handleSubmit}
+                    submitting={submitting}
+                    submitLabel={mode === 'create' ? 'Create User' : 'Save Changes'}
+                    variant={mode === 'create' ? 'success' : 'primary'}
+                />
             }
         >
             {error && (
@@ -138,7 +136,7 @@ export default function UserFormModal({
                 </div>
                 <div className="flex-grow-1">
                     <div className="mb-2">
-                        <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Username</label>
+                        <FieldLabel classic={classic}>Username</FieldLabel>
                         <input
                             style={classic ? xpInput({ width: '100%', fontFamily: CODE_FONT }) : { fontFamily: CODE_FONT }}
                             className={classic ? '' : 'form-control form-control-sm'}
@@ -147,7 +145,7 @@ export default function UserFormModal({
                         />
                     </div>
                     <div>
-                        <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Full Name</label>
+                        <FieldLabel classic={classic}>Full Name</FieldLabel>
                         <input
                             style={classic ? xpInput({ width: '100%' }) : undefined}
                             className={classic ? '' : 'form-control form-control-sm'}
@@ -159,7 +157,7 @@ export default function UserFormModal({
             </div>
 
             <div className="mb-3">
-                <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Role</label>
+                <FieldLabel classic={classic}>Role</FieldLabel>
                 <select
                     style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
                     className={classic ? '' : 'form-select form-select-sm'}
@@ -172,17 +170,17 @@ export default function UserFormModal({
             </div>
 
             <div className="mb-3">
-                <div className="d-flex justify-content-between align-items-center mb-1">
-                    <label style={classic ? { ...xpLabel(), marginBottom: 0 } : undefined} className={classic ? '' : 'form-label small text-muted mb-0'}>Password</label>
-                    {mode === 'edit' && !showPassword && (
+                <FieldLabel
+                    classic={classic}
+                    right={mode === 'edit' && !showPassword ? (
                         <button
                             type="button"
                             style={classic ? xpBtn({ padding: '1px 6px', fontSize: 10 }) : undefined}
                             className={classic ? '' : 'btn btn-sm btn-link p-0'}
                             onClick={() => setShowPassword(true)}
                         >Reset Password…</button>
-                    )}
-                </div>
+                    ) : undefined}
+                >Password</FieldLabel>
                 {showPassword ? (
                     <>
                         <div className="d-flex gap-1">
@@ -232,7 +230,7 @@ export default function UserFormModal({
             </div>
 
             <div className="mb-3">
-                <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Permissions</label>
+                <FieldLabel classic={classic}>Permissions</FieldLabel>
                 <PermissionsPicker
                     allPermissions={allPermissions}
                     selectedIds={permissionIds}
@@ -241,7 +239,7 @@ export default function UserFormModal({
                     disabledIds={rolePermissionIds}
                 />
                 <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: xpFont, fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
-                    Greyed-out permissions are already granted by the selected role. Category/location/station
+                    Locked chips are already granted by the selected role. Category/location/station
                     scoping is configured on the Role, not per user.
                 </small>
             </div>
