@@ -33,6 +33,14 @@ interface StockOnHandViewProps {
 
 const UNCAT = '__uncat__';
 
+// Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
+// squeezing chip columns (Lot carries MO codes ~30 chars) into overlapping percentages.
+const COL_W = {
+    check: 34, item: 230, category: 140, location: 190, lot: 220, attrs: 150,
+    qty: 110, uom: 60, packaging: 130, notes: 190, ends: 60, actions: 74,
+};
+const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
+
 export default function StockOnHandView({ locations, stockBalance, attributes, categories, items = [], onSearchItems, onRefresh, authFetch, apiBase, loading = false }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
@@ -672,36 +680,36 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>—</span>
                         )}
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', ...colDivider }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, maxWidth: '100%' }}>
                             {getWarehouseName(bal.location_id) && (
-                                <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
+                                <span title={getWarehouseName(bal.location_id)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
                                     {getWarehouseName(bal.location_id)}
                                 </span>
                             )}
-                            <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>
+                            <span title={bal.location_name || getLocationName(bal.location_id)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>
                                 {bal.location_name || getLocationName(bal.location_id)}
                             </span>
                         </div>
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap', ...colDivider }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider }}>
                         {bal.batch_key ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
-                                <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', maxWidth: '100%' }}>
+                                <span title={batchLabel} style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }}>
                                     {batchLabel}
                                 </span>
                                 {bal.vendor_lot && (
-                                    <span title={`Supplier lot: ${bal.vendor_lot}`} style={{ background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }}>
+                                    <span title={`Supplier lot: ${bal.vendor_lot}`} style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }}>
                                         SUP {bal.vendor_lot}
                                     </span>
                                 )}
                                 {bal.mo_code && (
-                                    <span title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`} style={{ background: '#e4f0e4', border: '1px solid #8fbb8f', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#2a4a2a', whiteSpace: 'nowrap' }}>
+                                    <span title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`} style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#e4f0e4', border: '1px solid #8fbb8f', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#2a4a2a', whiteSpace: 'nowrap' }}>
                                         MO {bal.mo_code}
                                     </span>
                                 )}
                                 {qStatus && (
-                                    <span title="QC rejected — not usable stock, excluded from netting and consumption pickers" style={{ background: '#f8d7d7', border: '1px solid #a03030', padding: '0 5px', fontSize: '10px', fontWeight: 'bold', color: '#7a1010', whiteSpace: 'nowrap' }}>
+                                    <span title="QC rejected — not usable stock, excluded from netting and consumption pickers" style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f8d7d7', border: '1px solid #a03030', padding: '0 5px', fontSize: '10px', fontWeight: 'bold', color: '#7a1010', whiteSpace: 'nowrap' }}>
                                         <i className="bi bi-x-octagon-fill" style={{ marginRight: 3, fontSize: 9 }} />{qStatus}
                                     </span>
                                 )}
@@ -794,30 +802,30 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span className="text-muted">—</span>
                     )}
                 </td>
-                <td style={colDivider}>
-                    <div className="d-flex flex-wrap gap-1">
+                <td style={{ overflow: 'hidden', ...colDivider }}>
+                    <div className="d-flex flex-wrap gap-1" style={{ maxWidth: '100%' }}>
                         {getWarehouseName(bal.location_id) && (
-                            <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(bal.location_id)}</span>
+                            <span className="badge bg-secondary-subtle text-secondary-emphasis text-truncate" style={{ maxWidth: '100%' }} title={getWarehouseName(bal.location_id)}>{getWarehouseName(bal.location_id)}</span>
                         )}
-                        <span className="badge bg-primary-subtle text-primary-emphasis">{bal.location_name || getLocationName(bal.location_id)}</span>
+                        <span className="badge bg-primary-subtle text-primary-emphasis text-truncate" style={{ maxWidth: '100%' }} title={bal.location_name || getLocationName(bal.location_id)}>{bal.location_name || getLocationName(bal.location_id)}</span>
                     </div>
                 </td>
-                <td style={{ whiteSpace: 'nowrap', ...colDivider }}>
+                <td style={{ overflow: 'hidden', ...colDivider }}>
                     {bal.batch_key ? (
-                        <div className="d-flex flex-column gap-1 align-items-start">
-                            <span className="badge bg-warning text-dark">{batchLabel}</span>
+                        <div className="d-flex flex-column gap-1 align-items-start" style={{ maxWidth: '100%' }}>
+                            <span className="badge bg-warning text-dark d-block text-truncate" style={{ maxWidth: '100%' }} title={batchLabel}>{batchLabel}</span>
                             {bal.vendor_lot && (
-                                <span className="badge bg-secondary-subtle text-secondary-emphasis" style={{ fontFamily: CODE_FONT }} title={`Supplier lot: ${bal.vendor_lot}`}>
+                                <span className="badge bg-secondary-subtle text-secondary-emphasis d-block text-truncate" style={{ fontFamily: CODE_FONT, maxWidth: '100%' }} title={`Supplier lot: ${bal.vendor_lot}`}>
                                     SUP {bal.vendor_lot}
                                 </span>
                             )}
                             {bal.mo_code && (
-                                <span className="badge bg-success-subtle text-success-emphasis" style={{ fontFamily: CODE_FONT }} title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}>
+                                <span className="badge bg-success-subtle text-success-emphasis d-block text-truncate" style={{ fontFamily: CODE_FONT, maxWidth: '100%' }} title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}>
                                     MO {bal.mo_code}
                                 </span>
                             )}
                             {qStatus && (
-                                <span className="badge bg-danger" title="QC rejected — not usable stock, excluded from netting and consumption pickers">
+                                <span className="badge bg-danger d-block text-truncate" style={{ maxWidth: '100%' }} title="QC rejected — not usable stock, excluded from netting and consumption pickers">
                                     <i className="bi bi-x-octagon-fill me-1" />{qStatus}
                                 </span>
                             )}
@@ -1255,24 +1263,24 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </button>
                         )}
                     </div>
-                    <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', minHeight: 0 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <div style={{ flex: 1, overflow: 'auto', background: '#ffffff', minHeight: 0 }}>
+                        <table style={{ width: '100%', minWidth: TABLE_MIN_WIDTH, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ ...xpTableHeader, width: '3%', textAlign: 'center' }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
+                                    <th style={{ ...xpTableHeader, width: COL_W.check, textAlign: 'center' }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
                                         <input type="checkbox" style={{ margin: 0, cursor: 'pointer' }} checked={allPageSelected} disabled={!pageMovable.length} onChange={togglePageSelection} />
                                     </th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '14%' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '12%' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                    <th style={{ ...xpTableHeader, width: '10%' }}>{t('attributes') || 'Attributes'}</th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: '8%' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                    <th style={{ ...xpTableHeader, width: '5%' }}>UOM</th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '11%' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right', width: '5%' }}>Ends</th>
-                                    <th style={{ ...xpTableHeader, width: '5%', borderRight: 'none' }}></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.item }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.category }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.location }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.lot }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                    <th style={{ ...xpTableHeader, width: COL_W.attrs }}>{t('attributes') || 'Attributes'}</th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: COL_W.qty }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                    <th style={{ ...xpTableHeader, width: COL_W.uom }}>UOM</th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.packaging }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.notes }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right', width: COL_W.ends }}>Ends</th>
+                                    <th style={{ ...xpTableHeader, width: COL_W.actions, borderRight: 'none' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1385,24 +1393,24 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         )}
                     </div>
                 </div>
-                <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                    <table className="table table-hover table-sm mb-0" style={{ tableLayout: 'fixed' }}>
+                <div className="table-responsive" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                    <table className="table table-hover table-sm mb-0" style={{ tableLayout: 'fixed', minWidth: TABLE_MIN_WIDTH }}>
                         <thead className="table-light">
                             <tr>
-                                <th className="text-center" style={{ width: '3%', ...colDivider }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
+                                <th className="text-center" style={{ width: COL_W.check, ...colDivider }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
                                     <input type="checkbox" style={{ margin: 0, cursor: 'pointer' }} checked={allPageSelected} disabled={!pageMovable.length} onChange={togglePageSelection} />
                                 </th>
-                                <th style={{ cursor: 'pointer', width: '14%', ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                <th style={{ cursor: 'pointer', width: '9%', ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                <th style={{ cursor: 'pointer', width: '12%', ...colDivider }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={{ cursor: 'pointer', width: '9%', ...colDivider }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                <th style={{ width: '10%', ...colDivider }}>{t('attributes') || 'Attributes'}</th>
-                                <th className="text-end" style={{ cursor: 'pointer', width: '8%', ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                <th style={{ width: '5%', ...colDivider }}>UOM</th>
-                                <th style={{ cursor: 'pointer', width: '9%', ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                <th style={{ cursor: 'pointer', width: '11%', ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                                <th className="text-end" style={{ width: '5%', ...colDivider }}>Ends</th>
-                                <th style={{ width: '5%' }}></th>
+                                <th style={{ cursor: 'pointer', width: COL_W.item, ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                <th style={{ cursor: 'pointer', width: COL_W.category, ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
+                                <th style={{ cursor: 'pointer', width: COL_W.location, ...colDivider }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                <th style={{ cursor: 'pointer', width: COL_W.lot, ...colDivider }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                <th style={{ width: COL_W.attrs, ...colDivider }}>{t('attributes') || 'Attributes'}</th>
+                                <th className="text-end" style={{ cursor: 'pointer', width: COL_W.qty, ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                <th style={{ width: COL_W.uom, ...colDivider }}>UOM</th>
+                                <th style={{ cursor: 'pointer', width: COL_W.packaging, ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
+                                <th style={{ cursor: 'pointer', width: COL_W.notes, ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                <th className="text-end" style={{ width: COL_W.ends, ...colDivider }}>Ends</th>
+                                <th style={{ width: COL_W.actions }}></th>
                             </tr>
                         </thead>
                         <tbody>
