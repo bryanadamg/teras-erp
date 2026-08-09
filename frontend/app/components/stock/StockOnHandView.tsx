@@ -508,7 +508,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             const batch = bal.batch_key ? (bal.batch_number || bal.batch_key).toLowerCase() : '';
             const vendorLot = (bal.vendor_lot || '').toLowerCase();
             const notes = (bal.batch_notes || '').toLowerCase();
-            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s) || vendorLot.includes(s) || notes.includes(s);
+            const mo = `${bal.mo_code || ''} ${bal.wo_code || ''}`.toLowerCase();
+            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s) || vendorLot.includes(s) || notes.includes(s) || mo.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, locMap, hideRejected]);
@@ -694,6 +695,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                         SUP {bal.vendor_lot}
                                     </span>
                                 )}
+                                {bal.mo_code && (
+                                    <span title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`} style={{ background: '#e4f0e4', border: '1px solid #8fbb8f', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#2a4a2a', whiteSpace: 'nowrap' }}>
+                                        MO {bal.mo_code}
+                                    </span>
+                                )}
                                 {qStatus && (
                                     <span title="QC rejected — not usable stock, excluded from netting and consumption pickers" style={{ background: '#f8d7d7', border: '1px solid #a03030', padding: '0 5px', fontSize: '10px', fontWeight: 'bold', color: '#7a1010', whiteSpace: 'nowrap' }}>
                                         <i className="bi bi-x-octagon-fill" style={{ marginRight: 3, fontSize: 9 }} />{qStatus}
@@ -803,6 +809,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             {bal.vendor_lot && (
                                 <span className="badge bg-secondary-subtle text-secondary-emphasis" style={{ fontFamily: CODE_FONT }} title={`Supplier lot: ${bal.vendor_lot}`}>
                                     SUP {bal.vendor_lot}
+                                </span>
+                            )}
+                            {bal.mo_code && (
+                                <span className="badge bg-success-subtle text-success-emphasis" style={{ fontFamily: CODE_FONT }} title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}>
+                                    MO {bal.mo_code}
                                 </span>
                             )}
                             {qStatus && (
@@ -960,7 +971,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                             </td>
                                             <td style={{ padding: '3px 6px' }}>{bal.location_name || getLocationName(bal.location_id)}</td>
                                             <td style={{ padding: '3px 6px', fontFamily: CODE_FONT, fontSize: 10 }}>
-                                                {bal.batch_key ? (bal.batch_number || bal.batch_key) : '-'}
+                                                <div>{bal.batch_key ? (bal.batch_number || bal.batch_key) : '-'}</div>
+                                                {bal.mo_code && <div style={{ color: '#2a4a2a' }}>MO {bal.mo_code}</div>}
                                             </td>
                                             <td style={{ padding: '3px 6px', textAlign: 'right', fontFamily: CODE_FONT }}>
                                                 {Number(bal.qty).toLocaleString('en-US', { maximumFractionDigits: 3 })} {bal.item_uom || ''}
@@ -1192,7 +1204,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span style={{ fontSize: '10px', opacity: 0.85 }}>{filtered.length} records</span>
                     </div>
                     <div style={xpToolbar}>
-                        <SearchField classic value={search} onChange={setSearch} placeholder="Search item, location, lot, notes..." width={220} />
+                        <SearchField classic value={search} onChange={setSearch} placeholder="Search item, location, lot, MO, notes..." width={220} />
                         <div style={xpSep} />
                         <TreeSelect
                             options={catTreeOptions}
@@ -1312,7 +1324,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <div className="card-body pb-0" style={{ flexShrink: 0 }}>
                     <div className="row g-2 mb-3">
                         <div className="col-md-3">
-                            <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search item, location, category, lot, notes..." width={400} grow style={{ display: 'flex', width: '100%' }} />
+                            <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search item, location, category, lot, MO, notes..." width={400} grow style={{ display: 'flex', width: '100%' }} />
                         </div>
                         <div className="col-md-3">
                             <TreeSelect

@@ -1284,6 +1284,11 @@ class StockBalanceResponse(BaseModel):
     # the UI reads it to tint/flag unusable rows; it was missing here, so the response
     # model silently stripped it and rejected stock displayed as if it were good.
     quality_status: str = "GOOD"
+    # Production origin of the lot, resolved Batch.source_wo_id → WO → MO. Only set
+    # for lots minted by a WO completion (goods-receipt GR- lots have no source WO).
+    mo_id: UUID | None = None
+    mo_code: str | None = None
+    wo_code: str | None = None
 
 class UOMCreate(BaseModel):
     name: str

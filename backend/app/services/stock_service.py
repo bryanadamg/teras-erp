@@ -285,6 +285,9 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
     # Operator note captured when the lot was produced (WO completion) — carried here
     # so on-hand shows the same remark as the bag label and the Lot table.
     batch_notes_map: dict[str, str] = {}
+    # Production origin: a lot minted by a WO completion carries source_wo_id, which
+    # resolves WO -> MO. Goods-receipt (GR-) lots have no source WO and stay blank.
+    batch_origin_map: dict[str, dict] = {}
     if batch_ids:
         import uuid as _uuid
         from app.models.batch import Batch
@@ -299,9 +302,11 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                 select(
                     Batch.id, Batch.batch_number, Batch.bom_size_snapshot,
                     Batch.vendor_lot, Batch.quality_status, Batch.notes,
+                    Batch.source_wo_id,
                 ).filter(Batch.id.in_(valid_ids))
             )
-            for bid, bnum, snapshot, vlot, qstatus, bnotes in batch_rows.all():
+            wo_by_batch: dict = {}
+            for bid, bnum, snapshot, vlot, qstatus, bnotes, src_wo in batch_rows.all():
                 batch_number_map[str(bid)] = bnum
                 label = _bom_size_label(snapshot)
                 if label:
@@ -312,6 +317,26 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                     batch_quality_map[str(bid)] = qstatus
                 if bnotes and bnotes.strip():
                     batch_notes_map[str(bid)] = bnotes.strip()
+                if src_wo:
+                    wo_by_batch[str(bid)] = src_wo
+
+            # One grouped WO -> MO lookup for the whole page; no N+1.
+            if wo_by_batch:
+                from app.models.work_order import WorkOrder
+                from app.models.manufacturing import ManufacturingOrder
+                mo_rows = await db.execute(
+                    select(WorkOrder.id, WorkOrder.code, ManufacturingOrder.id, ManufacturingOrder.code)
+                    .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+                    .filter(WorkOrder.id.in_(set(wo_by_batch.values())))
+                )
+                by_wo = {
+                    wo_id: {"wo_code": wo_code, "mo_id": mo_id, "mo_code": mo_code}
+                    for wo_id, wo_code, mo_id, mo_code in mo_rows.all()
+                }
+                for bid_str, wo_id in wo_by_batch.items():
+                    info = by_wo.get(wo_id)
+                    if info:
+                        batch_origin_map[bid_str] = info
 
     return [
         {
@@ -336,6 +361,9 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             "batch_notes": batch_notes_map.get(r.batch_key) if r.batch_key else None,
             # GOOD unless the lot carries a QC flag; non-lotted rows are always GOOD.
             "quality_status": (batch_quality_map.get(r.batch_key, "GOOD") if r.batch_key else "GOOD"),
+            "mo_id": (batch_origin_map.get(r.batch_key) or {}).get("mo_id") if r.batch_key else None,
+            "mo_code": (batch_origin_map.get(r.batch_key) or {}).get("mo_code") if r.batch_key else None,
+            "wo_code": (batch_origin_map.get(r.batch_key) or {}).get("wo_code") if r.batch_key else None,
         }
         for r in results
         if r.qty != 0 or r.qty_cones or r.qty_boxes or r.qty_drums
