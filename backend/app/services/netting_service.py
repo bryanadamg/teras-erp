@@ -58,7 +58,7 @@ from app.models.item import Item
 from app.services import reject_service
 from app.services.stock_service import _generate_variant_key
 from app.services.mrp_service import (
-    _line_decoupled, _combo_attr_id, _line_combo_value_ids, active_sub_bom,
+    _line_decoupled, _combo_attr_id, _line_combo_value_ids, _effective_combo, active_sub_bom,
 )
 
 
@@ -417,6 +417,10 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
                 sub_bom = await _active_sub_bom(db, line.item_id, line_combo, combo_attr_id)
                 if not sub_bom:
                     continue
+                # Combo-less resolved recipe = combo-agnostic shared component: drop
+                # the inherited line tag so the preview keys the same way the create
+                # path does (mrp_service._effective_combo) and pools across branches.
+                line_combo = _effective_combo(line_combo, sub_bom, combo_attr_id)
                 item_flag = (await db.execute(
                     select(Item.is_decoupling_point).filter(Item.id == line.item_id)
                 )).scalar()
@@ -476,6 +480,7 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
         sub_bom = await _active_sub_bom(db, line.item_id, line_combo, combo_attr_id)
         if not sub_bom:
             continue
+        line_combo = _effective_combo(line_combo, sub_bom, combo_attr_id)
         gross = (parent_net * float(line.percentage)) / 100
         sub_loc = source_location_id or location_id
         item_flag = (await db.execute(

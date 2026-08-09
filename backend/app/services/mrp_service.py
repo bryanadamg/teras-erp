@@ -48,6 +48,33 @@ def _line_combo_value_ids(line, combo_attr_id) -> list[str]:
     )
 
 
+def _bom_combo_value_ids(bom, combo_attr_id) -> list[str]:
+    """Combo attribute value(s) carried by a BOM itself, sorted."""
+    if not combo_attr_id or bom is None:
+        return []
+    return sorted(
+        str(v.id) for v in getattr(bom, "attribute_values", [])
+        if v.attribute_id == combo_attr_id
+    )
+
+
+def _effective_combo(line_combo, sub_bom, combo_attr_id) -> list[str]:
+    """The combo that actually varies a component — the line tag intersected with
+    what the *resolved* sub-BOM carries.
+
+    `active_sub_bom` falls back to the combo-less shared recipe when the component
+    owns no per-combo BOM, and the BOM designer force-inherits the parent's combo
+    onto every descendant line whether or not that item is combo-differentiated.
+    Trusting the line tag alone therefore split a combo-agnostic component (e.g. a
+    shared beam cover) into one MO per parent combo, each stamped with a combo its
+    own recipe never had. Combo-agnosticism is a property of the BOM, never of the
+    line or the item — so when the resolved recipe is combo-less, the component
+    pools and carries no combo."""
+    if not line_combo:
+        return []
+    return list(line_combo) if _bom_combo_value_ids(sub_bom, combo_attr_id) == list(line_combo) else []
+
+
 async def active_sub_bom(
     db: AsyncSession, item_id, combo_value_ids=(), combo_attr_id=None,
     with_sizes: bool = False, with_item: bool = False,
@@ -242,6 +269,8 @@ async def create_mo_recursive(
             # pick the component's own per-combo recipe.
             line_combo = _line_combo_value_ids(line, combo_attr_id)
             sub_bom = await active_sub_bom(db, line.item_id, line_combo, combo_attr_id)
+            # Drop the tag when the resolved recipe is combo-less (shared component).
+            line_combo = _effective_combo(line_combo, sub_bom, combo_attr_id)
 
             if sub_bom:
                 sub_qty = (qty * float(line.percentage)) / 100
@@ -352,6 +381,10 @@ async def create_consolidated_component_mos(
                 sub_bom = await active_sub_bom(db, line.item_id, line_combo, combo_attr_id, with_sizes=True)
                 if not sub_bom:
                     continue
+                # A combo-less resolved recipe = combo-agnostic shared component:
+                # strip the inherited line tag so it pools across every parent combo
+                # instead of splitting into one stamped MO per branch.
+                line_combo = _effective_combo(line_combo, sub_bom, combo_attr_id)
 
                 # Source kept only as the component MO's default source (staging
                 # cascade). Industry chain: BOM-line override -> item-master default ->
