@@ -730,22 +730,42 @@ export default function BOMDesigner({
     // silently lose or gain variant values).
     //   1. A brand-new item has no attribute master yet, so the parent's values pass
     //      through as-is; an existing item takes only values it can actually hold.
-    //   2. The Combo value is the exception to (1)'s filter: it flows down whether or
-    //      not the child item is bound to the Combo attribute yet, because combo is
-    //      woven in — a greige/beam under a combo root IS combo-specific and needs its
-    //      own recipe. saveNode's ensureItemHasAttributes binds the type on save.
+    //   2. Combo gets NO exemption from (1)'s filter. It used to be force-added to every
+    //      child regardless of binding, on the theory that combo is woven in — but (1)
+    //      already passes the parent's values through wholesale for a brand-new item, so
+    //      the only rows the override actually reached were EXISTING items whose master
+    //      says they hold no Combo. That stamped a combo onto a combo-agnostic shared
+    //      component (a beam cover feeding both the RED and BLUE greige), which MRP
+    //      Pass 2 then split into one MO per parent combo. The item master is the
+    //      authority: bind Combo to the item to make it combo-specific.
     //      Color needs no counterpart rule: color-type FGs carry no attribute value at
     //      all (they ride color_id), so there is nothing for greige to inherit and it
     //      stays color-agnostic by construction.
     const inheritAttrsFor = useCallback((childItemCode: string, parentAttrIds: string[]): string[] => {
         const parent = parentAttrIds || [];
         if (!getItemByCode(childItemCode)) return [...parent];
-        const base = findMatchingAttributeIds(childItemCode, parent);
-        for (const id of parent.map(String).filter(v => comboValueIds.has(v))) {
-            if (!base.includes(id)) base.push(id);
-        }
-        return base;
-    }, [getItemByCode, findMatchingAttributeIds, comboValueIds]);
+        return findMatchingAttributeIds(childItemCode, parent);
+    }, [getItemByCode, findMatchingAttributeIds]);
+
+    // Re-derive a whole subtree's variant after the node's OWN values changed. The
+    // node's dropdown is the authority: every descendant line and sub-node re-inherits
+    // through THE rule above, so a combo cleared here vanishes all the way down instead
+    // of lingering on stale descendant lines (which is what MRP keys the split on).
+    const reinheritSubtree = useCallback((node: BOMNodeData, attrs: string[]): BOMNodeData => {
+        const walk = (n: BOMNodeData, a: string[]): BOMNodeData => ({
+            ...n,
+            attribute_value_ids: a,
+            lines: n.lines.map(line => {
+                const childAttrs = inheritAttrsFor(line.item_code, a);
+                return {
+                    ...line,
+                    attribute_value_ids: childAttrs,
+                    subBOM: line.subBOM ? walk(line.subBOM, childAttrs) : line.subBOM,
+                };
+            }),
+        });
+        return walk(node, attrs);
+    }, [inheritAttrsFor]);
 
     // Which items in this tree already own a BOM. Asked of the server because
     // `existingBOMs` is one root-only page of /boms/summary and therefore blind to
@@ -1186,10 +1206,17 @@ export default function BOMDesigner({
         if (root.id === targetId) return newNode;
         return {
             ...root,
-            lines: root.lines.map(line => ({
-                ...line,
-                subBOM: line.subBOM ? findNodeAndReplace(line.subBOM, targetId, newNode) : undefined
-            }))
+            lines: root.lines.map(line => {
+                if (!line.subBOM) return line;
+                const subBOM = findNodeAndReplace(line.subBOM, targetId, newNode);
+                // The line that owns a sub-node carries that node's variant BY DEFINITION —
+                // the line's component IS what the sub-BOM produces. Letting the two drift is
+                // how a combo cleared on the node stayed stamped on the parent line, which
+                // MRP Pass 2 reads as the split key.
+                return line.subBOM.id === targetId
+                    ? { ...line, subBOM, attribute_value_ids: [...(newNode.attribute_value_ids || [])] }
+                    : { ...line, subBOM };
+            })
         };
     };
 
@@ -1521,8 +1548,12 @@ export default function BOMDesigner({
                                                             const attrValId = e.target.value;
                                                             const others = selectedNode.attribute_value_ids.filter(v => !attr.values.some((av: any) => av.id === v));
                                                             const newVals = attrValId ? [...others, attrValId] : others;
+                                                            // Cascade: descendants re-inherit from the new value, so clearing a
+                                                            // combo here clears it on every line below instead of leaving stale
+                                                            // tags that MRP still splits on.
+                                                            const respread = reinheritSubtree(selectedNode, newVals);
                                                             updateSelectedNode({
-                                                                attribute_value_ids: newVals,
+                                                                ...respread,
                                                                 code: selectedNodeId === 'root' ? suggestBOMCode(selectedNode.item_code, newVals) : selectedNode.code
                                                             });
                                                         }}
