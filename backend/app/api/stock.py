@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
-from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, get_current_admin, category_scope_ok
 from app.models.item import Item
@@ -343,6 +343,102 @@ async def transfer_stock(
         pass
 
     return {"status": "success", "message": "Transfer recorded"}
+
+
+@router.post("/stock/transfer/bulk", status_code=201)
+async def transfer_stock_bulk(
+    payload: StockBulkTransferCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('stock_on_hand.move')),
+):
+    """Move several on-hand rows to ONE destination in a single transaction.
+
+    All-or-nothing: every line is validated up front and all ledger writes share
+    one commit, so a negative-stock guard tripping on line 7 rolls back lines 1-6
+    rather than leaving a half-done move on the floor.
+    """
+    if not payload.lines:
+        raise HTTPException(status_code=400, detail="No lines to transfer")
+
+    item_ids = {ln.item_id for ln in payload.lines}
+    loc_ids = {ln.from_location_id for ln in payload.lines} | {payload.to_location_id}
+
+    items_result = await db.execute(select(Item).filter(Item.id.in_(item_ids)))
+    items = {it.id: it for it in items_result.scalars().all()}
+    locs_result = await db.execute(select(Location).filter(Location.id.in_(loc_ids)))
+    locs = {loc.id: loc for loc in locs_result.scalars().all()}
+    if payload.to_location_id not in locs:
+        raise HTTPException(status_code=404, detail="Destination location not found")
+
+    # Validate everything before writing anything.
+    for idx, ln in enumerate(payload.lines, start=1):
+        item = items.get(ln.item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail=f"Line {idx}: item not found")
+        if ln.qty <= 0:
+            raise HTTPException(status_code=400, detail=f"Line {idx} ({item.code}): qty must be positive")
+        if ln.from_location_id not in locs:
+            raise HTTPException(status_code=404, detail=f"Line {idx} ({item.code}): source location not found")
+        if ln.from_location_id == payload.to_location_id:
+            raise HTTPException(status_code=400, detail=f"Line {idx} ({item.code}): already at the destination location")
+        if not category_scope_ok(current_user, item.category_id):
+            raise HTTPException(status_code=403, detail=f"Line {idx} ({item.code}): not authorized for this category")
+        if item.lot_tracked and not ln.batch_id:
+            raise HTTPException(status_code=400, detail=f"Line {idx}: item {item.code} is lot-tracked — select a lot to transfer")
+
+    dest_code = locs[payload.to_location_id].code
+    for ln in payload.lines:
+        item = items[ln.item_id]
+        attrs = [str(u) for u in ln.attribute_value_ids]
+        ref = f"{locs[ln.from_location_id].code} -> {dest_code}"
+        c = ln.qty_cones or 0
+        b = ln.qty_boxes or 0
+        d = ln.qty_drums or 0
+        # OUT first — per-batch negative stock guard blocks over-transfer
+        await stock_service.add_stock_entry(
+            db, item_id=item.id, location_id=ln.from_location_id,
+            qty_change=-ln.qty, reference_type="Transfer", reference_id=ref,
+            attribute_value_ids=attrs, batch_id=ln.batch_id,
+            cones_change=-c, boxes_change=-b, drums_change=-d,
+        )
+        await stock_service.add_stock_entry(
+            db, item_id=item.id, location_id=payload.to_location_id,
+            qty_change=ln.qty, reference_type="Transfer", reference_id=ref,
+            attribute_value_ids=attrs, batch_id=ln.batch_id,
+            cones_change=c, boxes_change=b, drums_change=d,
+        )
+    await db.commit()
+
+    await audit_service.log_activity(
+        db=db,
+        user_id=current_user.id,
+        action="TRANSFER",
+        entity_type="stock_entry",
+        entity_id=str(payload.to_location_id),
+        details=f"Combined move of {len(payload.lines)} stock rows to {dest_code}",
+        changes={
+            "destination": dest_code,
+            "line_count": len(payload.lines),
+            "lines": [
+                {
+                    "item": items[ln.item_id].code,
+                    "from": locs[ln.from_location_id].code,
+                    "qty": ln.qty,
+                    "batch_id": str(ln.batch_id) if ln.batch_id else None,
+                }
+                for ln in payload.lines
+            ],
+        },
+    )
+
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
+    return {"status": "success", "message": f"Moved {len(payload.lines)} rows to {dest_code}", "moved": len(payload.lines)}
 
 
 @router.get("/stock/balance", response_model=list[StockBalanceResponse])

@@ -1206,6 +1206,23 @@ class StockTransferCreate(BaseModel):
     qty_boxes: int | None = None
     qty_drums: int | None = None
 
+# Multi-row move: the operator ticks several on-hand rows and sends them to ONE
+# destination in a single transaction. Each line keeps its own source location,
+# lot and variant — only the destination is shared.
+class StockBulkTransferLine(BaseModel):
+    item_id: UUID
+    from_location_id: UUID
+    qty: float
+    batch_id: UUID | None = None
+    attribute_value_ids: list[UUID] = []
+    qty_cones: int | None = None
+    qty_boxes: int | None = None
+    qty_drums: int | None = None
+
+class StockBulkTransferCreate(BaseModel):
+    to_location_id: UUID
+    lines: list[StockBulkTransferLine]
+
 class StockLedgerResponse(BaseModel):
     id: UUID
     item_id: UUID
