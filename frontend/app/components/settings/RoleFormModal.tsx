@@ -142,7 +142,9 @@ export default function RoleFormModal({
             onClose={onClose}
             title={<span><i className="bi bi-shield-lock me-2"></i>{mode === 'create' ? 'Add Role' : `Edit Role — ${role?.name}`}</span>}
             variant={mode === 'create' ? 'success' : 'primary'}
-            size="md"
+            /* Permission matrix needs the width: at md every resource row wrapped
+               its action chips onto three lines. */
+            size="xl"
             footer={
                 <ModalFooterActions
                     classic={classic}

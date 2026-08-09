@@ -83,8 +83,8 @@ export default function PermissionsPicker({
     const font = classic ? xpFont : undefined;
 
     const wrapStyle = classic
-        ? { background: '#ffffff', border: '1px solid #b0a898', maxHeight: 320, overflowY: 'auto' as const, padding: 4, display: 'flex', flexDirection: 'column' as const, gap: 6 }
-        : { background: '#fff', border: '1px solid #dee2e6', borderRadius: 4, maxHeight: 320, overflowY: 'auto' as const, padding: 6, display: 'flex', flexDirection: 'column' as const, gap: 8 };
+        ? { background: '#f7f6f2', border: '1px solid #b0a898', maxHeight: 400, overflowY: 'auto' as const, padding: 6, display: 'flex', flexDirection: 'column' as const, gap: 8 }
+        : { background: '#f8f9fb', border: '1px solid #dee2e6', borderRadius: 4, maxHeight: 400, overflowY: 'auto' as const, padding: 8, display: 'flex', flexDirection: 'column' as const, gap: 10 };
 
     const linkBtn = (label: string, onClick: () => void, disabled: boolean) => (
         <button
@@ -145,7 +145,7 @@ export default function PermissionsPicker({
                         classic={classic}
                         headerActive={grantedCount > 0}
                         onHeaderClick={() => toggleCollapse(section.section)}
-                        labelWidth={132}
+                        labelWidth={160}
                         title={
                             <>
                                 <i className={`bi ${isCollapsed ? 'bi-caret-right-fill' : 'bi-caret-down-fill'}`} style={{ fontSize: 8, color: '#5a6472' }} />

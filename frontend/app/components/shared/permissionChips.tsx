@@ -54,7 +54,7 @@ export function PermissionChip({ label, code, state, classic, direct = false, ti
         color: direct ? '#00006e' : on ? c.fg : '#8d8779',
         fontWeight: on ? 'bold' : 'normal',
         opacity: state === 'locked' ? 0.7 : 1,
-        padding: '0 5px',
+        padding: '1px 6px',
         borderRadius: classic ? 0 : 3,
         whiteSpace: 'nowrap',
         cursor: interactive ? 'pointer' : 'default',
@@ -116,6 +116,9 @@ export function PermissionSectionTable({
             borderRadius: classic ? 0 : 3,
             background: '#fff',
             overflow: 'hidden',
+            // Never let a flex-column parent squash a section down to its first
+            // row — the picker's scroll box is exactly that shape.
+            flexShrink: 0,
             ...style,
         }}>
             <div
@@ -124,7 +127,7 @@ export function PermissionSectionTable({
                     display: 'flex', alignItems: 'center', gap: 5,
                     background: headerActive ? '#eef1f5' : '#f4f3ef',
                     borderBottom: '1px solid #b8c2cc',
-                    padding: '3px 8px',
+                    padding: '5px 10px',
                     cursor: onHeaderClick ? 'pointer' : 'default',
                 }}
             >
@@ -141,7 +144,8 @@ export function PermissionSectionTable({
                         <tr key={r.key} style={{ background: i % 2 === 0 ? '#ffffff' : '#fafaf7' }}>
                             <td style={{
                                 fontFamily: font, fontSize: size, color: '#000',
-                                padding: '3px 8px',
+                                lineHeight: 1.5,
+                                padding: '6px 10px',
                                 paddingLeft: rowPaddingLeft,
                                 width: labelWidth,
                                 verticalAlign: 'top',
@@ -152,8 +156,8 @@ export function PermissionSectionTable({
                                     <div style={{ fontStyle: 'italic', color: '#9a948a', fontSize: classic ? 9 : 10 }}>{r.hint}</div>
                                 )}
                             </td>
-                            <td style={{ padding: '3px 6px' }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>{r.chips}</div>
+                            <td style={{ padding: '5px 10px' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{r.chips}</div>
                             </td>
                         </tr>
                     ))}

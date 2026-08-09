@@ -35,8 +35,8 @@ export default function PermissionBreakdown({ permissions, classic, showDirect =
             <ExpandedRowPanelBody classic={classic}>
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: 12,
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+                    gap: 14,
                     alignItems: 'start',
                 }}>
                     {sections.map(({ section, permissions: secPerms }) => (
