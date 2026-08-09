@@ -475,8 +475,16 @@ export default function BOMView({
 
         return (
             <tr key={`${bom.id}-detail`}>
-                <td colSpan={8} style={{ padding: 0, borderTop: 'none' }}>
-                    <div style={{ display: 'flex', height: 420, background: '#ece9d8', borderTop: '2px solid #0058e6', fontFamily: xpFont, fontSize: 11 }}>
+                {/* Frame on the cell, inner grounds untouched: this expansion is a two-pane
+                    BOM workspace, not a detail readout, so it keeps its own beige panes and
+                    takes only the standard rail + edge rules from ExpandedRowPanel. */}
+                <td colSpan={8} style={{
+                    padding: 0,
+                    borderLeft: classic ? '4px solid #316ac5' : '3px solid #2f6feb',
+                    borderTop: classic ? '2px solid #808080' : '2px solid #adb5bd',
+                    borderBottom: classic ? '2px solid #808080' : '2px solid #adb5bd',
+                }}>
+                    <div style={{ display: 'flex', height: 420, background: '#ece9d8', fontFamily: xpFont, fontSize: 11 }}>
 
                         {/* LEFT: Tree */}
                         <div style={{ width: 320, flexShrink: 0, borderRight: '2px solid #aca899', display: 'flex', flexDirection: 'column', background: '#ddd9c8' }}>

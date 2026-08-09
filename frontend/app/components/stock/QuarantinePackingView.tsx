@@ -10,7 +10,7 @@ import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField }
 import { lvTh, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, XPLoading, XPStatusBar, XPEmptyState,
-    XPActionButton, ColorSwatchChip, xpPanel, CodeChip,
+    XPActionButton, ColorSwatchChip, xpPanel, ExpandedRowPanel, CodeChip,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -222,9 +222,8 @@ export default function QuarantinePackingView() {
 
     // ── Per-lot detail table (both themes) ────────────────────────────────────
     const renderLots = (g: Group) => (
-        <div style={{
-            ...xpPanel({ padding: classic ? '8px 12px 10px 30px' : '10px 16px', margin: 0 }),
-            background: classic ? '#fffdf2' : '#f8fafc',
+        <ExpandedRowPanel classic={classic} style={{
+            padding: classic ? '8px 12px 10px 18px' : '10px 16px',
         }}>
             <div style={{
                 fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
@@ -289,7 +288,7 @@ export default function QuarantinePackingView() {
                     ))}
                 </tbody>
             </table>
-        </div>
+        </ExpandedRowPanel>
     );
 
     // ── Toolbar ───────────────────────────────────────────────────────────────
@@ -421,7 +420,7 @@ export default function QuarantinePackingView() {
                                 </tr>
                                 {open && (
                                     <tr>
-                                        <td colSpan={COL_COUNT} style={{ padding: 0, borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e6eaf1' }}>
+                                        <td colSpan={COL_COUNT} style={{ padding: 0 }}>
                                             {renderLots(g)}
                                         </td>
                                     </tr>

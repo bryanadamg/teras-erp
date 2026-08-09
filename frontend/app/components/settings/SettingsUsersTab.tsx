@@ -343,8 +343,8 @@ export default function SettingsUsersTab({
                                         </td>
                                     </tr>
                                     {isExpanded && detailPermissions.length > 0 && (
-                                        <tr style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 } : { opacity: user.is_active ? 1 : 0.6 }}>
-                                            <td colSpan={8} style={classic ? { padding: '0 12px 8px 12px', border: 'none' } : undefined} className={classic ? '' : 'pb-3 px-4'}>
+                                        <tr style={{ opacity: user.is_active ? 1 : 0.6 }}>
+                                            <td colSpan={8} style={{ padding: 0, border: 'none' }}>
                                                 <PermissionBreakdown permissions={detailPermissions} classic={classic} showDirect />
                                             </td>
                                         </tr>

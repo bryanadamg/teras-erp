@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+import { ExpandedRowPanel } from '../shared/xpTheme';
 
 interface Props {
     uoms: any[];
@@ -151,8 +152,8 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                                     </tr>
                                     {isExpanded && (
                                         <tr>
-                                            <td colSpan={4} style={{ padding: 0, borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e6eaf1' }}>
-                                                <div style={{ background: classic ? '#f0ede4' : '#fffbeb', borderTop: classic ? '1px solid #c0a060' : '1px solid #fde68a', padding: '8px 12px 8px 40px' }}>
+                                            <td colSpan={4} style={{ padding: 0 }}>
+                                                <ExpandedRowPanel classic={classic} style={{ padding: '8px 12px 8px 28px' }}>
                                                     {canManage ? (
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                                             <span style={{ fontSize: classic ? 11 : 12, color: classic ? '#804800' : '#9a3412' }}>1 <b>{uom.name}</b> =</span>
@@ -189,7 +190,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                                                     ) : (
                                                         <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>No conversions defined</span>
                                                     )}
-                                                </div>
+                                                </ExpandedRowPanel>
                                             </td>
                                         </tr>
                                     )}

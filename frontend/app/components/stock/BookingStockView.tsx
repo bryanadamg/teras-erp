@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { xpFont, xpBtn, XPLoading, useSortable, SortMark, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { xpFont, xpBtn, XPLoading, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
@@ -178,10 +178,13 @@ export default function BookingStockView() {
         );
     };
 
+    // The rail is health-coded here rather than selection-blue: this table's whole
+    // job is shortfall triage, so the panel inherits the row's health color.
     const renderDetail = (r: Row) => (
-        <div style={{
+        <ExpandedRowPanel classic={classic} style={{
             display: 'flex', gap: 24, flexWrap: 'wrap',
-            padding: classic ? '8px 12px 10px 34px' : '10px 16px',
+            borderLeft: `${classic ? 4 : 3}px solid ${healthOf(r.qty_net_free).color}`,
+            padding: classic ? '8px 12px 10px 20px' : '10px 16px',
         }}>
             {detailSide(
                 t('demand_from_mos') || 'Required by', '#9a6a00', '#fff3d6',
@@ -193,7 +196,7 @@ export default function BookingStockView() {
                 r.supply_mos.map(m => ({ mo_id: m.mo_id, mo_code: m.mo_code, qty: m.incoming_qty })),
                 '+', r.uom,
             )}
-        </div>
+        </ExpandedRowPanel>
     );
 
     // ════════════════════════════ CLASSIC ════════════════════════════════════
@@ -285,7 +288,7 @@ export default function BookingStockView() {
                                             </tr>
                                             {isOpen && (
                                                 <tr>
-                                                    <td colSpan={COLS.length} style={{ background: '#fffdf2', borderBottom: '1px solid #e0d8b0', borderLeft: `3px solid ${h.color}` }}>
+                                                    <td colSpan={COLS.length} style={{ padding: 0 }}>
                                                         {renderDetail(r)}
                                                     </td>
                                                 </tr>
@@ -386,7 +389,7 @@ export default function BookingStockView() {
                                             </td>
                                         </tr>
                                         {isOpen && (
-                                            <tr className="table-active"><td colSpan={COLS.length} className="p-0">{renderDetail(r)}</td></tr>
+                                            <tr><td colSpan={COLS.length} className="p-0">{renderDetail(r)}</td></tr>
                                         )}
                                     </Fragment>
                                 );

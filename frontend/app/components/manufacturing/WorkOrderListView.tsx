@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -418,7 +418,8 @@ export default function WorkOrderListView({
 
         return (
             <tr key={`${wo.id}-detail`}>
-                <td colSpan={COLS} style={{ padding: '0 4px 6px', background: '#eef2ff' }}>
+                <td colSpan={COLS} style={{ padding: 0 }}>
+                    <ExpandedRowPanel classic={classic}>
                     <div style={panelStyle}>
                         {/* QR Code */}
                         <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: '#f5f4ef' }}>
@@ -610,6 +611,7 @@ export default function WorkOrderListView({
                             )}
                         </div>
                     </div>
+                    </ExpandedRowPanel>
                 </td>
             </tr>
         );

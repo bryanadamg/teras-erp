@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
@@ -963,8 +963,11 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                </tr>
                                {/* Expanded: order lines + receipt history */}
                                {expandedRows[po.id] && (
-                                   <tr key={`${po.id}-receipts`} style={classic ? { background: '#f0ede4', borderBottom: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'bg-light'}>
-                                       <td colSpan={9} style={classic ? { padding: '6px 16px 8px 32px', fontFamily: xpFont, fontSize: '11px' } : undefined} className={classic ? '' : 'px-4 py-3'}>
+                                   <tr key={`${po.id}-receipts`}>
+                                       <td colSpan={9} style={{ padding: 0 }}>
+                                           <ExpandedRowPanel classic={classic} style={classic
+                                               ? { padding: '6px 16px 8px 20px', fontFamily: xpFont, fontSize: '11px' }
+                                               : { padding: '12px 16px' }}>
                                            <div style={{ marginBottom: 10 }}>
                                                <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
                                                    Order Lines
@@ -1061,6 +1064,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                    </div>
                                                );
                                            })()}
+                                           </ExpandedRowPanel>
                                        </td>
                                    </tr>
                                )}

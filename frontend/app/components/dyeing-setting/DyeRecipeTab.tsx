@@ -11,7 +11,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CodeChip, xpFont } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -693,8 +693,10 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                     </tr>
                                     {expanded && (
                                         <tr>
-                                            <td colSpan={9} style={{ padding: '0 4px 6px', background: '#eef2ff' }}>
-                                                {renderDetail(recipe)}
+                                            <td colSpan={9} style={{ padding: 0 }}>
+                                                <ExpandedRowPanel classic={classic}>
+                                                    {renderDetail(recipe)}
+                                                </ExpandedRowPanel>
                                             </td>
                                         </tr>
                                     )}

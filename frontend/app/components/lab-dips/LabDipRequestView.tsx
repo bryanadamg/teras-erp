@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead } from '../shared/listViewTheme';
@@ -752,16 +752,8 @@ export default function LabDipRequestView({
 
                                         return (
                                         <tr>
-                                            <td colSpan={9} style={classic
-                                                ? { padding: 6, borderBottom: '2px solid #9a9690', background: '#d8d3c8' }
-                                                : { padding: 8, borderBottom: '1px solid #dbe1ea', background: '#e9edf1' }}>
-                                                <div style={{
-                                                    boxShadow: classic
-                                                        ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
-                                                        : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
-                                                    border: classic ? '1px solid #808080' : '1px solid #ced4da',
-                                                    overflow: 'hidden',
-                                                }}>
+                                            <td colSpan={9} style={{ padding: 0 }}>
+                                                <ExpandedRowPanel classic={classic} style={{ overflow: 'hidden' }}>
                                                     <RequestDetailPanel
                                                         classic={classic}
                                                         leftTitle={<><i className="bi bi-box-seam" /> Variants — {total} total · {approved} approved</>}
@@ -773,7 +765,7 @@ export default function LabDipRequestView({
                                                         rightHeader={rightHeader}
                                                         minHeight={170}
                                                     />
-                                                </div>
+                                                </ExpandedRowPanel>
                                             </td>
                                         </tr>
                                         );

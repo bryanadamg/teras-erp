@@ -1805,7 +1805,16 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            {/* position:relative + fixed height, with the panel absolutely positioned
                                                inside, keeps this colSpan cell out of the table's auto width calc — so
                                                expanding a row can't reflow the auto-width columns (e.g. Specs badges). */}
-                                           <td colSpan={8} style={{ padding: 0, borderBottom: classic ? '2px solid #9a9690' : '2px solid #dee2e6', position: 'relative', height: 300 }}>
+                                           {/* Rail + edge rules go on the cell, not a wrapper: the panel inside is
+                                               absolutely positioned, so it can't carry the frame itself. Matches
+                                               ExpandedRowPanel in xpTheme — keep the two in sync. */}
+                                           <td colSpan={8} style={{
+                                               padding: 0, position: 'relative', height: 300,
+                                               borderLeft: classic ? '4px solid #316ac5' : '3px solid #2f6feb',
+                                               borderTop: classic ? '2px solid #808080' : '2px solid #adb5bd',
+                                               borderBottom: classic ? '2px solid #808080' : '2px solid #adb5bd',
+                                               background: '#fff',
+                                           }}>
                                                <div style={{ position: 'absolute', inset: 0 }}>
                                                    <RequestDetailPanel
                                                        classic={classic}

@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
@@ -657,9 +657,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     );
 
     return (
-      <div style={{
-        background: classic ? '#f0ede4' : '#f8f9fa',
-        borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
+      <ExpandedRowPanel classic={classic} style={{
         padding: '12px 14px',
         whiteSpace: 'normal',   // table rows are nowrap; lineage boxes wrap normally
         ...fnt,
@@ -753,7 +751,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
             )}
           </div>
         )}
-      </div>
+      </ExpandedRowPanel>
     );
   };
 
@@ -922,7 +920,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                     </tr>
                     {expandedRows[b.id] && (
                       <tr key={`${b.id}-detail`}>
-                        <td colSpan={colSpan} style={{ padding: 0, border: '1px solid #c0bdb5' }}>
+                        <td colSpan={colSpan} style={{ padding: 0 }}>
                           {renderExpandedPanel(b)}
                         </td>
                       </tr>
