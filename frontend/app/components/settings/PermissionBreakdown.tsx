@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { xpFont, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
-import { describePermission, groupPermissionsBySection, groupPermissionsByResource } from '../shared/permissionMatrix';
+import { describePermission, groupPermissionsBySection, groupPermissionsByResource, actionIntent, INTENT_CHIP } from '../shared/permissionMatrix';
 
 export interface BreakdownPermission {
     id: string;
@@ -25,28 +25,6 @@ export interface BreakdownPermission {
  * reading every word. The resource is stated once per row: chips carry only the
  * verb, never "…Purchase Orders" repeated six times.
  */
-
-type Intent = 'create' | 'edit' | 'delete' | 'print' | 'view';
-
-const INTENT_BY_ACTION: Record<string, Intent> = {
-    create: 'create', create_pr: 'create', create_recipe: 'create',
-    edit: 'edit', adjust: 'edit', move: 'edit', split: 'edit', stage: 'edit',
-    log: 'edit', import: 'edit', update_status: 'edit', set_status: 'edit',
-    receive_goods: 'edit', unmount: 'edit', start: 'edit',
-    delete: 'delete', archive: 'delete', qc_reject: 'delete', close: 'delete', stop: 'delete',
-    print: 'print', print_card: 'print', print_label: 'print',
-    view: 'view',
-};
-
-const CHIP: Record<Intent, { bg: string; border: string; fg: string }> = {
-    create: { bg: '#e2f3e2', border: '#7bb07b', fg: '#1a5e2a' },
-    edit: { bg: '#dde8f5', border: '#7f9db9', fg: '#1a3d7a' },
-    delete: { bg: '#f7e2e2', border: '#c08a8a', fg: '#8e0000' },
-    print: { bg: '#fff3d6', border: '#c8a04a', fg: '#7a5000' },
-    view: { bg: '#eeece6', border: '#bab5a8', fg: '#5c5749' },
-};
-
-const intentOf = (code: string): Intent => INTENT_BY_ACTION[code.split('.')[1] || ''] || 'edit';
 
 export default function PermissionBreakdown({ permissions, classic, showDirect = false }: {
     permissions: BreakdownPermission[];
@@ -114,7 +92,7 @@ export default function PermissionBreakdown({ permissions, classic, showDirect =
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                                             {resPerms.map(p => {
                                                 const { action } = describePermission(p.code, p.description);
-                                                const c = CHIP[intentOf(p.code)];
+                                                const c = INTENT_CHIP[actionIntent(p.code)];
                                                 const direct = showDirect && p._direct;
                                                 return (
                                                     <span

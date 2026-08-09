@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { CSSProperties, useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import { xpBtn, xpInput, xpLabel, xpFont } from '../shared/xpTheme';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
@@ -98,6 +98,42 @@ export default function RoleFormModal({
         setAllowedLocations(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     };
 
+    /* Scope pickers are toggle chips, matching the permission picker above —
+       a wall of bare checkboxes made a restricted role hard to read back. */
+    const scopeChip = (key: string, label: string, on: boolean, onToggle: () => void) => (
+        <button
+            key={key}
+            type="button"
+            aria-pressed={on}
+            onClick={onToggle}
+            style={{
+                fontFamily: classic ? xpFont : undefined,
+                fontSize: classic ? 10 : 11,
+                lineHeight: 1.6,
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                background: on ? '#dde8f5' : '#f6f5f1',
+                border: `1px solid ${on ? '#7f9db9' : '#d5d1c6'}`,
+                color: on ? '#1a3d7a' : '#8d8779',
+                fontWeight: on ? 'bold' : 'normal',
+                borderRadius: classic ? 0 : 3,
+                padding: '0 6px',
+                cursor: 'pointer',
+            }}
+        >
+            <i className={`bi ${on ? 'bi-check2' : 'bi-dash'}`} style={{ fontSize: 8, opacity: on ? 1 : 0.55 }} />
+            {label}
+        </button>
+    );
+
+    const scopeBoxStyle = (scroll: boolean): CSSProperties => ({
+        display: 'flex', flexWrap: 'wrap', gap: 4,
+        background: '#ffffff',
+        border: classic ? '1px solid #b0a898' : '1px solid #dee2e6',
+        borderRadius: classic ? 0 : 4,
+        padding: 6,
+        ...(scroll ? { maxHeight: 160, overflowY: 'auto' as const } : {}),
+    });
+
     const handleSubmit = async () => {
         setError('');
         if (!name.trim()) {
@@ -186,13 +222,8 @@ export default function RoleFormModal({
                     <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
                         Leave all unchecked to allow this role's Work Order actions on any station. Check one or more to restrict.
                     </div>
-                    <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6 } : undefined} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
-                        {wcTypes.map(t => (
-                            <label key={t} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
-                                <input type="checkbox" checked={allowedWcTypes.includes(t)} onChange={() => toggleWcType(t)} />
-                                {t}
-                            </label>
-                        ))}
+                    <div style={scopeBoxStyle(false)}>
+                        {wcTypes.map(t => scopeChip(t, t, allowedWcTypes.includes(t), () => toggleWcType(t)))}
                     </div>
                 </div>
             )}
@@ -203,12 +234,12 @@ export default function RoleFormModal({
                     <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
                         Leave all unchecked to allow Item/Stock actions on any category. Check one or more to restrict.
                     </div>
-                    <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6, maxHeight: 160, overflowY: 'auto' as const } : { maxHeight: 160, overflowY: 'auto' as const }} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
-                        {categories.map((c: any) => (
-                            <label key={c.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
-                                <input type="checkbox" checked={allowedCategories.includes(c.id)} onChange={() => toggleCategory(c.id)} />
-                                {(c.path_names || [c.name]).join(' / ')}
-                            </label>
+                    <div style={scopeBoxStyle(true)}>
+                        {categories.map((c: any) => scopeChip(
+                            c.id,
+                            (c.path_names || [c.name]).join(' / '),
+                            allowedCategories.includes(c.id),
+                            () => toggleCategory(c.id),
                         ))}
                     </div>
                 </div>
@@ -220,12 +251,12 @@ export default function RoleFormModal({
                     <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
                         Leave all unchecked to allow Lot actions at any location. Check one or more to restrict.
                     </div>
-                    <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6, maxHeight: 160, overflowY: 'auto' as const } : { maxHeight: 160, overflowY: 'auto' as const }} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
-                        {locations.map((l: any) => (
-                            <label key={l.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
-                                <input type="checkbox" checked={allowedLocations.includes(l.id)} onChange={() => toggleLocation(l.id)} />
-                                {l.full_path || l.name}
-                            </label>
+                    <div style={scopeBoxStyle(true)}>
+                        {locations.map((l: any) => scopeChip(
+                            l.id,
+                            l.full_path || l.name,
+                            allowedLocations.includes(l.id),
+                            () => toggleLocation(l.id),
                         ))}
                     </div>
                 </div>
