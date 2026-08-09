@@ -702,6 +702,11 @@ async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id)
     return None
 
 
+# Plant-wide putaway fallback ordering: real storage bins first, then childless
+# zones, then childless warehouses (both are legal stock locations, just coarser).
+_LOC_TYPE_RANK = {"bin": 0, "zone": 1, "warehouse": 2}
+
+
 async def _descendant_leaves(db: AsyncSession, root_id) -> list[Location]:
     """Leaf locations (bins) under a root, walking the max-3-level hierarchy."""
     nodes: dict[str, Location] = {}
@@ -729,7 +734,9 @@ async def get_mo_putaway_suggestion(
     """Putaway planning aid for the MO: candidate bins under the routing's final
     output area plus a suggested one. Priority: bin already assigned on the MO
     -> item master's default putaway bin -> bin already holding the output item
-    (addition to stock) -> empty bin -> first bin by code. Advisory — planning
+    (addition to stock) -> empty bin -> first bin by code. When nothing in that
+    chain resolves an area, every leaf location plant-wide is offered instead
+    (reason "all_locations") so the bin is always assignable. Advisory — planning
     picks and saves via PATCH .../putaway."""
     mo_res = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id))
     mo = mo_res.scalars().first()
@@ -771,29 +778,40 @@ async def get_mo_putaway_suggestion(
             .limit(1)
         )
         root_id = wo_res.scalar()
-    if not root_id:
-        return PutawaySuggestionResponse()
-
-    root_res = await db.execute(
-        select(Location).options(joinedload(Location.parent)).where(Location.id == root_id)
-    )
-    root = root_res.scalars().first()
-    if not root:
-        return PutawaySuggestionResponse()
+    root = None
+    if root_id:
+        root_res = await db.execute(
+            select(Location).options(joinedload(Location.parent)).where(Location.id == root_id)
+        )
+        root = root_res.scalars().first()
 
     configured_bin = None
-    leaves = await _descendant_leaves(db, root.id)
-    if not leaves:
-        # Output points straight at a leaf (bin, or childless zone/warehouse):
-        # that explicit config stays the suggestion; siblings become overrides.
-        configured_bin = root
-        leaves = [root]
-        if root.parent_id:
-            sib_res = await db.execute(
-                select(Location).options(joinedload(Location.parent)).where(Location.parent_id == root.parent_id)
-            )
-            leaves += [s for s in sib_res.scalars().all()
-                       if not s.has_children and str(s.id) != str(root.id)]
+    all_locations_fallback = False
+    if root is None:
+        # Nothing in the chain resolves — no bin assigned, no item default, the BOM
+        # carries no routing operations, and no WO exists yet (the normal shape of a
+        # PENDING MO straight out of a Production Run). Offering an empty list makes
+        # putaway unassignable until someone creates a WO, which defeats the point of
+        # planning the bin up front, so fall back to every leaf location. Real bins
+        # rank above childless zones/warehouses so storage bins surface first.
+        all_res = await db.execute(select(Location).options(joinedload(Location.parent)))
+        leaves = [l for l in all_res.scalars().unique().all() if not l.has_children]
+        if not leaves:
+            return PutawaySuggestionResponse()
+        all_locations_fallback = True
+    else:
+        leaves = await _descendant_leaves(db, root.id)
+        if not leaves:
+            # Output points straight at a leaf (bin, or childless zone/warehouse):
+            # that explicit config stays the suggestion; siblings become overrides.
+            configured_bin = root
+            leaves = [root]
+            if root.parent_id:
+                sib_res = await db.execute(
+                    select(Location).options(joinedload(Location.parent)).where(Location.parent_id == root.parent_id)
+                )
+                leaves += [s for s in sib_res.scalars().all()
+                           if not s.has_children and str(s.id) != str(root.id)]
 
     bal_res = await db.execute(
         select(
@@ -806,7 +824,10 @@ async def get_mo_putaway_suggestion(
     )
     totals = {str(lid): (float(t or 0), float(i or 0)) for lid, t, i in bal_res.all()}
 
-    leaves.sort(key=lambda l: (l.code or l.name or ""))
+    leaves.sort(key=lambda l: (
+        _LOC_TYPE_RANK.get((l.location_type or "").lower(), 3) if all_locations_fallback else 0,
+        l.code or l.name or "",
+    ))
     configured_reason = "item_default" if item_default_used else "configured"
     suggested, reason = configured_bin, (configured_reason if configured_bin is not None else None)
     if suggested is None:
@@ -814,6 +835,10 @@ async def get_mo_putaway_suggestion(
         if same:
             suggested = max(same, key=lambda l: totals[str(l.id)][1])
             reason = "same_item"
+    if suggested is None and all_locations_fallback:
+        # No output area to reason about — leaves[0] is the first real bin by code.
+        # Flagged so the UI can say the whole plant is listed, not a routing subtree.
+        suggested, reason = leaves[0], "all_locations"
     if suggested is None:
         empty = next((l for l in leaves if totals.get(str(l.id), (0.0, 0.0))[0] <= 0), None)
         if empty is not None:

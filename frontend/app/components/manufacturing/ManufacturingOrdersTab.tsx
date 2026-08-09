@@ -76,7 +76,7 @@ export default function ManufacturingOrdersTab({
     const [colorModalSearch, setColorModalSearch] = useState('');
     const [colorModalResults, setColorModalResults] = useState<any[]>([]);
     const [colorModalLabdips, setColorModalLabdips] = useState<any[]>([]);
-    const [putawayModal, setPutawayModal] = useState<{ mo: any; bins: any[]; suggested: string | null; reason: string | null; selected: string; loading: boolean } | null>(null);
+    const [putawayModal, setPutawayModal] = useState<{ mo: any; bins: any[]; suggested: string | null; reason: string | null; selected: string; loading: boolean; error: string | null } | null>(null);
     const [toleranceModal, setToleranceModal] = useState<{ mo: any; pct: string; unlimited: boolean } | null>(null);
 
     const defaultPrintSettings: PrintSettings = {
@@ -253,20 +253,31 @@ export default function ManufacturingOrdersTab({
     // Putaway bin: planning decides where the output will be stored before
     // production finishes — the suggestion endpoint proposes, planner saves.
     const openPutawayModal = async (mo: any) => {
-        setPutawayModal({ mo, bins: [], suggested: null, reason: null, selected: mo.planned_putaway_location_id || '', loading: true });
+        setPutawayModal({ mo, bins: [], suggested: null, reason: null, selected: mo.planned_putaway_location_id || '', loading: true, error: null });
         try {
             const res = await authFetch(`${API_BASE}/manufacturing-orders/${mo.id}/putaway-suggestion`);
-            const data = res.ok ? await res.json() : null;
+            // A failed request used to fall through as an empty bins list, so a 403 or
+            // a server error read as "this MO has no bins" — two very different fixes.
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                const msg = err.detail || `Request failed (HTTP ${res.status})`;
+                setPutawayModal(prev => prev && prev.mo.id === mo.id ? { ...prev, loading: false, error: msg } : prev);
+                return;
+            }
+            const data = await res.json();
             setPutawayModal(prev => prev && prev.mo.id === mo.id ? {
                 ...prev,
                 loading: false,
+                error: null,
                 bins: data?.bins || [],
                 suggested: data?.suggested_location_id || null,
                 reason: data?.reason || null,
                 selected: prev.selected || data?.suggested_location_id || '',
             } : prev);
         } catch {
-            setPutawayModal(prev => prev && prev.mo.id === mo.id ? { ...prev, loading: false } : prev);
+            setPutawayModal(prev => prev && prev.mo.id === mo.id
+                ? { ...prev, loading: false, error: 'Could not reach the server.' }
+                : prev);
         }
     };
 
@@ -1558,6 +1569,7 @@ export default function ManufacturingOrdersTab({
                     : pm.reason === 'configured' ? 'currently assigned bin'
                     : pm.reason === 'item_default' ? "item's default putaway bin"
                     : pm.reason === 'first_bin' ? 'first bin by code'
+                    : pm.reason === 'all_locations' ? 'no output area configured for this order — every bin is listed'
                     : null;
                 const selStyle = isClassic ? {
                     fontFamily: xpFont, fontSize: 11,
@@ -1590,9 +1602,13 @@ export default function ManufacturingOrdersTab({
                         </div>
                         {pm.loading ? (
                             <div style={{ fontSize: 11, color: '#888' }}>Loading bins...</div>
+                        ) : pm.error ? (
+                            <div style={{ fontSize: 11, color: '#c00' }}>
+                                Could not load bins: {pm.error}
+                            </div>
                         ) : pm.bins.length === 0 ? (
                             <div style={{ fontSize: 11, color: '#888' }}>
-                                No candidate bins found — set an output location on the routing&apos;s final work center (or a work order), and create bins under it on the Locations page.
+                                No locations exist yet — create them on the Locations page.
                             </div>
                         ) : (
                             <>
