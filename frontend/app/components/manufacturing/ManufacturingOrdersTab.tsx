@@ -441,10 +441,11 @@ export default function ManufacturingOrdersTab({
             if (scanningWOId === wo.id) setScanningWOId(null);
         };
 
-        // padding 0: the tab strip and the two-pane body carry their own edges and run
-        // full-bleed to the panel's rules, so the panel adds no gutter around them
+        // No gutter: the tab strip and the two-pane body carry their own edges and run
+        // full-bleed to the panel's rules. Left padding still reserves the rail's width
+        // so it doesn't paint over the first tab.
         return (
-            <ExpandedRowPanel classic={classic} style={{ marginBottom: 6, padding: 0 }}>
+            <ExpandedRowPanel classic={classic} style={{ marginBottom: 6, padding: classic ? '0 0 0 4px' : '0 0 0 3px' }}>
             {/* ── TABS ── */}
             <div style={{
                 display: 'flex',

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { xpFont, xpBtn, XPLoading, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { xpFont, xpBtn, XPLoading, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
@@ -183,7 +183,7 @@ export default function BookingStockView() {
     const renderDetail = (r: Row) => (
         <ExpandedRowPanel classic={classic} style={{
             display: 'flex', gap: 24, flexWrap: 'wrap',
-            borderLeft: `${classic ? 4 : 3}px solid ${healthOf(r.qty_net_free).color}`,
+            ...expandedRowFrame(classic, healthOf(r.qty_net_free).color),
             padding: classic ? '8px 12px 10px 20px' : '10px 16px',
         }}>
             {detailSide(

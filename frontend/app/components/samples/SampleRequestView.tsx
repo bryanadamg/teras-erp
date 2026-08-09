@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip, xpFont } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -1806,16 +1806,15 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                inside, keeps this colSpan cell out of the table's auto width calc — so
                                                expanding a row can't reflow the auto-width columns (e.g. Specs badges). */}
                                            {/* Rail + edge rules go on the cell, not a wrapper: the panel inside is
-                                               absolutely positioned, so it can't carry the frame itself. Matches
-                                               ExpandedRowPanel in xpTheme — keep the two in sync. */}
+                                               absolutely positioned, so it can't carry the frame itself. */}
                                            <td colSpan={8} style={{
                                                padding: 0, position: 'relative', height: 300,
-                                               borderLeft: classic ? '4px solid #316ac5' : '3px solid #2f6feb',
-                                               borderTop: classic ? '2px solid #808080' : '2px solid #adb5bd',
-                                               borderBottom: classic ? '2px solid #808080' : '2px solid #adb5bd',
                                                background: '#fff',
+                                               ...expandedRowFrame(classic),
                                            }}>
-                                               <div style={{ position: 'absolute', inset: 0 }}>
+                                               {/* left offset clears the rail — an absolutely positioned child paints
+                                                   above the cell's inset shadow and would otherwise cover it */}
+                                               <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: classic ? 4 : 3 }}>
                                                    <RequestDetailPanel
                                                        classic={classic}
                                                        leftTitle={<><i className="bi bi-palette" style={{ marginRight: 2 }} />Colors — {colors.length} total · {colors.filter((c: any) => c.status === 'APPROVED').length} approved</>}

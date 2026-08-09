@@ -967,15 +967,38 @@ export function FloatingMenu({ pos, items, minWidth = 175 }: { pos: { top: numbe
 // The body stays the same flat white as the rows, so wide content gets the full
 // row width instead of a nested frame eating padding on both sides. This
 // replaced an inset/recessed frame whose stacked shadows read as muddy rather
-// than deep, especially against Classic's beige. Do not reintroduce boxShadow.
+// than deep, especially against Classic's beige — no depth shadows here.
+//
+// The frame is painted with `inset` box-shadow, NOT `border`, and that is load-
+// bearing: this panel lives in a `<td colSpan>` spanning every column, so any
+// border or padding it declares feeds into that cell's min-content width, which
+// auto table layout then distributes back across all the columns — the row above
+// visibly jumps sideways on expand. Shadows never participate in layout, so the
+// panel costs zero width. A call site that overrides `padding` must keep its left
+// value >= RAIL_W — the rail paints inside the padding box, so with less reserve
+// it sits on top of the content's first few pixels.
 // Always pair the two: ExpandedRowPanel is the frame, ExpandedRowPanelBody the
 // padded content box.
+const RAIL_W = { classic: 4, modern: 3 };
+const RULE_W = 2;
+
+/** The rail + edge rules as a paint-only frame. Exported for the two views whose panel can't be a component (absolutely positioned, or a two-pane workspace keeping its own grounds) — they apply this to the `<td>` and must stay in sync with the component. `railColor` overrides the selection blue where the rail carries meaning (e.g. health on Booking Stock). */
+export function expandedRowFrame(classic: boolean, railColor?: string): React.CSSProperties {
+    const rail = classic ? RAIL_W.classic : RAIL_W.modern;
+    const rule = classic ? '#808080' : '#adb5bd';
+    return {
+        boxShadow: [
+            `inset ${rail}px 0 0 0 ${railColor || (classic ? '#316ac5' : '#2f6feb')}`,
+            `inset 0 ${RULE_W}px 0 0 ${rule}`,
+            `inset 0 -${RULE_W}px 0 0 ${rule}`,
+        ].join(', '),
+    };
+}
+
 export function ExpandedRowPanel({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
     return (
         <div style={{
-            borderLeft: classic ? '4px solid #316ac5' : '3px solid #2f6feb',
-            borderTop: classic ? '2px solid #808080' : '2px solid #adb5bd',
-            borderBottom: classic ? '2px solid #808080' : '2px solid #adb5bd',
+            ...expandedRowFrame(classic),
             background: '#fff',
             padding: classic ? 5 : 6,
             ...style,
