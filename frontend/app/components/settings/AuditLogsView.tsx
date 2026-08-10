@@ -5,7 +5,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT, lvThead } from '../shared/listViewTheme';
-import { StatusChip, CODE_FONT, xpFont, XPLoading } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT, xpFont, TableSkeleton } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import Pager from '../shared/Pager';
 
@@ -169,11 +169,13 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                                   <AuditLogRow log={log} classic={true} rowIndex={i} userName={userNameById[log.user_id]} />
                               </React.Fragment>
                           ))}
-                          {auditLogs.length === 0 && (
+                          {auditLogs.length === 0 && (dataLoading.auditLogs ? (
+                              <TableSkeleton rows={8} cols={5} classic />
+                          ) : (
                               <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                                  {dataLoading.auditLogs ? <XPLoading label="Loading activity logs..." /> : 'No activity logs found'}
+                                  No activity logs found
                               </td></tr>
-                          )}
+                          ))}
                       </tbody>
                   </table>
               </div>
@@ -221,9 +223,9 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                       {auditLogs.map((log: any, i: number) => (
                           <AuditLogRow key={log.id} log={log} classic={false} rowIndex={i} userName={userNameById[log.user_id]} />
                       ))}
-                      {auditLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">
-                          {dataLoading.auditLogs ? <XPLoading label="Loading activity logs..." /> : 'No activity logs found'}
-                      </td></tr>}
+                      {auditLogs.length === 0 && (dataLoading.auditLogs
+                          ? <TableSkeleton rows={8} cols={5} />
+                          : <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>)}
                   </tbody>
               </table>
           </div>

@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, XPLoading, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -180,13 +180,13 @@ export default function PackingOrderView() {
                         </tr>
                     </thead>
                     <tbody>
-                        {orders.length === 0 && (
+                        {orders.length === 0 && (loading ? (
+                            <TableSkeleton rows={7} cols={9} classic />
+                        ) : (
                             <tr><td colSpan={9} style={{ padding: 0 }}>
-                                {loading
-                                    ? <XPLoading label="Loading packing orders..." />
-                                    : <XPEmptyState icon="bi-box2" message='No packing orders yet. Click "New Packing Order" to pack finished goods into cartons.' />}
+                                <XPEmptyState icon="bi-box2" message='No packing orders yet. Click "New Packing Order" to pack finished goods into cartons.' />
                             </td></tr>
-                        )}
+                        ))}
                         {orders.map((po: any, idx: number) => {
                             const it = itemById[String(po.item_id)];
                             const shortfall = num(po.qty_packed) < num(po.qty_target);

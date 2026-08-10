@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPLoading, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -786,15 +786,15 @@ export default function WorkOrderListView({
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.length === 0 && (
+                                {filtered.length === 0 && (loading ? (
+                                    <TableSkeleton rows={8} cols={COLS} classic={classic} />
+                                ) : (
                                     <tr>
                                         <td colSpan={COLS} style={classic ? { padding: 0 } : { padding: 24, textAlign: 'center', color: '#888' }}>
-                                            {loading
-                                                ? <XPLoading label="Loading work orders..." />
-                                                : classic ? <XPEmptyState message="No work orders found." icon="bi-tools" /> : 'No work orders found.'}
+                                            {classic ? <XPEmptyState message="No work orders found." icon="bi-tools" /> : 'No work orders found.'}
                                         </td>
                                     </tr>
-                                )}
+                                ))}
                                 {sortedWOs.map((wo, idx) => {
                                     const rowBg = classic ? (idx % 2 === 0 ? '#fff' : '#f5f3ee') : undefined;
                                     const isEditing = editId === wo.id;

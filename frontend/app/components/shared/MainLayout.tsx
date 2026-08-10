@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
 import { XPLoading } from './xpTheme';
+import AppLoadBar from './AppLoadBar';
 import { SECTION_LABELS, PREFETCH_ROUTES } from './navConfig';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -142,6 +143,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         </button>
                     </div>
                 </div>
+
+                <AppLoadBar />
 
                 <div className="px-0 py-3">
                     {children}

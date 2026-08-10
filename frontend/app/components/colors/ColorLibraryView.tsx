@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, XPLoading } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton } from '../shared/xpTheme';
 import { SearchField, FilterChipBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
@@ -273,11 +273,13 @@ export default function ColorLibraryView({
                         </tr>
                     </thead>
                     <tbody>
-                        {colors.length === 0 && (
+                        {colors.length === 0 && (loading ? (
+                            <TableSkeleton rows={8} cols={13} classic={classic} />
+                        ) : (
                             <tr><td colSpan={13} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                {loading ? <XPLoading label="Loading colors..." /> : 'No colors found.'}
+                                No colors found.
                             </td></tr>
-                        )}
+                        ))}
                         {colors.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>
                                 <td style={{ ...lvTd(classic), textAlign: 'center' }}>{swatch(c.hex)}</td>

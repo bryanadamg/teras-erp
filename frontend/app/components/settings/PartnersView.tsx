@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, XPLoading } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
@@ -280,21 +280,21 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                         </td>
                                     </tr>
                                 ))}
-                                {filteredPartners.length === 0 && (
+                                {filteredPartners.length === 0 && (dataLoading.partners ? (
+                                    <TableSkeleton rows={8} cols={5} classic={classic} />
+                                ) : (
                                     <tr>
                                         <td
                                             colSpan={5}
                                             style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                             className={classic ? '' : 'text-center py-5 text-muted'}
                                         >
-                                            {dataLoading.partners
-                                                ? <XPLoading label={`Loading ${typeLabel.toLowerCase()}s...`} />
-                                                : searchTerm
-                                                    ? `No ${typeLabel.toLowerCase()}s match "${searchTerm}"`
-                                                    : `No ${typeLabel.toLowerCase()}s found. Add one to get started.`}
+                                            {searchTerm
+                                                ? `No ${typeLabel.toLowerCase()}s match "${searchTerm}"`
+                                                : `No ${typeLabel.toLowerCase()}s found. Add one to get started.`}
                                         </td>
                                     </tr>
-                                )}
+                                ))}
                             </tbody>
                         </table>
                     </div>

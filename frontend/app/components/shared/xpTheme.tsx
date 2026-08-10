@@ -710,6 +710,62 @@ export function XPLoading({ label = 'Loading...', fullScreen = false }: { label?
     );
 }
 
+// ── Skeleton placeholders ───────────────────────────────────────────────────
+//
+// Used instead of XPLoading wherever the loader stands in for a *list*: a
+// shimmering stand-in that carries the shape of the rows that are coming beats
+// a centred marquee that says only "something is happening". XPLoading stays
+// for boot screens, modals, and single-value panes, where there is no shape to
+// preview. Shimmer keyframes live in globals.css (.xp-skel).
+
+/** One shimmering placeholder bar. */
+export function SkeletonBar({ width = '100%', height = 9 }: { width?: number | string; height?: number }) {
+    return <span className="xp-skel" style={{ display: 'block', width, height, borderRadius: 2 }} />;
+}
+
+// Deterministic width pattern — a fixed cycle, not Math.random(), so the
+// skeleton doesn't reshuffle on every re-render while the fetch is in flight.
+const SKEL_WIDTHS = ['72%', '46%', '61%', '38%', '83%', '54%', '67%', '43%'];
+const skelWidth = (row: number, col: number) => SKEL_WIDTHS[(row * 3 + col * 5) % SKEL_WIDTHS.length];
+
+/**
+ * Placeholder rows for a table body. Emits real <tr>/<td> so the bars land in
+ * the table's own columns — drop it straight into <tbody> in place of the
+ * empty-state row.
+ */
+export function TableSkeleton({ rows = 6, cols, classic = false }: { rows?: number; cols: number; classic?: boolean }) {
+    return (
+        <>
+            {Array.from({ length: rows }, (_, r) => (
+                <tr key={`skel-${r}`} style={{ background: classic ? (r % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined }}>
+                    {Array.from({ length: cols }, (_, c) => (
+                        <td key={c} style={{
+                            padding: classic ? '5px 8px' : '10px 8px',
+                            borderBottom: classic ? '1px solid #e6e3db' : '1px solid #f1f3f5',
+                        }}>
+                            <SkeletonBar width={skelWidth(r, c)} />
+                        </td>
+                    ))}
+                </tr>
+            ))}
+        </>
+    );
+}
+
+/** Placeholder rows for a non-table list pane (the dyeing/setting WO rails). */
+export function ListSkeleton({ rows = 5, padding = '6px 8px' }: { rows?: number; padding?: string }) {
+    return (
+        <div>
+            {Array.from({ length: rows }, (_, r) => (
+                <div key={`skel-${r}`} style={{ padding, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <SkeletonBar width={skelWidth(r, 0)} />
+                    <SkeletonBar width={skelWidth(r, 1)} height={7} />
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ── Status bar (classic Windows bottom strip) ───────────────────────────────
 
 export function XPStatusBar({ children, right, style }: { children: React.ReactNode; right?: React.ReactNode; style?: React.CSSProperties }) {

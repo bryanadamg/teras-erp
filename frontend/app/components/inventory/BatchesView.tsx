@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, XPLoading } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
@@ -864,9 +864,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                 </tr>
               </thead>
               <tbody>
-                {loading && (
-                  <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}><XPLoading label="Loading lots..." /></td></tr>
-                )}
+                {loading && <TableSkeleton rows={8} cols={colSpan} classic />}
                 {!loading && batches.length === 0 && (
                   <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
                 )}
@@ -996,7 +994,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={colSpan} className="text-center"><XPLoading label="Loading lots..." /></td></tr>}
+                {loading && <TableSkeleton rows={8} cols={colSpan} />}
                 {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
                 {sortedBatches.map(b => (
                   <>

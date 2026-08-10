@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -1874,21 +1874,21 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    );
                                });
                            })}
-                           {filteredOrders.length === 0 && (
+                           {filteredOrders.length === 0 && (dataLoading.salesOrders ? (
+                               <TableSkeleton rows={8} cols={11} classic={classic} />
+                           ) : (
                                <tr>
                                    <td
                                        colSpan={11}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
-                                       {dataLoading.salesOrders ? <XPLoading label="Loading sales orders..." /> : (
-                                           searchTerm || customerSearch || statusFilter !== 'ALL'
-                                               ? 'No orders match the current filter.'
-                                               : 'No Sales Orders found. Create one to get started.'
-                                       )}
+                                       {searchTerm || customerSearch || statusFilter !== 'ALL'
+                                           ? 'No orders match the current filter.'
+                                           : 'No Sales Orders found. Create one to get started.'}
                                    </td>
                                </tr>
-                           )}
+                           ))}
                        </tbody>
                    </table>
                </div>

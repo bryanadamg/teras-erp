@@ -11,7 +11,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, XPLoading } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -649,11 +649,13 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredRecipes.length === 0 && (
+                        {filteredRecipes.length === 0 && (loading ? (
+                            <TableSkeleton rows={8} cols={9} classic={classic} />
+                        ) : (
                             <tr><td colSpan={9} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                {loading ? <XPLoading label="Loading recipes..." /> : 'No recipes found.'}
+                                No recipes found.
                             </td></tr>
-                        )}
+                        ))}
                         {pagedRecipes.map((recipe, idx) => {
                             const rid = String(recipe.id);
                             const expanded = expandedIds.has(rid);

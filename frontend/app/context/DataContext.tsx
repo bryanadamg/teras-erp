@@ -105,6 +105,13 @@ interface DataContextType {
         samples: boolean; auditLogs: boolean; partners: boolean;
     };
 
+    /**
+     * Measured progress of the initial data load: `done` responses out of
+     * `total` requests actually issued. `total === 0` means no tracked load is
+     * running — every later fetch is too small to be worth a determinate bar.
+     */
+    loadProgress: { done: number; total: number };
+
     // Pagination & Search State
     pagination: {
         itemPage: number; setItemPage: (p: number) => void; itemTotal: number;
@@ -223,6 +230,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // without this every list flashes its empty-state text before data arrives.
     const [loadedOnce, setLoadedOnce] = useState<Record<string, boolean>>({});
 
+    // Determinate progress for the FIRST fetchData round only — the one that
+    // fans out to master data + items + BOMs + MOs + PRs + samples + partners.
+    // `total` is the real number of requests issued (a warm master cache issues
+    // fewer), `done` counts responses as they land, so the bar measures
+    // something instead of animating a guess. Later fetches are one or two
+    // route-scoped requests: a bar there would flicker more than it informs, so
+    // they stay on the indeterminate/skeleton loaders.
+    const [loadProgress, setLoadProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+    const bootTrackedRef = useRef(false);
+
     const handleSetMoSearch = useCallback((v: string) => {
         setMoSearch(v); setWoPage(1);
     }, []);
@@ -289,6 +306,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (inFlightRef.current[fetchTarget]) return inFlightRef.current[fetchTarget];
 
         const run = async () => {
+        // Set once the request list is known; drives the app-load bar's cleanup.
+        let trackBoot = false;
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
@@ -470,7 +489,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requestTypes.push('audit-logs');
             }
 
-            const responses = await Promise.all(requests);
+            // Count responses as they land so the app-load bar is measured, not
+            // simulated. Wrapping preserves Promise.all's reject-on-first-error.
+            let tracked = requests;
+            if (!bootTrackedRef.current && requests.length > 0) {
+                bootTrackedRef.current = true;
+                trackBoot = true;
+                const total = requests.length;
+                let done = 0;
+                setLoadProgress({ done: 0, total });
+                const tick = () => { done += 1; setLoadProgress({ done, total }); };
+                tracked = requests.map(p => p.then(
+                    (r) => { tick(); return r; },
+                    (e) => { tick(); throw e; },
+                ));
+            }
+            const responses = await Promise.all(tracked);
             const newMasterData: any = {};
             const failedTypes: string[] = [];
             const touchedDomains = new Set(requestTypes.map(t => LOADING_KEY[t]).filter(Boolean));
@@ -529,6 +563,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // CORS...) — mark every domain as "attempted" so views fall back to
             // their empty/error state instead of spinning forever.
             setLoadedOnce(prev => ({ ...prev, ...Object.fromEntries(Object.values(LOADING_KEY).map(k => [k, true])) }));
+        } finally {
+            // Retire the bar on both paths — a failed boot must not leave it
+            // parked at a partial fill forever.
+            if (trackBoot) setLoadProgress({ done: 0, total: 0 });
         }
         };
 
@@ -966,6 +1004,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         printTemplates, refreshPrintTemplates,
         wsStatus,
         loading,
+        loadProgress,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
@@ -973,7 +1012,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, samplesMeta, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
-        printTemplates, refreshPrintTemplates, wsStatus, loading,
+        printTemplates, refreshPrintTemplates, wsStatus, loading, loadProgress,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
         itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents

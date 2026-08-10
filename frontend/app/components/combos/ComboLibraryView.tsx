@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, CodeChip, XPLoading } from '../shared/xpTheme';
+import { StatusChip, CodeChip, TableSkeleton } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
@@ -138,11 +138,13 @@ export default function ComboLibraryView({
                         </tr>
                     </thead>
                     <tbody>
-                        {combos.length === 0 && (
+                        {combos.length === 0 && (loading ? (
+                            <TableSkeleton rows={8} cols={6} classic={classic} />
+                        ) : (
                             <tr><td colSpan={6} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                {loading ? <XPLoading label="Loading combos..." /> : 'No combos found.'}
+                                No combos found.
                             </td></tr>
-                        )}
+                        ))}
                         {combos.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>
                                 <td style={lvTd(classic)}>

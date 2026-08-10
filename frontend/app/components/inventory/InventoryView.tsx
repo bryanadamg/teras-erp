@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, XPLoading, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -1408,14 +1408,17 @@ export default function InventoryView({
                         classic={classic}
                     />
                   ))}
-                  {filteredItems.length === 0 && (
+                  {filteredItems.length === 0 && dataLoading.items && (
+                    <TableSkeleton rows={8} cols={9} classic={classic} />
+                  )}
+                  {filteredItems.length === 0 && !dataLoading.items && (
                     <tr>
                       <td
                         colSpan={9}
                         style={classic ? { padding: 0, background: '#ffffff' } : undefined}
                         className={classic ? '' : 'text-center text-muted py-5'}
                       >
-                        {dataLoading.items ? <XPLoading label="Loading items..." /> : classic ? (
+                        {classic ? (
                           <XPEmptyState message="No items found" icon="bi-box-seam">
                             <button style={{ ...xpBtn(), marginTop: 10 }} onClick={openCreateModal}>
                               <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />{t('create')}

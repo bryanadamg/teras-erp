@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, XPLoading, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, TableSkeleton, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -1285,15 +1285,15 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </thead>
                             <tbody>
                                 {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
-                                {filtered.length === 0 && (
+                                {filtered.length === 0 && (loading ? (
+                                    <TableSkeleton rows={8} cols={12} classic />
+                                ) : (
                                     <tr>
                                         <td colSpan={12} style={{ textAlign: 'center', padding: '24px' }}>
-                                            {loading ? <XPLoading label="Loading stock balances..." /> : (
-                                                <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
-                                            )}
+                                            <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
                                         </td>
                                     </tr>
-                                )}
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -1415,13 +1415,13 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         </thead>
                         <tbody>
                             {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
-                            {filtered.length === 0 && (
+                            {filtered.length === 0 && (loading ? (
+                                <TableSkeleton rows={8} cols={12} />
+                            ) : (
                                 <tr>
-                                    <td colSpan={12} className="text-center text-muted py-4">
-                                        {loading ? <XPLoading label="Loading stock balances..." /> : 'No stock records found'}
-                                    </td>
+                                    <td colSpan={12} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
-                            )}
+                            ))}
                         </tbody>
                     </table>
                 </div>

@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser } from '../../context/UserContext';
 import { xpFont as XP_FONT } from '../shared/xpTheme';
+import AppLoadBar from '../shared/AppLoadBar';
 
 const XP_BEIGE = '#ece9d8';
 
@@ -77,6 +78,8 @@ export default function MobileShell({
                     </button>
                 </span>
             </div>
+
+            <AppLoadBar />
 
             {/* Scrollable Content */}
             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>

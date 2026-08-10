@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { xpFont, xpBtn, XPLoading, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { xpFont, xpBtn, TableSkeleton, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
@@ -303,9 +303,7 @@ export default function BookingStockView() {
                                         </td>
                                     </tr>
                                 )}
-                                {loading && (
-                                    <tr><td colSpan={COLS.length}><XPLoading label="Loading booking stock..." /></td></tr>
-                                )}
+                                {loading && <TableSkeleton rows={8} cols={COLS.length} classic />}
                             </tbody>
                         </table>
                     </div>

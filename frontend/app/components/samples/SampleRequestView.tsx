@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -1832,21 +1832,21 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                })()}
                                </React.Fragment>
                            ))}
-                           {pageSamples.length === 0 && (
+                           {pageSamples.length === 0 && (dataLoading.samples ? (
+                               <TableSkeleton rows={8} cols={8} classic={classic} />
+                           ) : (
                                <tr>
                                    <td
                                        colSpan={8}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#555', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
-                                       {dataLoading.samples ? <XPLoading label="Loading sample requests..." /> : (
-                                           hasActiveFilter
-                                               ? 'No requests match the current filter.'
-                                               : 'No sample requests found. Create one to get started.'
-                                       )}
+                                       {hasActiveFilter
+                                           ? 'No requests match the current filter.'
+                                           : 'No sample requests found. Create one to get started.'}
                                    </td>
                                </tr>
-                           )}
+                           ))}
                        </tbody>
                    </table>
                </div>

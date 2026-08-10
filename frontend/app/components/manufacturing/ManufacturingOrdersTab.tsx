@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, XPLoading } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton } from '../shared/xpTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -1116,15 +1116,15 @@ export default function ManufacturingOrdersTab({
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredWorkOrders.length === 0 && (
+                            {filteredWorkOrders.length === 0 && (dataLoading.manufacturingOrders ? (
+                                <TableSkeleton rows={8} cols={9} classic={classic} />
+                            ) : (
                                 <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
-                                    {dataLoading.manufacturingOrders
-                                        ? <XPLoading label="Loading manufacturing orders..." />
-                                        : moCodeFilter
-                                            ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
-                                            : 'No Manufacturing Orders yet.'}
+                                    {moCodeFilter
+                                        ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
+                                        : 'No Manufacturing Orders yet.'}
                                 </td></tr>
-                            )}
+                            ))}
                             {filteredWorkOrders.map((wo: any, rowIdx: number) => {
                                 const warning = getDueDateWarning(wo);
                                 const isExpanded = expandedRows[wo.id];

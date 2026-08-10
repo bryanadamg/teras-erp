@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, XPLoading, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -192,13 +192,13 @@ export default function PickListView() {
                         </tr>
                     </thead>
                     <tbody>
-                        {pickLists.length === 0 && (
+                        {pickLists.length === 0 && (loading ? (
+                            <TableSkeleton rows={7} cols={8} classic />
+                        ) : (
                             <tr><td colSpan={8} style={{ padding: 0 }}>
-                                {loading
-                                    ? <XPLoading label="Loading pick lists..." />
-                                    : <XPEmptyState icon="bi-clipboard-check" message='No pick lists yet. Click "New Pick List" to pick packed cartons for an order.' />}
+                                <XPEmptyState icon="bi-clipboard-check" message='No pick lists yet. Click "New Pick List" to pick packed cartons for an order.' />
                             </td></tr>
-                        )}
+                        ))}
                         {pickLists.map((pl: any, idx: number) => (
                             <tr key={pl.id} style={rowStyle(idx)}>
                                 <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{pl.code}</td>

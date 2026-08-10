@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { STATUS_COLORS, xpFont, XPLoading } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont, ListSkeleton } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
@@ -448,7 +448,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                 <div style={{ overflowY: 'auto', flex: 1 }}>
                     {workOrders.length === 0 ? (
                         woLoading
-                            ? <XPLoading label="Loading work orders..." />
+                            ? <ListSkeleton rows={6} />
                             : <div style={{ padding: '8px', color: classic ? '#666' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing work orders found.</div>
                     ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
@@ -723,7 +723,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         {/* Runs table */}
                         <div style={{ overflowY: 'auto', flex: 1 }}>
                             {loading ? (
-                                <XPLoading label="Loading runs..." />
+                                <ListSkeleton rows={4} padding="8px 12px" />
                             ) : runs.length === 0 ? (
                                 <div style={{ padding: 12, color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing runs for this work order.</div>
                             ) : (

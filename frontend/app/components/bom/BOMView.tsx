@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, XPLoading } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
 
@@ -954,13 +954,13 @@ export default function BOMView({
                                 </thead>
 
                                 <tbody>
-                                    {boms.length === 0 ? (
+                                    {boms.length === 0 && bomLoading ? (
+                                        <TableSkeleton rows={8} cols={8} classic={classic} />
+                                    ) : boms.length === 0 ? (
                                         <tr><td colSpan={8} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
-                                            {bomLoading
-                                                ? <XPLoading label="Loading BOMs..." />
-                                                : bomSearch.trim()
-                                                    ? 'No BOMs match your search.'
-                                                    : 'No BOMs yet. Click Create Recipe to get started.'}
+                                            {bomSearch.trim()
+                                                ? 'No BOMs match your search.'
+                                                : 'No BOMs yet. Click Create Recipe to get started.'}
                                         </td></tr>
                                     ) : (
                                         boms.map((bom: any, index: number) => {

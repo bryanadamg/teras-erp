@@ -5,7 +5,7 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip, xpFont, XPLoading } from '../shared/xpTheme';
+import { CodeChip, xpFont, ListSkeleton } from '../shared/xpTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -330,7 +330,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
             <div style={{ width: 280, minWidth: 280, borderRight: classic ? '1px solid #7f9db9' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column', background: classic ? '#f5f4ef' : '#fff' }}>
                 <div style={xpSectionHeader(classic)}>Setting Work Orders</div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: 4 }}>
-                    {loading && <XPLoading label="Loading work orders..." />}
+                    {loading && <ListSkeleton rows={6} />}
                     {!loading && workOrders.length === 0 && (
                         <div style={{ padding: 8, color: classic ? '#888' : '#64748b', fontSize: 10, fontStyle: 'italic' }}>
                             No setting work orders found.

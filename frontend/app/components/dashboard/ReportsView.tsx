@@ -6,7 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    XPLoading, XPEmptyState, useSortable, SortMark, CodeChip,
+    TableSkeleton, XPEmptyState, useSortable, SortMark, CodeChip,
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
@@ -409,7 +409,11 @@ export default function ReportsView(_props: any) {
 
                     {/* Table */}
                     <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
-                        {loading ? <XPLoading label="Loading ledger..." />
+                        {loading ? (
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <tbody><TableSkeleton rows={10} cols={8} classic /></tbody>
+                            </table>
+                        )
                         : error ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load ledger — ${error}`} />
                         : rows.length === 0 ? (
                             <XPEmptyState icon="bi-journal-x" message={hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}>
@@ -544,7 +548,7 @@ export default function ReportsView(_props: any) {
 
             <div className="card-body p-0" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {loading ? (
-                    <XPLoading label="Loading ledger..." />
+                    <table className="table mb-0"><tbody><TableSkeleton rows={10} cols={8} /></tbody></table>
                 ) : error ? (
                     <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load ledger — {error}</div>
                 ) : rows.length === 0 ? (
