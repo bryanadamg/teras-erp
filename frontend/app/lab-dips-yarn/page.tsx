@@ -26,6 +26,8 @@ export default function YarnLabDipsPage() {
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
     const [labDips, setLabDips] = useState<any[]>([]);
+    // True from first paint so the list shows the loader, not "none yet".
+    const [labDipsLoading, setLabDipsLoading] = useState(true);
     const [recipes, setRecipes] = useState<any[]>([]);
     const [colors, setColors] = useState<any[]>([]);
     // Yarn item picker: raw-material-scoped server-side typeahead.
@@ -39,6 +41,7 @@ export default function YarnLabDipsPage() {
                 setLabDips(Array.isArray(data) ? data : (data.items ?? []));
             }
         } catch { /* silent */ }
+        finally { setLabDipsLoading(false); }
     }, [authFetch, API_BASE]);
 
     const fetchRecipes = useCallback(async () => {
@@ -116,6 +119,7 @@ export default function YarnLabDipsPage() {
         <LabDipRequestView
             kind="YARN"
             labDips={labDips}
+            loading={labDipsLoading}
             openRequestId={openRequestId}
             customers={customers}
             items={items}

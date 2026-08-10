@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, XPLoading } from '../shared/xpTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -42,7 +42,7 @@ export default function ManufacturingOrdersTab({
     helpers,
 }: any) {
     const { showToast } = useToast();
-    const { authFetch, fetchData } = useData();
+    const { authFetch, fetchData, loading: dataLoading } = useData();
     const { formatCustom: tzFmt } = useTimezone();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -1118,9 +1118,11 @@ export default function ManufacturingOrdersTab({
                         <tbody>
                             {filteredWorkOrders.length === 0 && (
                                 <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
-                                    {moCodeFilter
-                                        ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
-                                        : 'No Manufacturing Orders yet.'}
+                                    {dataLoading.manufacturingOrders
+                                        ? <XPLoading label="Loading manufacturing orders..." />
+                                        : moCodeFilter
+                                            ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
+                                            : 'No Manufacturing Orders yet.'}
                                 </td></tr>
                             )}
                             {filteredWorkOrders.map((wo: any, rowIdx: number) => {

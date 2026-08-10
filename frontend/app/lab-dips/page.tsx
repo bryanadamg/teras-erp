@@ -23,6 +23,8 @@ export default function LabDipsPage() {
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
     const [labDips, setLabDips] = useState<any[]>([]);
+    // True from first paint so the list shows the loader, not "none yet".
+    const [labDipsLoading, setLabDipsLoading] = useState(true);
     const [recipes, setRecipes] = useState<any[]>([]);
     const [colors, setColors] = useState<any[]>([]);
     // Finished-goods item picker: shared server-side typeahead (scales past any client cap).
@@ -36,6 +38,7 @@ export default function LabDipsPage() {
                 setLabDips(Array.isArray(data) ? data : (data.items ?? []));
             }
         } catch { /* silent */ }
+        finally { setLabDipsLoading(false); }
     }, [authFetch, API_BASE]);
 
     const fetchRecipes = useCallback(async () => {
@@ -111,6 +114,7 @@ export default function LabDipsPage() {
     return (
         <LabDipRequestView
             labDips={labDips}
+            loading={labDipsLoading}
             openRequestId={openRequestId}
             customers={customers}
             items={items}

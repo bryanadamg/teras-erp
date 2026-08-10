@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPLoading, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -789,7 +789,9 @@ export default function WorkOrderListView({
                                 {filtered.length === 0 && (
                                     <tr>
                                         <td colSpan={COLS} style={classic ? { padding: 0 } : { padding: 24, textAlign: 'center', color: '#888' }}>
-                                            {classic ? <XPEmptyState message="No work orders found." icon="bi-tools" /> : 'No work orders found.'}
+                                            {loading
+                                                ? <XPLoading label="Loading work orders..." />
+                                                : classic ? <XPEmptyState message="No work orders found." icon="bi-tools" /> : 'No work orders found.'}
                                         </td>
                                     </tr>
                                 )}

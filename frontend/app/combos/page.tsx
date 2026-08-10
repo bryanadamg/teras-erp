@@ -18,7 +18,8 @@ export default function CombosPage() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
-    const [loading, setLoading] = useState(false);
+    // True from first paint so the list shows the loader, not "none found".
+    const [loading, setLoading] = useState(true);
 
     const fetchCombos = useCallback(async () => {
         setLoading(true);

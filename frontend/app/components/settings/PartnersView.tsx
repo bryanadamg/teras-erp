@@ -7,7 +7,8 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, XPLoading } from '../shared/xpTheme';
+import { useData } from '../../context/DataContext';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 
@@ -37,6 +38,7 @@ interface PartnersViewProps {
 export default function PartnersView({ partners, type, onCreate, onUpdate, onDelete, onBulkDelete }: PartnersViewProps) {
     const { showToast } = useToast();
     const { t } = useLanguage();
+    const { loading: dataLoading } = useData();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
     const [newPartner, setNewPartner] = useState({ name: '', address: '', contact_person: '', phone: '', fax: '', email: '', type, active: true });
@@ -285,9 +287,11 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                             style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                             className={classic ? '' : 'text-center py-5 text-muted'}
                                         >
-                                            {searchTerm
-                                                ? `No ${typeLabel.toLowerCase()}s match "${searchTerm}"`
-                                                : `No ${typeLabel.toLowerCase()}s found. Add one to get started.`}
+                                            {dataLoading.partners
+                                                ? <XPLoading label={`Loading ${typeLabel.toLowerCase()}s...`} />
+                                                : searchTerm
+                                                    ? `No ${typeLabel.toLowerCase()}s match "${searchTerm}"`
+                                                    : `No ${typeLabel.toLowerCase()}s found. Add one to get started.`}
                                         </td>
                                     </tr>
                                 )}

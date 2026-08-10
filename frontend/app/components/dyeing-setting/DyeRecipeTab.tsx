@@ -11,7 +11,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, XPLoading } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -114,7 +114,8 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     const { hasPermission, hasAnyPermission } = useUser();
     const canManage = hasAnyPermission('dye_recipe.create', 'dye_recipe.edit', 'dye_recipe.delete');
     const [recipes, setRecipes] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+    // True from first paint so the list shows the loader, not "none found".
+    const [loading, setLoading] = useState(true);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState<any | null>(null);
@@ -650,7 +651,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                     <tbody>
                         {filteredRecipes.length === 0 && (
                             <tr><td colSpan={9} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                {loading ? 'Loading…' : 'No recipes found.'}
+                                {loading ? <XPLoading label="Loading recipes..." /> : 'No recipes found.'}
                             </td></tr>
                         )}
                         {pagedRecipes.map((recipe, idx) => {

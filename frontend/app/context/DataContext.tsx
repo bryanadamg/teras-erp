@@ -12,7 +12,7 @@ const LOADING_KEY: Record<string, string> = {
     items: 'items', boms: 'boms', 'manufacturing-orders': 'manufacturingOrders',
     'production-runs': 'productionRuns', balance: 'stockBalance', 'stock-ledger': 'stockEntries',
     'sales-orders': 'salesOrders', 'purchase-orders': 'purchaseOrders', samples: 'samples',
-    'audit-logs': 'auditLogs',
+    'audit-logs': 'auditLogs', partners: 'partners',
 };
 
 // One entry of the full item index (/items/lookup — EVERY item, not the paginated
@@ -102,7 +102,7 @@ interface DataContextType {
     loading: {
         items: boolean; boms: boolean; manufacturingOrders: boolean; productionRuns: boolean;
         stockBalance: boolean; stockEntries: boolean; salesOrders: boolean; purchaseOrders: boolean;
-        samples: boolean; auditLogs: boolean;
+        samples: boolean; auditLogs: boolean; partners: boolean;
     };
 
     // Pagination & Search State
@@ -311,6 +311,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     setPrintTemplates(data.printTemplates || []);
                     setItemIndex(data.itemIndex || {});
                     setIsInitialLoad(false); masterFetched = true;
+                    // Master data served from cache issues no /partners request, so the
+                    // domain would otherwise never leave its loading state.
+                    setLoadedOnce(prev => ({ ...prev, partners: true }));
                 }
             }
 
@@ -953,6 +956,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         productionRuns: !loadedOnce.productionRuns, stockBalance: !loadedOnce.stockBalance,
         stockEntries: !loadedOnce.stockEntries, salesOrders: !loadedOnce.salesOrders,
         purchaseOrders: !loadedOnce.purchaseOrders, samples: !loadedOnce.samples, auditLogs: !loadedOnce.auditLogs,
+        partners: !loadedOnce.partners,
     }), [loadedOnce]);
 
     const value = React.useMemo(() => ({

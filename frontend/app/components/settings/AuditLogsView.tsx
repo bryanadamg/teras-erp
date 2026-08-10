@@ -5,7 +5,8 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT, lvThead } from '../shared/listViewTheme';
-import { StatusChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT, xpFont, XPLoading } from '../shared/xpTheme';
+import { useData } from '../../context/DataContext';
 import Pager from '../shared/Pager';
 
 // entity_type is a raw model name (WorkOrder, attribute_value, work_center_holiday, ...) — humanize for display.
@@ -107,6 +108,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
   const { users, refreshUsers } = useUser();
+  const { loading: dataLoading } = useData();
 
   useEffect(() => { if (users.length === 0) refreshUsers(); }, []);
 
@@ -168,7 +170,9 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                               </React.Fragment>
                           ))}
                           {auditLogs.length === 0 && (
-                              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No activity logs found</td></tr>
+                              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                                  {dataLoading.auditLogs ? <XPLoading label="Loading activity logs..." /> : 'No activity logs found'}
+                              </td></tr>
                           )}
                       </tbody>
                   </table>
@@ -217,7 +221,9 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                       {auditLogs.map((log: any, i: number) => (
                           <AuditLogRow key={log.id} log={log} classic={false} rowIndex={i} userName={userNameById[log.user_id]} />
                       ))}
-                      {auditLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
+                      {auditLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">
+                          {dataLoading.auditLogs ? <XPLoading label="Loading activity logs..." /> : 'No activity logs found'}
+                      </td></tr>}
                   </tbody>
               </table>
           </div>

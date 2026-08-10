@@ -56,7 +56,8 @@ export default function ColorsPage() {
     const [variantFilter, setVariantFilter] = useState('');
     const [itemSearch, setItemSearch] = useState('');
     const [sourceFilter, setSourceFilter] = useState('');
-    const [loading, setLoading] = useState(false);
+    // True from first paint so the list shows the loader, not "none found".
+    const [loading, setLoading] = useState(true);
 
     // Deep-link from LabDip approved-color button: /colors?search=<code> focuses the catalog on that code.
     useEffect(() => {

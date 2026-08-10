@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, XPLoading, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -69,7 +69,8 @@ export default function PackingOrderView() {
     const [total, setTotal] = useState(0);
     const [openCount, setOpenCount] = useState(0);
     const [doneCount, setDoneCount] = useState(0);
-    const [loading, setLoading] = useState(false);
+    // True from first paint so the list shows the loader, not "none yet".
+    const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
     const [detail, setDetail] = useState<any | null>(null);
     const [printCard, setPrintCard] = useState<any | null>(null);
@@ -181,7 +182,9 @@ export default function PackingOrderView() {
                     <tbody>
                         {orders.length === 0 && (
                             <tr><td colSpan={9} style={{ padding: 0 }}>
-                                <XPEmptyState icon="bi-box2" message={loading ? 'Loading...' : 'No packing orders yet. Click "New Packing Order" to pack finished goods into cartons.'} />
+                                {loading
+                                    ? <XPLoading label="Loading packing orders..." />
+                                    : <XPEmptyState icon="bi-box2" message='No packing orders yet. Click "New Packing Order" to pack finished goods into cartons.' />}
                             </td></tr>
                         )}
                         {orders.map((po: any, idx: number) => {

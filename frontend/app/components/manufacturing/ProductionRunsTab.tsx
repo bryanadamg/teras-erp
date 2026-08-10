@@ -5,7 +5,7 @@ import ManufacturingSearchBar from './ManufacturingSearchBar';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, XPLoading } from '../shared/xpTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 export default function ProductionRunsTab({
@@ -24,7 +24,7 @@ export default function ProductionRunsTab({
 }: any) {
     const { showToast } = useToast();
     const router = useRouter();
-    const { authFetch } = useData();
+    const { authFetch, loading: dataLoading } = useData();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
     const { getLocationName, getAttributeValueName, formatDate, getStatusBadge } = helpers;
@@ -385,10 +385,12 @@ export default function ProductionRunsTab({
                     fontSize: classic ? '11px' : undefined,
                     color: '#888',
                 }}>
-                    <i className="bi bi-collection-play" style={{ fontSize: 32, display: 'block', marginBottom: 8, opacity: 0.4 }}></i>
-                    {prSearch
-                        ? <>No Production Runs match "<strong>{prSearch}</strong>".</>
-                        : <>No Production Runs yet. Click <strong>New Production Run</strong> to get started.</>}
+                    {dataLoading.productionRuns ? <XPLoading label="Loading production runs..." /> : (<>
+                        <i className="bi bi-collection-play" style={{ fontSize: 32, display: 'block', marginBottom: 8, opacity: 0.4 }}></i>
+                        {prSearch
+                            ? <>No Production Runs match "<strong>{prSearch}</strong>".</>
+                            : <>No Production Runs yet. Click <strong>New Production Run</strong> to get started.</>}
+                    </>)}
                 </div>
             )}
             <Pager page={prPage} total={prTotal} pageSize={pageSize} onPageChange={setPrPage} hideWhenEmpty />

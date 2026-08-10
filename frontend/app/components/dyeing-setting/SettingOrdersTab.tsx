@@ -5,7 +5,7 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip, xpFont } from '../shared/xpTheme';
+import { CodeChip, xpFont, XPLoading } from '../shared/xpTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -148,7 +148,8 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);
     const [runs, setRuns] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+    // True from first paint so the WO pane shows the loader, not "none found".
+    const [loading, setLoading] = useState(true);
     const [showCreateRun, setShowCreateRun] = useState(false);
     const [showCompleteModal, setShowCompleteModal] = useState<any | null>(null);
     const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE);
@@ -329,9 +330,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
             <div style={{ width: 280, minWidth: 280, borderRight: classic ? '1px solid #7f9db9' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column', background: classic ? '#f5f4ef' : '#fff' }}>
                 <div style={xpSectionHeader(classic)}>Setting Work Orders</div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: 4 }}>
-                    {loading && (
-                        <div style={{ padding: 8, color: classic ? '#888' : '#64748b', fontSize: 10 }}>Loading...</div>
-                    )}
+                    {loading && <XPLoading label="Loading work orders..." />}
                     {!loading && workOrders.length === 0 && (
                         <div style={{ padding: 8, color: classic ? '#888' : '#64748b', fontSize: 10, fontStyle: 'italic' }}>
                             No setting work orders found.

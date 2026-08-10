@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, XPLoading } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
@@ -110,7 +110,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const [batches, setBatches] = useState<Batch[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
+  // True from first paint so the list shows the loader, not "none found".
+  const [loading, setLoading] = useState(true);
   const [itemFilter, setItemFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'depleted'>('active');
   const [locationFilter, setLocationFilter] = useState('');  // '' | 'wh:<id>' | 'loc:<id>'
@@ -864,7 +865,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
+                  <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}><XPLoading label="Loading lots..." /></td></tr>
                 )}
                 {!loading && batches.length === 0 && (
                   <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
@@ -995,7 +996,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={colSpan} className="text-center">Loading...</td></tr>}
+                {loading && <tr><td colSpan={colSpan} className="text-center"><XPLoading label="Loading lots..." /></td></tr>}
                 {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
                 {sortedBatches.map(b => (
                   <>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { STATUS_COLORS, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont, XPLoading } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
@@ -162,6 +162,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);
     const [runs, setRuns] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    // Separate from `loading` (which tracks the runs pane) — the WO list is its own fetch.
+    const [woLoading, setWoLoading] = useState(true);
     const [showCreateRun, setShowCreateRun] = useState(false);
     const [showCompleteModal, setShowCompleteModal] = useState<any | null>(null);
     const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
@@ -180,6 +182,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
             }
         } catch {
             // silently fail
+        } finally {
+            setWoLoading(false);
         }
     }, [authFetch]);
 
@@ -443,7 +447,9 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                 <div style={xpSectionHeader}>Dyeing Work Orders</div>
                 <div style={{ overflowY: 'auto', flex: 1 }}>
                     {workOrders.length === 0 ? (
-                        <div style={{ padding: '8px', color: classic ? '#666' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing work orders found.</div>
+                        woLoading
+                            ? <XPLoading label="Loading work orders..." />
+                            : <div style={{ padding: '8px', color: classic ? '#666' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing work orders found.</div>
                     ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
                             <thead>
@@ -717,7 +723,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         {/* Runs table */}
                         <div style={{ overflowY: 'auto', flex: 1 }}>
                             {loading ? (
-                                <div style={{ padding: 12, color: classic ? '#555' : '#64748b', fontSize: classic ? 11 : 13 }}>Loading runs...</div>
+                                <XPLoading label="Loading runs..." />
                             ) : runs.length === 0 ? (
                                 <div style={{ padding: 12, color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing runs for this work order.</div>
                             ) : (

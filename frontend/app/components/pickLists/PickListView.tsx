@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, XPLoading, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -61,7 +61,8 @@ export default function PickListView() {
     // pickableSOs / openSoIds are only needed while the SO picker is open.
     const [pickableSOs, setPickableSOs] = useState<any[]>([]);
     const [openSoIds, setOpenSoIds] = useState<Set<string>>(new Set());
-    const [loading, setLoading] = useState(false);
+    // True from first paint so the list shows the loader, not "none yet".
+    const [loading, setLoading] = useState(true);
     const [picking, setPicking] = useState(false);
     const [editing, setEditing] = useState<any | null>(null);
     const [printPL, setPrintPL] = useState<any | null>(null);
@@ -193,7 +194,9 @@ export default function PickListView() {
                     <tbody>
                         {pickLists.length === 0 && (
                             <tr><td colSpan={8} style={{ padding: 0 }}>
-                                <XPEmptyState icon="bi-clipboard-check" message={loading ? 'Loading...' : 'No pick lists yet. Click "New Pick List" to pick packed cartons for an order.'} />
+                                {loading
+                                    ? <XPLoading label="Loading pick lists..." />
+                                    : <XPEmptyState icon="bi-clipboard-check" message='No pick lists yet. Click "New Pick List" to pick packed cartons for an order.' />}
                             </td></tr>
                         )}
                         {pickLists.map((pl: any, idx: number) => (

@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
+import { XPEmptyState, XPLoading, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -330,7 +330,7 @@ export default function InventoryView({
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const { categories, locations, filters: { categoryL1, setCategoryL1, categoryL2, setCategoryL2, categoryL3, setCategoryL3, itemSearch, setItemSearch } } = useData();
+  const { categories, locations, loading: dataLoading, filters: { categoryL1, setCategoryL1, categoryL2, setCategoryL2, categoryL3, setCategoryL3, itemSearch, setItemSearch } } = useData();
   const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('item.create', 'item.edit');
   const canDelete = hasPermission('item.delete');
@@ -1415,7 +1415,7 @@ export default function InventoryView({
                         style={classic ? { padding: 0, background: '#ffffff' } : undefined}
                         className={classic ? '' : 'text-center text-muted py-5'}
                       >
-                        {classic ? (
+                        {dataLoading.items ? <XPLoading label="Loading items..." /> : classic ? (
                           <XPEmptyState message="No items found" icon="bi-box-seam">
                             <button style={{ ...xpBtn(), marginTop: 10 }} onClick={openCreateModal}>
                               <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />{t('create')}
