@@ -1,22 +1,27 @@
 import uuid as uuid_lib
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text, update as sa_update
+from sqlalchemy import select, text, func, case, update as sa_update
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
-from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine, LabDipRejection
+from app.models.lab_dip import (
+    LabDipRequest, LabDipItem, LabDipLine, LabDipRejection, LabDipItemEvent,
+)
 from app.models.color import Color
+from app.models.item import Item as ItemModel
+from app.models.partner import Partner
 from app.models.attribute import Attribute, AttributeValue
 from app.models.manufacturing import ManufacturingOrder
 from app.models.sales import SalesOrderLine
 from app.schemas import (
     LabDipRequestCreate, LabDipRequestUpdate, LabDipRequestResponse, LabDipLineResponse,
+    LabDipDevelopmentReport, LabDipReportTotals, LabDipReportVariantRow, LabDipReportGroupRow,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
-from datetime import datetime, date
+from datetime import datetime, date, time, timedelta
 
 router = APIRouter()
 
@@ -270,6 +275,165 @@ async def get_pending_labdip_variants(
             "request_code": parent.code if parent else None,
         })
     return out
+
+
+@router.get("/lab-dips/report", response_model=LabDipDevelopmentReport)
+async def get_lab_dip_report(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    customer_id: str | None = None,
+    kind: str = "ALL",
+    group_by: str = "customer",
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('lab_dip_request.view')),
+):
+    """Lab dip activity over a date range, at attempt grain.
+
+    Same question as the sample development report, one flow down: in this window, how
+    many variants did we touch, how many times did we dip them, how many times was a
+    variant rejected, how many times approved. Counts are event rows
+    (`lab_dip_item_events`), NOT current statuses — a variant rejected twice before
+    approval contributes 2 rejects, 1 approval and 3 dips, and it lands in whichever
+    window each attempt happened in. The range is on the event's own timestamp;
+    LabDipRequest.updated_at is unusable here because any edit bumps it.
+    """
+    if group_by not in ("customer", "kind", "month"):
+        raise HTTPException(status_code=400, detail="group_by must be customer, kind or month")
+
+    conds = []
+    if date_from:
+        conds.append(LabDipItemEvent.created_at >= datetime.combine(date.fromisoformat(date_from), time.min))
+    if date_to:
+        # Inclusive upper bound: date inputs are yyyy-mm-dd against a timestamp column.
+        conds.append(LabDipItemEvent.created_at < datetime.combine(date.fromisoformat(date_to) + timedelta(days=1), time.min))
+    if customer_id:
+        conds.append(LabDipRequest.customer_id == customer_id)
+    if kind and kind != "ALL":
+        conds.append(LabDipRequest.kind == kind)
+
+    def _c(event: str):
+        """Count of one event kind inside the grouped set (0, never NULL)."""
+        return func.coalesce(func.sum(case((LabDipItemEvent.event == event, 1), else_=0)), 0)
+
+    dips_expr = _c("IN_PROGRESS")
+    approvals_expr = _c("APPROVED")
+    rejects_expr = _c("REJECTED")
+
+    totals_row = (await db.execute(
+        select(
+            func.count(func.distinct(LabDipItemEvent.lab_dip_item_id)),
+            func.count(func.distinct(LabDipItemEvent.lab_dip_request_id)),
+            dips_expr, approvals_expr, rejects_expr,
+        ).select_from(LabDipItemEvent)
+        .join(LabDipRequest, LabDipRequest.id == LabDipItemEvent.lab_dip_request_id)
+        .where(*conds)
+    )).first()
+
+    variants, requests, dips, approvals, rejects = totals_row if totals_row else (0, 0, 0, 0, 0)
+    decided = (approvals or 0) + (rejects or 0)
+    totals = LabDipReportTotals(
+        variants=variants or 0,
+        requests=requests or 0,
+        dips=dips or 0,
+        approvals=approvals or 0,
+        rejects=rejects or 0,
+        # Share of decided attempts that passed — reject rate is its complement.
+        approval_rate=round((approvals or 0) * 100.0 / decided, 1) if decided else 0.0,
+        # Dip runs per variant touched: >1 means re-dips are the norm.
+        avg_dips_per_variant=round((dips or 0) / variants, 2) if variants else 0.0,
+    )
+
+    # Variant grain: one row per lab dip variant that saw activity in the window.
+    row_result = await db.execute(
+        select(
+            LabDipItem.id,
+            LabDipItem.status,
+            LabDipItem.variant_seq,
+            LabDipItem.locked_variant_code,
+            LabDipItem.approved_set,
+            LabDipRequest.id,
+            LabDipRequest.code,
+            LabDipRequest.kind,
+            LabDipRequest.customer_article_code,
+            LabDipRequest.season,
+            ItemModel.code,
+            ItemModel.name,
+            Partner.name,
+            dips_expr, approvals_expr, rejects_expr,
+            func.max(LabDipItemEvent.created_at),
+        )
+        .select_from(LabDipItemEvent)
+        .join(LabDipItem, LabDipItem.id == LabDipItemEvent.lab_dip_item_id)
+        .join(LabDipRequest, LabDipRequest.id == LabDipItemEvent.lab_dip_request_id)
+        .join(ItemModel, ItemModel.id == LabDipItem.item_id, isouter=True)
+        .join(Partner, Partner.id == LabDipRequest.customer_id, isouter=True)
+        .where(*conds)
+        .group_by(
+            LabDipItem.id, LabDipItem.status, LabDipItem.variant_seq,
+            LabDipItem.locked_variant_code, LabDipItem.approved_set,
+            LabDipRequest.id, LabDipRequest.code, LabDipRequest.kind,
+            LabDipRequest.customer_article_code, LabDipRequest.season,
+            ItemModel.code, ItemModel.name, Partner.name,
+        )
+        .order_by(func.max(LabDipItemEvent.created_at).desc())
+    )
+    rows = []
+    for r in row_result.all():
+        # Same derivation as _decorate(): the request's book-namespaced sequence part
+        # plus the variant letter, unless the row carries a locked code from a resubmit.
+        raw = r[6].rsplit("-", 1)[-1] if r[6] else ""
+        seq_part = f"Y{raw}" if r[7] == "YARN" else raw
+        variant_code = r[3] or f"{seq_part}-{_variant_letter(r[2] or 0)}"
+        rows.append(LabDipReportVariantRow(
+            item_id=r[0], variant_code=variant_code, item_code=r[10], item_name=r[11],
+            status=r[1], request_id=r[5], request_code=r[6], kind=r[7],
+            customer_name=r[12], customer_article_code=r[8], season=r[9],
+            approved_color_code=f"{variant_code}-{r[4]}" if r[4] else None,
+            dips=r[13] or 0, approvals=r[14] or 0, rejects=r[15] or 0,
+            last_event_at=r[16],
+        ))
+
+    # One aggregate tier so the report reads without client-side rollups.
+    if group_by == "customer":
+        label_col = func.coalesce(Partner.name, "(No customer)")
+    elif group_by == "kind":
+        label_col = func.coalesce(LabDipRequest.kind, "FG")
+    else:
+        label_col = func.to_char(LabDipItemEvent.created_at, "YYYY-MM")
+
+    group_result = await db.execute(
+        select(
+            label_col,
+            func.count(func.distinct(LabDipItemEvent.lab_dip_item_id)),
+            dips_expr, approvals_expr, rejects_expr,
+        )
+        .select_from(LabDipItemEvent)
+        .join(LabDipRequest, LabDipRequest.id == LabDipItemEvent.lab_dip_request_id)
+        .join(Partner, Partner.id == LabDipRequest.customer_id, isouter=True)
+        .where(*conds)
+        .group_by(label_col)
+        .order_by(label_col)
+    )
+    groups = []
+    for g in group_result.all():
+        g_decided = (g[3] or 0) + (g[4] or 0)
+        groups.append(LabDipReportGroupRow(
+            label=g[0] or "—",
+            variants=g[1] or 0,
+            dips=g[2] or 0,
+            approvals=g[3] or 0,
+            rejects=g[4] or 0,
+            approval_rate=round((g[3] or 0) * 100.0 / g_decided, 1) if g_decided else 0.0,
+        ))
+
+    return LabDipDevelopmentReport(
+        date_from=date_from,
+        date_to=date_to,
+        group_by=group_by,
+        totals=totals,
+        rows=rows,
+        groups=groups,
+    )
 
 
 @router.put("/lab-dips/{request_id}", response_model=LabDipRequestResponse)
@@ -526,6 +690,25 @@ async def update_lab_dip_item_status(
 
     previous_status = item.status
     item.status = status
+
+    # Attempt log for the Lab Dip Report. The item row only keeps its current status,
+    # so every transition appends a row here; the counts survive a later reopen.
+    prior_same = await db.scalar(
+        select(func.count()).select_from(LabDipItemEvent).where(
+            LabDipItemEvent.lab_dip_item_id == item.id,
+            LabDipItemEvent.event == status,
+        )
+    ) or 0
+    db.add(LabDipItemEvent(
+        lab_dip_item_id=item.id,
+        lab_dip_request_id=item.lab_dip_request_id,
+        event=status,
+        previous_status=previous_status,
+        round_no=prior_same + 1,
+        reason=(reason or "").strip() or None,
+        notes=(notes or "").strip() or None,
+        created_by_id=current_user.id,
+    ))
 
     if parent:
         parent.updated_at = datetime.utcnow()

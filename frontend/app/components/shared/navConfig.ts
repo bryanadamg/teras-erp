@@ -86,6 +86,7 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'colors', label: 'Colors', icon: 'bi-palette2', permission: 'color_code.view' },
             { tab: 'lab-dips', label: 'Lab Dip Requests', icon: 'bi-droplet', permission: 'lab_dip_request.view' },
             { tab: 'lab-dips-yarn', label: 'Yarn Lab Dips', icon: 'bi-droplet-half', permission: 'yarn_lab_dip.view' },
+            { tab: 'lab-dip-report', label: 'Lab Dip Report', i18nKey: 'lab_dip_report', icon: 'bi-clipboard-data', permission: 'lab_dip_request.view' },
         ],
     },
     {

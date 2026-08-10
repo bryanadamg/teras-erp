@@ -1805,6 +1805,56 @@ class SampleDevelopmentReport(BaseModel):
     rows: list[SampleReportVariantRow] = []
     groups: list[SampleReportGroupRow] = []
 
+# --- Lab Dip Report Schemas ---
+# Mirror of the sample development report, one tier down: the grain is a lab dip
+# variant (LabDipItem) and the events are dips/approvals/rejections. There is no
+# SENT stage in the lab dip flow, so that column has no counterpart here.
+
+class LabDipReportTotals(BaseModel):
+    """Attempt counts over the report window. `dips`/`rejects`/`approvals` are event
+    counts, so they can exceed `variants` — that is the point of the report."""
+    variants: int = 0
+    requests: int = 0
+    dips: int = 0
+    approvals: int = 0
+    rejects: int = 0
+    approval_rate: float = 0.0
+    avg_dips_per_variant: float = 0.0
+
+class LabDipReportVariantRow(BaseModel):
+    item_id: UUID
+    variant_code: str
+    item_code: Optional[str] = None
+    item_name: Optional[str] = None
+    status: str = "PENDING"
+    request_id: UUID
+    request_code: str
+    kind: str = "FG"
+    customer_name: Optional[str] = None
+    customer_article_code: Optional[str] = None
+    season: Optional[str] = None
+    approved_color_code: Optional[str] = None
+    dips: int = 0
+    approvals: int = 0
+    rejects: int = 0
+    last_event_at: Optional[datetime] = None
+
+class LabDipReportGroupRow(BaseModel):
+    label: str
+    variants: int = 0
+    dips: int = 0
+    approvals: int = 0
+    rejects: int = 0
+    approval_rate: float = 0.0
+
+class LabDipDevelopmentReport(BaseModel):
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    group_by: str = "customer"
+    totals: LabDipReportTotals = LabDipReportTotals()
+    rows: list[LabDipReportVariantRow] = []
+    groups: list[LabDipReportGroupRow] = []
+
 # --- Lab Dip Request Schemas ---
 
 # --- Color Library Schemas ---

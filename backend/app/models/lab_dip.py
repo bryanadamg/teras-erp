@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import String, ForeignKey, Integer, Text, DateTime, Date
+from sqlalchemy import String, ForeignKey, Integer, Text, DateTime, Date, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -119,6 +119,45 @@ class LabDipRejection(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     rejected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class LabDipItemEvent(Base):
+    """Immutable log of every status transition a lab dip variant went through.
+
+    Same shape and same reason as `sample_color_events`: the item row only carries its
+    *current* status, so "how many times did we dip / reject / approve this variant in a
+    date range" is unanswerable from it. `lab_dip_rejections` already logs one side of
+    that; this logs all four transitions so the Lab Dip Report can count attempts the
+    way the Sample Development Report does. Rejections keep their own table — it is the
+    reason/notes record of record and is what the variant UI reads.
+    """
+
+    __tablename__ = "lab_dip_item_events"
+    __table_args__ = (
+        # The report groups by (event, created_at range); this is the covering order.
+        Index("ix_lab_dip_item_events_event_created", "event", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lab_dip_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lab_dip_items.id", ondelete="CASCADE"), index=True
+    )
+    # Denormalised parent so the report can filter by customer/kind without a second
+    # join hop through lab_dip_items on every aggregate.
+    lab_dip_request_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lab_dip_requests.id", ondelete="CASCADE"), index=True
+    )
+    # The status the variant moved INTO: PENDING | IN_PROGRESS | APPROVED | REJECTED
+    event: Mapped[str] = mapped_column(String(32), index=True)
+    previous_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 1-based occurrence of this event for this variant (2 = second rejection).
+    round_no: Mapped[int] = mapped_column(Integer, default=1)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
 class LabDipLine(Base):
