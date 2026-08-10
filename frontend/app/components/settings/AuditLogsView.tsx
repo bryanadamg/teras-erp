@@ -5,7 +5,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT, lvThead } from '../shared/listViewTheme';
-import { StatusChip, CODE_FONT, xpFont, TableSkeleton } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT, xpFont, xpBtn, TableSkeleton } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import Pager from '../shared/Pager';
 
@@ -108,9 +108,16 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
   const { users, refreshUsers } = useUser();
-  const { loading: dataLoading } = useData();
+  const { loading: dataLoading, fetchData } = useData();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => { if (users.length === 0) refreshUsers(); }, []);
+
+  const handleRefresh = async () => {
+      if (refreshing) return;
+      setRefreshing(true);
+      try { await fetchData('audit-logs'); } finally { setRefreshing(false); }
+  };
 
   const userNameById = useMemo(() => Object.fromEntries(
       users.map((u: any) => [u.id, u.full_name || u.username])
@@ -134,6 +141,10 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
 
               {/* Filters toolbar */}
               <div style={xpToolbar}>
+                  <button style={xpBtn()} onClick={handleRefresh} disabled={refreshing} title="Refresh">
+                      <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />{refreshing ? 'Refreshing…' : 'Refresh'}
+                  </button>
+                  <div style={xpSep} />
                   <i className="bi bi-funnel" style={{ fontSize: '11px', color: '#666' }}></i>
                   <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#444' }}>Entity:</span>
                   <select style={{ ...xpSelect, width: 150 }} value={filterType} onChange={e => onFilterChange(e.target.value)}>
@@ -194,17 +205,22 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
               title="System Audit Logs"
               subtitle="Track all user activities and system changes. Click rows to see technical details."
               right={
-                  <div className="input-group input-group-sm" style={{ width: '180px' }}>
-                      <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
-                      <select className="form-select" value={filterType} onChange={e => onFilterChange(e.target.value)}>
-                          <option value="">All Entities</option>
-                          <option value="Item">Items</option>
-                          <option value="BOM">BOMs</option>
-                          <option value="WorkOrder">Work Orders</option>
-                          <option value="SalesOrder">Sales Orders</option>
-                          <option value="SampleRequest">Samples</option>
-                          <option value="StockEntry">Stock</option>
-                      </select>
+                  <div className="d-flex align-items-center gap-2">
+                      <div className="input-group input-group-sm" style={{ width: '180px' }}>
+                          <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
+                          <select className="form-select" value={filterType} onChange={e => onFilterChange(e.target.value)}>
+                              <option value="">All Entities</option>
+                              <option value="Item">Items</option>
+                              <option value="BOM">BOMs</option>
+                              <option value="WorkOrder">Work Orders</option>
+                              <option value="SalesOrder">Sales Orders</option>
+                              <option value="SampleRequest">Samples</option>
+                              <option value="StockEntry">Stock</option>
+                          </select>
+                      </div>
+                      <button className="btn btn-outline-secondary btn-sm" onClick={handleRefresh} disabled={refreshing} title="Refresh">
+                          <i className="bi bi-arrow-clockwise me-1" />{refreshing ? 'Refreshing…' : 'Refresh'}
+                      </button>
                   </div>
               }
           />
