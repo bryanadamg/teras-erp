@@ -43,6 +43,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
   const handleApproveColor = (sampleId: string, colorId: string, colorName: string) => {
       setApproveTarget({ sampleId, colorId, colorName });
+      setApproveNotes('');
+      setApproveImage(null);
   };
   const { companyProfile, attributes, loading: dataLoading, authFetch, samplesMeta, loadSamples } = useData();
 
@@ -110,6 +112,17 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       if (['xlsx', 'xls'].includes(ext)) return 'excel';
       return 'pdf';
   };
+  // Approval / rejection proof photo on a color row — one per side, opens the same
+  // preview modal the request-level attachments use.
+  const statusPhotoThumb = (url?: string | null, label = 'Photo') => {
+      if (!url) return null;
+      const full = `${STATIC_BASE}${url}`;
+      return (
+          <img src={full} alt={label} title={`${label} — click to preview`}
+              onClick={() => setFilePreview({ url: full, type: 'image', filename: url.split('/').pop() || 'photo' })}
+              style={{ maxHeight: 40, maxWidth: 80, border: '1px solid #b0a898', cursor: 'pointer', display: 'block', margin: '2px auto 0' }} />
+      );
+  };
   const toggleExpand = (id: string) =>
       setExpandedIds(prev => {
           const next = new Set(prev);
@@ -136,23 +149,27 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const [rejectTarget, setRejectTarget] = useState<{ sampleId: string; colorId: string; colorName: string } | null>(null);
   const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
   const [rejectNotes, setRejectNotes] = useState('');
+  const [rejectImage, setRejectImage] = useState<File | null>(null);
 
   const openRejectModal = (sampleId: string, colorId: string, colorName: string) => {
       setRejectTarget({ sampleId, colorId, colorName });
       setRejectReason(REJECT_REASONS[0]);
       setRejectNotes('');
+      setRejectImage(null);
   };
   const confirmReject = () => {
       if (!rejectTarget) return;
-      onUpdateColorStatus(rejectTarget.sampleId, rejectTarget.colorId, 'REJECTED', rejectReason, rejectNotes);
+      onUpdateColorStatus(rejectTarget.sampleId, rejectTarget.colorId, 'REJECTED', rejectReason, rejectNotes, rejectImage);
       setRejectTarget(null);
   };
 
-  // ── Approve confirmation ────────────────────────────────────────────────
+  // ── Approve confirmation (note + photo, mirrors the reject side) ─────────
   const [approveTarget, setApproveTarget] = useState<{ sampleId: string; colorId: string; colorName: string } | null>(null);
+  const [approveNotes, setApproveNotes] = useState('');
+  const [approveImage, setApproveImage] = useState<File | null>(null);
   const confirmApprove = () => {
       if (!approveTarget) return;
-      onUpdateColorStatus(approveTarget.sampleId, approveTarget.colorId, 'APPROVED');
+      onUpdateColorStatus(approveTarget.sampleId, approveTarget.colorId, 'APPROVED', undefined, approveNotes, approveImage);
       setApproveTarget(null);
   };
 
@@ -675,9 +692,21 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            }
        >
            <div style={{ fontSize: 12 }}>
-               <p className="mb-0">
+               <p className="text-muted small mb-3">
                    Approve {approveTarget ? <strong>&quot;{approveTarget.colorName}&quot;</strong> : 'this color'}? Status will be locked and cannot be changed after approval.
                </p>
+               <div className="mb-3">
+                   <label className="form-label small fw-bold">Notes <span className="fw-normal text-muted">(optional)</span></label>
+                   <textarea className="form-control form-control-sm" rows={3} value={approveNotes}
+                       onChange={e => setApproveNotes(e.target.value)}
+                       placeholder="Sign-off detail for this approval…" />
+               </div>
+               <div>
+                   <label className="form-label small fw-bold">Photo <span className="fw-normal text-muted">(optional)</span></label>
+                   <input type="file" accept="image/*" className="form-control form-control-sm"
+                       onChange={e => setApproveImage(e.target.files?.[0] || null)} />
+                   {approveImage && <div className="small text-muted mt-1">{approveImage.name}</div>}
+               </div>
            </div>
        </ModalWrapper>
 
@@ -712,11 +741,17 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        {REJECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                    </select>
                </div>
-               <div>
+               <div className="mb-3">
                    <label className="form-label small fw-bold">Notes <span className="fw-normal text-muted">(optional)</span></label>
                    <textarea className="form-control form-control-sm" rows={3} value={rejectNotes}
                        onChange={e => setRejectNotes(e.target.value)}
                        placeholder="Extra detail for this rejection…" />
+               </div>
+               <div>
+                   <label className="form-label small fw-bold">Photo <span className="fw-normal text-muted">(optional)</span></label>
+                   <input type="file" accept="image/*" className="form-control form-control-sm"
+                       onChange={e => setRejectImage(e.target.files?.[0] || null)} />
+                   {rejectImage && <div className="small text-muted mt-1">{rejectImage.name}</div>}
                </div>
            </div>
        </ModalWrapper>
@@ -1701,13 +1736,18 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                    )}
                                                </span>,
                                                isApproved ? (
-                                                   classic
-                                                       ? <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: xpFont }}>Approved</span>
-                                                       : <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>
+                                                   <div style={{ textAlign: 'center' as const }}>
+                                                       {classic
+                                                           ? <div style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: xpFont }}>Approved</div>
+                                                           : <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>}
+                                                       {c.approval_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: xpFont, fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.approval_notes}</div>}
+                                                       {statusPhotoThumb(c.approval_image_url, 'Approval photo')}
+                                                   </div>
                                                ) : isRejected ? (
                                                    <div style={{ textAlign: 'center' as const }}>
                                                        <div className={classic ? '' : 'fw-bold text-danger'} style={classic ? { fontSize: 10, color: '#a01a1a', fontWeight: 'bold', fontFamily: xpFont } : { fontSize: 10 }}>Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}</div>
                                                        {c.rejection_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: xpFont, fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.rejection_notes}</div>}
+                                                       {statusPhotoThumb(c.rejection_image_url, 'Rejection photo')}
                                                        {/* Rejected rests but is reopenable — remaking the variant is a new attempt,
                                                            which is what the sample report counts. Only exit is back to In Production. */}
                                                        {canManage && (

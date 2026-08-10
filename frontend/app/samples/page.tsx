@@ -37,12 +37,21 @@ export default function SamplesPage() {
         if (res.ok) refreshSamples();
     };
 
-    const handleUpdateColorStatus = async (sampleId: string, colorId: string, status: string, reason?: string, notes?: string) => {
+    // The photo is a second call on purpose: the status PUT is what decides which side
+    // (approval / rejection) the file belongs to, and it stamps the event row the
+    // upload then attaches itself to.
+    const handleUpdateColorStatus = async (sampleId: string, colorId: string, status: string, reason?: string, notes?: string, image?: File | null) => {
         let url = `${API_BASE}/samples/${sampleId}/colors/${colorId}/status?status=${status}`;
         if (reason) url += `&reason=${encodeURIComponent(reason)}`;
         if (notes) url += `&notes=${encodeURIComponent(notes)}`;
         const res = await authFetch(url, { method: 'PUT' });
-        if (res.ok) refreshSamples();
+        if (!res.ok) return;
+        if (image) {
+            const fd = new FormData();
+            fd.append('file', image);
+            await authFetch(`${API_BASE}/samples/${sampleId}/colors/${colorId}/status-image`, { method: 'POST', body: fd });
+        }
+        refreshSamples();
     };
 
     const handleEditSample = async (id: string, p: any) => {

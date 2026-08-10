@@ -710,6 +710,14 @@ async def update_color_status(
     else:
         color.rejection_reason = None
         color.rejection_notes = None
+    # Approval note is the mirror of the rejection one; both sides also take a photo,
+    # uploaded straight after this call. Only the current status' pair is kept on the
+    # variant — the per-round copies live on the event rows.
+    color.approval_notes = notes_v if status == "APPROVED" else None
+    if status != "APPROVED":
+        color.approval_image_url = None
+    if status != "REJECTED":
+        color.rejection_image_url = None
 
     # Own timestamps + attempt tallies. The parent's updated_at moves on any edit, so
     # the report dates a variant only from these and from the event rows.
@@ -860,6 +868,72 @@ async def upload_completion_image(
     await db.commit()
     await audit_service.log_activity(db, current_user.id, "UPDATE", "SampleRequest", sample_id, details="Uploaded completion image")
     return {"completion_image_url": sample.completion_image_url}
+
+
+@router.post("/samples/{sample_id}/colors/{color_id}/status-image")
+async def upload_color_status_image(
+    sample_id: str,
+    color_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('sample_request.update_status')),
+):
+    """One proof photo for the variant's current approval/rejection.
+
+    Called right after the status PUT, so the side is read from the variant's status
+    rather than passed in. The file name carries the round number, so reopening and
+    rejecting again does not overwrite the photo an earlier event row points at.
+    """
+    result = await db.execute(
+        select(SampleColor).filter(SampleColor.id == color_id, SampleColor.sample_request_id == sample_id)
+    )
+    color = result.scalars().first()
+    if not color:
+        raise HTTPException(status_code=404, detail="Color not found")
+    if color.status not in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail="A photo can only be attached to an approved or rejected color")
+
+    # Newest event for this variant = the transition this photo belongs to.
+    ev_result = await db.execute(
+        select(SampleColorEvent)
+        .where(SampleColorEvent.sample_color_id == color.id)
+        .order_by(SampleColorEvent.created_at.desc(), SampleColorEvent.round_no.desc())
+        .limit(1)
+    )
+    event = ev_result.scalars().first()
+    round_no = event.round_no if event else 1
+
+    upload_dir = Path("static/samples")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
+    if ext == ".jpeg":
+        ext = ".jpg"
+    kind = "approval" if color.status == "APPROVED" else "rejection"
+    filename = f"{color_id}_{kind}_{round_no}{ext}"
+    file_path = upload_dir / filename
+    with file_path.open("wb") as buf:
+        await run_in_threadpool(shutil.copyfileobj, file.file, buf)
+
+    url = f"/static/samples/{filename}"
+    if color.status == "APPROVED":
+        color.approval_image_url = url
+    else:
+        color.rejection_image_url = url
+    if event:
+        event.image_url = url
+
+    await db.commit()
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE_COLOR_STATUS",
+        entity_type="SampleColor",
+        entity_id=color_id,
+        details=f"Attached {kind} photo to color '{color.name}'",
+        changes={"image_url": url},
+    )
+    return {"image_url": url}
 
 
 @router.post("/samples/{sample_id}/design-pdf")

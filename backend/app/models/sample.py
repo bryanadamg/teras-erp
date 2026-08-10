@@ -27,6 +27,14 @@ class SampleColor(Base):
     status: Mapped[str] = mapped_column(String(32), default="PENDING")
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rejection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Sign-off note captured in the approve dialog (mirrors the reject side, which
+    # has carried reason + notes since the reject flow was built).
+    approval_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # One proof photo per side, for the CURRENT status only — a reopened variant
+    # clears these on the way back to IN_PRODUCTION. Every round's photo survives on
+    # its SampleColorEvent row, which is the history of record.
+    approval_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    rejection_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # Attempt tallies + own timestamps. The parent request's updated_at is bumped by
     # ANY edit to the request, so it cannot date a variant's approval/rejection —
@@ -84,6 +92,9 @@ class SampleColorEvent(Base):
     round_no: Mapped[int] = mapped_column(Integer, default=1)
     reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Photo attached to THIS round's approval/rejection. Uploaded right after the
+    # transition, so it lands on the newest event row for the variant.
+    image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

@@ -1610,6 +1610,9 @@ class SampleColorResponse(BaseModel):
     status: str = "PENDING"
     rejection_reason: str | None = None
     rejection_notes: str | None = None
+    approval_notes: str | None = None
+    approval_image_url: str | None = None
+    rejection_image_url: str | None = None
     item_id: UUID | None = None
     item_code: str | None = None
     # Attempt tallies — a variant can be rejected, reopened and rejected again, so
@@ -1634,6 +1637,7 @@ class SampleColorEventResponse(BaseModel):
     round_no: int = 1
     reason: Optional[str] = None
     notes: Optional[str] = None
+    image_url: Optional[str] = None
     created_by_name: Optional[str] = None
     created_at: datetime
     class Config:
