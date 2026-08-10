@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, useRowHeightProbe, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -918,7 +918,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   // Skeleton sizing: measure one real row so the placeholders shown on the next
   // load are exactly as tall as the rows that replace them.
   const listBodyRef = useRef<HTMLTableSectionElement>(null);
-  const skelRowH = useRowHeightProbe('sales-orders', listBodyRef, pageOrders.length > 0);
+  const skel = useTableSkeletonMetrics('sales-orders', listBodyRef, pageOrders.length > 0);
 
 
 
@@ -1880,11 +1880,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                });
                            })}
                            {filteredOrders.length === 0 && (dataLoading.salesOrders ? (
-                               <TableSkeleton rows={8} cols={11} classic={classic} tdStyle={tdBase} rowHeight={skelRowH} />
+                               <TableSkeleton rows={8} cols={skel.cols ?? 12} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                            ) : (
                                <tr>
                                    <td
-                                       colSpan={11}
+                                       colSpan={12}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >

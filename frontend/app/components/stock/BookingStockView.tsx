@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'rea
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { xpFont, xpBtn, TableSkeleton, useRowHeightProbe, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
@@ -116,7 +116,7 @@ export default function BookingStockView() {
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe('booking-stock', listBodyRef, sorted.length > 0);
+    const skel = useTableSkeletonMetrics('booking-stock', listBodyRef, sorted.length > 0);
 
     const shortfallCount = useMemo(() => rows.filter(r => r.qty_net_free < -EPS).length, [rows]);
     const tightCount = useMemo(() => rows.filter(r => r.qty_net_free >= -EPS && r.qty_net_free <= EPS).length, [rows]);
@@ -308,7 +308,7 @@ export default function BookingStockView() {
                                         </td>
                                     </tr>
                                 )}
-                                {loading && <TableSkeleton rows={8} cols={COLS.length} classic rowHeight={skelRowH} />}
+                                {loading && <TableSkeleton rows={8} cols={skel.cols ?? COLS.length} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
                             </tbody>
                         </table>
                     </div>

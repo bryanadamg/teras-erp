@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, TableSkeleton, useRowHeightProbe, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -554,7 +554,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     // load are exactly as tall as the rows that replace them. Classic and modern
     // rows differ in height, so they cache under separate keys.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe(classic ? 'stock-on-hand-classic' : 'stock-on-hand', listBodyRef, pageRows.length > 0);
+    const skel = useTableSkeletonMetrics(classic ? 'stock-on-hand-classic' : 'stock-on-hand', listBodyRef, pageRows.length > 0);
 
     // Header checkbox acts on the visible page only — selecting 4000 filtered rows
     // in one click is never what the operator meant.
@@ -1292,7 +1292,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             <tbody ref={listBodyRef}>
                                 {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (loading ? (
-                                    <TableSkeleton rows={8} cols={12} classic rowHeight={skelRowH} />
+                                    <TableSkeleton rows={8} cols={skel.cols ?? 12} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                                 ) : (
                                     <tr>
                                         <td colSpan={12} style={{ textAlign: 'center', padding: '24px' }}>
@@ -1422,7 +1422,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <tbody ref={listBodyRef}>
                             {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (loading ? (
-                                <TableSkeleton rows={8} cols={12} rowHeight={skelRowH} />
+                                <TableSkeleton rows={8} cols={skel.cols ?? 12} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : (
                                 <tr>
                                     <td colSpan={12} className="text-center text-muted py-4">No stock records found</td>

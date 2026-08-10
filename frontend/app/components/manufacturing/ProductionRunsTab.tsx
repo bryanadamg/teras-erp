@@ -5,7 +5,7 @@ import ManufacturingSearchBar from './ManufacturingSearchBar';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 export default function ProductionRunsTab({
@@ -29,7 +29,7 @@ export default function ProductionRunsTab({
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe('production-runs', listBodyRef, (productionRuns?.length ?? 0) > 0);
+    const skel = useTableSkeletonMetrics('production-runs', listBodyRef, (productionRuns?.length ?? 0) > 0);
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
     const { getLocationName, getAttributeValueName, formatDate, getStatusBadge } = helpers;
@@ -133,13 +133,10 @@ export default function ProductionRunsTab({
                     classic={classic}
                 />
             )}
-            {dataLoading.productionRuns && !(productionRuns && productionRuns.length > 0) ? (
-                <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                        <tbody><TableSkeleton rows={8} cols={9} classic={classic} rowHeight={skelRowH} /></tbody>
-                    </table>
-                </div>
-            ) : productionRuns && productionRuns.length > 0 ? (
+            {/* The table renders while loading too, so the skeleton sits under the
+                real header and inherits its columns instead of standing in for
+                the whole table. */}
+            {(productionRuns && productionRuns.length > 0) || dataLoading.productionRuns ? (
                 <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                     <table style={{
                         width: '100%', borderCollapse: 'collapse',
@@ -183,6 +180,9 @@ export default function ProductionRunsTab({
                             </tr>
                         </thead>
                         <tbody ref={listBodyRef}>
+                            {filteredProductionRuns.length === 0 && dataLoading.productionRuns && (
+                                <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                            )}
                             {filteredProductionRuns.map((pr: any, rowIdx: number) => {
                                 const mos = pr.manufacturing_orders || [];
                                 // DELIVERED = qty met, order not closed yet — still "done" for progress.

@@ -5,7 +5,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT, lvThead } from '../shared/listViewTheme';
-import { StatusChip, CODE_FONT, xpFont, xpBtn, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT, xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import Pager from '../shared/Pager';
 
@@ -127,7 +127,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
   // load are exactly as tall as the rows that replace them. Classic and modern
   // rows differ in height, so they cache under separate keys.
   const listBodyRef = useRef<HTMLTableSectionElement>(null);
-  const skelRowH = useRowHeightProbe(classic ? 'audit-logs-classic' : 'audit-logs', listBodyRef, auditLogs.length > 0);
+  const skel = useTableSkeletonMetrics(classic ? 'audit-logs-classic' : 'audit-logs', listBodyRef, auditLogs.length > 0);
 
   // ── XP inline styles ─────────────────────────────────────────────────────
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
@@ -187,7 +187,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                               </React.Fragment>
                           ))}
                           {auditLogs.length === 0 && (dataLoading.auditLogs ? (
-                              <TableSkeleton rows={8} cols={5} classic rowHeight={skelRowH} />
+                              <TableSkeleton rows={8} cols={skel.cols ?? 5} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                           ) : (
                               <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
                                   No activity logs found
@@ -246,7 +246,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                           <AuditLogRow key={log.id} log={log} classic={false} rowIndex={i} userName={userNameById[log.user_id]} />
                       ))}
                       {auditLogs.length === 0 && (dataLoading.auditLogs
-                          ? <TableSkeleton rows={8} cols={5} rowHeight={skelRowH} />
+                          ? <TableSkeleton rows={8} cols={skel.cols ?? 5} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                           : <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>)}
                   </tbody>
               </table>

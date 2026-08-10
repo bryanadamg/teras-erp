@@ -738,20 +738,23 @@ const skelWidth = (row: number, col: number) => SKEL_WIDTHS[(row * 3 + col * 5) 
  * then match the real rows by construction, not by a copied guess that drifts
  * when the view is restyled.
  *
- * `rowHeight` pins the row box. Real rows are usually taller than one line of
- * text — status chips and progress bars set the height — so feed it the value
- * from `useRowHeightProbe`, which measures a real row once and remembers it.
- * Without it the skeleton is only as tall as its text, and the table jumps when
- * the data lands.
+ * `cols` and `rowHeight` both come from `useTableSkeletonMetrics`, which reads
+ * them off the real table. Hand-counted column numbers go stale the moment
+ * anyone adds a column — and a skeleton one column short leaves a blank strip
+ * where the last column should be.
  */
-export function TableSkeleton({ rows = 6, cols, classic = false, tdStyle, rowHeight }: {
+export function TableSkeleton({ rows = 6, cols, classic = false, tdStyle, rowHeight, fillHeight }: {
+    /** Row count when `fillHeight` is unknown. */
     rows?: number;
+    /** Column count — measure it with `useTableSkeletonMetrics`, don't count by hand. */
     cols: number;
     classic?: boolean;
     /** The view's real cell style. */
     tdStyle?: React.CSSProperties;
     /** Measured height of a real row, in px. */
     rowHeight?: number;
+    /** Free height below the header, in px — rows are generated to fill it. */
+    fillHeight?: number;
 }) {
     const base: React.CSSProperties = tdStyle ?? {
         padding: classic ? '4px 6px' : '8px 10px',
@@ -765,10 +768,16 @@ export function TableSkeleton({ rows = 6, cols, classic = false, tdStyle, rowHei
     // modern-sized bars (and vice versa).
     const fontPx = parseFloat(String(base.fontSize ?? (classic ? 11 : 13))) || (classic ? 11 : 13);
     const barHeight = Math.max(8, Math.round(fontPx * 0.8));
+    // Fill the visible body rather than stopping mid-panel: a fixed row count
+    // leaves dead space under the skeleton on a tall screen, which reads as "the
+    // table ends here". Capped so a very tall viewport can't spawn hundreds.
+    const rowCount = fillHeight && h > 0
+        ? Math.min(40, Math.max(3, Math.ceil(fillHeight / h)))
+        : rows;
 
     return (
         <>
-            {Array.from({ length: rows }, (_, r) => (
+            {Array.from({ length: rowCount }, (_, r) => (
                 <tr key={`skel-${r}`} style={{ background: classic ? (r % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined }}>
                     {Array.from({ length: cols }, (_, c) => (
                         <td key={c} style={{ ...base, height: h, boxSizing: 'border-box', verticalAlign: 'middle' }}>
@@ -782,37 +791,71 @@ export function TableSkeleton({ rows = 6, cols, classic = false, tdStyle, rowHei
 }
 
 // Measured row heights, keyed by table. Module-level so a remount reuses the
-// value; sessionStorage so a reload does too.
+// value; sessionStorage so a reload does too. Column counts are NOT cached —
+// they are read straight off the live <thead>, which is always rendered.
 const rowHeightCache = new Map<string, number>();
 
+export interface TableSkeletonMetrics {
+    /** Height of a real row in px — undefined until one has been measured. */
+    rowHeight?: number;
+    /** Column count read from the table's own <thead>. */
+    cols?: number;
+    /** Free height under the header inside the scroll container, in px. */
+    fillHeight?: number;
+}
+
+/** Nearest scrollable ancestor — the box the skeleton has to fill. */
+function scrollParentOf(el: HTMLElement): HTMLElement | null {
+    let node = el.parentElement;
+    while (node) {
+        const overflowY = window.getComputedStyle(node).overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') return node;
+        node = node.parentElement;
+    }
+    return null;
+}
+
 /**
- * Measures one real row of a table and remembers its height, so the skeleton
- * shown on the NEXT load is exactly as tall as the rows that replace it.
+ * Reads a table's real geometry so its skeleton matches it.
  *
- * Nothing can measure a row before its data exists, so the first-ever view of a
- * table falls back to the text-height skeleton; every later load (the common
- * case — repeat navigation, reload, filter change) is pixel-exact.
+ * Two measurements, with different timing:
+ *
+ * - **cols** comes from the live `<thead>`, which renders whether or not there
+ *   is data — so it is correct on the very first paint, including the first
+ *   ever. This is the point: a hand-counted `cols` silently goes stale when
+ *   someone adds a column, and the skeleton then leaves a blank strip where the
+ *   new column sits.
+ * - **rowHeight** needs a real row to exist, so the first-ever view of a table
+ *   falls back to TableSkeleton's static estimate. It is cached (module Map +
+ *   sessionStorage), so every later load — repeat navigation, reload, filter
+ *   change — is pixel-exact.
+ * - **fillHeight** is the free space under the header inside the scroll
+ *   container, re-measured on resize. Without it a fixed row count leaves dead
+ *   space under the skeleton on a tall screen, which reads as a table that
+ *   simply ends early.
  *
  *   const bodyRef = useRef<HTMLTableSectionElement>(null);
- *   const rowH = useRowHeightProbe('sales-orders', bodyRef, rows.length > 0);
+ *   const skel = useTableSkeletonMetrics('sales-orders', bodyRef, rows.length > 0);
  *   …
  *   <tbody ref={bodyRef}>
  *       {rows.length === 0 && (loading
- *           ? <TableSkeleton cols={11} classic={classic} tdStyle={tdBase} rowHeight={rowH} />
+ *           ? <TableSkeleton cols={skel.cols ?? 12} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} />
  *           : <tr>…</tr>)}
  *
  * `key` must be stable per table, and distinct between two tables whose rows
  * are shaped differently (the classic and modern branches of one view share a
  * key only when their rows are the same height).
  */
-export function useRowHeightProbe(
+export function useTableSkeletonMetrics(
     key: string,
     bodyRef: React.RefObject<HTMLElement | null>,
     hasRows: boolean,
-): number | undefined {
-    // Starts undefined on both server and client — reading the cache during
+): TableSkeletonMetrics {
+    // Both start undefined on server and client alike — reading the cache during
     // render would make the first client paint disagree with the SSR markup.
     const [height, setHeight] = useState<number | undefined>(undefined);
+    const [cols, setCols] = useState<number | undefined>(undefined);
+    const [fillHeight, setFillHeight] = useState<number | undefined>(undefined);
 
     useEffect(() => {
         const cached = rowHeightCache.get(key) ?? (() => {
@@ -828,18 +871,50 @@ export function useRowHeightProbe(
     }, [key]);
 
     useEffect(() => {
-        if (!hasRows || !bodyRef.current) return;
-        const row = bodyRef.current.querySelector('tr');
-        if (!row) return;
-        const measured = Math.round(row.getBoundingClientRect().height);
-        // 0 while the tab/table is display:none — don't cache that.
-        if (measured <= 0 || rowHeightCache.get(key) === measured) return;
-        rowHeightCache.set(key, measured);
-        try { window.sessionStorage.setItem(`skel-row-h:${key}`, String(measured)); } catch { /* private mode */ }
-        setHeight(measured);
+        const body = bodyRef.current;
+        if (!body) return;
+        const table = body.closest('table');
+
+        // Column count: the header row of this tbody's own table. Summing colSpan
+        // rather than counting cells keeps grouped headers honest.
+        const headRow = table?.querySelector('thead tr:last-of-type');
+        if (headRow) {
+            const measuredCols = Array.from(headRow.children)
+                .reduce((n, th) => n + ((th as HTMLTableCellElement).colSpan || 1), 0);
+            if (measuredCols > 0) setCols(prev => (prev === measuredCols ? prev : measuredCols));
+        }
+
+        // Free height under the header, tracked across viewport/panel resizes.
+        const scroller = scrollParentOf(body);
+        let observer: ResizeObserver | undefined;
+        if (scroller) {
+            const measureFill = () => {
+                const headH = table?.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+                const free = Math.round(scroller.clientHeight - headH);
+                setFillHeight(prev => (prev === free ? prev : (free > 0 ? free : undefined)));
+            };
+            measureFill();
+            observer = new ResizeObserver(measureFill);
+            observer.observe(scroller);
+        }
+
+        // Row height, once there is a real row to measure. Every exit below runs
+        // through the one cleanup so the observer is never left attached.
+        const row = hasRows ? body.querySelector('tr') : null;
+        if (row) {
+            const measured = Math.round(row.getBoundingClientRect().height);
+            // 0 while the tab/table is display:none — don't cache that.
+            if (measured > 0 && rowHeightCache.get(key) !== measured) {
+                rowHeightCache.set(key, measured);
+                try { window.sessionStorage.setItem(`skel-row-h:${key}`, String(measured)); } catch { /* private mode */ }
+                setHeight(measured);
+            }
+        }
+
+        return () => observer?.disconnect();
     }, [hasRows, key, bodyRef]);
 
-    return height;
+    return { rowHeight: height, cols, fillHeight };
 }
 
 /** Placeholder rows for a non-table list pane (the dyeing/setting WO rails). */

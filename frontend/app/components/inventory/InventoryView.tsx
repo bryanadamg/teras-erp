@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, TableSkeleton, useRowHeightProbe, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -666,7 +666,7 @@ export default function InventoryView({
   // Skeleton sizing: measure one real row so the placeholders shown on the next
   // load are exactly as tall as the rows that replace them.
   const listBodyRef = useRef<HTMLTableSectionElement>(null);
-  const skelRowH = useRowHeightProbe('items', listBodyRef, sortedItems.length > 0);
+  const skel = useTableSkeletonMetrics('items', listBodyRef, sortedItems.length > 0);
 
   const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
@@ -1414,7 +1414,7 @@ export default function InventoryView({
                     />
                   ))}
                   {filteredItems.length === 0 && dataLoading.items && (
-                    <TableSkeleton rows={8} cols={9} classic={classic} rowHeight={skelRowH} />
+                    <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                   )}
                   {filteredItems.length === 0 && !dataLoading.items && (
                     <tr>

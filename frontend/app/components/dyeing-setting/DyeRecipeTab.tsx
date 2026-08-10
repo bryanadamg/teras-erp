@@ -11,7 +11,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -142,7 +142,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe('dye-recipes', listBodyRef, recipes.length > 0);
+    const skel = useTableSkeletonMetrics('dye-recipes', listBodyRef, recipes.length > 0);
 
     const { showToast } = useToast();
     const { confirm } = useConfirm();
@@ -656,7 +656,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                     </thead>
                     <tbody ref={listBodyRef}>
                         {filteredRecipes.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={9} classic={classic} tdStyle={lvTd(classic)} rowHeight={skelRowH} />
+                            <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
                             <tr><td colSpan={9} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 No recipes found.

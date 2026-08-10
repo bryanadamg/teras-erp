@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { SearchField, FilterChipBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
@@ -85,7 +85,7 @@ export default function ColorLibraryView({
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe('colors', listBodyRef, colors.length > 0);
+    const skel = useTableSkeletonMetrics('colors', listBodyRef, colors.length > 0);
 
     // Arriving from a LabDip "+ Color" deep-link: open the create modal pre-filled and
     // remember the source dip line so the backend can wire lineage on save.
@@ -279,7 +279,7 @@ export default function ColorLibraryView({
                     </thead>
                     <tbody ref={listBodyRef}>
                         {colors.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={13} classic={classic} tdStyle={lvTd(classic)} rowHeight={skelRowH} />
+                            <TableSkeleton rows={8} cols={skel.cols ?? 13} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
                             <tr><td colSpan={13} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 No colors found.

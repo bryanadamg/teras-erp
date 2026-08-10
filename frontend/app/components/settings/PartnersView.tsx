@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
@@ -93,7 +93,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe('partners', listBodyRef, pagedPartners.length > 0);
+    const skel = useTableSkeletonMetrics('partners', listBodyRef, pagedPartners.length > 0);
 
     const allSelected = filteredPartners.length > 0 && selectedIds.size === filteredPartners.length;
     const someSelected = selectedIds.size > 0;
@@ -286,7 +286,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                     </tr>
                                 ))}
                                 {filteredPartners.length === 0 && (dataLoading.partners ? (
-                                    <TableSkeleton rows={8} cols={5} classic={classic} tdStyle={tdBase} rowHeight={skelRowH} />
+                                    <TableSkeleton rows={8} cols={skel.cols ?? 5} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                                 ) : (
                                     <tr>
                                         <td

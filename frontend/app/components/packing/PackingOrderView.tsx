@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useRowHeightProbe, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -74,7 +74,7 @@ export default function PackingOrderView() {
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe('packing-orders', listBodyRef, orders.length > 0);
+    const skel = useTableSkeletonMetrics('packing-orders', listBodyRef, orders.length > 0);
     const [creating, setCreating] = useState(false);
     const [detail, setDetail] = useState<any | null>(null);
     const [printCard, setPrintCard] = useState<any | null>(null);
@@ -185,7 +185,7 @@ export default function PackingOrderView() {
                     </thead>
                     <tbody ref={listBodyRef}>
                         {orders.length === 0 && (loading ? (
-                            <TableSkeleton rows={7} cols={9} classic tdStyle={td} rowHeight={skelRowH} />
+                            <TableSkeleton rows={7} cols={skel.cols ?? 9} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
                             <tr><td colSpan={9} style={{ padding: 0 }}>
                                 <XPEmptyState icon="bi-box2" message='No packing orders yet. Click "New Packing Order" to pack finished goods into cartons.' />

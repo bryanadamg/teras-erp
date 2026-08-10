@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useRowHeightProbe, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -264,7 +264,7 @@ export default function WorkOrderListView({
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe('work-orders', listBodyRef, filtered.length > 0);
+    const skel = useTableSkeletonMetrics('work-orders', listBodyRef, filtered.length > 0);
 
     const sortCols = useMemo(() => ({
         rootmo:   (wo: FlatWO) => wo.root_mo_code ?? null,
@@ -792,7 +792,7 @@ export default function WorkOrderListView({
                             </thead>
                             <tbody ref={listBodyRef}>
                                 {filtered.length === 0 && (loading ? (
-                                    <TableSkeleton rows={8} cols={COLS} classic={classic} tdStyle={tdBase} rowHeight={skelRowH} />
+                                    <TableSkeleton rows={8} cols={skel.cols ?? COLS} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                                 ) : (
                                     <tr>
                                         <td colSpan={COLS} style={classic ? { padding: 0 } : { padding: 24, textAlign: 'center', color: '#888' }}>

@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useRowHeightProbe, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -587,7 +587,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   // Skeleton sizing: measure one real row so the placeholders shown on the next
   // load are exactly as tall as the rows that replace them.
   const listBodyRef = useRef<HTMLTableSectionElement>(null);
-  const skelRowH = useRowHeightProbe('sample-requests', listBodyRef, pageSamples.length > 0);
+  const skel = useTableSkeletonMetrics('sample-requests', listBodyRef, pageSamples.length > 0);
   const totalSamples = samplesMeta.total;
   const unreadCount = samplesMeta.unread;
   // Footer tallies run at COLOR grain, not request grain — a request is a bag of colors
@@ -1838,7 +1838,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                </React.Fragment>
                            ))}
                            {pageSamples.length === 0 && (dataLoading.samples ? (
-                               <TableSkeleton rows={8} cols={8} classic={classic} tdStyle={tdBase} rowHeight={skelRowH} />
+                               <TableSkeleton rows={8} cols={skel.cols ?? 8} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                            ) : (
                                <tr>
                                    <td

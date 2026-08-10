@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead } from '../shared/listViewTheme';
@@ -195,7 +195,7 @@ export default function LabDipRequestView({
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe(classic ? 'lab-dips-classic' : 'lab-dips', listBodyRef, (labDips?.length ?? 0) > 0);
+    const skel = useTableSkeletonMetrics(classic ? 'lab-dips-classic' : 'lab-dips', listBodyRef, (labDips?.length ?? 0) > 0);
 
     // Which numbering book this mount shows. Only the labels, the code preview and the
     // POST payload differ — the FG and yarn pages are the same component, one code path.
@@ -561,7 +561,7 @@ export default function LabDipRequestView({
                     </thead>
                     <tbody ref={listBodyRef}>
                         {filtered.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={9} classic={classic} tdStyle={tdBase(classic)} rowHeight={skelRowH} />
+                            <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={tdBase(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
                             <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 {hasActiveFilter ? 'No requests match the current filter.' : isYarn ? 'No yarn lab dip requests yet.' : 'No lab dip requests yet.'}</td></tr>

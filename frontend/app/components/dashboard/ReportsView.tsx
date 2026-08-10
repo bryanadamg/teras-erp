@@ -6,7 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    TableSkeleton, useRowHeightProbe, XPEmptyState, useSortable, SortMark, CodeChip,
+    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, SortMark, CodeChip,
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
@@ -167,7 +167,7 @@ export default function ReportsView(_props: any) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), []);
     const { sorted: rows, sort, toggle } = useSortable(entries, sortCols);
-    const skelRowH = useRowHeightProbe(classic ? 'stock-ledger-classic' : 'stock-ledger', listBodyRef, rows.length > 0);
+    const skel = useTableSkeletonMetrics(classic ? 'stock-ledger-classic' : 'stock-ledger', listBodyRef, rows.length > 0);
 
     const net = totalIn + totalOut;
     const hasFilters = !!(debouncedSearch || startDate || endDate || locationFilter || categoryFilter || refTypeFilter || direction);
@@ -415,13 +415,8 @@ export default function ReportsView(_props: any) {
 
                     {/* Table */}
                     <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
-                        {loading ? (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <tbody><TableSkeleton rows={10} cols={8} classic rowHeight={skelRowH} /></tbody>
-                            </table>
-                        )
-                        : error ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load ledger — ${error}`} />
-                        : rows.length === 0 ? (
+                        {error ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load ledger — ${error}`} />
+                        : !loading && rows.length === 0 ? (
                             <XPEmptyState icon="bi-journal-x" message={hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}>
                                 {hasFilters && <button style={{ ...xpBtn(), marginTop: 10 }} onClick={clearFilters}>Clear filters</button>}
                             </XPEmptyState>
@@ -438,7 +433,13 @@ export default function ReportsView(_props: any) {
                                         <th style={{ ...th, borderRight: 'none' }}>Source</th>
                                     </tr>
                                 </thead>
-                                <tbody ref={listBodyRef}>{rows.map((e: any, i: number) => renderClassicRow(e, i))}</tbody>
+                                {/* Skeleton lives inside the real table so the header stays
+                                    put and the placeholder rows inherit its columns. */}
+                                <tbody ref={listBodyRef}>
+                                    {loading
+                                        ? <TableSkeleton rows={10} cols={skel.cols ?? 7} classic tdStyle={xpCell} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                                        : rows.map((e: any, i: number) => renderClassicRow(e, i))}
+                                </tbody>
                             </table>
                         )}
                     </div>
@@ -553,11 +554,9 @@ export default function ReportsView(_props: any) {
             </div>
 
             <div className="card-body p-0" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {loading ? (
-                    <table className="table mb-0"><tbody><TableSkeleton rows={10} cols={8} rowHeight={skelRowH} /></tbody></table>
-                ) : error ? (
+                {error ? (
                     <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load ledger — {error}</div>
-                ) : rows.length === 0 ? (
+                ) : !loading && rows.length === 0 ? (
                     <div className="text-center py-5 text-muted">
                         <i className="bi bi-journal-x d-block fs-2 mb-2 opacity-50" />
                         {hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}
@@ -577,8 +576,11 @@ export default function ReportsView(_props: any) {
                                     <th className="pe-4">Source</th>
                                 </tr>
                             </thead>
+                            {/* Skeleton lives inside the real table so the header stays
+                                put and the placeholder rows inherit its columns. */}
                             <tbody ref={listBodyRef}>
-                                {rows.map((e: any) => {
+                                {loading && <TableSkeleton rows={10} cols={skel.cols ?? 7} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
+                                {!loading && rows.map((e: any) => {
                                     const rm = refMeta(e.reference_type);
                                     const up = e.qty_change >= 0;
                                     const pkg = pkgDelta(e);

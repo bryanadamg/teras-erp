@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
-    StatusChip, StatusCountPill, TableSkeleton, useRowHeightProbe, XPStatusBar, XPEmptyState,
+    StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
     XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
@@ -113,7 +113,7 @@ export default function QuarantinePackingView() {
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skelRowH = useRowHeightProbe(classic ? 'quarantine-classic' : 'quarantine', listBodyRef, groups.length > 0);
+    const skel = useTableSkeletonMetrics(classic ? 'quarantine-classic' : 'quarantine', listBodyRef, groups.length > 0);
 
     // Debounced 350ms before it drives a server fetch — same shape as item search.
     useEffect(() => {
@@ -442,7 +442,7 @@ export default function QuarantinePackingView() {
                             </Fragment>
                         );
                     })}
-                    {loading && <TableSkeleton rows={7} cols={COL_COUNT} classic={classic} tdStyle={lvTd(classic)} rowHeight={skelRowH} />}
+                    {loading && <TableSkeleton rows={7} cols={skel.cols ?? COL_COUNT} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
                     {!loading && groups.length === 0 && (
                         <tr>
                             <td colSpan={COL_COUNT} style={{ padding: 0 }}>
