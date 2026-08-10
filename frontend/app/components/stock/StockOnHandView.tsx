@@ -1258,7 +1258,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </button>
                         )}
                         {canEntry && (
-                            <button style={xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' })} onClick={openNew} title="Add stock for an item (new manual entry)">
+                            <button style={xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', marginLeft: 'auto' })} onClick={openNew} title="Add stock for an item (new manual entry)">
                                 <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Entry
                             </button>
                         )}
@@ -1385,7 +1385,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </div>
                         )}
                         {canEntry && (
-                            <div className="col-md-2">
+                            <div className="col-md-2 ms-auto">
                                 <button className="btn btn-success btn-sm w-100" onClick={openNew} title="Add stock for an item (new manual entry)">
                                     <i className="bi bi-plus-lg me-1" />New Entry
                                 </button>
