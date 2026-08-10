@@ -130,9 +130,8 @@ function SPKDocument({
                     <FieldRow label="KODE SPK" value={sample.code} />
                     <FieldRow label="PROJECT" value={sample.project} />
                     <FieldRow label="NAMA CUSTOMER" value={customerName} />
-                    {/* Left blank on purpose — filled in by hand on the printed form */}
-                    <FieldRow label="KODE ARTIKEL SAMPLE" value="" />
-                    <FieldRow label="KODE ARTIKEL BOLA INTAN" value="" />
+                    <FieldRow label="KODE ARTIKEL SAMPLE" value={sample.customer_article_code} />
+                    <FieldRow label="KODE ARTIKEL BOLA INTAN" value={sample.internal_article_code} />
                     <FieldRow label="LEBAR" value={sample.width} />
 
                     {/* Color rows */}
