@@ -732,24 +732,114 @@ const skelWidth = (row: number, col: number) => SKEL_WIDTHS[(row * 3 + col * 5) 
  * Placeholder rows for a table body. Emits real <tr>/<td> so the bars land in
  * the table's own columns — drop it straight into <tbody> in place of the
  * empty-state row.
+ *
+ * Pass the view's OWN cell style as `tdStyle` (its `tdBase`, `lvTd(classic)`,
+ * …) rather than letting this re-derive one: padding, borders and font size
+ * then match the real rows by construction, not by a copied guess that drifts
+ * when the view is restyled.
+ *
+ * `rowHeight` pins the row box. Real rows are usually taller than one line of
+ * text — status chips and progress bars set the height — so feed it the value
+ * from `useRowHeightProbe`, which measures a real row once and remembers it.
+ * Without it the skeleton is only as tall as its text, and the table jumps when
+ * the data lands.
  */
-export function TableSkeleton({ rows = 6, cols, classic = false }: { rows?: number; cols: number; classic?: boolean }) {
+export function TableSkeleton({ rows = 6, cols, classic = false, tdStyle, rowHeight }: {
+    rows?: number;
+    cols: number;
+    classic?: boolean;
+    /** The view's real cell style. */
+    tdStyle?: React.CSSProperties;
+    /** Measured height of a real row, in px. */
+    rowHeight?: number;
+}) {
+    const base: React.CSSProperties = tdStyle ?? {
+        padding: classic ? '4px 6px' : '8px 10px',
+        borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e6eaf1',
+        fontSize: classic ? 11 : 13,
+    };
+    // Falls back to a typical row before any measurement exists (first-ever view
+    // of a table), so even that load is close rather than text-height thin.
+    const h = rowHeight ?? (typeof base.height === 'number' ? base.height : (classic ? 26 : 38));
+    // Bar tracks the row's text size, so a dense classic table doesn't get
+    // modern-sized bars (and vice versa).
+    const fontPx = parseFloat(String(base.fontSize ?? (classic ? 11 : 13))) || (classic ? 11 : 13);
+    const barHeight = Math.max(8, Math.round(fontPx * 0.8));
+
     return (
         <>
             {Array.from({ length: rows }, (_, r) => (
                 <tr key={`skel-${r}`} style={{ background: classic ? (r % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined }}>
                     {Array.from({ length: cols }, (_, c) => (
-                        <td key={c} style={{
-                            padding: classic ? '5px 8px' : '10px 8px',
-                            borderBottom: classic ? '1px solid #e6e3db' : '1px solid #f1f3f5',
-                        }}>
-                            <SkeletonBar width={skelWidth(r, c)} />
+                        <td key={c} style={{ ...base, height: h, boxSizing: 'border-box', verticalAlign: 'middle' }}>
+                            <SkeletonBar width={skelWidth(r, c)} height={barHeight} />
                         </td>
                     ))}
                 </tr>
             ))}
         </>
     );
+}
+
+// Measured row heights, keyed by table. Module-level so a remount reuses the
+// value; sessionStorage so a reload does too.
+const rowHeightCache = new Map<string, number>();
+
+/**
+ * Measures one real row of a table and remembers its height, so the skeleton
+ * shown on the NEXT load is exactly as tall as the rows that replace it.
+ *
+ * Nothing can measure a row before its data exists, so the first-ever view of a
+ * table falls back to the text-height skeleton; every later load (the common
+ * case — repeat navigation, reload, filter change) is pixel-exact.
+ *
+ *   const bodyRef = useRef<HTMLTableSectionElement>(null);
+ *   const rowH = useRowHeightProbe('sales-orders', bodyRef, rows.length > 0);
+ *   …
+ *   <tbody ref={bodyRef}>
+ *       {rows.length === 0 && (loading
+ *           ? <TableSkeleton cols={11} classic={classic} tdStyle={tdBase} rowHeight={rowH} />
+ *           : <tr>…</tr>)}
+ *
+ * `key` must be stable per table, and distinct between two tables whose rows
+ * are shaped differently (the classic and modern branches of one view share a
+ * key only when their rows are the same height).
+ */
+export function useRowHeightProbe(
+    key: string,
+    bodyRef: React.RefObject<HTMLElement | null>,
+    hasRows: boolean,
+): number | undefined {
+    // Starts undefined on both server and client — reading the cache during
+    // render would make the first client paint disagree with the SSR markup.
+    const [height, setHeight] = useState<number | undefined>(undefined);
+
+    useEffect(() => {
+        const cached = rowHeightCache.get(key) ?? (() => {
+            try {
+                const stored = Number(window.sessionStorage.getItem(`skel-row-h:${key}`));
+                return Number.isFinite(stored) && stored > 0 ? stored : undefined;
+            } catch { return undefined; }
+        })();
+        if (cached) {
+            rowHeightCache.set(key, cached);
+            setHeight(prev => prev ?? cached);
+        }
+    }, [key]);
+
+    useEffect(() => {
+        if (!hasRows || !bodyRef.current) return;
+        const row = bodyRef.current.querySelector('tr');
+        if (!row) return;
+        const measured = Math.round(row.getBoundingClientRect().height);
+        // 0 while the tab/table is display:none — don't cache that.
+        if (measured <= 0 || rowHeightCache.get(key) === measured) return;
+        rowHeightCache.set(key, measured);
+        try { window.sessionStorage.setItem(`skel-row-h:${key}`, String(measured)); } catch { /* private mode */ }
+        setHeight(measured);
+    }, [hasRows, key, bodyRef]);
+
+    return height;
 }
 
 /** Placeholder rows for a non-table list pane (the dyeing/setting WO rails). */

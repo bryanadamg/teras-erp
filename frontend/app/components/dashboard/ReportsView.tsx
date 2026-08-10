@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -6,7 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    TableSkeleton, XPEmptyState, useSortable, SortMark, CodeChip,
+    TableSkeleton, useRowHeightProbe, XPEmptyState, useSortable, SortMark, CodeChip,
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
@@ -90,6 +90,11 @@ export default function ReportsView(_props: any) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them. Classic and modern
+    // rows differ in height, so they cache under separate keys.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+
     // Debounce the free-text search; reset to page 1 on every new term.
     useEffect(() => {
         const id = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
@@ -162,6 +167,7 @@ export default function ReportsView(_props: any) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), []);
     const { sorted: rows, sort, toggle } = useSortable(entries, sortCols);
+    const skelRowH = useRowHeightProbe(classic ? 'stock-ledger-classic' : 'stock-ledger', listBodyRef, rows.length > 0);
 
     const net = totalIn + totalOut;
     const hasFilters = !!(debouncedSearch || startDate || endDate || locationFilter || categoryFilter || refTypeFilter || direction);
@@ -411,7 +417,7 @@ export default function ReportsView(_props: any) {
                     <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
                         {loading ? (
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <tbody><TableSkeleton rows={10} cols={8} classic /></tbody>
+                                <tbody><TableSkeleton rows={10} cols={8} classic rowHeight={skelRowH} /></tbody>
                             </table>
                         )
                         : error ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load ledger — ${error}`} />
@@ -432,7 +438,7 @@ export default function ReportsView(_props: any) {
                                         <th style={{ ...th, borderRight: 'none' }}>Source</th>
                                     </tr>
                                 </thead>
-                                <tbody>{rows.map((e: any, i: number) => renderClassicRow(e, i))}</tbody>
+                                <tbody ref={listBodyRef}>{rows.map((e: any, i: number) => renderClassicRow(e, i))}</tbody>
                             </table>
                         )}
                     </div>
@@ -548,7 +554,7 @@ export default function ReportsView(_props: any) {
 
             <div className="card-body p-0" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {loading ? (
-                    <table className="table mb-0"><tbody><TableSkeleton rows={10} cols={8} /></tbody></table>
+                    <table className="table mb-0"><tbody><TableSkeleton rows={10} cols={8} rowHeight={skelRowH} /></tbody></table>
                 ) : error ? (
                     <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load ledger — {error}</div>
                 ) : rows.length === 0 ? (
@@ -571,7 +577,7 @@ export default function ReportsView(_props: any) {
                                     <th className="pe-4">Source</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody ref={listBodyRef}>
                                 {rows.map((e: any) => {
                                     const rm = refMeta(e.reference_type);
                                     const up = e.qty_change >= 0;

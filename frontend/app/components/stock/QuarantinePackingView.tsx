@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Fragment } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
-    StatusChip, StatusCountPill, TableSkeleton, XPStatusBar, XPEmptyState,
+    StatusChip, StatusCountPill, TableSkeleton, useRowHeightProbe, XPStatusBar, XPEmptyState,
     XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
@@ -109,6 +109,11 @@ export default function QuarantinePackingView() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+    const skelRowH = useRowHeightProbe(classic ? 'quarantine-classic' : 'quarantine', listBodyRef, groups.length > 0);
 
     // Debounced 350ms before it drives a server fetch — same shape as item search.
     useEffect(() => {
@@ -345,7 +350,7 @@ export default function QuarantinePackingView() {
                         <th style={{ ...lvTh(classic), width: 250, borderRight: 'none' }}>Set for whole MO</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody ref={listBodyRef}>
                     {groups.map((g, i) => {
                         const open = expanded.has(g.key);
                         const lotIds = g.lots.map(l => l.batch_id).filter(Boolean) as string[];
@@ -437,7 +442,7 @@ export default function QuarantinePackingView() {
                             </Fragment>
                         );
                     })}
-                    {loading && <TableSkeleton rows={7} cols={COL_COUNT} classic={classic} />}
+                    {loading && <TableSkeleton rows={7} cols={COL_COUNT} classic={classic} tdStyle={lvTd(classic)} rowHeight={skelRowH} />}
                     {!loading && groups.length === 0 && (
                         <tr>
                             <td colSpan={COL_COUNT} style={{ padding: 0 }}>

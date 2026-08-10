@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { xpFont, xpBtn, TableSkeleton, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { xpFont, xpBtn, TableSkeleton, useRowHeightProbe, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
@@ -112,6 +112,11 @@ export default function BookingStockView() {
         required: (r) => r.qty_required,
         net_free: (r) => r.qty_net_free,
     });
+
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+    const skelRowH = useRowHeightProbe('booking-stock', listBodyRef, sorted.length > 0);
 
     const shortfallCount = useMemo(() => rows.filter(r => r.qty_net_free < -EPS).length, [rows]);
     const tightCount = useMemo(() => rows.filter(r => r.qty_net_free >= -EPS && r.qty_net_free <= EPS).length, [rows]);
@@ -250,7 +255,7 @@ export default function BookingStockView() {
                                     ))}
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody ref={listBodyRef}>
                                 {sorted.map((r, i) => {
                                     const k = rowKey(r);
                                     const isOpen = expanded.has(k);
@@ -303,7 +308,7 @@ export default function BookingStockView() {
                                         </td>
                                     </tr>
                                 )}
-                                {loading && <TableSkeleton rows={8} cols={COLS.length} classic />}
+                                {loading && <TableSkeleton rows={8} cols={COLS.length} classic rowHeight={skelRowH} />}
                             </tbody>
                         </table>
                     </div>

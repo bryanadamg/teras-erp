@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import { useToast } from '../shared/Toast';
@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, TableSkeleton, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, TableSkeleton, useRowHeightProbe, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
@@ -442,6 +442,11 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
   const clampedPoPage = Math.min(poPage, poPageCount);
   const pageOrders = sortedOrders.slice((clampedPoPage - 1) * PO_PAGE_SIZE, clampedPoPage * PO_PAGE_SIZE);
 
+  // Skeleton sizing: measure one real row so the placeholders shown on the next
+  // load are exactly as tall as the rows that replace them.
+  const listBodyRef = useRef<HTMLTableSectionElement>(null);
+  const skelRowH = useRowHeightProbe('purchase-orders', listBodyRef, pageOrders.length > 0);
+
   const statusBadge = (status: string) => <StatusChip status={status} tint />;
 
   return (
@@ -867,7 +872,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '96px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
-                       <tbody>
+                       <tbody ref={listBodyRef}>
                            {pageOrders.map((po: any, rowIndex: number) => (
                                <>
                                <tr
@@ -1071,7 +1076,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                </>
                            ))}
                            {filteredOrders.length === 0 && (dataLoading.purchaseOrders ? (
-                               <TableSkeleton rows={8} cols={9} classic={classic} />
+                               <TableSkeleton rows={8} cols={9} classic={classic} tdStyle={tdBase} rowHeight={skelRowH} />
                            ) : (
                                <tr>
                                    <td

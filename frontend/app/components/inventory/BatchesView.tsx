@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
@@ -438,6 +438,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   }), [itemMap]);
   const { sorted: sortedBatches, sort, toggle: toggleSort } = useSortable(batches, sortCols, null);
 
+  // Skeleton sizing: measure one real row so the placeholders shown on the next
+  // load are exactly as tall as the rows that replace them.
+  const listBodyRef = useRef<HTMLTableSectionElement>(null);
+  const skelRowH = useRowHeightProbe(classic ? 'lots-classic' : 'lots', listBodyRef, sortedBatches.length > 0);
+
   // Small pill/chip — the shared shape for Origin (SO/PO), MO/PR, and Location
   // badges. Square in classic (XP), rounded in modern. Kept on a single line so
   // every table row holds a consistent height.
@@ -863,8 +868,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                   <th style={xpTh}></th>
                 </tr>
               </thead>
-              <tbody>
-                {loading && <TableSkeleton rows={8} cols={colSpan} classic />}
+              <tbody ref={listBodyRef}>
+                {loading && <TableSkeleton rows={8} cols={colSpan} classic tdStyle={xpTd(false)} rowHeight={skelRowH} />}
                 {!loading && batches.length === 0 && (
                   <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
                 )}
@@ -993,8 +998,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                   <th></th>
                 </tr>
               </thead>
-              <tbody>
-                {loading && <TableSkeleton rows={8} cols={colSpan} />}
+              <tbody ref={listBodyRef}>
+                {loading && <TableSkeleton rows={8} cols={colSpan} rowHeight={skelRowH} />}
                 {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
                 {sortedBatches.map(b => (
                   <>

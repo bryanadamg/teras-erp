@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import { useToast } from '../shared/Toast';
@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, useRowHeightProbe, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -915,6 +915,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const clampedSoPage = Math.min(soPage, soPageCount);
   const pageOrders = sortedOrders.slice((clampedSoPage - 1) * SO_PAGE_SIZE, clampedSoPage * SO_PAGE_SIZE);
 
+  // Skeleton sizing: measure one real row so the placeholders shown on the next
+  // load are exactly as tall as the rows that replace them.
+  const listBodyRef = useRef<HTMLTableSectionElement>(null);
+  const skelRowH = useRowHeightProbe('sales-orders', listBodyRef, pageOrders.length > 0);
+
 
 
   return (
@@ -1667,7 +1672,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '110px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
-                       <tbody>
+                       <tbody ref={listBodyRef}>
                            {pageOrders.flatMap((so: any, rowIndex: number) => {
                                const rowBg = rowIndex % 2 === 0 ? '#ffffff' : (classic ? '#f5f3ee' : '#fafafa');
                                const soLines: any[] = so.lines;
@@ -1875,7 +1880,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                });
                            })}
                            {filteredOrders.length === 0 && (dataLoading.salesOrders ? (
-                               <TableSkeleton rows={8} cols={11} classic={classic} />
+                               <TableSkeleton rows={8} cols={11} classic={classic} tdStyle={tdBase} rowHeight={skelRowH} />
                            ) : (
                                <tr>
                                    <td

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
 import { SearchField, FilterChipBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
@@ -81,6 +81,11 @@ export default function ColorLibraryView({
     const [sourceLineId, setSourceLineId] = useState<string | null>(null);
     const [searchInput, setSearchInput] = useState(search);
     const [itemSearchInput, setItemSearchInput] = useState(itemSearch || '');
+
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+    const skelRowH = useRowHeightProbe('colors', listBodyRef, colors.length > 0);
 
     // Arriving from a LabDip "+ Color" deep-link: open the create modal pre-filled and
     // remember the source dip line so the backend can wire lineage on save.
@@ -272,9 +277,9 @@ export default function ColorLibraryView({
                             <th style={{ ...lvTh(classic), width: 70, textAlign: 'right', borderRight: 'none' }}></th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody ref={listBodyRef}>
                         {colors.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={13} classic={classic} />
+                            <TableSkeleton rows={8} cols={13} classic={classic} tdStyle={lvTd(classic)} rowHeight={skelRowH} />
                         ) : (
                             <tr><td colSpan={13} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 No colors found.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
 
@@ -91,6 +91,11 @@ export default function BOMView({
     const { showToast } = useToast();
     const { t } = useLanguage();
     const { itemIndex } = useData();
+
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+    const skelRowH = useRowHeightProbe('boms', listBodyRef, (boms?.length ?? 0) > 0);
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
     const { hasPermission, hasAnyPermission } = useUser();
@@ -953,9 +958,9 @@ export default function BOMView({
                                     </tr>
                                 </thead>
 
-                                <tbody>
+                                <tbody ref={listBodyRef}>
                                     {boms.length === 0 && bomLoading ? (
-                                        <TableSkeleton rows={8} cols={8} classic={classic} />
+                                        <TableSkeleton rows={8} cols={8} classic={classic} rowHeight={skelRowH} />
                                     ) : boms.length === 0 ? (
                                         <tr><td colSpan={8} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
                                             {bomSearch.trim()

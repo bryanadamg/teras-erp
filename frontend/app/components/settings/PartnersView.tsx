@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
@@ -89,6 +89,11 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     const pages = Math.max(1, Math.ceil(filteredPartners.length / PARTNERS_PAGE_SIZE));
     const clampedPage = Math.min(page, pages);
     const pagedPartners = filteredPartners.slice((clampedPage - 1) * PARTNERS_PAGE_SIZE, clampedPage * PARTNERS_PAGE_SIZE);
+
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+    const skelRowH = useRowHeightProbe('partners', listBodyRef, pagedPartners.length > 0);
 
     const allSelected = filteredPartners.length > 0 && selectedIds.size === filteredPartners.length;
     const someSelected = selectedIds.size > 0;
@@ -251,7 +256,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                     <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '80px' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody ref={listBodyRef}>
                                 {pagedPartners.map((p, rowIndex) => (
                                     <tr
                                         key={p.id}
@@ -281,7 +286,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                     </tr>
                                 ))}
                                 {filteredPartners.length === 0 && (dataLoading.partners ? (
-                                    <TableSkeleton rows={8} cols={5} classic={classic} />
+                                    <TableSkeleton rows={8} cols={5} classic={classic} tdStyle={tdBase} rowHeight={skelRowH} />
                                 ) : (
                                     <tr>
                                         <td

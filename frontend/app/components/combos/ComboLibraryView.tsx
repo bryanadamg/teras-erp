@@ -1,11 +1,11 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, CodeChip, TableSkeleton } from '../shared/xpTheme';
+import { StatusChip, CodeChip, TableSkeleton, useRowHeightProbe } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
@@ -45,6 +45,11 @@ export default function ComboLibraryView({
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState(emptyForm());
     const [searchInput, setSearchInput] = useState(search);
+
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+    const skelRowH = useRowHeightProbe('combos', listBodyRef, combos.length > 0);
 
     // Debounce the search box so each keystroke does not fire a request against many rows.
     useEffect(() => {
@@ -137,9 +142,9 @@ export default function ComboLibraryView({
                             <th style={{ ...lvTh(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody ref={listBodyRef}>
                         {combos.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={6} classic={classic} />
+                            <TableSkeleton rows={8} cols={6} classic={classic} tdStyle={lvTd(classic)} rowHeight={skelRowH} />
                         ) : (
                             <tr><td colSpan={6} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 No combos found.
