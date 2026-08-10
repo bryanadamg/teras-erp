@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
-    StatusChip, StatusCountPill, XPLoading, XPStatusBar, XPEmptyState,
+    StatusChip, StatusCountPill, TableSkeleton, XPStatusBar, XPEmptyState,
     XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
@@ -331,8 +331,8 @@ export default function QuarantinePackingView() {
 
     // ── Main table ────────────────────────────────────────────────────────────
     const body = (
-        <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', background: '#fff' }}>
+        <div style={{ flex: 1, minHeight: 0, width: '100%', background: '#fff', overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                 <thead style={lvThead(classic, true)}>
                     <tr>
                         <th style={lvTh(classic)}>Manufacturing Order</th>
@@ -358,7 +358,10 @@ export default function QuarantinePackingView() {
                                     style={{
                                         ...lvRow(classic, i),
                                         cursor: 'pointer',
-                                        background: open ? (classic ? '#fffbe6' : '#f1f5f9') : undefined,
+                                        // Only override when open — `background: undefined` still wins over
+                                        // the spread above (last key in the literal), which is what was
+                                        // silently wiping the zebra stripe off every closed row.
+                                        ...(open ? { background: classic ? '#fffbe6' : '#f1f5f9' } : {}),
                                     }}
                                 >
                                     <td style={lvTd(classic)}>
@@ -434,9 +437,7 @@ export default function QuarantinePackingView() {
                             </Fragment>
                         );
                     })}
-                    {loading && (
-                        <tr><td colSpan={COL_COUNT} style={{ padding: 0 }}><XPLoading label="Loading quarantine stock..." /></td></tr>
-                    )}
+                    {loading && <TableSkeleton rows={7} cols={COL_COUNT} classic={classic} />}
                     {!loading && groups.length === 0 && (
                         <tr>
                             <td colSpan={COL_COUNT} style={{ padding: 0 }}>
@@ -464,7 +465,6 @@ export default function QuarantinePackingView() {
                 icon="bi-shield-exclamation"
                 title="Quarantine Packing"
                 subtitle="Stock held in quarantine, grouped by MO. Only lots set to OK can be packed."
-                tone="amber"
             />
             {toolbar}
             {error && (
