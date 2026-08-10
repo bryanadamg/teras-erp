@@ -6,11 +6,11 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
-import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
-import { lvTh, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
+import { lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, XPLoading, XPStatusBar, XPEmptyState,
-    XPActionButton, ColorSwatchChip, xpPanel, ExpandedRowPanel, CodeChip,
+    XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -233,7 +233,7 @@ export default function QuarantinePackingView() {
                 Lots on hold — status is set per lot; the row above is their rollup
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                <thead>
+                <thead style={lvThead(classic)}>
                     <tr>
                         <th style={lvTh(classic)}>Lot</th>
                         <th style={{ ...lvTh(classic), width: 110, textAlign: 'right' }}>Qty</th>
@@ -245,7 +245,7 @@ export default function QuarantinePackingView() {
                 </thead>
                 <tbody>
                     {g.lots.map((l, i) => (
-                        <tr key={l.batch_id || `nolot-${i}`} style={classic ? lvRow(true, i) : undefined}>
+                        <tr key={l.batch_id || `nolot-${i}`} style={lvRow(classic, i)}>
                             <td style={lvTd(classic)}>
                                 {l.batch_number
                                     ? <CodeChip code={l.batch_number} classic={classic} />
@@ -294,11 +294,14 @@ export default function QuarantinePackingView() {
     // ── Toolbar ───────────────────────────────────────────────────────────────
     const toolbar = (
         <div style={classic
-            ? sharedXpToolbar({ gap: '6px' })
-            : { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid #e6eaf1' }}>
+            ? sharedXpToolbar({ flexShrink: 0 })
+            : {
+                background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px',
+                display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0,
+            }}>
             <SearchField classic={classic} value={searchInput} onChange={setSearchInput} placeholder="MO, lot, item or SO..." width={230} />
             <div style={lvSep(classic)} />
-            <span style={lvLabel(classic)}>Status</span>
+            <span style={{ ...lvLabel(classic), display: 'inline', marginBottom: 0 }}>Status</span>
             <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
@@ -312,7 +315,7 @@ export default function QuarantinePackingView() {
                 ))}
             </select>
             <div style={lvSep(classic)} />
-            <button style={lvBtn(classic)} className={classic ? '' : 'btn btn-sm btn-outline-secondary'} onClick={fetchGroups}>
+            <button style={lvBtn(classic)} onClick={fetchGroups} title="Refresh">
                 <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
             </button>
             {!canSetStatus && (
@@ -320,14 +323,17 @@ export default function QuarantinePackingView() {
                     <i className="bi bi-lock" style={{ marginRight: 4 }} />Read-only — no Set Quarantine Status permission
                 </span>
             )}
+            <ToolbarCount classic={classic} right>
+                {total.toLocaleString()} MO group{total === 1 ? '' : 's'}
+            </ToolbarCount>
         </div>
     );
 
     // ── Main table ────────────────────────────────────────────────────────────
     const body = (
-        <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
+        <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', background: '#fff' }}>
+                <thead style={lvThead(classic, true)}>
                     <tr>
                         <th style={lvTh(classic)}>Manufacturing Order</th>
                         <th style={lvTh(classic)}>Item</th>
@@ -350,7 +356,7 @@ export default function QuarantinePackingView() {
                                     onClick={() => toggleRow(g.key)}
                                     title="Click to see the lots"
                                     style={{
-                                        ...(classic ? lvRow(true, i) : {}),
+                                        ...lvRow(classic, i),
                                         cursor: 'pointer',
                                         background: open ? (classic ? '#fffbe6' : '#f1f5f9') : undefined,
                                     }}
@@ -429,11 +435,11 @@ export default function QuarantinePackingView() {
                         );
                     })}
                     {loading && (
-                        <tr><td colSpan={COL_COUNT}><XPLoading label="Loading quarantine stock..." /></td></tr>
+                        <tr><td colSpan={COL_COUNT} style={{ padding: 0 }}><XPLoading label="Loading quarantine stock..." /></td></tr>
                     )}
                     {!loading && groups.length === 0 && (
                         <tr>
-                            <td colSpan={COL_COUNT}>
+                            <td colSpan={COL_COUNT} style={{ padding: 0 }}>
                                 <XPEmptyState
                                     icon="bi-shield-check"
                                     message={search || statusFilter
@@ -458,7 +464,6 @@ export default function QuarantinePackingView() {
                 icon="bi-shield-exclamation"
                 title="Quarantine Packing"
                 subtitle="Stock held in quarantine, grouped by MO. Only lots set to OK can be packed."
-                right={<span style={{ fontSize: 10, opacity: 0.85 }}>{total} MO group{total === 1 ? '' : 's'}</span>}
                 tone="amber"
             />
             {toolbar}
