@@ -12,6 +12,7 @@ import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerB
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead } from '../shared/listViewTheme';
+import { STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -221,6 +222,7 @@ export default function LabDipRequestView({
     const [approval, setApproval] = useState<{ reqId: string; itemId: string; seq: string; variant: string; colorNames: string[]; customerName?: string | null } | null>(null);
     const [approvalSet, setApprovalSet] = useState('');
     const [approvalNotes, setApprovalNotes] = useState('');
+    const [approvalImage, setApprovalImage] = useState<File | null>(null);
     // The `Colors` variant the minted shade is linked to (shows in the Color Codes table).
     const [approvalVariantId, setApprovalVariantId] = useState('');
 
@@ -248,6 +250,7 @@ export default function LabDipRequestView({
         setApproval({ reqId, itemId: v.id, seq: v.seq, variant: v.variant, colorNames: v.colorNames || [], customerName: v.customerName || null });
         setApprovalSet('');
         setApprovalNotes('');
+        setApprovalImage(null);
         // Single pick → link it automatically; several → the user chooses.
         const ids = (v.colorNames || []).map((n: string) => colorValueIdByName[n]).filter(Boolean);
         const unique = Array.from(new Set(ids));
@@ -259,6 +262,7 @@ export default function LabDipRequestView({
             set: approvalSet.trim(),
             notes: approvalNotes.trim() || undefined,
             variant_attribute_value_id: approvalVariantId || undefined,
+            image: approvalImage,
         });
         setApproval(null);
     };
@@ -268,21 +272,36 @@ export default function LabDipRequestView({
     const [reject, setReject] = useState<{ reqId: string; itemId: string; seq: string; variant: string } | null>(null);
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
     const [rejectNotes, setRejectNotes] = useState('');
+    const [rejectImage, setRejectImage] = useState<File | null>(null);
     const openReject = (reqId: string, v: any) => {
         if (v.status === 'APPROVED' || v.status === 'REJECTED') return; // locked
         setReject({ reqId, itemId: v.id, seq: v.seq, variant: v.variant });
         setRejectReason(REJECT_REASONS[0]);
         setRejectNotes('');
+        setRejectImage(null);
     };
     const confirmReject = () => {
         if (!reject) return;
-        onUpdateItemStatus(reject.reqId, reject.itemId, 'REJECTED', { reason: rejectReason, notes: rejectNotes.trim() || undefined });
+        onUpdateItemStatus(reject.reqId, reject.itemId, 'REJECTED', { reason: rejectReason, notes: rejectNotes.trim() || undefined, image: rejectImage });
         setReject(null);
     };
 
     // Rejection-history viewer: the "Rejected Nx" chip opens this, listing every
     // reject round (reason + notes) for the item — traceability across reopens.
     const [historyItem, setHistoryItem] = useState<{ item: any; code: string } | null>(null);
+
+    // Approval / rejection proof photo on a variant row — thumb in the Photo column,
+    // full size in a modeless preview panel.
+    const [photoPreview, setPhotoPreview] = useState<{ url: string; filename: string } | null>(null);
+    const statusPhotoThumb = (url?: string | null, label = 'Photo') => {
+        if (!url) return null;
+        const full = `${STATIC_BASE}${url}`;
+        return (
+            <img src={full} alt={label} title={`${label} — click to preview`}
+                onClick={() => setPhotoPreview({ url: full, filename: url.split('/').pop() || 'photo' })}
+                style={{ maxHeight: 40, maxWidth: 64, border: classic ? '1px solid #a0988c' : '1px solid #dbe1e8', borderRadius: classic ? 0 : 3, cursor: 'pointer', display: 'block', margin: '0 auto' }} />
+        );
+    };
 
     // `items` is the server-side typeahead result page, scoped by the page that mounts us
     // (Finished Goods for the FG book, Raw Material for the yarn book).
@@ -658,6 +677,8 @@ export default function LabDipRequestView({
                                             { header: 'Status', width: 96 },
                                             { header: 'Rejections', width: 92, align: 'center' as const },
                                             { header: 'Update Status', width: 224, align: 'center' as const },
+                                            // Proof photo of whichever side the variant landed on (approval or rejection).
+                                            { header: 'Photo', width: 72, align: 'center' as const },
                                             { header: '', width: 40, align: 'center' as const },
                                         ];
 
@@ -701,6 +722,12 @@ export default function LabDipRequestView({
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant })}>Rejected</button>
                                                         </div>
                                                     ) : <span style={{ color: '#999' }}>—</span>,
+                                                    // Photo column — only one side can be current, so this is whichever
+                                                    // status the variant rests on. Earlier rounds stay on their event rows.
+                                                    statusPhotoThumb(
+                                                        status === 'APPROVED' ? it.approval_image_url : status === 'REJECTED' ? it.rejection_image_url : null,
+                                                        status === 'APPROVED' ? 'Approval photo' : 'Rejection photo',
+                                                    ) || <span style={{ color: classic ? '#aaa' : '#cbd5e1', fontSize: classic ? 11 : 12 }}>—</span>,
                                                     // Jump to the minted color code in the Color Library (approved), or resubmit a fresh request (rejected).
                                                     (status === 'APPROVED' && it.approved_color_code) ? (
                                                         <button
@@ -1033,6 +1060,11 @@ export default function LabDipRequestView({
                         </div>
                         <label style={xpLbl(classic)}>Notes (optional)</label>
                         <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)} placeholder="Optional note carried onto the color entry…" />
+                        <label style={{ ...xpLbl(classic), marginTop: 10 }}>Photo (optional)</label>
+                        <input type="file" accept="image/*"
+                            style={{ ...xpInput(classic), height: 'auto', padding: '3px 4px', width: '100%', boxSizing: 'border-box' as const }}
+                            onChange={e => setApprovalImage(e.target.files?.[0] || null)} />
+                        {approvalImage && <div style={{ fontSize: classic ? 10 : 11, color: '#888', marginTop: 2 }}>{approvalImage.name}</div>}
                     </div>
                 )}
             </ModalWrapper>
@@ -1075,9 +1107,38 @@ export default function LabDipRequestView({
                         <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2}
                             value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
                             placeholder="Extra detail for this rejection…" />
+                        <label style={{ ...xpLbl(classic), marginTop: 10 }}>Photo (optional)</label>
+                        <input type="file" accept="image/*"
+                            style={{ ...xpInput(classic), height: 'auto', padding: '3px 4px', width: '100%', boxSizing: 'border-box' as const }}
+                            onChange={e => setRejectImage(e.target.files?.[0] || null)} />
+                        {rejectImage && <div style={{ fontSize: classic ? 10 : 11, color: '#888', marginTop: 2 }}>{rejectImage.name}</div>}
                     </div>
                 )}
             </ModalWrapper>
+
+            {/* Approval / rejection photo preview — modeless so the variant table stays usable. */}
+            {photoPreview && (
+                <ModalWrapper
+                    isOpen={true}
+                    modeless
+                    onClose={() => setPhotoPreview(null)}
+                    title={<><i className="bi bi-image me-2" />Photo: {photoPreview.filename}</>}
+                    size="xl"
+                    variant="primary"
+                    level={2}
+                    footer={
+                        <>
+                            <span style={{ flex: 1, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 10 : 12, color: '#666', textAlign: 'left' as const }}>{photoPreview.filename}</span>
+                            <button type="button" style={xpBtn(classic)} onClick={() => window.open(photoPreview.url, '_blank')}>Open Full View</button>
+                            <button type="button" style={xpBtn(classic)} onClick={() => setPhotoPreview(null)}>Close</button>
+                        </>
+                    }
+                >
+                    <div style={{ textAlign: 'center' as const, padding: 6 }}>
+                        <img src={photoPreview.url} alt={photoPreview.filename} style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+                    </div>
+                </ModalWrapper>
+            )}
 
             {/* Rejection history — every reject round with its reason + notes (traceability). */}
             <ModalWrapper

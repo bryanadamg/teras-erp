@@ -2033,6 +2033,8 @@ class LabDipItemResponse(BaseModel):
     approved_color_code: Optional[str] = None  # e.g. "00001-A-5"; set by the API layer.
     rejection_reason: Optional[str] = None  # latest reject's reason (mirror of newest log row).
     rejection_notes: Optional[str] = None
+    approval_image_url: Optional[str] = None
+    rejection_image_url: Optional[str] = None
     rejection_count: int = 0  # times rejected (== len(rejections)); survives reopen.
     rejections: list[LabDipRejectionResponse] = []  # full reject history for traceability.
     dips: list[LabDipLineResponse] = []

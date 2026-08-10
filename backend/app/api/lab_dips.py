@@ -1,5 +1,9 @@
+import os
+import shutil
 import uuid as uuid_lib
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, func, case, update as sa_update
 from sqlalchemy.orm import joinedload
@@ -691,6 +695,13 @@ async def update_lab_dip_item_status(
     previous_status = item.status
     item.status = status
 
+    # Proof photos follow the current status only; the per-round copies stay on the
+    # event rows. Reopening a rejected variant drops its rejection photo.
+    if status != "APPROVED":
+        item.approval_image_url = None
+    if status != "REJECTED":
+        item.rejection_image_url = None
+
     # Attempt log for the Lab Dip Report. The item row only keeps its current status,
     # so every transition appends a row here; the counts survive a later reopen.
     prior_same = await db.scalar(
@@ -730,6 +741,72 @@ async def update_lab_dip_item_status(
     for mo_id in backfilled_mo_ids:
         await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id})
     return {"status": "success", "color_code": minted_color_code, "backfilled_mo_count": len(backfilled_mo_ids)}
+
+
+@router.post("/lab-dips/{request_id}/items/{item_id}/status-image")
+async def upload_lab_dip_item_status_image(
+    request_id: str,
+    item_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('lab_dip_request.update_status')),
+):
+    """One proof photo for the variant's current approval/rejection.
+
+    Called right after the status PUT, so the side is read from the variant's status
+    rather than passed in. The file name carries the round number, so reopening and
+    rejecting again does not overwrite the photo an earlier event row points at.
+    Mirrors the sample-request colour flow.
+    """
+    result = await db.execute(
+        select(LabDipItem).filter(LabDipItem.id == item_id, LabDipItem.lab_dip_request_id == request_id)
+    )
+    item = result.scalars().first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Lab dip item not found")
+    if item.status not in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail="A photo can only be attached to an approved or rejected variant")
+
+    ev_result = await db.execute(
+        select(LabDipItemEvent)
+        .where(LabDipItemEvent.lab_dip_item_id == item.id)
+        .order_by(LabDipItemEvent.created_at.desc(), LabDipItemEvent.round_no.desc())
+        .limit(1)
+    )
+    event = ev_result.scalars().first()
+    round_no = event.round_no if event else 1
+
+    upload_dir = Path("static/lab_dips")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
+    if ext == ".jpeg":
+        ext = ".jpg"
+    kind = "approval" if item.status == "APPROVED" else "rejection"
+    filename = f"{item_id}_{kind}_{round_no}{ext}"
+    file_path = upload_dir / filename
+    with file_path.open("wb") as buf:
+        await run_in_threadpool(shutil.copyfileobj, file.file, buf)
+
+    url = f"/static/lab_dips/{filename}"
+    if item.status == "APPROVED":
+        item.approval_image_url = url
+    else:
+        item.rejection_image_url = url
+    if event:
+        event.image_url = url
+
+    await db.commit()
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE_ITEM_STATUS",
+        entity_type="LabDipItem",
+        entity_id=item_id,
+        details=f"Attached {kind} photo to lab dip variant",
+        changes={"image_url": url},
+    )
+    return {"image_url": url}
 
 
 @router.put("/lab-dips/{request_id}/status")

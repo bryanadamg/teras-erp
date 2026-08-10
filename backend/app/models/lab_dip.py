@@ -81,6 +81,11 @@ class LabDipItem(Base):
     # Captured when a variant is rejected (mirrors the sample-request reject flow).
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rejection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # One proof photo per side, for the CURRENT status only — cleared when a rejected
+    # variant is reopened. Per-round copies live on LabDipItemEvent.image_url. Same
+    # shape as sample_colors.
+    approval_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    rejection_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # Overrides the derived variant_code (request seq + letter) when set — carries a
     # rejected item's original code onto its resubmitted (new-request) replacement.
     locked_variant_code: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
@@ -154,6 +159,9 @@ class LabDipItemEvent(Base):
     round_no: Mapped[int] = mapped_column(Integer, default=1)
     reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Photo attached to THIS round's approval/rejection, uploaded right after the
+    # transition lands on this row.
+    image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

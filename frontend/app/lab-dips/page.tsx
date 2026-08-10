@@ -82,7 +82,10 @@ export default function LabDipsPage() {
         if (res.ok) fetchLabDips();
     };
 
-    const handleUpdateItemStatus = async (reqId: string, itemId: string, status: string, extra?: { set?: string; notes?: string; reason?: string; variant_attribute_value_id?: string }) => {
+    // The photo is a second call on purpose: the status PUT decides which side
+    // (approval / rejection) the file belongs to, and creates the event row the
+    // upload attaches itself to.
+    const handleUpdateItemStatus = async (reqId: string, itemId: string, status: string, extra?: { set?: string; notes?: string; reason?: string; variant_attribute_value_id?: string; image?: File | null }) => {
         let url = `${API_BASE}/lab-dips/${reqId}/items/${itemId}/status?status=${status}`;
         if (extra?.set) url += `&set_value=${encodeURIComponent(extra.set)}`;
         if (extra?.notes) url += `&notes=${encodeURIComponent(extra.notes)}`;
@@ -90,6 +93,11 @@ export default function LabDipsPage() {
         if (extra?.variant_attribute_value_id) url += `&variant_attribute_value_id=${encodeURIComponent(extra.variant_attribute_value_id)}`;
         const res = await authFetch(url, { method: 'PUT' });
         if (res.ok) {
+            if (extra?.image) {
+                const fd = new FormData();
+                fd.append('file', extra.image);
+                await authFetch(`${API_BASE}/lab-dips/${reqId}/items/${itemId}/status-image`, { method: 'POST', body: fd });
+            }
             fetchLabDips();
             if (status === 'APPROVED') { fetchColors(); showToast('Variant approved · color added to library', 'success'); }
         } else {
