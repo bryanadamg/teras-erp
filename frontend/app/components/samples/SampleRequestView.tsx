@@ -120,7 +120,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       return (
           <img src={full} alt={label} title={`${label} — click to preview`}
               onClick={() => setFilePreview({ url: full, type: 'image', filename: url.split('/').pop() || 'photo' })}
-              style={{ maxHeight: 40, maxWidth: 80, border: '1px solid #b0a898', cursor: 'pointer', display: 'block', margin: '2px auto 0' }} />
+              style={{ maxHeight: 40, maxWidth: 64, border: '1px solid #b0a898', cursor: 'pointer', display: 'block', margin: '0 auto' }} />
       );
   };
   const toggleExpand = (id: string) =>
@@ -1700,6 +1700,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        { header: 'Type', width: 56 },
                                        { header: 'Status', width: 100 },
                                        { header: 'Update Status', align: 'center' as const },
+                                       // Proof photo of whichever side the variant landed on (approval or rejection).
+                                       { header: 'Photo', width: 72, align: 'center' as const },
                                        { header: 'Item', width: 116, align: 'center' as const },
                                    ];
                                    const rows = colors.map((c: any) => {
@@ -1741,13 +1743,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                            ? <div style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: xpFont }}>Approved</div>
                                                            : <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>}
                                                        {c.approval_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: xpFont, fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.approval_notes}</div>}
-                                                       {statusPhotoThumb(c.approval_image_url, 'Approval photo')}
                                                    </div>
                                                ) : isRejected ? (
                                                    <div style={{ textAlign: 'center' as const }}>
                                                        <div className={classic ? '' : 'fw-bold text-danger'} style={classic ? { fontSize: 10, color: '#a01a1a', fontWeight: 'bold', fontFamily: xpFont } : { fontSize: 10 }}>Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}</div>
                                                        {c.rejection_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: xpFont, fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.rejection_notes}</div>}
-                                                       {statusPhotoThumb(c.rejection_image_url, 'Rejection photo')}
                                                        {/* Rejected rests but is reopenable — remaking the variant is a new attempt,
                                                            which is what the sample report counts. Only exit is back to In Production. */}
                                                        {canManage && (
@@ -1773,6 +1773,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                        </div>
                                                    )
                                                ) : null,
+                                               // Photo column — only one side can be current, so this is whichever
+                                               // status the variant is resting on. Earlier rounds' photos stay on
+                                               // their event rows.
+                                               statusPhotoThumb(
+                                                   isApproved ? c.approval_image_url : isRejected ? c.rejection_image_url : null,
+                                                   isApproved ? 'Approval photo' : 'Rejection photo',
+                                               ) || <span style={{ fontSize: 10, color: '#888', fontFamily: classic ? xpFont : undefined }}>—</span>,
                                                isApproved ? (
                                                    c.item_id ? (
                                                        classic
@@ -1948,6 +1955,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
        {filePreview && (
            <ModalWrapper
                isOpen={true}
+               modeless
                onClose={() => setFilePreview(null)}
                title={filePreview.type === 'image' ? `Photo: ${filePreview.filename}` : filePreview.type === 'pdf' ? `PDF: ${filePreview.filename}` : filePreview.filename}
                size="xl"
