@@ -97,6 +97,12 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [targetVal, setTargetVal] = useState('');
     const [targetRunId, setTargetRunId] = useState<string | null>(null);
 
+    const [linesVal, setLinesVal] = useState('');
+    const [linesRunId, setLinesRunId] = useState<string | null>(null);
+
+    const [rateVal, setRateVal] = useState('');
+    const [rateRunId, setRateRunId] = useState<string | null>(null);
+
     const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
     const [holidays, setHolidays] = useState<any[]>([]);
     const [calRef, setCalRef] = useState<Date>(() => new Date());
@@ -156,6 +162,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             setUnmountingId(null);
             setOverrideRunId(null);
             setTargetRunId(null);
+            setLinesRunId(null);
+            setRateRunId(null);
             setCalRef(new Date());
             setMoCands([]);
             setWoCands([]);
@@ -270,6 +278,22 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_efficiency_pct: v }),
         });
         if (res.ok) { setTargetRunId(null); load(); }
+    };
+    const saveLines = async (runId: string) => {
+        const v = parseInt(linesVal, 10);
+        if (Number.isNaN(v) || v < 1) return;
+        const res = await authFetch(`${apiBase}/weaving-runs/${runId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines: v }),
+        });
+        if (res.ok) { setLinesRunId(null); load(); }
+    };
+    const saveRate = async (runId: string) => {
+        const v = parseFloat(rateVal);
+        if (Number.isNaN(v)) return;
+        const res = await authFetch(`${apiBase}/weaving-runs/${runId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rate_per_line_g_min: v }),
+        });
+        if (res.ok) { setRateRunId(null); load(); }
     };
     const toggleWeekday = (d: number) => {
         setWeekdays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a, b) => a - b));
@@ -460,6 +484,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         const effColor = onTarget ? GREEN : RED;
         const editingOverride = overrideRunId === run.id;
         const editingTarget = targetRunId === run.id;
+        const editingLines = linesRunId === run.id;
+        const editingRate = rateRunId === run.id;
         return (
             <div style={first
                 ? { marginBottom: 16 }
@@ -571,8 +597,30 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 {/* Targets */}
                 <FormSection title={<SecTitle icon="bi-sliders">{t('targets') || 'Targets'}</SecTitle>} classic={cls}>
                     <div style={grid(118)}>
-                        <Stat label={t('lines')} value={run.lines} />
-                        <Stat label={t('rate_per_line')} value={fmt(run.rate_per_line_g_min, 2)} unit="g/min" />
+                        <Stat label={t('lines')} value={editingLines ? (
+                            <div className="d-flex gap-1 align-items-center">
+                                <input type="number" min="1" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 55, height: 22, fontSize: 12 }} value={linesVal} onChange={e => setLinesVal(e.target.value)} />
+                                <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveLines(run.id)} />
+                                <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setLinesRunId(null)} />
+                            </div>
+                        ) : (
+                            <span className="d-flex align-items-center gap-1">
+                                {run.lines}
+                                {canManage && <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Edit lines" onClick={() => { setLinesVal(String(run.lines ?? '')); setLinesRunId(run.id); }} />}
+                            </span>
+                        )} />
+                        <Stat label={t('rate_per_line')} value={editingRate ? (
+                            <div className="d-flex gap-1 align-items-center">
+                                <input type="number" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 65, height: 22, fontSize: 12 }} value={rateVal} onChange={e => setRateVal(e.target.value)} />
+                                <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveRate(run.id)} />
+                                <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setRateRunId(null)} />
+                            </div>
+                        ) : (
+                            <span className="d-flex align-items-center gap-1">
+                                {fmt(run.rate_per_line_g_min, 2)}<span style={{ fontSize: 9, fontWeight: 'normal', color: '#888' }}>g/min</span>
+                                {canManage && <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Edit rate" onClick={() => { setRateVal(String(run.rate_per_line_g_min ?? '')); setRateRunId(run.id); }} />}
+                            </span>
+                        )} />
                         <Stat label={t('target_100_day')} value={fmt(run.target_100_per_day_kg, 2)} unit="kg" />
                         <Stat label={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%/day`} value={fmt(run.target_eff_per_day_kg, 2)} unit="kg" accent={BLUE} />
                         <Stat label={t('elapsed_days')} value={run.elapsed_working_days} />
