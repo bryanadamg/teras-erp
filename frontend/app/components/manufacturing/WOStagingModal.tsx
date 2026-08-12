@@ -157,10 +157,16 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                 const entries = await Promise.all(lotRows.map(async r => {
                     const b = await authFetch(`${API_BASE}/batches?item_id=${r.item_id}&limit=200&with_source_lots=true`);
                     const list = b.ok ? await b.json() : [];
+                    // A lot this WO already staged is not a candidate to stage again —
+                    // it sits in the input location, so it still has remaining stock and
+                    // would otherwise list (and pre-check, when it's also the traced
+                    // suggestion). It's shown in the "Staged on line" block instead.
+                    const stagedIds = new Set((r.staged_lots || []).map(l => l.batch_id));
                     const avail = (list || []).filter((x: any) =>
                         (x.remaining ?? 0) > 0 && x.quality_status !== 'REJECTED'
                         // A beam already up on this loom isn't a candidate to mount again.
                         && !(r.is_beam && mountedIds.has(x.id))
+                        && !stagedIds.has(x.id)
                     );
                     return [r.item_id, avail] as const;
                 }));
@@ -184,6 +190,19 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
     }, [wo.id]);
 
     const hasBeams = rows.some(r => r.is_beam);
+
+    // Every lot this WO already staged, flattened across the step's materials —
+    // shown as one panel above the table (the material it belongs to rides along
+    // as a chip), so what's on the line reads before what's still to pick.
+    const allStagedLots = useMemo(
+        () => rows.flatMap(r => (r.staged_lots || []).map(l => ({ ...l, item_code: r.item_code }))),
+        [rows],
+    );
+    const stagedKg = useMemo(
+        () => allStagedLots.reduce((s, l) => s + (l.qty || 0), 0),
+        [allStagedLots],
+    );
+    const multiItem = rows.length > 1;
 
     // Sum of remaining qty across the beams/lots selected for this item.
     const selectedLotQty = (itemId: string) => {
@@ -343,6 +362,47 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                     </div>
                 )}
 
+                {/* What this WO already put on the line, above the table. These lots
+                    are filtered out of the pickers below, so the two lists never
+                    disagree; `on_line` is live, so a consumed lot reads 0 left. */}
+                {!loading && allStagedLots.length > 0 && (
+                    <div style={{
+                        border: '1px solid #a8d0a8', background: '#f2f9f2',
+                        padding: '4px 6px', marginBottom: 8,
+                    }}>
+                        <div style={{ fontSize: 10, color: '#1a5e1a', fontWeight: 'bold', marginBottom: 3 }}>
+                            <i className="bi bi-box-seam" /> Staged on line ({stagedKg.toFixed(2)})
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {allStagedLots.map(sl => {
+                                const gone = sl.on_line + 1e-6 < sl.qty;
+                                return (
+                                    <div key={sl.batch_id} style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                        {multiItem && sl.item_code ? (
+                                            <span style={{ fontWeight: 'bold', fontSize: 10 }}>{sl.item_code}</span>
+                                        ) : null}
+                                        <CodeChip code={sl.batch_number || '—'} classic />
+                                        <LotChip tone="qty" title="Quantity staged to this WO">
+                                            {sl.qty.toFixed(1)}
+                                        </LotChip>
+                                        {gone ? (
+                                            <LotChip tone="pending" title="Still at the input location — the rest was consumed or moved">
+                                                {sl.on_line.toFixed(1)} left
+                                            </LotChip>
+                                        ) : null}
+                                        <LotChips batch={sl} showOrder />
+                                        {sl.staged_at ? (
+                                            <span style={{ color: '#888', fontSize: 9 }}>
+                                                {new Date(sl.staged_at).toLocaleString()}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                     {loading ? (
                         <div style={{ color: '#888', padding: 12 }}>Loading required materials...</div>
                     ) : rows.length === 0 ? (
@@ -372,7 +432,7 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                         const stagedLots = r.staged_lots || [];
                                         return (
                                             <React.Fragment key={r.item_id}>
-                                            <tr style={{ borderBottom: stagedLots.length ? 'none' : '1px solid #cfccc4' }}>
+                                            <tr style={{ borderBottom: '1px solid #cfccc4' }}>
                                                 <td style={{ padding: '3px 5px' }}>
                                                     <div style={{ fontWeight: 'bold' }}>{r.item_code || '—'}</div>
                                                     <div style={{ color: '#777' }}>{r.item_name}</div>
@@ -515,44 +575,6 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                     ) : <span style={{ color: '#bbb' }}>—</span>}
                                                 </td>
                                             </tr>
-                                            {/* Which lots the Staged total is made of. A dyeing stager
-                                                reading "10.00" can't tell which greige lots are on the
-                                                line — same chips as the picker so the two lists match.
-                                                `on_line` is live, so a lot already consumed reads 0. */}
-                                            {stagedLots.length > 0 && (
-                                                <tr style={{ borderBottom: '1px solid #cfccc4', background: '#f4f8f4' }}>
-                                                    <td style={{ padding: '0 5px 4px 5px' }} />
-                                                    <td colSpan={6} style={{ padding: '0 5px 4px 5px' }}>
-                                                        <div style={{ fontSize: 9, color: '#1a5e1a', fontWeight: 'bold', margin: '2px 0 2px' }}>
-                                                            <i className="bi bi-box-seam" /> Staged on line
-                                                        </div>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                            {stagedLots.map(sl => {
-                                                                const gone = sl.on_line + 1e-6 < sl.qty;
-                                                                return (
-                                                                    <div key={sl.batch_id} style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                                        <CodeChip code={sl.batch_number || '—'} classic />
-                                                                        <LotChip tone="qty" title="Quantity staged to this WO">
-                                                                            {sl.qty.toFixed(1)}
-                                                                        </LotChip>
-                                                                        {gone ? (
-                                                                            <LotChip tone="pending" title="Still at the input location — the rest was consumed or moved">
-                                                                                {sl.on_line.toFixed(1)} left
-                                                                            </LotChip>
-                                                                        ) : null}
-                                                                        <LotChips batch={sl} showOrder />
-                                                                        {sl.staged_at ? (
-                                                                            <span style={{ color: '#888', fontSize: 9 }}>
-                                                                                {new Date(sl.staged_at).toLocaleString()}
-                                                                            </span>
-                                                                        ) : null}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
                                             </React.Fragment>
                                         );
                                     })}

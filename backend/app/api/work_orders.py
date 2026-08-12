@@ -1099,6 +1099,11 @@ async def stage_wo_materials(
 
     staged_any = False
     moved_so_far: dict[str, float] = {}  # per item, across this request's lines — multiple batches can share an item
+    # Items whose lines the shortfall cap swallowed whole. Kept so a request that
+    # moves nothing can say WHY instead of the bare "Nothing to stage": the usual
+    # cause is a WO already at its required qty (a consumed load still counts as
+    # staged), which reads as a broken lot pick from the floor.
+    capped: list[WORequiredMaterial] = []
     for line in payload.lines:
         qty = float(line.qty or 0)
         rr = req_by_item.get(str(line.item_id))
@@ -1133,6 +1138,8 @@ async def stage_wo_materials(
         else:
             remaining = max(0.0, rr.required_qty - rr.staged - already_moved)
             if remaining <= 0:
+                if all(str(c.item_id) != str(rr.item_id) for c in capped):
+                    capped.append(rr)
                 continue
             move_qty = min(qty, remaining)
         moved_so_far[str(line.item_id)] = already_moved + move_qty
@@ -1164,6 +1171,18 @@ async def stage_wo_materials(
         staged_any = True
 
     if not staged_any:
+        if capped:
+            detail = "; ".join(
+                f"{c.item_code or c.item_id} is already staged {c.staged:g} of the "
+                f"{c.required_qty:g} this step requires — nothing left to top up"
+                for c in capped
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"{detail}. Staged qty counts every load moved in, including one "
+                       f"already consumed. Use Scan bags to move a whole lot past the "
+                       f"required qty.",
+            )
         raise HTTPException(status_code=400, detail="Nothing to stage")
 
     # Recompute and persist staging status.
