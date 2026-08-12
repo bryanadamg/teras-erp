@@ -771,6 +771,33 @@ class WorkOrderResponse(BaseModel):
     created_at: datetime
 
 
+class WOStagedLot(BaseModel):
+    """One lot already staged to a WO's input location by this WO.
+
+    The `staged` total alone doesn't tell a dyeing stager WHICH greige lots make
+    it up — two GRG- lots off the same item differ only by size, combo and shade.
+    `qty` is what this WO moved in (nets any reversal); `on_line` is that lot's
+    live balance at the input location, so a lot already consumed reads 0 left.
+    """
+    batch_id: UUID
+    batch_number: Optional[str] = None
+    qty: float = 0.0
+    on_line: float = 0.0
+    staged_at: Optional[datetime] = None
+    vendor_lot: Optional[str] = None
+    # Lot identity — same fields LotChips renders on batch pickers.
+    bom_size_snapshot: Optional[dict] = None
+    # Plain dicts, not BatchVariantAttr: that model is declared far below this one
+    # and these rows are built server-side, so there's nothing to validate.
+    variant_attributes: Optional[list[dict]] = None
+    color_code: Optional[str] = None
+    color_name: Optional[str] = None
+    color_hex: Optional[str] = None
+    labdip_variant_code: Optional[str] = None
+    wo_code: Optional[str] = None
+    mo_code: Optional[str] = None
+
+
 class WORequiredMaterial(BaseModel):
     """One material a WO must stage to its input location (its step's share)."""
     item_id: UUID
@@ -791,6 +818,9 @@ class WORequiredMaterial(BaseModel):
     is_beam: bool = False
     mounted_pcs: int = 0
     required_pcs: int = 0
+    # The lots behind `staged` (non-beam rows only — a beam's identity comes from
+    # the loom's mounts, which the staging modal already lists separately).
+    staged_lots: list[WOStagedLot] = []
 
 
 class WOStageLine(BaseModel):

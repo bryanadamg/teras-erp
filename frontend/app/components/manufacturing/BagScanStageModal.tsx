@@ -6,8 +6,9 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import LotLabelPrintModal from './LotLabelPrintModal';
-import { LotChips } from '../shared/LotChips';
+import { LotChips, LotChip } from '../shared/LotChips';
 import { CodeChip, xpFont } from '../shared/xpTheme';
+import type { StagedLot } from './WOStagingModal';
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 13, border: '1px solid #7f9db9',
@@ -36,6 +37,7 @@ interface RequiredMaterial {
     staged: number;
     shortfall: number;
     lot_tracked: boolean;
+    staged_lots: StagedLot[];
 }
 
 interface Props {
@@ -90,6 +92,15 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
     const totalShortfall = useMemo(() => rows.reduce((s, r) => s + Math.max(0, r.shortfall), 0), [rows]);
     const cartKg = cart.reduce((s, b) => s + stagedOf(b), 0);
     const overRequired = totalShortfall > 0 && cartKg > totalShortfall + 1e-6;
+    // Lots already on the line, flattened across this step's materials.
+    const alreadyStaged = useMemo(
+        () => rows.flatMap(r => r.staged_lots || []),
+        [rows],
+    );
+    const stagedKg = useMemo(
+        () => alreadyStaged.reduce((s, l) => s + (l.qty || 0), 0),
+        [alreadyStaged],
+    );
 
     useEffect(() => {
         let alive = true;
@@ -292,6 +303,34 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                     </div>
                 ) : (
                     <>
+                        {/* What is already on the line. Without this the operator
+                            re-scans bags that are in fact staged already — the total
+                            alone doesn't say which lots it came from. */}
+                        {alreadyStaged.length > 0 && (
+                            <div style={{ border: '1px solid #a8d0a8', background: '#f2f9f2', padding: '4px 6px', marginBottom: 8 }}>
+                                <div style={{ fontSize: 10, color: '#1a5e1a', fontWeight: 'bold', marginBottom: 3 }}>
+                                    <i className="bi bi-box-seam" /> Already staged to this WO ({stagedKg.toFixed(2)} kg)
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    {alreadyStaged.map(sl => {
+                                        const gone = sl.on_line + 1e-6 < sl.qty;
+                                        return (
+                                            <div key={sl.batch_id} style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                <CodeChip code={sl.batch_number || '—'} classic />
+                                                <LotChip tone="qty" title="Quantity staged to this WO">{sl.qty.toFixed(1)}</LotChip>
+                                                {gone ? (
+                                                    <LotChip tone="pending" title="Still at the input location — the rest was consumed or moved">
+                                                        {sl.on_line.toFixed(1)} left
+                                                    </LotChip>
+                                                ) : null}
+                                                <LotChips batch={sl} showOrder />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Scan input + camera toggle */}
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
                             <input

@@ -19,11 +19,13 @@ from app.schemas import (
     WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
     LeftoverBeamCreate, BatchResponse, PutawayBinOption, PutawaySuggestionResponse,
     WorkOrderMarkPrintedBulk, BeamMountResponse, BeamMountCreate, BeamDismountPayload,
-    LoomBeamStatus,
+    LoomBeamStatus, WOStagedLot,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
-from app.api.batches import generate_batch_number
+from app.api.batches import (
+    generate_batch_number, _resolve_batch_origins, _resolve_batch_variants,
+)
 from app.services import (
     audit_service, stock_service, beam_service, work_center_service, reject_service,
     weaving_service,
@@ -621,6 +623,79 @@ async def _wo_staged_by_item(db: AsyncSession, wo: WorkOrder) -> dict[str, float
     return {str(i): float(s or 0) for i, s in rows.all()}
 
 
+async def _wo_staged_lots(db: AsyncSession, wo: WorkOrder) -> dict[str, list[WOStagedLot]]:
+    """The lots behind each item's staged total, per item.
+
+    A dyeing stager reading `staged = 10.00 kg` can't tell which greige lots are
+    on the line — two GRG- lots off the same item differ only by size, combo and
+    shade. Grouped off the same 'Staging' ledger rows the total comes from, with
+    negatives netted out (e.g. a reversal), so the two agree for lot-tracked
+    material; batch-less staging carries no lot and is simply absent. `on_line` is
+    read live off the balance, so a lot already consumed reads 0 left while the
+    staged total it contributed stays put.
+    """
+    if not wo.input_location_id:
+        return {}
+    rows = await db.execute(
+        select(
+            StockLedger.item_id,
+            StockLedger.batch_id,
+            func.sum(StockLedger.qty_change),
+            func.max(StockLedger.created_at),
+        )
+        .where(
+            StockLedger.reference_type == "Staging",
+            StockLedger.reference_id == str(wo.id),
+            StockLedger.location_id == wo.input_location_id,
+            StockLedger.batch_id.isnot(None),
+        )
+        .group_by(StockLedger.item_id, StockLedger.batch_id)
+    )
+    agg = [(str(i), b, float(q or 0), at) for i, b, q, at in rows.all() if float(q or 0) > 1e-9]
+    if not agg:
+        return {}
+
+    batch_ids = [b for _, b, _, _ in agg]
+    bres = await db.execute(select(Batch).where(Batch.id.in_(batch_ids)))
+    batches = list(bres.scalars().all())
+    # Same identity resolvers the batch pickers use, so a staged lot is labelled
+    # exactly like the same lot in the picker list below it.
+    await _resolve_batch_origins(db, batches)
+    await _resolve_batch_variants(db, batches)
+    by_id = {str(b.id): b for b in batches}
+
+    bal_res = await db.execute(
+        select(StockBalance.batch_key, func.sum(StockBalance.qty)).where(
+            StockBalance.location_id == wo.input_location_id,
+            StockBalance.batch_key.in_([str(b) for b in batch_ids]),
+        ).group_by(StockBalance.batch_key)
+    )
+    on_line = {k: float(v or 0) for k, v in bal_res.all()}
+
+    out: dict[str, list[WOStagedLot]] = {}
+    for item_id, batch_id, qty, at in agg:
+        b = by_id.get(str(batch_id))
+        out.setdefault(item_id, []).append(WOStagedLot(
+            batch_id=batch_id,
+            batch_number=getattr(b, "batch_number", None),
+            qty=qty,
+            on_line=on_line.get(str(batch_id), 0.0),
+            staged_at=at,
+            vendor_lot=getattr(b, "vendor_lot", None),
+            bom_size_snapshot=getattr(b, "bom_size_snapshot", None),
+            variant_attributes=getattr(b, "variant_attributes", None),
+            color_code=getattr(b, "color_code", None),
+            color_name=getattr(b, "color_name", None),
+            color_hex=getattr(b, "color_hex", None),
+            labdip_variant_code=getattr(b, "labdip_variant_code", None),
+            wo_code=getattr(b, "wo_code", None),
+            mo_code=getattr(b, "mo_code", None),
+        ))
+    for lots in out.values():
+        lots.sort(key=lambda l: (l.staged_at or datetime.min, l.batch_number or ""))
+    return out
+
+
 async def _wo_step_components(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOrder) -> list:
     """Planned components this WO should stage/consume.
 
@@ -867,6 +942,7 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
     if not comps:
         return []
     staged_by_item = await _wo_staged_by_item(db, wo)
+    staged_lots_by_item = await _wo_staged_lots(db, wo)
 
     item_ids = [c.item_id for c in comps]
     # Warp beams don't belong to a WO — they're mounted on the loom and shared by
@@ -968,6 +1044,9 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
                 await beam_service.mounted_pcs(db, wo.work_center_id, c.item_id) if is_beam else 0
             ),
             required_pcs=beam_slots if is_beam else 0,
+            # Beams are loom-mounted, not staged to this WO — their identity comes
+            # from the machine's open mounts, listed separately by the modal.
+            staged_lots=[] if is_beam else staged_lots_by_item.get(str(c.item_id), []),
         ))
     return rows
 
