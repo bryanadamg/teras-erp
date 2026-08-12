@@ -12,10 +12,11 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
 import { XPLoading } from './xpTheme';
 import AppLoadBar from './AppLoadBar';
-import { SECTION_LABELS, PREFETCH_ROUTES } from './navConfig';
+import { SECTION_LABELS, PREFETCH_ROUTES, ROUTE_PERMISSIONS } from './navConfig';
+import AccessDenied from './AccessDenied';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-    const { currentUser, logout, loading, hasPermission } = useUser();
+    const { currentUser, logout, loading, hasPermission, hasAnyPermission } = useUser();
     const { handleTabHover } = useData();
     const { language, setLanguage, t } = useLanguage();
     const { uiStyle } = useTheme();
@@ -77,13 +78,23 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     // Protect all other routes
     if (!currentUser) return null;
 
-    // Mobile: render the XP mobile shell instead of sidebar layout
-    if (isMobile) {
-        return <MobileShell appName={appName}>{children}</MobileShell>;
-    }
-
     // Map pathname to activeTab for Sidebar highlighting
     const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
+
+    // Route guard — hiding a sidebar leaf never stopped a typed URL, so the route
+    // itself is checked against the same navConfig permissions the sidebar uses.
+    // Routes absent from ROUTE_PERMISSIONS (dashboard, scanner, settings, the
+    // mobile screens) stay open to any authenticated user. The API enforces its
+    // own checks; this is the UI half so a blocked page reads as blocked instead
+    // of as an empty list full of 403s.
+    const routePerms = ROUTE_PERMISSIONS[activeTab];
+    const routeBlocked = !!routePerms && !hasAnyPermission(...routePerms);
+    const pageBody = routeBlocked ? <AccessDenied codes={routePerms} /> : children;
+
+    // Mobile: render the XP mobile shell instead of sidebar layout
+    if (isMobile) {
+        return <MobileShell appName={appName}>{pageBody}</MobileShell>;
+    }
 
     // Page title: prefer i18n label, fall back to the URL slug.
     // Section-home routes (/sections/<key>) have no i18n key — labels come from navConfig.
@@ -147,7 +158,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <AppLoadBar />
 
                 <div className="px-0 py-3">
-                    {children}
+                    {pageBody}
                 </div>
             </div>
         </div>

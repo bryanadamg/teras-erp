@@ -18,7 +18,7 @@ from app.models.sales import SalesOrder
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchDispose, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
 from app.services import audit_service, kpi_service, stock_service, reject_service
 from app.core.ws_manager import manager
@@ -304,7 +304,7 @@ async def list_batches(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
 ):
     """Raw, uncapped-total lot list — used by lot/batch pickers (staging, WO
     completion, packing) that want "up to limit candidates for this item", not
@@ -332,7 +332,7 @@ async def list_batches_paginated(
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
 ):
     """Server-paginated Lot Management list — mirrors the {items, total, page, size}
     envelope used by other domains (Items, Stock Ledger, MO/PR) so the shared Pager
@@ -426,7 +426,7 @@ async def list_batches_paginated(
 async def resolve_batch_by_number(
     number: str = Query(..., description="Exact lot/batch number (from a scanned bag QR)"),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
 ):
     """Resolve a scanned lot number to its enriched batch (remaining, current
     location, item, quality). Powers scan-to-stage — the bag label QR encodes
@@ -446,7 +446,7 @@ async def resolve_batch_by_number(
 async def get_batch(
     batch_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
 ):
     result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
     batch = result.scalars().first()
@@ -820,7 +820,7 @@ async def dispose_batch(
 async def trace_batch_forward(
     batch_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
 ):
     """Forward traceability: raw material batch → finished goods batches produced with it."""
     batch_result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
@@ -873,7 +873,7 @@ async def trace_batch_forward(
 async def trace_batch_backward(
     batch_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
 ):
     """Backward genealogy: finished batch → input batches it was made from, recursively."""
     from app.models.manufacturing import ManufacturingOrder

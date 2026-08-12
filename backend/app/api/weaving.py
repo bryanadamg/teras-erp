@@ -17,7 +17,7 @@ from app.models.stock_balance import StockBalance
 from app.models.item import Item
 from app.models.attribute import AttributeValue
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.schemas import (
     WeavingRunCreate, WeavingRunUpdate, WeavingRunResponse,
     WorkCenterHolidayCreate, WorkCenterHolidayResponse, WorkCenterCalendarUpdate,
@@ -122,7 +122,7 @@ async def work_center_candidate_mos(
     wc_id: str,
     include_all: bool = Query(False, description="Ignore the machine link and list every open MO"),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("weaving_monitor.view", "work_order.view")),
 ):
     """Open MOs a run can be started against on this machine.
 
@@ -170,7 +170,7 @@ CLOSED_WO_STATUSES = ("COMPLETED", "CANCELLED")
 async def work_center_candidate_wos(
     wc_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("weaving_monitor.view", "work_order.view")),
 ):
     """Open WOs dispatched to this machine — the natural unit to start a run on.
 
@@ -495,7 +495,7 @@ def _machine_payload(wc: WorkCenter, runs: list, actuals: dict, weekdays, holida
 @router.get("/weaving/monitor")
 async def weaving_monitor(
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("weaving_monitor.view", "work_order.view")),
 ):
     today = date.today()
     # Leaves only. `parent_id IS NOT NULL` used to identify a machine, but with the
@@ -659,7 +659,7 @@ async def weaving_monitor(
 @router.get("/weaving/id-holidays")
 async def id_national_holidays(
     year: int = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("calendar.view", "weaving_monitor.view")),
 ):
     return {"year": year, "holidays": id_holidays.holidays_for_year(year)}
 
@@ -707,7 +707,7 @@ async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, to
 async def work_center_performance(
     wc_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("weaving_monitor.view", "work_order.view")),
 ):
     wc = await _get_wc(db, wc_id)
     weekdays, holidays = await _load_calendar(db, wc)
@@ -912,7 +912,7 @@ async def _project_runs(db: AsyncSession, runs: list, today: date, actual_by_run
 async def get_calendar(
     wc_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("calendar.view", "weaving_monitor.view", "routing.view")),
 ):
     wc = await _get_wc(db, wc_id)
     weekdays, _ = await _load_calendar(db, wc)
@@ -950,7 +950,7 @@ async def update_calendar(
 async def get_group_calendar(
     group_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("calendar.view", "weaving_monitor.view", "routing.view")),
 ):
     """Calendar held on a TYPE/GROUP node + the machines a batch apply would hit."""
     grp = await _get_wc(db, group_id)

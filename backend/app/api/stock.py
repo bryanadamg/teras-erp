@@ -7,7 +7,7 @@ from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
 from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission, get_current_admin, category_scope_ok
+from app.api.auth import get_current_user, require_permission, require_any_permission, get_current_admin, category_scope_ok
 from app.models.item import Item
 from app.models.location import Location
 from app.models.stock_balance import StockBalance
@@ -61,7 +61,7 @@ async def get_stock_ledger(
     reference_type: Optional[str] = Query(None),
     direction: Optional[str] = Query(None, description="'in' (qty >= 0) or 'out' (qty < 0)"),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_any_permission("stock_ledger.view", "stock_on_hand.view"))
 ):
     from app.models.stock_ledger import StockLedger
     from sqlalchemy import or_, case
@@ -445,7 +445,7 @@ async def transfer_stock_bulk(
 async def get_stock_balance_api(
     item_ids: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("stock_on_hand.view", "lot.view", "work_order.view", "booking_stock.view", "quarantine.view")),
 ):
     # item_ids (comma-separated) scopes the plant-wide balance table to a handful
     # of items — pages that only need availability for a specific item set (e.g.
@@ -671,7 +671,7 @@ async def get_stock_availability(
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("booking_stock.view", "stock_on_hand.view", "production_run.view")),
 ):
     """Booking-stock / material-availability view. See _compute_booking_rows for the
     netting logic. The ``location_id`` query param is retained for API compatibility

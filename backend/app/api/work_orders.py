@@ -804,7 +804,7 @@ async def _descendant_leaves(db: AsyncSession, root_id) -> list[Location]:
 async def get_mo_putaway_suggestion(
     mo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view", "beam.view")),
 ):
     """Putaway planning aid for the MO: candidate bins under the routing's final
     output area plus a suggested one. Priority: bin already assigned on the MO
@@ -1073,7 +1073,7 @@ def _staging_status(rows: list[WORequiredMaterial]) -> str:
 async def get_wo_required_materials(
     wo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view", "beam.view")),
 ):
     wo, mo = await _load_wo_and_mo(db, wo_id)
     return await _wo_required_rows(db, wo, mo)
@@ -1328,7 +1328,7 @@ def _mount_out(mount: BeamMount, remaining: float) -> BeamMountResponse:
 async def get_loom_beam_status(
     wc_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view", "beam.view")),
 ):
     """What warp is up on this loom right now — feeds the weaving monitor card."""
     wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == wc_id))).scalars().first()
@@ -1442,7 +1442,7 @@ async def dismount_beam_from_loom(
 async def get_wo_beam_status(
     wo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view", "beam.view")),
 ):
     """Beam readiness for a WO = the readiness of the machine it runs on."""
     wo = (await db.execute(select(WorkOrder).where(WorkOrder.id == wo_id))).scalars().first()

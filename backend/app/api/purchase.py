@@ -381,7 +381,7 @@ async def upload_delivery_note(
 @router.get("", response_model=list[PurchaseOrderResponse])
 async def get_purchase_orders(
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("purchase_order.view")),
 ):
     result = await db.execute(
         _po_query().order_by(PurchaseOrder.created_at.desc())

@@ -439,7 +439,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
 async def get_available_mo_code(
     base: str = Query(..., description="Base code pattern, e.g. MO-ITEM"),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_any_permission("manufacturing_order.view", "production_run.view"))
 ):
     counter = 1
     while True:
@@ -459,7 +459,7 @@ async def get_manufacturing_orders(
     all_levels: bool = False,
     slim: bool = False,  # dashboard-only: skip load_mo_tree, return minimal fields
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_any_permission("manufacturing_order.view", "work_order.view", "production_run.view"))
 ):
     # Build a lightweight query for root MO IDs only (used for count + pagination)
     id_query = select(ManufacturingOrder.id)
@@ -598,7 +598,7 @@ async def get_manufacturing_orders(
 async def get_manufacturing_order(
     mo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("manufacturing_order.view", "work_order.view", "production_run.view")),
 ):
     mo_map = await load_mo_tree(db, [mo_id])
     # load_mo_tree returns the whole tree (requested MO + descendants) keyed by id in
@@ -700,7 +700,7 @@ async def list_work_orders_flat(
     component_item_id: str = Query(""),
     unprinted: bool = Query(False),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view")),
 ):
     from sqlalchemy import and_
 

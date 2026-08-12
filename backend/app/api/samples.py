@@ -14,7 +14,7 @@ from app.schemas import (
     SampleDevelopmentReport, SampleReportTotals, SampleReportVariantRow, SampleReportGroupRow,
 )
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service, kpi_service
 from app.core.ws_manager import manager
 from datetime import datetime, date, time, timedelta
@@ -227,7 +227,7 @@ async def get_samples(
     created_to: str | None = None,
     focus_id: str | None = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("sample_request.view")),
 ):
     limit = max(1, min(limit, 200))
     skip = max(0, skip)
@@ -340,7 +340,7 @@ async def get_sample_codes(
     prefix: str = "",
     limit: int = 2000,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("sample_request.view", "item.view")),
 ):
     """Codes matching a prefix, for client-side next-free-code suggestion.
     The list is paginated now, so the create form can no longer test candidate
@@ -361,7 +361,7 @@ async def get_sample_development_report(
     category_value_id: str | None = None,
     group_by: str = "customer",
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("sample_request.view")),
 ):
     """Sample development activity over a date range, at attempt grain.
 
@@ -511,7 +511,7 @@ async def get_color_events(
     sample_id: str,
     color_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("sample_request.view")),
 ):
     """Full attempt history for one variant — drives the "rejected 2x" drill-down."""
     rows = await db.execute(

@@ -116,6 +116,26 @@ export const SECTION_LABELS: Record<string, string> = Object.fromEntries(
     NAV_SECTIONS.map(s => [s.key, s.label])
 );
 
+/**
+ * Route slug → the permissions that open it, ANY of which is enough.
+ * Sidebar hiding alone never stopped a typed URL, so MainLayout gates the route
+ * itself off this map. Same source as the sidebar, so a page can never be
+ * hidden-but-reachable or reachable-but-hidden.
+ *
+ * Keys are activeTab slugs (`sales-orders`, `sections-sales`), matching the
+ * pathname→activeTab mapping in MainLayout. A route absent from the map is open
+ * to any authenticated user — dashboard, scanner, settings and the mobile screens
+ * are deliberately not listed.
+ */
+export const ROUTE_PERMISSIONS: Record<string, string[]> = Object.fromEntries([
+    ...NAV_SECTIONS.flatMap(s => s.items
+        .filter(i => i.permission)
+        .map(i => [i.tab, [i.permission as string]] as const)),
+    ...NAV_SECTIONS
+        .filter(s => s.permissions?.length)
+        .map(s => [`sections-${s.key}`, s.permissions as string[]] as const),
+]);
+
 /** Every route worth warming after login: sidebar destinations + section homes. */
 export const PREFETCH_ROUTES: string[] = [
     '/dashboard', '/scanner', '/settings',

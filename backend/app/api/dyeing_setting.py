@@ -18,7 +18,7 @@ from app.models.batch import Batch
 from app.models.work_order import WorkOrder
 from app.models.routing import WorkCenter
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service
 from app.schemas import (
     DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse,
@@ -145,7 +145,7 @@ async def _get_next_run_number(db: AsyncSession, model, work_order_id) -> int:
 async def list_dye_recipes(
     active_only: bool = Query(False),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("dye_recipe.view", "dye_order.view", "lab_dip_request.view", "work_order.view")),
 ):
     q = select(DyeRecipe).options(*_recipe_opts()).order_by(DyeRecipe.code)
     if active_only:
@@ -229,7 +229,7 @@ async def create_dye_recipe(
 async def match_dye_recipe(
     work_order_id: str = Query(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("dye_recipe.view", "dye_order.view", "lab_dip_request.view", "work_order.view")),
 ):
     """Return the best-matching DyeRecipe for a given Work Order, based on the MO's attribute values."""
     wo_result = await db.execute(
@@ -384,7 +384,7 @@ async def delete_dye_recipe(
 async def list_dyeing_runs(
     work_order_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("dye_order.view", "dye_recipe.view", "work_order.view")),
 ):
     q = select(DyeingRun).options(*_dyeing_run_opts()).order_by(DyeingRun.created_at)
     if work_order_id:
@@ -551,7 +551,7 @@ async def complete_dyeing_run(
 async def list_setting_runs(
     work_order_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("setting_order.view", "dye_recipe.view", "work_order.view")),
 ):
     q = select(SettingRun).options(*_setting_run_opts()).order_by(SettingRun.created_at)
     if work_order_id:

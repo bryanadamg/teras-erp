@@ -26,7 +26,7 @@ from app.services import stock_service, mrp_service
 from app.services.netting_service import Availability, preview_production_run
 from collections import defaultdict
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
 import uuid
@@ -157,7 +157,7 @@ def _post_process_pr(pr: ProductionRun):
 async def get_available_pr_code(
     base: str = "PR",
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("production_run.view", "manufacturing_order.view")),
 ):
     counter = 1
     while True:
@@ -173,7 +173,7 @@ async def list_production_runs(
     limit: int = 50,
     search: str | None = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("production_run.view", "manufacturing_order.view")),
 ):
     conditions = []
     if search and search.strip():
@@ -270,7 +270,7 @@ def _bom_traversal_order(pr) -> dict[tuple, int]:
 async def get_production_run_material_requirements(
     pr_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("production_run.view", "manufacturing_order.view")),
 ):
     result = await db.execute(
         select(ProductionRun).options(*_pr_material_req_load_options()).filter(ProductionRun.id == pr_id)

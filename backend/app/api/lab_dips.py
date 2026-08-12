@@ -22,7 +22,7 @@ from app.schemas import (
     LabDipDevelopmentReport, LabDipReportTotals, LabDipReportVariantRow, LabDipReportGroupRow,
 )
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
 from datetime import datetime, date, time, timedelta
@@ -223,7 +223,7 @@ async def get_lab_dips(
     limit: int = 100,
     kind: str = "FG",
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lab_dip_request.view", "yarn_lab_dip.view", "dye_recipe.view")),
 ):
     # Two separate books; a caller always gets one. Defaults to FG so existing
     # callers (and the finished-goods page) are unchanged.
@@ -248,7 +248,7 @@ async def get_lab_dips(
 async def get_pending_labdip_variants(
     item_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("lab_dip_request.view", "yarn_lab_dip.view", "dye_recipe.view")),
 ):
     """Lab dip variants for a finished good that are still in progress (not yet
     approved to a Color Library shade). Feeds the SO color picker so an order can be

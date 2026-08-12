@@ -14,7 +14,7 @@ from app.models.work_order import WorkOrder
 from app.models.batch import Batch
 from app.models.stock_balance import StockBalance
 from app.models.packing import PackingOrder
-from app.api.auth import get_current_user, require_permission, user_has_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission, user_has_permission
 from app.models.auth import User
 from app.services import audit_service, kpi_service, so_fulfilment_service
 from app.core.ws_manager import manager
@@ -153,7 +153,7 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
 async def get_sales_orders(
     status: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("sales_order.view", "sales_order.create_pr", "production_run.view", "production_run.create")),
 ):
     query = (
         select(SalesOrder)
@@ -182,7 +182,7 @@ async def get_sales_orders(
 async def get_sales_order(
     so_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("sales_order.view", "sales_order.create_pr", "production_run.view", "production_run.create")),
 ):
     result = await db.execute(
         select(SalesOrder).options(*_line_opts()).filter(SalesOrder.id == so_id)
@@ -403,7 +403,7 @@ async def delete_sales_order(so_id: uuid.UUID, db: AsyncSession = Depends(get_as
 async def get_sales_order_lineage(
     so_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("sales_order.view", "sales_order.create_pr", "production_run.view", "production_run.create")),
 ):
     """Full production lineage for a Sales Order: SO → Production Runs → MOs → WOs → beams.
 

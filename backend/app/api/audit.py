@@ -4,7 +4,7 @@ from app.db.session import get_db
 from app.models.audit import AuditLog
 from app.models.auth import User
 from app.schemas import AuditLogResponse
-from app.api.auth import get_current_user, user_has_permission
+from app.api.auth import get_current_user, user_has_permission, require_permission
 from typing import Optional
 
 router = APIRouter()
@@ -18,7 +18,7 @@ def get_audit_logs(
     entity_type: Optional[str] = Query(None),
     entity_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("audit_log.view"))
 ):
     # Entity-scoped lookups (HistoryPane: "show history for this record") stay
     # open to any authenticated user — they're already viewing a record they

@@ -510,7 +510,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const touchedDomains = new Set(requestTypes.map(t => LOADING_KEY[t]).filter(Boolean));
             for (let i = 0; i < responses.length; i++) {
                 const res = responses[i]; const type = requestTypes[i];
-                if (!res.ok) { console.warn(`[DataContext] ${type} fetch failed: HTTP ${res.status} ${res.url}`); failedTypes.push(`${type} (${res.status})`); continue; }
+                if (!res.ok) {
+                    console.warn(`[DataContext] ${type} fetch failed: HTTP ${res.status} ${res.url}`);
+                    // 403 = this user's role simply isn't granted that domain. Read
+                    // endpoints are permission-gated, so a restricted user hits these
+                    // by design on any page whose bundle touches a domain they can't
+                    // see — surfacing it as a warning toast would nag them on every
+                    // load. Real failures (500, 404, 401) still report.
+                    if (res.status !== 403) failedTypes.push(`${type} (${res.status})`);
+                    continue;
+                }
                 const data = await res.json();
                 switch(type) {
                     case 'locations': setLocations(data); newMasterData.locations = data; break;

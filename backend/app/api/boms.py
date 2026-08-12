@@ -15,7 +15,7 @@ from app.models.routing import WorkCenter, Operation
 from app.models.production_run import PRBomEntrySize
 from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse, BOMCodeResolveRequest, BOMCodeResolveResponse, BOMItemLookupRequest, BOMItemLookupResponse, BOMItemLookupEntry
 from app.models.auth import User, BOMAutomatorProfile
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service, work_center_service
 from app.models.attribute import AttributeValue
 from app.core.ws_manager import manager
@@ -105,7 +105,7 @@ def _validate_steps_assigned(operations: list, lines: list) -> None:
 
 
 @router.get("/sizes", response_model=list[SizeResponse])
-async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_any_permission("bom.view", "manufacturing_order.view", "production_run.view", "work_order.view"))):
     result = await db.execute(select(Size).order_by(Size.sort_order))
     return result.scalars().all()
 
@@ -113,7 +113,7 @@ async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User
 async def lookup_boms_by_items(
     payload: BOMItemLookupRequest,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("bom.view", "manufacturing_order.view", "production_run.view", "work_order.view")),
 ):
     """Existing BOMs per item code, regardless of pagination.
 
@@ -363,7 +363,7 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
     return refresh_bom
 
 @router.get("/boms", response_model=list[BOMResponse])
-async def get_boms(skip: int = 0, limit: int | None = None, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def get_boms(skip: int = 0, limit: int | None = None, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_any_permission("bom.view", "manufacturing_order.view", "production_run.view", "work_order.view"))):
     """Full nested BOM list — consumed unpaginated by manufacturing/MES/sales/samples
     and the scanner, which need every active BOM in memory to resolve sub-BOM chains
     for MRP consolidation (you can't page through this: which page holds a given
@@ -399,7 +399,7 @@ async def get_boms_summary(
     search: str = Query(""),
     root_only: bool = Query(False),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("bom.view", "manufacturing_order.view", "production_run.view", "work_order.view")),
 ):
     """Paginated lightweight BOM list for the BOM page.
 
@@ -542,7 +542,7 @@ async def _load_bom_subtree(bom_id: str, db: AsyncSession, visited: set) -> any:
     return bom
 
 @router.get("/boms/{bom_id}/tree", response_model=BOMTreeResponse)
-async def get_bom_tree(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def get_bom_tree(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_any_permission("bom.view", "manufacturing_order.view", "production_run.view", "work_order.view"))):
     bom = await _load_bom_subtree(bom_id, db, set())
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
@@ -891,7 +891,7 @@ async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), curr
 @router.get("/bom-automator-profiles", response_model=list[BOMAutomatorProfileResponse])
 async def list_bom_automator_profiles(
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("bom.view", "manufacturing_order.view", "production_run.view", "work_order.view")),
 ):
     # Ordered by name so "first profile" is a stable choice — the client falls back to
     # it as the default template when it has no remembered last-used profile.

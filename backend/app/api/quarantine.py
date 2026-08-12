@@ -66,7 +66,7 @@ def _rollup(statuses: list[Optional[str]]) -> str:
 @router.get("/statuses", response_model=list[QuarantineStatusOption])
 async def list_quarantine_statuses(
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("quarantine.view")),
 ):
     """Dispositions QC may set. `is_pass` marks the one that releases to packing."""
     values = await quarantine_service.status_values(db)
