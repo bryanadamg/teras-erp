@@ -30,6 +30,12 @@ import { API_BASE } from '../shared/apiBase';
  * Only the disposition flagged `is_pass` by the backend ("OK") releases a lot;
  * packing 400s on anything else. This page never moves stock — releasing is a
  * status change, and packing pulls straight out of the quarantine location.
+ *
+ * Inside the expanded panel the lots are banded by the **calendar day the
+ * disposition was decided** (`quarantine_status_at`, rendered in the display
+ * timezone), newest day first, with everything still undecided banded on top.
+ * QC works the hold area in passes, so "what did we decide on the 9th" is the
+ * question the floor actually asks of this table.
  */
 
 const PAGE_SIZE = 25;
@@ -91,7 +97,7 @@ export default function QuarantinePackingView() {
     const classic = uiStyle === 'classic';
     const { authFetch, subscribeLiveEvents } = useData();
     const { hasPermission } = useUser();
-    const { formatDateTime: tzDateTime } = useTimezone();
+    const { formatTime: tzTime, formatCustom: tzCustom } = useTimezone();
     const { showToast } = useToast();
 
     const canSetStatus = hasPermission('quarantine.set_status');
@@ -224,6 +230,56 @@ export default function QuarantinePackingView() {
     );
 
     const COL_COUNT = 8;
+    const LOT_COL_COUNT = 6;
+
+    // ── Decided-day banding ───────────────────────────────────────────────────
+    // 'en-CA' + 2-digit gives an ISO-ish "2026-08-09", so the key sorts lexically
+    // and is computed in the *display* timezone — grouping by the raw UTC date
+    // would file a 6pm-Jakarta decision under the previous day.
+    const dayKey = useCallback((iso: string) =>
+        tzCustom(iso, { year: 'numeric', month: '2-digit', day: '2-digit' }, 'en-CA'), [tzCustom]);
+    const dayLabel = useCallback((iso: string) =>
+        tzCustom(iso, { day: 'numeric', month: 'short', year: 'numeric' }), [tzCustom]);
+
+    const lotSections = useCallback((g: Group) => {
+        const awaiting: Lot[] = [];
+        const byDay = new Map<string, Lot[]>();
+        for (const l of g.lots) {
+            if (!l.quarantine_status_at) { awaiting.push(l); continue; }
+            const k = dayKey(l.quarantine_status_at);
+            const bucket = byDay.get(k);
+            if (bucket) bucket.push(l); else byDay.set(k, [l]);
+        }
+        const sum = (ls: Lot[]) => ls.reduce((s, l) => s + (l.qty || 0), 0);
+        const decided = Array.from(byDay.entries())
+            .sort((a, b) => (a[0] < b[0] ? 1 : -1))   // newest day first
+            .map(([k, ls]) => ({
+                key: k,
+                label: `Decided ${dayLabel(ls[0].quarantine_status_at as string)}`,
+                awaiting: false,
+                lots: ls,
+                qty: sum(ls),
+            }));
+        return [
+            ...(awaiting.length
+                ? [{ key: 'AWAITING', label: 'Awaiting decision', awaiting: true, lots: awaiting, qty: sum(awaiting) }]
+                : []),
+            ...decided,
+        ];
+    }, [dayKey, dayLabel]);
+
+    const bandStyle = (awaiting: boolean): React.CSSProperties => ({
+        padding: classic ? '3px 8px' : '5px 10px',
+        background: awaiting ? (classic ? '#fff4d6' : '#fff8e6') : (classic ? '#ece9d8' : '#f1f5f9'),
+        borderTop: `1px solid ${classic ? '#c9c2ae' : '#e2e8f0'}`,
+        borderBottom: `1px solid ${classic ? '#c9c2ae' : '#e2e8f0'}`,
+        fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
+        fontSize: classic ? 10 : 11,
+        fontVariant: 'all-small-caps',
+        letterSpacing: '0.5px',
+        fontWeight: 'bold',
+        color: awaiting ? '#9a6a00' : '#444',
+    });
 
     // ── Per-lot detail table (both themes) ────────────────────────────────────
     const renderLots = (g: Group) => (
@@ -235,7 +291,7 @@ export default function QuarantinePackingView() {
                 fontSize: classic ? 10 : 11, color: '#666',
                 fontVariant: 'all-small-caps', letterSpacing: '0.5px', marginBottom: 4,
             }}>
-                Lots on hold — status is set per lot; the row above is their rollup
+                Lots on hold, banded by the day they were decided — status is set per lot; the row above is their rollup
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                 <thead style={lvThead(classic)}>
@@ -248,9 +304,21 @@ export default function QuarantinePackingView() {
                         <th style={{ ...lvTh(classic), width: 170, borderRight: 'none' }}>Set</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {g.lots.map((l, i) => (
-                        <tr key={l.batch_id || `nolot-${i}`} style={lvRow(classic, i)}>
+                {lotSections(g).map(sec => (
+                <tbody key={sec.key}>
+                    <tr>
+                        <td colSpan={LOT_COL_COUNT} style={bandStyle(sec.awaiting)}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <i className={`bi ${sec.awaiting ? 'bi-hourglass-split' : 'bi-calendar2-check'}`} style={{ fontSize: 10 }} />
+                                <span>{sec.label}</span>
+                                <span style={{ marginLeft: 'auto', fontWeight: 'normal', color: '#666' }}>
+                                    {sec.lots.length} lot{sec.lots.length === 1 ? '' : 's'} · {fmtQty(sec.qty)} {g.uom || ''}
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                    {sec.lots.map((l, i) => (
+                        <tr key={l.batch_id || `${sec.key}-nolot-${i}`} style={lvRow(classic, i)}>
                             <td style={lvTd(classic)}>
                                 {l.batch_number
                                     ? <CodeChip code={l.batch_number} classic={classic} />
@@ -269,8 +337,9 @@ export default function QuarantinePackingView() {
                                     : <StatusChip status="NONE" label="No status" tint />}
                             </td>
                             <td style={{ ...lvTd(classic), fontSize: classic ? 10 : 11, color: '#666' }}>
+                                {/* The band carries the day; the row only needs who and when. */}
                                 {l.quarantine_status_at
-                                    ? `${l.quarantine_status_by || '—'} · ${tzDateTime(l.quarantine_status_at)}`
+                                    ? `${l.quarantine_status_by || '—'} · ${tzTime(l.quarantine_status_at)}`
                                     : '—'}
                             </td>
                             <td style={{ ...lvTd(classic), borderRight: 'none' }}>
@@ -292,6 +361,7 @@ export default function QuarantinePackingView() {
                         </tr>
                     ))}
                 </tbody>
+                ))}
             </table>
         </ExpandedRowPanel>
     );
