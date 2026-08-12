@@ -439,6 +439,12 @@ def seed_rbac(db):
             # Platform
             ("stock_ledger.print", "Print Stock Ledger"),
             ("stock_ledger.view", "View Stock Ledger"),
+            # Production Output report — its own grant rather than the broad
+            # reports.view, so a role can be given the dashboard without the
+            # shop-floor output/reject numbers. export is separate from view so
+            # reading the report never implies taking the data off the system.
+            ("production_output.view", "View Production Output Report"),
+            ("production_output.export", "Export Production Output CSV"),
             ("audit_log.view", "View Audit Log"),
             ("print_layout.edit", "Edit Print Layouts"),
             ("system_admin.create", "Create System Admin Records"),
@@ -475,6 +481,7 @@ def seed_rbac(db):
                 "supplier.create", "supplier.edit", "supplier.delete", "supplier.view",
                 "stock_ledger.print", "stock_ledger.view",
                 "reports.view",
+                "production_output.view", "production_output.export",
             ],
             "Production Manager": [
                 "bom.create", "bom.edit", "bom.delete", "bom.view",
@@ -495,6 +502,7 @@ def seed_rbac(db):
                 "lab_dip_request.update_status", "lab_dip_request.print", "lab_dip_request.view",
                 "yarn_lab_dip.view",
                 "stock_ledger.view", "reports.view",
+                "production_output.view", "production_output.export",
             ],
             # Floor operator: log/stage/view only — not the full Edit/Delete access
             # "work_order.manage" used to imply. Tighten via the Roles page if a
@@ -508,6 +516,7 @@ def seed_rbac(db):
                 "lot.qc_reject", "lot.view",
                 "stock_on_hand.view", "manufacturing_order.view", "work_order.view",
                 "item.view", "reports.view",
+                "production_output.view",
             ],
         }
 

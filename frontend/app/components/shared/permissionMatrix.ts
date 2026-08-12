@@ -90,6 +90,7 @@ export const PERMISSION_MATRIX: PermissionMatrixSection[] = [
     {
         section: 'Platform',
         resources: [
+            { resource: 'production_output', label: 'Production Output' },
             { resource: 'audit_log', label: 'Audit Log' },
             { resource: 'print_layout', label: 'Print Lay Out' },
             { resource: 'system_admin', label: 'System Admin' },
@@ -138,6 +139,9 @@ export const RESOURCE_ACTIONS: Record<string, PermissionMatrixAction[]> = {
     lab_dip_request: [CREATE, EDIT, DELETE, A('update_status', 'Update Status'), A('print', 'Print'), VIEW],
     yarn_lab_dip: [VIEW],
 
+    // Production Output report — CSV export is its own grant so a role can read
+    // the shop-floor numbers without being able to take the data off the system.
+    production_output: [A('export', 'Export CSV'), VIEW],
     audit_log: [VIEW],
     print_layout: [EDIT],
     system_admin: [CREATE, A('edit', 'edit'), DELETE],
@@ -161,7 +165,7 @@ const INTENT_BY_ACTION: Record<string, PermissionIntent> = {
     log: 'edit', import: 'edit', update_status: 'edit', set_status: 'edit',
     receive_goods: 'edit', unmount: 'edit', start: 'edit',
     delete: 'delete', archive: 'delete', qc_reject: 'delete', close: 'delete', stop: 'delete',
-    print: 'print', print_card: 'print', print_label: 'print',
+    print: 'print', print_card: 'print', print_label: 'print', export: 'print',
     view: 'view',
 };
 

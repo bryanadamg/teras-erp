@@ -149,7 +149,7 @@ async def machine_output_report(
     wo_status: Optional[str] = Query(None, description="Comma-separated WO statuses, e.g. COMPLETED"),
     include_idle: bool = Query(True, description="Keep in-scope machines that logged nothing"),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission("reports.view")),
+    current_user: User = Depends(require_permission("production_output.view")),
 ):
     """Production output logged against work orders — good qty, QC reject qty and
     reject % — rolled up per machine, per work-center group, or per work order.
@@ -544,7 +544,7 @@ async def packing_output_report(
     end_date: Optional[datetime] = Query(None),
     status: Optional[str] = Query(None, description="Comma-separated packing order statuses"),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission("reports.view")),
+    current_user: User = Depends(require_permission("production_output.view")),
 ):
     """Packing output and QC reject, one row per packing order.
 

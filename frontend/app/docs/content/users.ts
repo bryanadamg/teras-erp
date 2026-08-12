@@ -41,6 +41,8 @@ export const usersPage: DocPage = {
                 'purchase.view — view Purchase Orders and supplier records',
                 'purchase.edit — create and update Purchase Orders; record goods receipts',
                 'reports.view — access Dashboard and Reports screens',
+                'production_output.view — open the Production Output report',
+                'production_output.export — export the Production Output report to CSV',
                 'samples.view — view Sample Requests',
                 'samples.edit — create and update Sample Requests',
             ],

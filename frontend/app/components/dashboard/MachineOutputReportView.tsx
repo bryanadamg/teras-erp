@@ -19,6 +19,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
+import { useUser } from '../../context/UserContext';
 import {
     xpFont, xpBtn, xpInput, xpSep, XPLoading, XPEmptyState,
     useSortable, SortMark, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar,
@@ -66,7 +67,10 @@ export default function MachineOutputReportView() {
     const { uiStyle } = useTheme();
     const { formatDate: tzDate, formatTime: tzTime } = useTimezone();
     const { authFetch, workCenters = [] } = useData();
+    const { hasPermission } = useUser();
     const classic = uiStyle === 'classic';
+    // Reading the report and taking it off the system are separate grants.
+    const canExport = hasPermission('production_output.export');
 
     const API_BASE = useMemo(() => {
         const env = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -691,7 +695,9 @@ export default function MachineOutputReportView() {
                         <div style={{ flex: 1 }} />
                         <span style={{ ...lbl, whiteSpace: 'nowrap' }}>{sorted.length} rows</span>
                         <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
-                        <button style={xpBtn({ padding: '1px 6px' })} onClick={exportCsv} disabled={!sorted.length} title="Export CSV"><i className="bi bi-filetype-csv" /></button>
+                        {canExport && (
+                            <button style={xpBtn({ padding: '1px 6px' })} onClick={exportCsv} disabled={!sorted.length} title="Export CSV"><i className="bi bi-filetype-csv" /></button>
+                        )}
                     </div>
 
                     {/* Summary strip */}
@@ -779,7 +785,9 @@ export default function MachineOutputReportView() {
                     </div>
                     <div className="d-flex gap-1">
                         <button className="btn btn-outline-secondary btn-sm" onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
-                        <button className="btn btn-outline-primary btn-sm" onClick={exportCsv} disabled={!sorted.length}><i className="bi bi-filetype-csv me-1" />CSV</button>
+                        {canExport && (
+                            <button className="btn btn-outline-primary btn-sm" onClick={exportCsv} disabled={!sorted.length}><i className="bi bi-filetype-csv me-1" />CSV</button>
+                        )}
                     </div>
                 </div>
                 <div className="row g-2 align-items-center">
