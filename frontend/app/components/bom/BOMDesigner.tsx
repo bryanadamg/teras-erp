@@ -1540,12 +1540,15 @@ export default function BOMDesigner({
                                             {visibleAttributes.map((attr: any) => (
                                                 <div key={attr.id} style={{ minWidth: 130 }}>
                                                     <label style={{ ...xpLabel, fontSize: 10, color: '#555' }}>{attr.name}</label>
-                                                    <select
-                                                        data-testid={`bom-attribute-select-${attr.name}`}
-                                                        style={xpSelect}
+                                                    <SearchableSelect
+                                                        testId={`bom-attribute-select-${attr.name}`}
+                                                        size="sm"
+                                                        options={[
+                                                            { value: '', label: 'Any...' },
+                                                            ...attr.values.map((v: any) => ({ value: v.id, label: v.value }))
+                                                        ]}
                                                         value={selectedNode.attribute_value_ids.find(v => attr.values.some((av: any) => av.id === v)) || ''}
-                                                        onChange={e => {
-                                                            const attrValId = e.target.value;
+                                                        onChange={(attrValId: string) => {
                                                             const others = selectedNode.attribute_value_ids.filter(v => !attr.values.some((av: any) => av.id === v));
                                                             const newVals = attrValId ? [...others, attrValId] : others;
                                                             // Cascade: descendants re-inherit from the new value, so clearing a
@@ -1557,10 +1560,8 @@ export default function BOMDesigner({
                                                                 code: selectedNodeId === 'root' ? suggestBOMCode(selectedNode.item_code, newVals) : selectedNode.code
                                                             });
                                                         }}
-                                                    >
-                                                        <option value="">Any...</option>
-                                                        {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
-                                                    </select>
+                                                        placeholder="Any..."
+                                                    />
                                                 </div>
                                             ))}
                                         </div>
