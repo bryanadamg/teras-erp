@@ -376,14 +376,19 @@ export default function ProductionRunModal({
             .map(entry => {
                 const selectedBom = boms.find((b: any) => b.id === entry.bomId);
                 const sizes = selectedBom?.sizes || [];
+                // Same variant the create call sends, or the preview nets (and labels)
+                // on a different key than the run it is previewing.
+                const attribute_value_ids = entry.attributeValueIds.length > 0
+                    ? entry.attributeValueIds
+                    : undefined;
                 if (sizes.length > 0) {
                     const sizeEntries = sizes
                         .filter((s: any) => parseFloat(entry.sizeQtys[s.id] || '0') > 0)
                         .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(entry.sizeQtys[s.id]) }));
-                    return { bom_id: entry.bomId, sizes: sizeEntries, color_id: entry.colorId || undefined, labdip_variant_code: entry.labdipVariantCode || undefined, force_create: !!entry.forceCreate };
+                    return { bom_id: entry.bomId, sizes: sizeEntries, attribute_value_ids, color_id: entry.colorId || undefined, labdip_variant_code: entry.labdipVariantCode || undefined, force_create: !!entry.forceCreate };
                 }
                 const qty = parseFloat(entry.totalQty || '0');
-                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, color_id: entry.colorId || undefined, labdip_variant_code: entry.labdipVariantCode || undefined, force_create: !!entry.forceCreate };
+                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, attribute_value_ids, color_id: entry.colorId || undefined, labdip_variant_code: entry.labdipVariantCode || undefined, force_create: !!entry.forceCreate };
             })
             .filter((e: any) => (e.sizes && e.sizes.length > 0) || e.total_qty);
         return {

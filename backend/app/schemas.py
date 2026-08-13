@@ -657,6 +657,15 @@ class PaginatedBookingStockResponse(BaseModel):
 PRMaterialRequirementItem.model_rebuild()
 
 # ── Creation netting preview (dry-run; shows where each component nets from) ───
+class NettingPreviewChip(BaseModel):
+    """Row-identity tag on a preview node. Several rows can share an item name
+    (same recipe, different size or shade), so the chips are what tells them
+    apart. `kind`: size | color | combo | attr."""
+    kind: str
+    label: str
+    hex: str | None = None
+    group: str | None = None            # source attribute / label group
+
 class NettingPreviewNode(BaseModel):
     """One node in the dry-run explosion of a PR/MO about to be created.
 
@@ -678,6 +687,7 @@ class NettingPreviewNode(BaseModel):
     net_free: float                     # on_hand + incoming - required_other
     net_qty: float                      # qty actually made after netting
     decision: str                       # MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED
+    chips: list[NettingPreviewChip] = []    # size / color / combo identity of the row
 
 class ProductionRunPreviewRequest(BaseModel):
     bom_entries: list[PRBomEntryCreate]

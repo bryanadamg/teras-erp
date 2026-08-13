@@ -2,10 +2,20 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, colorHexFor } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
+
+// Size / color / combo identity of a row. Several rows carry the same item name
+// (one per size on a BOM entry, one per consolidated component key), so the chips
+// are the only thing distinguishing them in the list.
+export interface NettingChip {
+    kind: 'size' | 'color' | 'combo' | 'attr' | string;
+    label: string;
+    hex?: string | null;
+    group?: string | null;
+}
 
 export interface NettingNode {
     level: number;
@@ -23,6 +33,7 @@ export interface NettingNode {
     net_free: number;
     net_qty: number;
     decision: string; // MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED | DECOUPLED
+    chips?: NettingChip[];
 }
 
 // Fetches the dry-run netting plan from the backend (debounced). Both the MO
@@ -70,6 +81,43 @@ const DECISION: Record<string, { label: string; bg: string; fg: string; bd: stri
 };
 
 const num = (v: number) => (Math.round((v || 0) * 100) / 100).toLocaleString();
+
+// One palette per chip kind, so a size never reads as a shade at a glance.
+const CHIP_TONE: Record<string, { bg: string; fg: string; bd: string }> = {
+    size: { bg: '#f1f5f9', fg: '#334155', bd: '#cbd5e1' },
+    color: { bg: '#fff', fg: '#334155', bd: '#cbd5e1' },
+    combo: { bg: '#eef2ff', fg: '#4338ca', bd: '#c7d2fe' },
+    attr: { bg: '#f8fafc', fg: '#64748b', bd: '#e2e8f0' },
+};
+
+function IdentityChips({ chips, classic }: { chips?: NettingChip[]; classic: boolean }) {
+    if (!chips || chips.length === 0) return null;
+    return (
+        <>
+            {chips.map((c, i) => {
+                const t = CHIP_TONE[c.kind] || CHIP_TONE.attr;
+                const swatch = c.kind === 'color' ? (c.hex || colorHexFor(c.label)) : null;
+                return (
+                    <span key={i} title={c.group ? `${c.group}: ${c.label}` : c.label}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 3,
+                            fontSize: 9, fontWeight: 600, lineHeight: 1.5,
+                            background: classic ? '#e8e4d8' : t.bg,
+                            color: classic ? '#333' : t.fg,
+                            border: `1px solid ${classic ? '#b0aaa0' : t.bd}`,
+                            padding: '0 4px', borderRadius: classic ? 0 : 8, whiteSpace: 'nowrap',
+                        }}>
+                        {swatch && <span style={{
+                            width: 7, height: 7, background: swatch, flexShrink: 0,
+                            border: '1px solid rgba(0,0,0,0.35)', display: 'inline-block',
+                        }} />}
+                        {c.kind === 'size' ? c.label.toUpperCase() : c.label}
+                    </span>
+                );
+            })}
+        </>
+    );
+}
 
 export default function NettingPlanTable({
     nodes, loading, error,
@@ -165,7 +213,10 @@ export default function NettingPlanTable({
                                         }}>
                                             {indentOf(n) > 0 && <span style={{ color: '#cbd5e1' }}>└ </span>}{n.item_name}
                                         </div>
-                                        <CodeChip code={n.item_code} classic={classic} tier={2} style={{ display: 'block' }} />
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3, marginTop: 1 }}>
+                                            <CodeChip code={n.item_code} classic={classic} tier={2} />
+                                            <IdentityChips chips={n.chips} classic={classic} />
+                                        </div>
                                     </td>
                                     <td style={{ padding: '4px 6px' }}>
                                         <span style={{

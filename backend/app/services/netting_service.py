@@ -53,7 +53,10 @@ from app.models.location import Location
 from app.models.manufacturing import ManufacturingOrder
 from app.models.production_run import ProductionRun
 from app.models.batch import Batch
-from app.models.bom import BOM, BOMLine
+from app.models.bom import BOM, BOMLine, BOMSize
+from app.models.size import Size
+from app.models.attribute import Attribute, AttributeValue
+from app.models.color import Color
 from app.models.item import Item
 from app.services import reject_service
 from app.services.stock_service import _generate_variant_key
@@ -266,7 +269,7 @@ async def _location_name_map(db: AsyncSession) -> dict:
     return {str(i): (n or c or "") for i, n, c in rows}
 
 
-def _root_node(bom, qty: float, location, loc_names: dict) -> dict:
+def _root_node(bom, qty: float, location, loc_names: dict, attr_ids=()) -> dict:
     item = bom.item
     return {
         "level": 0, "is_root": True,
@@ -275,10 +278,12 @@ def _root_node(bom, qty: float, location, loc_names: dict) -> dict:
         "net_from_location_name": (loc_names.get(str(location.id), location.code or "") if location else ""),
         "gross_required": qty, "on_hand": 0.0, "incoming": 0.0, "required_other": 0.0,
         "net_free": 0.0, "net_qty": qty, "decision": "MAKE_ROOT",
+        "chips": [], "_attr_ids": list(attr_ids or []),
     }
 
 
-def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detail: dict, loc_names: dict) -> dict:
+def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detail: dict, loc_names: dict,
+                    attr_ids=()) -> dict:
     item = sub_bom.item
     if net <= 0:
         decision = "SKIP"
@@ -295,6 +300,7 @@ def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detai
         "on_hand": detail["on_hand"], "incoming": detail["incoming"],
         "required_other": detail["required_other"], "net_free": detail["net_free"],
         "net_qty": net, "decision": decision,
+        "chips": [], "_attr_ids": list(attr_ids or []),
     }
 
 
@@ -311,7 +317,8 @@ async def _info_detail(avail: "Availability", item_id, attribute_value_ids, colo
             "net_free": on_hand + incoming - required}
 
 
-def _root_netted_node(bom, gross: float, net: float, detail: dict, loc_id, loc_names: dict, forced: bool) -> dict:
+def _root_netted_node(bom, gross: float, net: float, detail: dict, loc_id, loc_names: dict, forced: bool,
+                      attr_ids=(), bom_size_id=None, color_id=None, labdip_code=None) -> dict:
     item = bom.item
     if forced:
         decision = "FORCED"
@@ -330,7 +337,81 @@ def _root_netted_node(bom, gross: float, net: float, detail: dict, loc_id, loc_n
         "on_hand": detail["on_hand"], "incoming": detail["incoming"],
         "required_other": detail["required_other"], "net_free": detail["net_free"],
         "net_qty": net, "decision": decision,
+        "chips": [], "_attr_ids": list(attr_ids or []),
+        "_bom_size_id": str(bom_size_id) if bom_size_id else None,
+        "_color_id": str(color_id) if color_id else None,
+        "_labdip_code": labdip_code or None,
     }
+
+
+# ── Row identity chips (size + color/combo) ──────────────────────────────────
+# The preview lists one row per (BOM entry x size) and one per consolidated
+# component key, so several rows can share an item name (same recipe, different
+# size or shade). Chips carry that identity into the UI. Ids are collected on the
+# nodes during the walk and resolved in ONE pass here, then the temp keys are
+# dropped — response_model would silently strip them anyway, but leaving them
+# would leak internals into the dict the create path never sees.
+_CHIP_KIND_BY_ROLE = {"combo": "combo", "color": "color", "labdip_color": "color"}
+
+
+async def _apply_chips(db: AsyncSession, nodes: list[dict]) -> None:
+    attr_ids, size_ids, color_ids = set(), set(), set()
+    for n in nodes:
+        attr_ids.update(n.get("_attr_ids") or [])
+        if n.get("_bom_size_id"):
+            size_ids.add(n["_bom_size_id"])
+        if n.get("_color_id"):
+            color_ids.add(n["_color_id"])
+
+    val_map: dict[str, dict] = {}
+    if attr_ids:
+        for vid, value, hexv, role, aname in (await db.execute(
+            select(AttributeValue.id, AttributeValue.value, AttributeValue.hex,
+                   Attribute.system_role, Attribute.name)
+            .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+            .where(AttributeValue.id.in_(attr_ids))
+        )).all():
+            val_map[str(vid)] = {
+                "kind": _CHIP_KIND_BY_ROLE.get(role or "", "attr"),
+                "label": value or "", "hex": hexv, "group": aname or "",
+            }
+
+    size_map: dict[str, str] = {}
+    if size_ids:
+        for sid, label, sname in (await db.execute(
+            select(BOMSize.id, BOMSize.label, Size.name)
+            .outerjoin(Size, Size.id == BOMSize.size_id)
+            .where(BOMSize.id.in_(size_ids))
+        )).all():
+            size_map[str(sid)] = sname or label or ""
+
+    color_map: dict[str, dict] = {}
+    if color_ids:
+        for cid, code, cname, hexv in (await db.execute(
+            select(Color.id, Color.code, Color.name, Color.hex).where(Color.id.in_(color_ids))
+        )).all():
+            color_map[str(cid)] = {"label": code or cname or "", "hex": hexv,
+                                   "group": cname or "Color"}
+
+    for n in nodes:
+        chips, seen = [], set()
+
+        def add(kind: str, label: str, hexv=None, group=None):
+            if not label or (kind, label) in seen:
+                return
+            seen.add((kind, label))
+            chips.append({"kind": kind, "label": label, "hex": hexv, "group": group})
+
+        add("size", size_map.get(n.pop("_bom_size_id", None) or "", ""), group="Size")
+        col = color_map.get(n.pop("_color_id", None) or "")
+        if col:
+            add("color", col["label"], col["hex"], col["group"])
+        add("color", n.pop("_labdip_code", None) or "", group="Pending shade")
+        for vid in n.pop("_attr_ids", []) or []:
+            v = val_map.get(str(vid))
+            if v:
+                add(v["kind"], v["label"], v["hex"], v["group"])
+        n["chips"] = chips
 
 
 async def _active_sub_bom(db: AsyncSession, item_id, combo_value_ids=(), combo_attr_id=None):
@@ -359,12 +440,15 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         )).unique().scalars().first()
         if not bom:
             continue
-        gross_qtys = []
+        # (bom_size_id, qty) — the size id is display-only (chips); netting keys on
+        # (item, variant) regardless of size, exactly as the create path does.
+        gross_specs: list[tuple] = []
         if getattr(entry, "sizes", None):
-            gross_qtys = [float(s.qty) for s in entry.sizes if s.qty and s.qty > 0]
+            gross_specs = [(getattr(s, "bom_size_id", None), float(s.qty))
+                           for s in entry.sizes if s.qty and s.qty > 0]
         elif entry.total_qty and entry.total_qty > 0:
-            gross_qtys = [float(entry.total_qty)]
-        if not gross_qtys:
+            gross_specs = [(None, float(entry.total_qty))]
+        if not gross_specs:
             continue
 
         force = bool(getattr(entry, "force_create", False))
@@ -376,13 +460,17 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         )
 
         net_qtys = []
-        for gross in gross_qtys:
+        for bom_size_id, gross in gross_specs:
             if force:
                 detail = await _info_detail(avail, bom.item_id, root_attrs, entry_color_id)
                 net = gross
             else:
                 net, detail = await avail.consume_detailed(bom.item_id, root_attrs, root_loc, gross, color_id=entry_color_id)
-            nodes.append(_root_netted_node(bom, gross, net, detail, root_loc, loc_names, force))
+            nodes.append(_root_netted_node(
+                bom, gross, net, detail, root_loc, loc_names, force,
+                attr_ids=root_attrs, bom_size_id=bom_size_id, color_id=entry_color_id,
+                labdip_code=getattr(entry, "labdip_variant_code", None),
+            ))
             if net > 0:
                 net_qtys.append(net)
 
@@ -445,17 +533,20 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
             # stock snapshot (no ledger decrement) since nothing is made here.
             if data["decoupled"]:
                 detail = await _info_detail(avail, data["sub_bom"].item_id, data["attrs"])
-                node = _component_node(data["sub_bom"], level, data["src"], total, 0.0, detail, loc_names)
+                node = _component_node(data["sub_bom"], level, data["src"], total, 0.0, detail, loc_names,
+                                       attr_ids=data["attrs"])
                 node["decision"] = "DECOUPLED"
                 nodes.append(node)
                 continue
             net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total)
-            nodes.append(_component_node(data["sub_bom"], level, data["src"], total, net, detail, loc_names))
+            nodes.append(_component_node(data["sub_bom"], level, data["src"], total, net, detail, loc_names,
+                                         attr_ids=data["attrs"]))
             if net > 0:
                 next_gen.append((data["sub_bom"], net))
         current_gen = next_gen
         level += 1
 
+    await _apply_chips(db, nodes)
     return nodes
 
 
@@ -490,12 +581,12 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
         # Decoupling point: show the demand node, create nothing, don't recurse.
         if _line_decoupled(line, item_flag):
             detail = await _info_detail(avail, sub_bom.item_id, attrs)
-            node = _component_node(sub_bom, level, sub_loc, gross, 0.0, detail, loc_names)
+            node = _component_node(sub_bom, level, sub_loc, gross, 0.0, detail, loc_names, attr_ids=attrs)
             node["decision"] = "DECOUPLED"
             nodes.append(node)
             continue
         net, detail = await avail.consume_detailed(sub_bom.item_id, attrs, sub_loc, gross)
-        nodes.append(_component_node(sub_bom, level, sub_loc, gross, net, detail, loc_names))
+        nodes.append(_component_node(sub_bom, level, sub_loc, gross, net, detail, loc_names, attr_ids=attrs))
         if net > 0:
             await _preview_children(db, avail, sub_bom.id, net, source_location_id, location_id, level + 1, nodes, loc_names)
 
@@ -505,13 +596,16 @@ async def preview_mo(db, bom_id, qty, location, source_location, create_nested=T
     avail = await Availability.create(db, exclude_mo_ids=exclude_mo_ids)
     loc_names = await _location_name_map(db)
     bom = (await db.execute(
-        select(BOM).options(joinedload(BOM.item)).filter(BOM.id == bom_id)
+        select(BOM).options(joinedload(BOM.item), selectinload(BOM.attribute_values))
+        .filter(BOM.id == bom_id)
     )).unique().scalars().first()
     if not bom:
         return []
-    nodes = [_root_node(bom, float(qty), location, loc_names)]
+    nodes = [_root_node(bom, float(qty), location, loc_names,
+                        attr_ids=[str(v.id) for v in bom.attribute_values])]
     if create_nested:
         loc_id = location.id if location else None
         src = source_location.id if source_location else loc_id
         await _preview_children(db, avail, bom_id, float(qty), src, loc_id, 1, nodes, loc_names)
+    await _apply_chips(db, nodes)
     return nodes
