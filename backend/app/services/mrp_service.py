@@ -180,7 +180,9 @@ async def create_mo_recursive(
     item = item_result.scalars().first()
     raw_name = item.name if item else str(bom.item_id)[:8]
     safe_name = re.sub(r'[^A-Za-z0-9\-]', '-', raw_name).strip('-')
-    base = f"MO-{safe_name}"
+    # MO.code is String(64); "MO-" + name + "-00000" must fit or the INSERT dies
+    # with StringDataRightTruncation and takes the whole MRP explosion with it.
+    base = f"MO-{safe_name[:64 - len('MO-') - len('-00000')]}"
     counter = 1
     while True:
         candidate = f"{base}-{str(counter).zfill(5)}"

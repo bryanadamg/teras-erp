@@ -39,8 +39,49 @@ from datetime import datetime
 router = APIRouter()
 
 
+MO_CODE_MAX_LEN = 64          # ManufacturingOrder.code is String(64)
+_MO_CODE_UNIQ_RESERVE = 3     # room for the "-NN" suffix _find_unique_mo_code appends
+
+
+def _bom_code_label(bom) -> str:
+    """Short, human-readable label for a BOM inside a composed MO code.
+
+    BOM codes are `BOM-<item code>-<variant>-<serial>` and run 45+ chars; the PR
+    code already carries no item, so the item chunk is the only redundant part —
+    drop `BOM-<item code>-` and keep the variant+serial that actually identifies
+    the recipe."""
+    code = (bom.code or "").strip()
+    item_code = (bom.item.code if bom.item else "") or ""
+    if code:
+        prefix = f"BOM-{item_code}-"
+        if item_code and code.startswith(prefix):
+            return code[len(prefix):]
+        return code[4:] if code.startswith("BOM-") else code
+    return item_code
+
+
+def _compose_mo_code(*parts) -> str:
+    """Join non-empty code parts with '-', clipping the longest part until the
+    result fits MO.code with room for the uniqueness suffix.
+
+    A PR code + BOM label + entry index + size label overruns varchar(64) on real
+    recipe codes, which failed the whole PR create with a StringDataRightTruncation
+    at the code UPDATE. The index/size tail is what makes the code meaningful, so
+    the (longest) BOM label is what gets clipped."""
+    kept = [str(p) for p in parts if p]
+    budget = MO_CODE_MAX_LEN - _MO_CODE_UNIQ_RESERVE
+    while kept and sum(len(p) for p in kept) + len(kept) - 1 > budget:
+        longest = max(range(len(kept)), key=lambda i: len(kept[i]))
+        if len(kept[longest]) <= 1:
+            break
+        overflow = sum(len(p) for p in kept) + len(kept) - 1 - budget
+        kept[longest] = kept[longest][:max(1, len(kept[longest]) - overflow)]
+    return "-".join(kept)[:budget]
+
+
 async def _find_unique_mo_code(db: AsyncSession, candidate: str) -> str:
     """Return candidate if unused, otherwise append -02, -03, ... until unique."""
+    candidate = candidate[:MO_CODE_MAX_LEN - _MO_CODE_UNIQ_RESERVE]
     existing = await db.execute(
         select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1)
     )
@@ -48,7 +89,8 @@ async def _find_unique_mo_code(db: AsyncSession, candidate: str) -> str:
         return candidate
     n = 2
     while True:
-        new_candidate = f"{candidate}-{n:02d}"
+        suffix = f"-{n:02d}"
+        new_candidate = candidate[:MO_CODE_MAX_LEN - len(suffix)] + suffix
         existing = await db.execute(
             select(ManufacturingOrder.id).filter(ManufacturingOrder.code == new_candidate).limit(1)
         )
@@ -620,7 +662,7 @@ async def create_production_run(
         await db.flush()
 
         entry_root_mos: list[ManufacturingOrder] = []
-        bom_label = bom.code if bom.code else (bom.item.code if bom.item else f"B{entry_idx+1}")
+        bom_label = _bom_code_label(bom) or f"B{entry_idx+1}"
 
         # Variant the produced root will actually carry (entry override wins,
         # same precedence applied post-creation below) — this is the netting key.
@@ -665,9 +707,9 @@ async def create_production_run(
                     create_children=False,
                 )
                 base_code = (
-                    f"{payload.code}-{bom_label.upper()}-{entry_idx+1:03d}-{size_label.upper()}"
+                    _compose_mo_code(payload.code, bom_label.upper(), f"{entry_idx+1:03d}", size_label.upper())
                     if len(payload.bom_entries) > 1
-                    else f"{payload.code}-{size_label.upper()}"
+                    else _compose_mo_code(payload.code, size_label.upper())
                 )
                 root_mo.code = await _find_unique_mo_code(db, base_code)
                 root_mo.color_id = bom_entry.color_id
@@ -694,9 +736,9 @@ async def create_production_run(
                 )
                 suffix = f"{entry_idx+1:03d}"
                 base_code = (
-                    f"{payload.code}-{bom_label.upper()}-{suffix}"
+                    _compose_mo_code(payload.code, bom_label.upper(), suffix)
                     if len(payload.bom_entries) > 1
-                    else f"{payload.code}-{suffix}"
+                    else _compose_mo_code(payload.code, suffix)
                 )
                 root_mo.code = await _find_unique_mo_code(db, base_code)
                 root_mo.color_id = bom_entry.color_id
