@@ -14,7 +14,7 @@ from app.schemas import (
     ProductionRunCreate, ProductionRunResponse,
     PaginatedProductionRunResponse, PaginatedProductionRunListResponse,
     ManufacturingOrderCreate,
-    PRMaterialRequirementItem, PRMOContribution,
+    PRMaterialRequirementItem, PRMOContribution, BookingSupplyMO,
     ProductionRunPreviewRequest, NettingPreviewNode,
     PRMaterialStatusRequest, PRMaterialStatusItem,
 )
@@ -23,7 +23,11 @@ from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.attribute import AttributeValue
 from app.services import stock_service, mrp_service
-from app.services.netting_service import Availability, preview_production_run
+from app.services.netting_service import (
+    Availability, preview_production_run,
+    _sales_order_linked_prs, _output_committed, rejected_batch_keys,
+)
+from app.services.stock_service import _generate_variant_key
 from collections import defaultdict
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
@@ -131,16 +135,19 @@ def _pr_list_load_options():
 def _pr_material_req_load_options():
     """Minimal eager-load set for the /material-requirements endpoint. Called once
     per visible PR row on the Production Runs page, so it must stay lean. Loads ONLY
-    what the requirements aggregation (mo.qty, mo.planned_components, mo.bom.tolerance)
-    and _bom_traversal_order (mo.bom.operations, mo.required_dependencies,
+    what the requirements aggregation (mo.qty, mo.planned_components, mo.bom.tolerance,
+    mo.completions for outstanding-based netting, mo.attribute_values for the supply
+    variant key) and _bom_traversal_order (mo.bom.operations, mo.required_dependencies,
     mo.is_shared_component, mo.bom_id) actually read — NOT the full nested MO tree
     that _pr_load_options pulls for the list view. Item + StockBalance are fetched
-    separately in the endpoint, so no bom.lines / bom.item / work_orders / completions
-    / batch_consumptions / bom_entries here."""
+    separately in the endpoint, so no bom.lines / bom.item / work_orders /
+    batch_consumptions / bom_entries here."""
     mos = selectinload(ProductionRun.manufacturing_orders)
     return [
         mos.selectinload(ManufacturingOrder.planned_components),
         mos.selectinload(ManufacturingOrder.required_dependencies),
+        mos.selectinload(ManufacturingOrder.completions),
+        mos.selectinload(ManufacturingOrder.attribute_values),
         mos.selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
     ]
 
@@ -281,16 +288,46 @@ async def get_production_run_material_requirements(
 
     # Aggregate requirements plant-wide: key = (item_id, attr_key). Location is not
     # part of the key (location-agnostic netting); on-hand sums across all locations.
-    agg: dict[tuple, dict] = defaultdict(lambda: {"total_required": 0.0, "mo_contributions": []})
+    #
+    # Demand is OUTSTANDING-based, mirroring _compute_booking_rows in api/stock.py:
+    # a component is scaled by its MO's REMAINING output (qty - good completions),
+    # not by the full order qty. Without this, requirement stays frozen at the full
+    # order while on-hand drains as the run consumes it, so every made-in-house
+    # component drifts into a phantom shortfall that grows with progress (a beam
+    # fully built AND fully consumed as planned would read as short by its own
+    # requirement). Material already issued to this PR must stop counting as needed.
+    # gross_required is kept alongside as the un-netted reference figure.
+    agg: dict[tuple, dict] = defaultdict(lambda: {
+        "total_required": 0.0, "gross_required": 0.0, "mo_contributions": [],
+    })
+    # Incoming: the outstanding output of this PR's own MOs that produce a demanded
+    # item (the component/greige/beam MOs). Scoped to this PR on purpose — a
+    # cross-PR sweep would credit supply another PR's demand is already claiming;
+    # /booking-stock is the plant-wide demand-vs-supply view.
+    supply: dict[tuple, dict] = defaultdict(lambda: {"total_incoming": 0.0, "contributions": []})
+
+    so_linked_prs = await _sales_order_linked_prs(db, pr.manufacturing_orders)
 
     for mo in pr.manufacturing_orders:
+        # Closed orders make no more output and consume no more material.
+        if mo.status in ("COMPLETED", "CANCELLED"):
+            outstanding = 0.0
+        else:
+            completed = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
+            outstanding = max(0.0, float(mo.qty) - completed)
+
+        tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
+
         for comp in mo.planned_components:
             if not comp.percentage and not comp.qty:
                 continue
-            req = (float(mo.qty) * float(comp.percentage)) / 100 if comp.percentage else float(mo.qty) * float(comp.qty)
-            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
-            if tol > 0:
-                req *= (1 + tol / 100)
+
+            def _scale(basis: float) -> float:
+                r = (basis * float(comp.percentage)) / 100 if comp.percentage else basis * float(comp.qty)
+                return r * (1 + tol / 100) if tol > 0 else r
+
+            gross = _scale(float(mo.qty))
+            req = _scale(outstanding)
 
             attr_ids = sorted(comp.attribute_value_ids)
             attr_key = ",".join(attr_ids)
@@ -299,12 +336,29 @@ async def get_production_run_material_requirements(
             agg[key]["item_id"] = comp.item_id
             agg[key]["attr_ids"] = attr_ids
             agg[key]["total_required"] += req
+            agg[key]["gross_required"] += gross
             agg[key]["mo_contributions"].append(PRMOContribution(
                 mo_id=mo.id,
                 mo_code=mo.code,
                 mo_qty=float(mo.qty),
                 required_qty=req,
+                gross_required_qty=gross,
+                mo_outstanding_qty=outstanding,
             ))
+
+        # Committed-supply rule (same as booking stock): an SO-linked root MO's
+        # output is promised to that order and is not free supply. Component MOs
+        # always supply — their output is exactly what the demand above consumes.
+        if outstanding <= 0 or _output_committed(mo, so_linked_prs):
+            continue
+        out_key = _generate_variant_key(
+            [str(v.id) for v in (mo.attribute_values or [])], getattr(mo, "color_id", None)
+        )
+        s = supply[(str(mo.item_id), out_key)]
+        s["total_incoming"] += outstanding
+        s["contributions"].append(BookingSupplyMO(
+            mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), incoming_qty=outstanding,
+        ))
 
     if not agg:
         return []
@@ -315,11 +369,15 @@ async def get_production_run_material_requirements(
     item_map = {i.id: i for i in item_result.scalars().all()}
 
     # Plant-wide on-hand: sum StockBalance across ALL locations per (item, variant_key).
+    # QC-rejected / disposed lot stock is physically present but never good stock.
     onhand_map: dict[tuple, float] = {}
     onhand_by_item: dict[str, float] = defaultdict(float)
     for iid, vk, q in (await db.execute(
         select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
-        .where(StockBalance.item_id.in_(item_ids))
+        .where(
+            StockBalance.item_id.in_(item_ids),
+            StockBalance.batch_key.not_in(rejected_batch_keys()),
+        )
         .group_by(StockBalance.item_id, StockBalance.variant_key)
     )).all():
         onhand_map[(str(iid), vk or "")] = float(q or 0)
@@ -332,11 +390,13 @@ async def get_production_run_material_requirements(
         # attrs on their stock rows (variant_key is always "" — the batch itself is
         # the identity), so match plant-wide on-hand by item only, not by variant.
         is_batch_identity = bool(item and (item.lot_tracked or (item.category and (item.category.name or "").lower() == "beam")))
+        v_key = ",".join(sorted(data["attr_ids"]))
         if is_batch_identity:
             available = onhand_by_item.get(item_id_str, 0.0)
         else:
-            v_key = ",".join(sorted(data["attr_ids"]))
             available = onhand_map.get((item_id_str, v_key), 0.0)
+        sup = supply.get((item_id_str, v_key))
+        incoming = sup["total_incoming"] if sup else 0.0
         total = data["total_required"]
         results.append(PRMaterialRequirementItem(
             item_id=data["item_id"],
@@ -346,9 +406,12 @@ async def get_production_run_material_requirements(
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
             location_id=item.default_source_location_id if item else None,
             total_required=total,
+            gross_required=data["gross_required"],
             qty_available=available,
-            shortfall=max(0.0, total - available),
+            qty_incoming=incoming,
+            shortfall=max(0.0, total - available - incoming),
             mo_contributions=data["mo_contributions"],
+            supply_mos=sup["contributions"] if sup else [],
         ))
 
     bom_order = _bom_traversal_order(pr)
@@ -382,6 +445,8 @@ async def get_production_runs_material_status(
         select(ProductionRun)
         .options(
             selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.planned_components),
+            selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.completions),
+            selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.attribute_values),
             selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.bom),
         )
         .filter(ProductionRun.id.in_([str(i) for i in payload.pr_ids]))
@@ -389,23 +454,39 @@ async def get_production_runs_material_status(
     prs = result.unique().scalars().all()
 
     # Per-PR aggregate: key = (item_id, attr_key) -> total_required (mirrors the
-    # single-PR endpoint's `agg`). Collect all item_ids for one batched on-hand query.
+    # single-PR endpoint's `agg`, including OUTSTANDING-based demand and the PR's own
+    # incoming supply). Collect all item_ids for one batched on-hand query.
     per_pr_agg: dict[str, dict[tuple, float]] = {}
+    per_pr_supply: dict[str, dict[tuple, float]] = {}
     all_item_ids: set = set()
+    all_mos = [mo for pr in prs for mo in pr.manufacturing_orders]
+    so_linked_prs = await _sales_order_linked_prs(db, all_mos)
     for pr in prs:
         agg: dict[tuple, float] = defaultdict(float)
+        sup: dict[tuple, float] = defaultdict(float)
         for mo in pr.manufacturing_orders:
+            if mo.status in ("COMPLETED", "CANCELLED"):
+                outstanding = 0.0
+            else:
+                completed = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
+                outstanding = max(0.0, float(mo.qty) - completed)
             tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
             for comp in mo.planned_components:
                 if not comp.percentage and not comp.qty:
                     continue
-                req = (float(mo.qty) * float(comp.percentage)) / 100 if comp.percentage else float(mo.qty) * float(comp.qty)
+                req = (outstanding * float(comp.percentage)) / 100 if comp.percentage else outstanding * float(comp.qty)
                 if tol > 0:
                     req *= (1 + tol / 100)
                 attr_key = ",".join(sorted(comp.attribute_value_ids))
                 agg[(str(comp.item_id), attr_key)] += req
                 all_item_ids.add(comp.item_id)
+            if outstanding > 0 and not _output_committed(mo, so_linked_prs):
+                out_key = _generate_variant_key(
+                    [str(v.id) for v in (mo.attribute_values or [])], getattr(mo, "color_id", None)
+                )
+                sup[(str(mo.item_id), out_key)] += outstanding
         per_pr_agg[str(pr.id)] = agg
+        per_pr_supply[str(pr.id)] = sup
 
     # Plant-wide on-hand, one query for every item across every requested PR.
     onhand_map: dict[tuple, float] = {}
@@ -414,7 +495,10 @@ async def get_production_runs_material_status(
     if all_item_ids:
         for iid, vk, q in (await db.execute(
             select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
-            .where(StockBalance.item_id.in_(all_item_ids))
+            .where(
+                StockBalance.item_id.in_(all_item_ids),
+                StockBalance.batch_key.not_in(rejected_batch_keys()),
+            )
             .group_by(StockBalance.item_id, StockBalance.variant_key)
         )).all():
             onhand_map[(str(iid), vk or "")] = float(q or 0)
@@ -425,11 +509,12 @@ async def get_production_runs_material_status(
     out: list[PRMaterialStatusItem] = []
     for pr_id, agg in per_pr_agg.items():
         short = suff = 0
+        sup = per_pr_supply.get(pr_id, {})
         for (item_id_str, attr_key), total in agg.items():
             item = item_map.get(item_id_str)
             is_batch_identity = bool(item and (item.lot_tracked or (item.category and (item.category.name or "").lower() == "beam")))
             available = onhand_by_item.get(item_id_str, 0.0) if is_batch_identity else onhand_map.get((item_id_str, attr_key), 0.0)
-            if total - available > 0:
+            if total - available - sup.get((item_id_str, attr_key), 0.0) > 0:
                 short += 1
             else:
                 suff += 1

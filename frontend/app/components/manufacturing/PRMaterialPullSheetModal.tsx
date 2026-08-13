@@ -86,7 +86,9 @@ export default function PRMaterialPullSheetModal({
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'left', width: '12%' }}>Code</th>
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'left' }}>Material</th>
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'center', width: '8%' }}>UOM</th>
-                    <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '13%' }}>Required</th>
+                    {/* Net of what this run has already been issued — never ask the store
+                        to pull material the floor has already consumed. */}
+                    <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '13%' }}>Still Required</th>
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '13%' }}>Available</th>
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '13%' }}>Shortfall</th>
                 </tr>

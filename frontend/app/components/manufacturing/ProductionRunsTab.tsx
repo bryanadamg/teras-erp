@@ -342,8 +342,17 @@ export default function ProductionRunsTab({
                                                         }}>
                                                             <thead>
                                                                 <tr style={{ background: classic ? '#d4d0c8' : '#e9ecef' }}>
-                                                                    {['Item Code', 'Item Name', 'UOM', 'Total Required', 'Available', 'Shortfall', 'Contributing MOs'].map(h => (
-                                                                        <th key={h} style={{ padding: '2px 6px', textAlign: h === 'Total Required' || h === 'Available' || h === 'Shortfall' ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', fontWeight: 'bold' }}>{h}</th>
+                                                                    {[
+                                                                        { h: 'Item Code', t: '' },
+                                                                        { h: 'Item Name', t: '' },
+                                                                        { h: 'UOM', t: '' },
+                                                                        { h: 'Still Required', t: 'Net requirement: scaled by each MO’s REMAINING output (order qty minus what has already been logged). Material already consumed by this run stops counting as needed.' },
+                                                                        { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded).' },
+                                                                        { h: 'Incoming', t: 'Outstanding output of this Production Run’s own component MOs that produce this item — already scheduled, not yet made.' },
+                                                                        { h: 'Shortfall', t: 'Still Required − Available − Incoming. Only a positive gap is a real shortage.' },
+                                                                        { h: 'Contributing MOs', t: '' },
+                                                                    ].map(({ h, t }) => (
+                                                                        <th key={h} title={t || undefined} style={{ padding: '2px 6px', textAlign: h === 'Still Required' || h === 'Available' || h === 'Incoming' || h === 'Shortfall' ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', fontWeight: 'bold', cursor: t ? 'help' : undefined }}>{h}</th>
                                                                     ))}
                                                                 </tr>
                                                             </thead>
@@ -358,14 +367,39 @@ export default function ProductionRunsTab({
                                                                         background: rowColor, verticalAlign: 'middle',
                                                                     };
                                                                     const moSummary = (req.mo_contributions || []).map((c: any) => `${c.mo_code} (${parseFloat(c.required_qty).toFixed(2)})`).join(', ');
+                                                                    const gross = parseFloat(req.gross_required ?? req.total_required);
+                                                                    const net = parseFloat(req.total_required);
+                                                                    // Consumed-so-far is the gap between the full-order requirement and what is
+                                                                    // still outstanding — spell it out so a dropping "Available" reads as
+                                                                    // material issued to this run, not as material going missing.
+                                                                    const issued = gross - net;
+                                                                    const incoming = parseFloat(req.qty_incoming ?? 0);
                                                                     return (
                                                                         <tr key={ri}>
                                                                             <td style={cellStyle}><CodeChip code={req.item_code} classic={classic} /></td>
                                                                             <td style={cellStyle}>{req.item_name}</td>
                                                                             <td style={cellStyle}>{req.uom}</td>
-                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT }}>{parseFloat(req.total_required).toFixed(2)}</td>
+                                                                            <td
+                                                                                style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, cursor: issued > 0.0001 ? 'help' : undefined }}
+                                                                                title={issued > 0.0001
+                                                                                    ? `Full order requirement ${gross.toFixed(2)} ${req.uom} − ${issued.toFixed(2)} already issued to this run = ${net.toFixed(2)} still required`
+                                                                                    : undefined}
+                                                                            >
+                                                                                {net.toFixed(2)}
+                                                                                {issued > 0.0001 && (
+                                                                                    <span style={{ color: '#777', fontWeight: 'normal' }}> / {gross.toFixed(2)}</span>
+                                                                                )}
+                                                                            </td>
                                                                             <td style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
                                                                                 {parseFloat(req.qty_available).toFixed(2)}
+                                                                            </td>
+                                                                            <td
+                                                                                style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: incoming > 0 ? '#1b5e9c' : '#999' }}
+                                                                                title={incoming > 0
+                                                                                    ? (req.supply_mos || []).map((s: any) => `${s.mo_code} (${parseFloat(s.incoming_qty).toFixed(2)})`).join(', ')
+                                                                                    : undefined}
+                                                                            >
+                                                                                {incoming > 0 ? incoming.toFixed(2) : '—'}
                                                                             </td>
                                                                             <td style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
                                                                                 {short ? `-${parseFloat(req.shortfall).toFixed(2)}` : 'OK'}

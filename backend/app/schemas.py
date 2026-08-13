@@ -598,7 +598,9 @@ class PRMOContribution(BaseModel):
     mo_id: UUID
     mo_code: str
     mo_qty: float
-    required_qty: float
+    required_qty: float             # NET (outstanding-based) — what this MO has still to consume
+    gross_required_qty: float = 0.0  # full-order basis, for reference
+    mo_outstanding_qty: float = 0.0  # mo.qty - good completions (0 once closed)
 
 class PRMaterialRequirementItem(BaseModel):
     item_id: UUID
@@ -607,10 +609,13 @@ class PRMaterialRequirementItem(BaseModel):
     uom: str
     attribute_value_ids: list[UUID]
     location_id: UUID | None = None        # item's default source location (pull-sheet hint only — netting itself is plant-wide/location-agnostic)
-    total_required: float
-    qty_available: float
-    shortfall: float
+    total_required: float                  # NET requirement: scaled by each MO's OUTSTANDING output
+    gross_required: float = 0.0            # requirement at full order qty (never decrements)
+    qty_available: float                   # physical on-hand, plant-wide, good stock only
+    qty_incoming: float = 0.0              # outstanding output of this PR's own MOs that produce the item
+    shortfall: float                       # max(0, total_required - qty_available - qty_incoming)
     mo_contributions: list[PRMOContribution]
+    supply_mos: list['BookingSupplyMO'] = []
 
 # ── Booking Stock (material availability across all ongoing MOs) ──────────────
 class BookingDemandMO(BaseModel):
@@ -647,6 +652,9 @@ class PaginatedBookingStockResponse(BaseModel):
     total: int
     page: int
     size: int
+
+# PRMaterialRequirementItem.supply_mos forward-references BookingSupplyMO, declared above.
+PRMaterialRequirementItem.model_rebuild()
 
 # ── Creation netting preview (dry-run; shows where each component nets from) ───
 class NettingPreviewNode(BaseModel):
