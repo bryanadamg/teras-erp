@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { xpFont } from '../shared/xpTheme';
 import { PERMISSION_MATRIX, RESOURCE_ACTIONS, permissionCode, PermissionScope } from '../shared/permissionMatrix';
 import { PermissionChip, PermissionSectionTable, PermissionCountPill } from '../shared/permissionChips';
@@ -47,14 +47,37 @@ export default function PermissionsPicker({
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-    const toggle = (id: string) => {
-        if (disabledSet.has(id)) return;
-        onChange(selectedSet.has(id) ? selectedIds.filter(i => i !== id) : [...selectedIds, id]);
-    };
-
     const resourceIds = (resource: string): string[] => {
         const actions = RESOURCE_ACTIONS[resource] || [];
         return actions.map(a => idByCode.get(permissionCode(resource, a.code))).filter((x): x is string => !!x);
+    };
+
+    // `<resource>.view` is the base read grant: the route guard (navConfig's
+    // ROUTE_PERMISSIONS) and the list GETs check it, so an action grant without it
+    // is dead — the user holds work_order.create but the page the button lives on
+    // renders AccessDenied. So granting any action grants view too, and view can't
+    // be taken away while a sibling action is still granted.
+    const viewIdFor = (resource: string) => idByCode.get(permissionCode(resource, 'view'));
+
+    const isViewRequired = (resource: string): boolean =>
+        (RESOURCE_ACTIONS[resource] || []).some(a => {
+            if (a.code === 'view') return false;
+            const id = idByCode.get(permissionCode(resource, a.code));
+            return !!id && (selectedSet.has(id) || disabledSet.has(id));
+        });
+
+    const toggle = (id: string, resource: string, actionCode: string) => {
+        if (disabledSet.has(id)) return;
+        const viewId = viewIdFor(resource);
+        if (selectedSet.has(id)) {
+            // Locked while other actions on this row need it.
+            if (actionCode === 'view' && isViewRequired(resource)) return;
+            onChange(selectedIds.filter(i => i !== id));
+            return;
+        }
+        const add = [id];
+        if (actionCode !== 'view' && viewId && !selectedSet.has(viewId) && !disabledSet.has(viewId)) add.push(viewId);
+        onChange([...selectedIds, ...add]);
     };
 
     const sectionIds = (section: typeof PERMISSION_MATRIX[number]): string[] =>
@@ -71,6 +94,22 @@ export default function PermissionsPicker({
             onChange(selectedIds.filter(id => !remove.has(id)));
         }
     };
+
+    // Heal grants saved before view was implicit (a user holding work_order.create
+    // with no work_order.view is a user who can't open the page). Only ever adds
+    // the view row, and only when a sibling action on that row is already granted,
+    // so it can't loop and can't widen access beyond what the row already implies.
+    useEffect(() => {
+        const missing: string[] = [];
+        for (const section of PERMISSION_MATRIX) {
+            for (const r of section.resources) {
+                if (!isViewRequired(r.resource)) continue;
+                const viewId = viewIdFor(r.resource);
+                if (viewId && !selectedSet.has(viewId) && !disabledSet.has(viewId)) missing.push(viewId);
+            }
+        }
+        if (missing.length) onChange([...selectedIds, ...missing]);
+    }, [selectedIds, idByCode, disabledSet]);
 
     const toggleCollapse = (section: string) => {
         setCollapsed(prev => {
@@ -122,7 +161,8 @@ export default function PermissionsPicker({
                         label: r.label,
                         hint: r.scope ? SCOPE_BADGE[r.scope] : undefined,
                         chips: rowActions.map(({ action, id }) => {
-                            const locked = disabledSet.has(id);
+                            const inherited = disabledSet.has(id);
+                            const pinned = action.code === 'view' && !inherited && isViewRequired(r.resource);
                             const code = permissionCode(r.resource, action.code);
                             return (
                                 <PermissionChip
@@ -130,9 +170,13 @@ export default function PermissionsPicker({
                                     label={action.label}
                                     code={code}
                                     classic={classic}
-                                    state={locked ? 'locked' : selectedSet.has(id) ? 'on' : 'off'}
-                                    onClick={() => toggle(id)}
-                                    title={locked ? `${code} — granted by the role, can't be removed here` : code}
+                                    state={inherited || pinned ? 'locked' : selectedSet.has(id) ? 'on' : 'off'}
+                                    onClick={() => toggle(id, r.resource, action.code)}
+                                    title={
+                                        inherited ? `${code} — granted by the role, can't be removed here`
+                                            : pinned ? `${code} — required by the other grants on this row`
+                                                : code
+                                    }
                                 />
                             );
                         }),

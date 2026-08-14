@@ -28,7 +28,12 @@ const A = (code: string, label: string): PermissionMatrixAction => ({ code, labe
 export const CREATE = A('create', 'Create');
 export const EDIT = A('edit', 'Edit');
 export const DELETE = A('delete', 'Delete');
-export const VIEW = A('view', 'View only');
+// Labelled plain "View", not "View only": it is the *base* read grant every other
+// action on that row needs (the route guard and the list GETs check it), not a
+// read-only mode. Reading it as a mode is what made admins tick Create/Edit and
+// leave View off, producing a user who holds work_order.create but can't reach
+// the page the button lives on. PermissionsPicker now grants it implicitly.
+export const VIEW = A('view', 'View');
 
 export const PERMISSION_MATRIX: PermissionMatrixSection[] = [
     {
@@ -90,6 +95,7 @@ export const PERMISSION_MATRIX: PermissionMatrixSection[] = [
     {
         section: 'Platform',
         resources: [
+            { resource: 'reports', label: 'Dashboard & Reports' },
             { resource: 'production_output', label: 'Production Output' },
             { resource: 'audit_log', label: 'Audit Log' },
             { resource: 'print_layout', label: 'Print Lay Out' },
@@ -126,7 +132,10 @@ export const RESOURCE_ACTIONS: Record<string, PermissionMatrixAction[]> = {
     routing: [CREATE, EDIT, DELETE, VIEW],
     production_run: [CREATE, EDIT, DELETE, A('print', 'Print'), VIEW],
     manufacturing_order: [CREATE, EDIT, DELETE, A('print', 'Print'), VIEW, A('close', 'Closed Order')],
-    work_order: [A('log', 'Log'), EDIT, DELETE, A('print_card', 'Print Kartu Kerja'), VIEW, A('print_label', 'Print Label'), A('stage', 'Stage')],
+    // CREATE gates both "+ Add Work Order" and "Plan Beaming" (WorkOrderPanel) —
+    // it was missing from this row, so work_order.create existed in the backend
+    // taxonomy with no checkbox anywhere that could grant it.
+    work_order: [CREATE, A('log', 'Log'), EDIT, DELETE, A('print_card', 'Print Kartu Kerja'), VIEW, A('print_label', 'Print Label'), A('stage', 'Stage')],
     weaving_monitor: [A('start', 'Start'), A('stop', 'Stop'), VIEW],
     calendar: [EDIT, VIEW],
     beam: [A('unmount', 'Unmount'), VIEW],
@@ -139,6 +148,10 @@ export const RESOURCE_ACTIONS: Record<string, PermissionMatrixAction[]> = {
     lab_dip_request: [CREATE, EDIT, DELETE, A('update_status', 'Update Status'), A('print', 'Print'), VIEW],
     yarn_lab_dip: [VIEW],
 
+    // reports.view gates the Dashboard and the Reports nav section (navConfig).
+    // It is seeded and enforced but had no row here, so it could only be handed
+    // out by the seeded roles — never from the Roles/User modals.
+    reports: [VIEW],
     // Production Output report — CSV export is its own grant so a role can read
     // the shop-floor numbers without being able to take the data off the system.
     production_output: [A('export', 'Export CSV'), VIEW],
