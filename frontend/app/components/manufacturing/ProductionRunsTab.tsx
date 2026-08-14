@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
+import { FilterChipBar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
@@ -16,6 +17,10 @@ export default function ProductionRunsTab({
     pageSize,
     prSearch,
     setPrSearch,
+    prSoFilter,
+    setPrSoFilter,
+    prProgressFilter,
+    setPrProgressFilter,
     onDeleteProductionRun,
     currentStyle,
     canManage,
@@ -47,6 +52,9 @@ export default function ProductionRunsTab({
 
     const classic = currentStyle === 'classic';
     const filteredProductionRuns = productionRuns || [];
+    // Both filters are server-side (see /production-runs has_sales_order + progress) —
+    // client-side narrowing would only filter the current page, not the whole result set.
+    const filtersActive = !!prSoFilter || !!prProgressFilter;
 
     const fetchPRMaterialRequirements = async (prId: string) => {
         setPrMaterialReqsLoading(prev => ({ ...prev, [prId]: true }));
@@ -124,13 +132,38 @@ export default function ProductionRunsTab({
                 />
             )}
 
-            {((productionRuns && productionRuns.length > 0) || prSearch) && (
+            {((productionRuns && productionRuns.length > 0) || prSearch || filtersActive) && (
                 <ManufacturingSearchBar
                     value={prSearch}
                     onChange={setPrSearch}
                     placeholder="Search by code, style, or BOM..."
                     total={prTotal}
                     classic={classic}
+                    showCount={filtersActive}
+                    filters={
+                        <>
+                            <FilterChipBar
+                                classic={classic}
+                                value={prSoFilter || ''}
+                                onChange={(v: string) => setPrSoFilter?.(v === prSoFilter ? '' : v)}
+                                options={[
+                                    { value: '', label: 'All SO' },
+                                    { value: 'with', label: 'With SO' },
+                                    { value: 'without', label: 'No SO' },
+                                ]}
+                            />
+                            <FilterChipBar
+                                classic={classic}
+                                value={prProgressFilter || ''}
+                                onChange={(v: string) => setPrProgressFilter?.(v === prProgressFilter ? '' : v)}
+                                options={[
+                                    { value: '', label: 'All Progress' },
+                                    { value: 'complete', label: '100%' },
+                                    { value: 'incomplete', label: 'Under 100%' },
+                                ]}
+                            />
+                        </>
+                    }
                 />
             )}
             {/* The table renders while loading too, so the skeleton sits under the
@@ -476,8 +509,10 @@ export default function ProductionRunsTab({
                 }}>
                     <i className="bi bi-collection-play" style={{ fontSize: 32, display: 'block', marginBottom: 8, opacity: 0.4 }}></i>
                     {prSearch
-                        ? <>No Production Runs match "<strong>{prSearch}</strong>".</>
-                        : <>No Production Runs yet. Click <strong>New Production Run</strong> to get started.</>}
+                        ? <>No Production Runs match "<strong>{prSearch}</strong>"{filtersActive ? ' with the selected filters' : ''}.</>
+                        : filtersActive
+                            ? <>No Production Runs match the selected filters.</>
+                            : <>No Production Runs yet. Click <strong>New Production Run</strong> to get started.</>}
                 </div>
             )}
             <Pager page={prPage} total={prTotal} pageSize={pageSize} onPageChange={setPrPage} hideWhenEmpty />

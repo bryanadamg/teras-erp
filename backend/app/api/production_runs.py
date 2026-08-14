@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from uuid import UUID
@@ -221,10 +221,34 @@ async def list_production_runs(
     skip: int = 0,
     limit: int = 50,
     search: str | None = None,
+    has_sales_order: bool | None = None,
+    progress: str | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("production_run.view", "manufacturing_order.view")),
 ):
     conditions = []
+    if has_sales_order is True:
+        conditions.append(ProductionRun.sales_order_id.isnot(None))
+    elif has_sales_order is False:
+        conditions.append(ProductionRun.sales_order_id.is_(None))
+
+    if progress in ("complete", "incomplete"):
+        # Mirrors the PR list's Progress column exactly: done = COMPLETED or
+        # DELIVERED (delivered = qty met, order simply not closed yet), counted
+        # over ALL of the run's MOs including shared component MOs. A run with no
+        # MOs at all is 0% — never "complete".
+        mo_base = select(ManufacturingOrder.id).where(
+            ManufacturingOrder.production_run_id == ProductionRun.id
+        )
+        has_any_mo = mo_base.exists()
+        has_open_mo = mo_base.where(
+            ManufacturingOrder.status.notin_(("COMPLETED", "DELIVERED"))
+        ).exists()
+        if progress == "complete":
+            conditions.append(and_(has_any_mo, ~has_open_mo))
+        else:
+            conditions.append(or_(~has_any_mo, has_open_mo))
+
     if search and search.strip():
         like = f"%{search.strip()}%"
         # Match by entry BOM code / item name / item code (multi-BOM path)

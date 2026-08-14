@@ -121,6 +121,10 @@ interface DataContextType {
         reportPage: number; setReportPage: (p: number) => void; reportTotal: number;
         moSearch: string; setMoSearch: (s: string) => void;
         prSearch: string; setPrSearch: (s: string) => void;
+        /** '' = all, 'with' = has a Sales Order, 'without' = made to stock. */
+        prSoFilter: string; setPrSoFilter: (v: string) => void;
+        /** '' = all, 'complete' = every MO done, 'incomplete' = still running. */
+        prProgressFilter: string; setPrProgressFilter: (v: string) => void;
         pageSize: number;
     };
     
@@ -218,6 +222,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [itemSearchInput, setItemSearchInput] = useState(''); // live input value
     const [moSearch, setMoSearch] = useState('');
     const [prSearch, setPrSearch] = useState('');
+    const [prSoFilter, setPrSoFilter] = useState('');           // '' | 'with' | 'without'
+    const [prProgressFilter, setPrProgressFilter] = useState(''); // '' | 'complete' | 'incomplete'
     const [categoryL1, setCategoryL1] = useState('');
     const [categoryL2, setCategoryL2] = useState('');
     const [categoryL3, setCategoryL3] = useState('');
@@ -247,6 +253,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const handleSetPrSearch = useCallback((v: string) => {
         setPrSearch(v); setPrPage(1);
     }, []);
+
+    const handleSetPrSoFilter = useCallback((v: string) => {
+        setPrSoFilter(v); setPrPage(1);
+    }, []);
+
+    const handleSetPrProgressFilter = useCallback((v: string) => {
+        setPrProgressFilter(v); setPrPage(1);
+    }, []);
+
+    // Every narrowing applied to the SHARED productionRuns slice, as one query
+    // string. Search + the PR-page filters all go through here so the "restore
+    // the full list when narrowing clears" guard below only has one key to watch.
+    const prFilterQuery = useMemo(() => {
+        const p = new URLSearchParams();
+        if (prSearch) p.set('search', prSearch);
+        if (prSoFilter) p.set('has_sales_order', prSoFilter === 'with' ? 'true' : 'false');
+        if (prProgressFilter) p.set('progress', prProgressFilter);
+        const s = p.toString();
+        return s ? `&${s}` : '';
+    }, [prSearch, prSoFilter, prProgressFilter]);
 
     const handleSetCategoryL1 = useCallback((v: string) => {
         setCategoryL1(v); setCategoryL2(''); setCategoryL3('');
@@ -434,9 +460,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requestTypes.push(isDashboard ? 'manufacturing-orders-slim' : 'manufacturing-orders');
                 if (!isDashboard) {
                     const prSkip = (prPage - 1) * pageSize;
-                    const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
                     myPrGen = ++prGenRef.current;
-                    requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }));
+                    requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prFilterQuery}`, { headers }));
                     requestTypes.push('production-runs');
                 }
             }
@@ -582,7 +607,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const p = run().finally(() => { delete inFlightRef.current[fetchTarget]; });
         inFlightRef.current[fetchTarget] = p;
         return p;
-    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
+    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prFilterQuery, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
 
     // Targeted refresh for the Manufacturing Orders page: re-pull ONLY the MO
     // (root-only) + PR lists. Used after WO/MO/PR mutations instead of the broad
@@ -597,16 +622,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const moSkip = (woPage - 1) * pageSize;
             const moSearchParam = moSearch ? `&search=${encodeURIComponent(moSearch)}` : '';
             const prSkip = (prPage - 1) * pageSize;
-            const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
             const myPrGen = ++prGenRef.current;
             const [moRes, prRes] = await Promise.all([
                 fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moSearchParam}`, { headers }),
-                fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }),
+                fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prFilterQuery}`, { headers }),
             ]);
             if (moRes.ok) { const d = await moRes.json(); setManufacturingOrders(d.items); setWoTotal(d.total); }
             if (prRes.ok && myPrGen === prGenRef.current) { const d = await prRes.json(); setProductionRuns(d.items); setPrTotal(d.total); }
         } catch (e) { console.error('refreshManufacturing error', e); }
-    }, [currentUser, woPage, prPage, moSearch, prSearch, pageSize]);
+    }, [currentUser, woPage, prPage, moSearch, prFilterQuery, pageSize]);
 
     // Targeted refresh for the Purchase Orders page after a PO mutation. Goes
     // straight to /purchase-orders instead of the broad fetchData(): fetchData
@@ -784,7 +808,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const handleTabHover = (tab: string) => fetchData(tab);
 
-    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
+    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prFilterQuery, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
 
     // When the manufacturing PR filter is CLEARED (e.g. leaving /production-runs
     // after a deep-link PR-badge click narrowed the shared list to one PR), the
@@ -795,11 +819,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // leaving the list stuck narrowed until a hard refresh. This dedupe-free,
     // generation-guarded refetch bumps the generation LAST and bypasses the dedupe,
     // so the unfiltered result always wins over any stale narrowed fetch.
-    const prevPrSearchRef = useRef(prSearch);
+    const prevPrFilterRef = useRef(prFilterQuery);
     useEffect(() => {
-        const prev = prevPrSearchRef.current;
-        prevPrSearchRef.current = prSearch;
-        if (!(prev && !prSearch && currentUser)) return;
+        const prev = prevPrFilterRef.current;
+        prevPrFilterRef.current = prFilterQuery;
+        if (!(prev && !prFilterQuery && currentUser)) return;
         (async () => {
             try {
                 const token = localStorage.getItem('access_token');
@@ -810,7 +834,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 if (res.ok && myPrGen === prGenRef.current) { const d = await res.json(); setProductionRuns(d.items); setPrTotal(d.total); }
             } catch (e) { console.error('restore productionRuns error', e); }
         })();
-    }, [prSearch, currentUser, prPage, pageSize]);
+    }, [prFilterQuery, currentUser, prPage, pageSize]);
 
     // WebSocket Logic
     const fetchDataRef = useRef(fetchData);
@@ -1014,7 +1038,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         wsStatus,
         loading,
         loadProgress,
-        pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
+        pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, prSoFilter, setPrSoFilter: handleSetPrSoFilter, prProgressFilter, setPrProgressFilter: handleSetPrProgressFilter, pageSize },
         filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
     }), [
@@ -1023,8 +1047,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         printTemplates, refreshPrintTemplates, wsStatus, loading, loadProgress,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
-        handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents
+        itemSearchInput, moSearch, prSearch, prSoFilter, prProgressFilter, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
+        handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetPrSoFilter, handleSetPrProgressFilter, handleSetItemSearch, subscribeLiveEvents
     ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

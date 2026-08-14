@@ -60,7 +60,10 @@ export default function ManufacturingView({
     'manufacturing_order.create', 'manufacturing_order.edit', 'manufacturing_order.delete',
     'production_run.create', 'production_run.edit', 'production_run.delete',
   );
-  const { moSearch, setMoSearch, prSearch: prSearchCtx, setPrSearch: setPrSearchCtx } = pagination;
+  const {
+      moSearch, setMoSearch, prSearch: prSearchCtx, setPrSearch: setPrSearchCtx,
+      prSoFilter, setPrSoFilter, prProgressFilter, setPrProgressFilter,
+  } = pagination;
   const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
   const [viewMode, setViewMode] = useState('list');
@@ -136,7 +139,7 @@ export default function ManufacturingView({
   useEffect(() => {
       // unconditional: the cleanup closure captures prSearchCtx from mount time,
       // so checking it here would read a stale value instead of the latest one
-      return () => setPrSearchCtx('');
+      return () => { setPrSearchCtx(''); setPrSoFilter(''); setPrProgressFilter(''); };
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -706,6 +709,10 @@ export default function ManufacturingView({
                               pageSize={pageSize}
                               prSearch={prSearch}
                               setPrSearch={setPrSearch}
+                              prSoFilter={prSoFilter}
+                              setPrSoFilter={setPrSoFilter}
+                              prProgressFilter={prProgressFilter}
+                              setPrProgressFilter={setPrProgressFilter}
                               onDeleteProductionRun={onDeleteProductionRun}
                               currentStyle={currentStyle}
                               canManage={canManage}
