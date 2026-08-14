@@ -13,6 +13,12 @@ from app.models.attribute import Attribute, AttributeValue
 from app.models.manufacturing import ManufacturingOrder, MODependency, MOPlannedComponent
 from app.services import beam_service
 
+# ManufacturingOrder.code is String(128). MO codes are composed (from a PR code and
+# line, or from the item name), never sequential, so every minting site clamps
+# against this rather than trusting the inputs to be short. Single source of truth:
+# api/production_runs.py imports it from here.
+MO_CODE_MAX_LEN = 128
+
 
 def _line_decoupled(line, item_flag) -> bool:
     """Effective MRP decoupling policy for a BOM line: the per-line override wins
@@ -180,9 +186,9 @@ async def create_mo_recursive(
     item = item_result.scalars().first()
     raw_name = item.name if item else str(bom.item_id)[:8]
     safe_name = re.sub(r'[^A-Za-z0-9\-]', '-', raw_name).strip('-')
-    # MO.code is String(64); "MO-" + name + "-00000" must fit or the INSERT dies
-    # with StringDataRightTruncation and takes the whole MRP explosion with it.
-    base = f"MO-{safe_name[:64 - len('MO-') - len('-00000')]}"
+    # "MO-" + name + "-00000" must fit MO.code or the INSERT dies with
+    # StringDataRightTruncation and takes the whole MRP explosion with it.
+    base = f"MO-{safe_name[:MO_CODE_MAX_LEN - len('MO-') - len('-00000')]}"
     counter = 1
     while True:
         candidate = f"{base}-{str(counter).zfill(5)}"

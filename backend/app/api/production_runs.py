@@ -45,44 +45,26 @@ router = APIRouter()
 _QTY_EPS = 0.005
 
 
-MO_CODE_MAX_LEN = 64          # ManufacturingOrder.code is String(64)
-_MO_CODE_UNIQ_RESERVE = 3     # room for the "-NN" suffix _find_unique_mo_code appends
+from app.services.mrp_service import MO_CODE_MAX_LEN  # noqa: E402  (String(128) on MO.code)
+
+_MO_CODE_UNIQ_RESERVE = 4     # room for the "-NNN" suffix _find_unique_mo_code appends
+_MO_CODE_SIZE_MAX = 24        # 'free' size labels are String(128); cap their share
 
 
-def _bom_code_label(bom) -> str:
-    """Short, human-readable label for a BOM inside a composed MO code.
+def _compose_mo_code(pr_code: str, *, index: str = "", size_label: str = "") -> str:
+    """Compose a root MO code as `PR code[-line index][-size]`.
 
-    BOM codes are `BOM-<item code>-<variant>-<serial>` and run 45+ chars; the PR
-    code already carries no item, so the item chunk is the only redundant part —
-    drop `BOM-<item code>-` and keep the variant+serial that actually identifies
-    the recipe."""
-    code = (bom.code or "").strip()
-    item_code = (bom.item.code if bom.item else "") or ""
-    if code:
-        prefix = f"BOM-{item_code}-"
-        if item_code and code.startswith(prefix):
-            return code[len(prefix):]
-        return code[4:] if code.startswith("BOM-") else code
-    return item_code
-
-
-def _compose_mo_code(*parts) -> str:
-    """Join non-empty code parts with '-', clipping the longest part until the
-    result fits MO.code with room for the uniqueness suffix.
-
-    A PR code + BOM label + entry index + size label overruns varchar(64) on real
-    recipe codes, which failed the whole PR create with a StringDataRightTruncation
-    at the code UPDATE. The index/size tail is what makes the code meaningful, so
-    the (longest) BOM label is what gets clipped."""
-    kept = [str(p) for p in parts if p]
-    budget = MO_CODE_MAX_LEN - _MO_CODE_UNIQ_RESERVE
-    while kept and sum(len(p) for p in kept) + len(kept) - 1 > budget:
-        longest = max(range(len(kept)), key=lambda i: len(kept[i]))
-        if len(kept[longest]) <= 1:
-            break
-        overflow = sum(len(p) for p in kept) + len(kept) - 1 - budget
-        kept[longest] = kept[longest][:max(1, len(kept[longest]) - overflow)]
-    return "-".join(kept)[:budget]
+    Deliberately carries no recipe identity. The BOM used to be spelled into the
+    code, which duplicated `MO.bom_id` as a string and pushed real codes past the
+    column (a 3-recipe run over combo BOMs minted 78 chars and failed the whole
+    create with StringDataRightTruncationError). Recipe, combo and colour are
+    fields on the order and are what the UI reads; the code only has to identify
+    *which line of which run* this order is, which is exactly what stays unique
+    and stable. Free-mode size labels are user text (String(128)), so the size
+    share is capped and the whole result clamped — belt and braces on top of the
+    widened column, not the thing keeping it in range."""
+    parts = [p for p in (pr_code, index, size_label[:_MO_CODE_SIZE_MAX]) if p]
+    return "-".join(parts)[:MO_CODE_MAX_LEN - _MO_CODE_UNIQ_RESERVE]
 
 
 async def _find_unique_mo_code(db: AsyncSession, candidate: str) -> str:
@@ -748,7 +730,6 @@ async def create_production_run(
         await db.flush()
 
         entry_root_mos: list[ManufacturingOrder] = []
-        bom_label = _bom_code_label(bom) or f"B{entry_idx+1}"
 
         # Variant the produced root will actually carry (entry override wins,
         # same precedence applied post-creation below) — this is the netting key.
@@ -792,10 +773,12 @@ async def create_production_run(
                     bom_size_id=size_entry.bom_size_id,
                     create_children=False,
                 )
-                base_code = (
-                    _compose_mo_code(payload.code, bom_label.upper(), f"{entry_idx+1:03d}", size_label.upper())
-                    if len(payload.bom_entries) > 1
-                    else _compose_mo_code(payload.code, size_label.upper())
+                base_code = _compose_mo_code(
+                    payload.code,
+                    # single-recipe runs keep the older `{PR}-{SIZE}` shape; the line
+                    # index only earns its place when several recipes share a run
+                    index=f"{entry_idx+1:03d}" if len(payload.bom_entries) > 1 else "",
+                    size_label=size_label.upper(),
                 )
                 root_mo.code = await _find_unique_mo_code(db, base_code)
                 root_mo.color_id = bom_entry.color_id
@@ -820,12 +803,7 @@ async def create_production_run(
                     target_end_date=payload.target_end_date,
                     create_children=False,
                 )
-                suffix = f"{entry_idx+1:03d}"
-                base_code = (
-                    _compose_mo_code(payload.code, bom_label.upper(), suffix)
-                    if len(payload.bom_entries) > 1
-                    else _compose_mo_code(payload.code, suffix)
-                )
+                base_code = _compose_mo_code(payload.code, index=f"{entry_idx+1:03d}")
                 root_mo.code = await _find_unique_mo_code(db, base_code)
                 root_mo.color_id = bom_entry.color_id
                 root_mo.labdip_variant_code = bom_entry.labdip_variant_code

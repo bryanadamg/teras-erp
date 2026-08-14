@@ -46,7 +46,9 @@ class ManufacturingOrder(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # Composed (PR code + line index + size, or item name), never sequential — so it
+    # matches work_orders.code's 128, which is derived from it as {mo.code}-WO-NN.
+    code: Mapped[str] = mapped_column(String(128), unique=True, index=True)
 
     # Link to the Recipe (BOM)
     bom_id: Mapped[uuid.UUID] = mapped_column(
