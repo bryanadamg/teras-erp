@@ -321,6 +321,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // recently *dispatched* call is allowed to commit.
     const prGenRef = useRef(0);
 
+    // In-flight counter for the productionRuns slice. `loadedOnce` alone can't gate
+    // the PR list's empty state: a SUPERSEDED response (dropped by the generation
+    // guard above) still flips loadedOnce, so the list flashes "No Production Runs"
+    // until the winning response lands — and the same happens on any refetch that
+    // starts after the first load (filter change, page change, targeted refresh).
+    // Every dispatched PR fetch holds this above zero until its commit-or-discard
+    // is finished, so the skeleton stays up for the whole gap.
+    const [prPending, setPrPending] = useState(0);
+
     const fetchData = useCallback((target?: string) => {
         if (!currentUser) return Promise.resolve();
         // In the new routing system, we can use the pathname or a passed target
@@ -334,6 +343,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const run = async () => {
         // Set once the request list is known; drives the app-load bar's cleanup.
         let trackBoot = false;
+        let heldPrPending = false;
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
@@ -461,6 +471,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 if (!isDashboard) {
                     const prSkip = (prPage - 1) * pageSize;
                     myPrGen = ++prGenRef.current;
+                    heldPrPending = true;
+                    setPrPending(n => n + 1);
                     requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prFilterQuery}`, { headers }));
                     requestTypes.push('production-runs');
                 }
@@ -601,6 +613,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // Retire the bar on both paths — a failed boot must not leave it
             // parked at a partial fill forever.
             if (trackBoot) setLoadProgress({ done: 0, total: 0 });
+            // Released only here, AFTER the response loop has committed
+            // setProductionRuns — releasing it at fetch-resolve time would reopen
+            // the same empty-state gap while the JSON is still being parsed.
+            if (heldPrPending) setPrPending(n => n - 1);
         }
         };
 
@@ -616,6 +632,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // from ~5 heavy calls down to 2 light ones.
     const refreshManufacturing = useCallback(async () => {
         if (!currentUser) return;
+        setPrPending(n => n + 1);
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
@@ -630,6 +647,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             if (moRes.ok) { const d = await moRes.json(); setManufacturingOrders(d.items); setWoTotal(d.total); }
             if (prRes.ok && myPrGen === prGenRef.current) { const d = await prRes.json(); setProductionRuns(d.items); setPrTotal(d.total); }
         } catch (e) { console.error('refreshManufacturing error', e); }
+        finally { setPrPending(n => n - 1); }
     }, [currentUser, woPage, prPage, moSearch, prFilterQuery, pageSize]);
 
     // Targeted refresh for the Purchase Orders page after a PO mutation. Goes
@@ -825,6 +843,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         prevPrFilterRef.current = prFilterQuery;
         if (!(prev && !prFilterQuery && currentUser)) return;
         (async () => {
+            setPrPending(n => n + 1);
             try {
                 const token = localStorage.getItem('access_token');
                 const headers = { 'Authorization': `Bearer ${token}` };
@@ -833,6 +852,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 const res = await fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}`, { headers, cache: 'no-store' });
                 if (res.ok && myPrGen === prGenRef.current) { const d = await res.json(); setProductionRuns(d.items); setPrTotal(d.total); }
             } catch (e) { console.error('restore productionRuns error', e); }
+            finally { setPrPending(n => n - 1); }
         })();
     }, [prFilterQuery, currentUser, prPage, pageSize]);
 
@@ -1024,11 +1044,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const loading = useMemo(() => ({
         items: !loadedOnce.items, boms: !loadedOnce.boms, manufacturingOrders: !loadedOnce.manufacturingOrders,
-        productionRuns: !loadedOnce.productionRuns, stockBalance: !loadedOnce.stockBalance,
+        // Stays true while ANY PR fetch is in flight, not just before the first
+        // one lands — a superseded/late response must not uncover the empty state.
+        productionRuns: !loadedOnce.productionRuns || prPending > 0, stockBalance: !loadedOnce.stockBalance,
         stockEntries: !loadedOnce.stockEntries, salesOrders: !loadedOnce.salesOrders,
         purchaseOrders: !loadedOnce.purchaseOrders, samples: !loadedOnce.samples, auditLogs: !loadedOnce.auditLogs,
         partners: !loadedOnce.partners,
-    }), [loadedOnce]);
+    }), [loadedOnce, prPending]);
 
     const value = React.useMemo(() => ({
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
