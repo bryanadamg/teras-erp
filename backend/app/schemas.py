@@ -627,6 +627,11 @@ class PRMaterialRequirementItem(BaseModel):
     shortfall: float                       # max(0, total_required - qty_available - qty_incoming) — MATERIAL blocker
     qty_produced: float = 0.0              # good output logged by this PR's MOs producing the item
     production_shortfall: float = 0.0      # max(0, gross_required - qty_produced); 0 when nothing here produces it
+    # Single row verdict, driven by progress and escalated by material. Precedence:
+    # SHORT (material genuinely missing — nothing on hand, nothing scheduled) beats
+    # everything; then DONE (made in full) / IN_PROGRESS (still being made, covered) /
+    # SUPPLIED (not produced here — bought or drawn from stock, and covered).
+    status: str = "SUPPLIED"               # SHORT | IN_PROGRESS | DONE | SUPPLIED
     mo_contributions: list[PRMOContribution]
     supply_mos: list['BookingSupplyMO'] = []
     production_mos: list[PRProductionMO] = []

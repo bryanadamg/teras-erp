@@ -481,6 +481,21 @@ async def get_production_run_material_requirements(
         prod = production.get((item_id_str, v_key))
         produced = prod["qty_produced"] if prod else 0.0
         prod_short = max(0.0, data["gross_required"] - produced) if prod else 0.0
+
+        # One verdict per row. Material shortage outranks production progress: a red
+        # status must mean "someone has to act", never "a healthy run isn't finished
+        # yet" — otherwise every in-flight component reads as an alarm and the
+        # column stops carrying information.
+        mat_short = max(0.0, total - available - incoming)
+        if mat_short > 0:
+            status = "SHORT"
+        elif not prod:
+            status = "SUPPLIED"       # bought / drawn from stock, and covered
+        elif prod_short > 0:
+            status = "IN_PROGRESS"
+        else:
+            status = "DONE"
+
         results.append(PRMaterialRequirementItem(
             item_id=data["item_id"],
             item_code=item.code if item else str(data["item_id"]),
@@ -492,9 +507,10 @@ async def get_production_run_material_requirements(
             gross_required=data["gross_required"],
             qty_available=available,
             qty_incoming=incoming,
-            shortfall=max(0.0, total - available - incoming),
+            shortfall=mat_short,
             qty_produced=produced,
             production_shortfall=prod_short,
+            status=status,
             mo_contributions=data["mo_contributions"],
             supply_mos=sup["contributions"] if sup else [],
             production_mos=prod["mos"] if prod else [],
