@@ -75,6 +75,10 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'production-runs', label: 'Production Runs', icon: 'bi-collection-play', permission: 'production_run.view' },
             { tab: 'manufacturing-orders', label: 'Manufacturing Orders', i18nKey: 'manufacturing_orders', icon: 'bi-list-task', permission: 'manufacturing_order.view' },
             { tab: 'work-orders', label: 'Work Orders', i18nKey: 'work_orders', icon: 'bi-tools', permission: 'work_order.view' },
+            // Shop-floor dispatch list (one work-center type at a time). Sits under
+            // Work Orders because it is the same rows read by the PIC instead of
+            // the planner — see services/work_queue_service.py.
+            { tab: 'work-queue', label: 'Work Queue', icon: 'bi-list-ol', permission: 'work_order.view' },
             { tab: 'weaving-monitor', label: 'Weaving Monitor', i18nKey: 'weaving_monitor', icon: 'bi-speedometer2', permission: 'weaving_monitor.view' },
         ],
     },

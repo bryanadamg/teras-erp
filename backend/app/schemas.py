@@ -3067,3 +3067,70 @@ class QuarantineStatusUpdate(BaseModel):
     # Null clears the disposition, re-holding the lots.
     status_value_id: UUID | None = None
     notes: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Work-center dispatch queue (services/work_queue_service.py)
+# ---------------------------------------------------------------------------
+
+class WorkQueueMaterial(BaseModel):
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    required_qty: float = 0
+    staged_qty: float = 0
+    # Free pool at the moment THIS work order's turn came in the priority walk,
+    # not the raw plant total — higher-priority orders have already taken theirs.
+    on_hand_qty: float = 0
+    allocated_qty: float = 0
+    shortfall_qty: float = 0
+    is_beam: bool = False
+    # The one material that decides the row's verdict (greige, yarn, warp beam).
+    # Auxiliary chemicals are reported but never block the order.
+    is_substrate: bool = False
+    mounted_pcs: int = 0
+    required_pcs: int = 0
+    incoming_qty: float = 0
+    incoming_mo_code: str | None = None
+    incoming_eta: datetime | None = None
+
+
+class WorkQueueRow(BaseModel):
+    work_order_id: UUID
+    work_order_code: str | None = None
+    work_order_name: str | None = None
+    status: str
+    sequence: int | None = None
+    staging_status: str = 'NOT_STAGED'
+    work_center_id: UUID | None = None
+    work_center_name: str | None = None
+    work_center_type: str | None = None
+    mo_id: UUID
+    mo_code: str | None = None
+    item_code: str | None = None
+    item_name: str | None = None
+    color_name: str | None = None
+    qty: float = 0
+    target_start_date: datetime | None = None
+    # RUNNING | STAGED | READY | PARTIAL | WAITING_UPSTREAM | WAITING_PRIOR
+    # | SHORT | NO_MATERIALS
+    verdict: str
+    verdict_detail: str | None = None
+    substrate_item_code: str | None = None
+    # Beam-gated rows are counted in pieces against WorkCenter.beam_slots; every
+    # other row's substrate figures are in the item's base UOM.
+    substrate_is_beam: bool = False
+    substrate_required_qty: float = 0
+    substrate_available_qty: float = 0
+    chemical_shortfall_count: int = 0
+    materials: list[WorkQueueMaterial] = []
+
+
+class WorkQueueResponse(BaseModel):
+    items: list[WorkQueueRow]
+    total: int
+    page: int
+    size: int
+    # Row count per verdict across the WHOLE queue, not the current page — the
+    # tab badges ("3 ready, 2 short") must not change when the PIC pages.
+    counts: dict[str, int] = {}
