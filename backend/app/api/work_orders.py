@@ -28,7 +28,7 @@ from app.api.batches import (
 )
 from app.services import (
     audit_service, stock_service, beam_service, work_center_service, reject_service,
-    weaving_service,
+    weaving_service, numbering_service,
 )
 from app.core.ws_manager import manager
 from datetime import datetime
@@ -112,6 +112,29 @@ async def _wc_type(db: AsyncSession, work_center_id) -> str | None:
     res = await db.execute(select(WorkCenter.center_type).filter(WorkCenter.id == work_center_id))
     return res.scalar()
 
+async def next_wo_code(db: AsyncSession, mo: ManufacturingOrder) -> tuple[int, str]:
+    """Allocate the next `{MO code}-WO-NN` off this MO's number range, as (n, code).
+
+    Was `count(WOs on this MO) + 1`, which two operators dispatching the same MO at
+    the same moment both read — and `work_orders.code` carries no unique constraint,
+    so the duplicate landed silently and two Kartu Kerja went to the floor with the
+    same number. The range row serializes the allocation instead."""
+    async def _seed() -> int:
+        return int((await db.execute(
+            select(func.count()).select_from(WorkOrder)
+            .where(WorkOrder.manufacturing_order_id == mo.id)
+        )).scalar() or 0)
+
+    async def _taken(code: str) -> bool:
+        return (await db.execute(
+            select(WorkOrder.id).filter(WorkOrder.code == code).limit(1)
+        )).scalars().first() is not None
+
+    return await numbering_service.allocate_code(
+        db, f"WO:{mo.id}", lambda n: f"{mo.code}-WO-{n:02d}", seed=_seed, exists=_taken,
+    )
+
+
 def _require_wo_scope(current_user: User, center_type: str | None):
     if not wo_scope_ok(current_user, center_type):
         raise HTTPException(status_code=403, detail=f"Your role is not scoped to work center type '{center_type}'")
@@ -134,13 +157,7 @@ async def create_work_order(
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
-    # Count existing WOs for this MO to derive scoped sequence number
-    count_result = await db.execute(
-        select(func.count()).select_from(WorkOrder)
-        .where(WorkOrder.manufacturing_order_id == payload.manufacturing_order_id)
-    )
-    wo_seq_num = (count_result.scalar() or 0) + 1
-    wo_code = f"{mo.code}-WO-{wo_seq_num:02d}"
+    wo_seq_num, wo_code = await next_wo_code(db, mo)
 
     # Load work center and check for DYEING gate
     wc = None
@@ -462,12 +479,6 @@ async def create_work_orders_bulk(
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
-    count_result = await db.execute(
-        select(func.count()).select_from(WorkOrder)
-        .where(WorkOrder.manufacturing_order_id == mo_id)
-    )
-    existing_count = count_result.scalar() or 0
-
     wc_ids = {p.work_center_id for p in payloads if p.work_center_id}
     wc_cache: dict = {}
     wc_loc_map = await work_center_service.location_map(db) if wc_ids else {}
@@ -480,9 +491,8 @@ async def create_work_orders_bulk(
         _require_wo_scope(current_user, wc_cache[wc_id].center_type if wc_id in wc_cache else None)
 
     created_wos = []
-    for i, payload in enumerate(payloads):
-        seq_num = existing_count + i + 1
-        wo_code = f"{mo.code}-WO-{seq_num:02d}"
+    for payload in payloads:
+        seq_num, wo_code = await next_wo_code(db, mo)
         wc = wc_cache.get(payload.work_center_id) if payload.work_center_id else None
 
         planned_recipe_id = None

@@ -15,7 +15,7 @@ from app.schemas import (
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
-from app.services import audit_service, kpi_service
+from app.services import audit_service, kpi_service, numbering_service
 from app.core.ws_manager import manager
 from datetime import datetime, date, time, timedelta
 from pathlib import Path
@@ -98,9 +98,28 @@ async def create_sample_request(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('sample_request.create')),
 ):
-    count_result = await db.execute(select(func.count()).select_from(SampleRequest))
-    count = count_result.scalar_one()
-    code = f"SMP-{datetime.now().year}-{str(count + 1).zfill(5)}"
+    # Per-year book off a number range. count(*)+1 raced two concurrent creates onto
+    # one code, and counted deleted rows out of existence — so deleting any request
+    # made the next create reuse a number that a live row already held.
+    year = datetime.now().year
+
+    async def _seed() -> int:
+        last = (await db.execute(
+            select(func.max(SampleRequest.code)).filter(SampleRequest.code.like(f"SMP-{year}-%"))
+        )).scalar()
+        try:
+            return int(last.rsplit("-", 1)[1]) if last else 0
+        except (ValueError, IndexError):
+            return 0
+
+    async def _taken(code: str) -> bool:
+        return (await db.execute(
+            select(SampleRequest.id).filter(SampleRequest.code == code).limit(1)
+        )).scalars().first() is not None
+
+    _, code = await numbering_service.allocate_code(
+        db, f"SAMPLE_REQUEST:{year}", lambda n: f"SMP-{year}-{n:05d}", seed=_seed, exists=_taken,
+    )
 
     req_date = date.fromisoformat(payload.request_date) if payload.request_date else date.today()
     est_date = date.fromisoformat(payload.estimated_completion_date) if payload.estimated_completion_date else None

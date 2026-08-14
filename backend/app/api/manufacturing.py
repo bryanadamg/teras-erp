@@ -38,6 +38,7 @@ from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
 from app.api.batches import generate_batch_number
+from app.api.work_orders import next_wo_code
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
@@ -282,15 +283,12 @@ async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, 
     Returns list of created WorkOrder objects (after flush so IDs are populated)."""
     if not operations:
         return []
-    count_result = await db.execute(
-        select(func.count()).select_from(WorkOrderModel)
-        .where(WorkOrderModel.manufacturing_order_id == mo.id)
-    )
-    offset = count_result.scalar() or 0
     sorted_ops = sorted(operations, key=lambda o: int(o.sequence))
     created = []
-    for i, op in enumerate(sorted_ops, start=1):
-        code = f"{mo.code}-WO-{offset + i:02d}"
+    for op in sorted_ops:
+        # Same allocator the manual WO endpoints use — a count-based sequence here
+        # would race any concurrent dispatch on this MO.
+        _, code = await next_wo_code(db, mo)
         name = op.work_center.name if (op.work_center is not None) else code
         wo = WorkOrderModel(
             manufacturing_order_id=mo.id,

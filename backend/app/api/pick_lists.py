@@ -18,6 +18,7 @@ from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import (
     audit_service, kpi_service, stock_service, packing_service, so_fulfilment_service,
+    numbering_service,
 )
 from app.core.ws_manager import manager
 
@@ -59,17 +60,30 @@ def _decorate(pl: PickList) -> PickList:
 
 
 async def _next_code(db: AsyncSession) -> str:
-    result = await db.execute(select(func.max(PickList.code)))
-    last = result.scalar()
-    n = 1
-    # Legacy rows carry the old PK- prefix from when this table was packing_orders;
-    # accept either so numbering continues instead of restarting at 1.
-    if last and last[:3] in ("PL-", "PK-"):
-        try:
-            n = int(last.split("-", 1)[1]) + 1
-        except (ValueError, IndexError):
-            n = 1
-    return f"PL-{n:05d}"
+    """Next `PL-NNNNN` off the pick-list number range.
+
+    max(code)+1 raced two concurrent creates onto the same code. Seeded once from
+    the highest existing number — legacy rows carry the old `PK-` prefix from when
+    this table was packing_orders, so both are read or numbering would restart at 1
+    and collide."""
+    async def _seed() -> int:
+        last = (await db.execute(select(func.max(PickList.code)))).scalar()
+        if last and last[:3] in ("PL-", "PK-"):
+            try:
+                return int(last.split("-", 1)[1])
+            except (ValueError, IndexError):
+                return 0
+        return 0
+
+    async def _taken(code: str) -> bool:
+        return (await db.execute(
+            select(PickList.id).filter(PickList.code == code).limit(1)
+        )).scalars().first() is not None
+
+    _, code = await numbering_service.allocate_code(
+        db, "PICK_LIST", lambda n: f"PL-{n:05d}", seed=_seed, exists=_taken,
+    )
+    return code
 
 
 async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder, exclude_pl_id=None) -> dict:

@@ -26,7 +26,7 @@ from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import (
     audit_service, kpi_service, stock_service, packing_service, so_fulfilment_service,
-    reject_service, quarantine_service,
+    reject_service, quarantine_service, numbering_service,
 )
 from app.core.ws_manager import manager
 
@@ -124,15 +124,29 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
 
 
 async def _next_code(db: AsyncSession) -> str:
-    result = await db.execute(select(func.max(PackingOrder.code)))
-    last = result.scalar()
-    n = 1
-    if last and last.startswith("PCK-"):
-        try:
-            n = int(last.split("-", 1)[1]) + 1
-        except (ValueError, IndexError):
-            n = 1
-    return f"PCK-{n:05d}"
+    """Next `PCK-NNNNN` off the packing-order number range.
+
+    max(code)+1 raced: two packers creating orders at once read the same maximum
+    and minted the same code. The range row serializes the allocation; the seed
+    below only runs once, to continue from codes that predate it."""
+    async def _seed() -> int:
+        last = (await db.execute(select(func.max(PackingOrder.code)))).scalar()
+        if last and last.startswith("PCK-"):
+            try:
+                return int(last.split("-", 1)[1])
+            except (ValueError, IndexError):
+                return 0
+        return 0
+
+    async def _taken(code: str) -> bool:
+        return (await db.execute(
+            select(PackingOrder.id).filter(PackingOrder.code == code).limit(1)
+        )).scalars().first() is not None
+
+    _, code = await numbering_service.allocate_code(
+        db, "PACKING_ORDER", lambda n: f"PCK-{n:05d}", seed=_seed, exists=_taken,
+    )
+    return code
 
 
 async def _set_attributes(db: AsyncSession, po: PackingOrder, ids: list) -> None:

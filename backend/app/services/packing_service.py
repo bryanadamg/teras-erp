@@ -18,7 +18,7 @@ from app.models.batch import Batch, BatchConsumption
 from app.models.packing import PackingOrder, PackingCompletion
 from app.models.pick_list import PickList, PickListLine
 from app.models.stock_balance import StockBalance
-from app.services import stock_service
+from app.services import stock_service, numbering_service
 from app.services.stock_service import _generate_variant_key
 from app.api.batches import generate_batch_number
 
@@ -107,11 +107,18 @@ async def resolve_bulk_variant(db: AsyncSession, po: PackingOrder) -> tuple[list
 
 
 async def _next_package_no(db: AsyncSession, packing_order_id) -> int:
-    """Carton numbering continues across the whole packing order, not per event."""
-    result = await db.execute(
-        select(func.max(Batch.package_no)).filter(Batch.packing_order_id == packing_order_id)
-    )
-    return int(result.scalar() or 0) + 1
+    """Carton numbering continues across the whole packing order, not per event.
+
+    Allocated off a per-order number range. max(package_no)+1 raced: two packers
+    scanning the same Kartu Packing at once both read the same maximum, and
+    `package_no` has no unique constraint — so two cartons went out with the same
+    number on their labels and the pick list could not tell them apart."""
+    async def _seed() -> int:
+        return int((await db.execute(
+            select(func.max(Batch.package_no)).filter(Batch.packing_order_id == packing_order_id)
+        )).scalar() or 0)
+
+    return await numbering_service.allocate(db, f"PACKED_UNIT:{packing_order_id}", seed=_seed)
 
 
 async def mint_packed_units(
@@ -137,16 +144,17 @@ async def mint_packed_units(
         raise ValueError("Packing order has no source location")
 
     qtys = split_qty(qty, package_count)
-    next_no = await _next_package_no(db, po.id)
     units: list[Batch] = []
 
-    for offset, carton_qty in enumerate(qtys):
+    for carton_qty in qtys:
         pu = Batch(
             batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
             item_id=po.item_id,
             packing_order_id=po.id,
             packing_completion_id=completion.id,
-            package_no=next_no + offset,
+            # Allocated per carton, not as a pre-reserved block: a block computed
+            # up front overlaps a completion posted concurrently on the same order.
+            package_no=await _next_package_no(db, po.id),
             package_label=po.package_label or "Carton",
             # Soft tag only — a carton packed for an SO stays pickable by any
             # pick list. See the design note on models/packing.py.

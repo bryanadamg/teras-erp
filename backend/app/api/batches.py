@@ -20,7 +20,7 @@ from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchDispose, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service, stock_service, reject_service
+from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service
 from app.core.ws_manager import manager
 from datetime import datetime, timezone
 import uuid
@@ -179,19 +179,61 @@ def _build_batch_number(date_str: str, counter: int) -> str:
 
 
 async def generate_batch_number(db: AsyncSession, prefix: str = "BAT") -> str:
-    """Next unique batch number for today: <prefix>-YYYYMMDD-NNNN."""
+    """Next unique batch number for today: <prefix>-YYYYMMDD-NNNN.
+
+    Allocated off a per-prefix-per-day number range. Counting today's rows and
+    probing raced: two operators completing work orders in the same second both
+    read the same count, and `batch_number` is unique — so the loser's whole
+    completion (stock postings included) rolled back."""
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     full_prefix = f"{prefix}-{today}-"
-    count_result = await db.execute(
-        select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{full_prefix}%"))
+
+    async def _seed() -> int:
+        return int((await db.execute(
+            select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{full_prefix}%"))
+        )).scalar() or 0)
+
+    async def _taken(code: str) -> bool:
+        return (await db.execute(
+            select(Batch.id).filter(Batch.batch_number == code).limit(1)
+        )).scalars().first() is not None
+
+    _, code = await numbering_service.allocate_code(
+        db, f"BATCH:{full_prefix}", lambda n: f"{full_prefix}{n:04d}", seed=_seed, exists=_taken,
     )
-    n = (count_result.scalar() or 0) + 1
-    while True:
-        candidate = f"{full_prefix}{str(n).zfill(4)}"
-        check = await db.execute(select(Batch.id).filter(Batch.batch_number == candidate).limit(1))
-        if check.scalars().first() is None:
-            return candidate
-        n += 1
+    return code
+
+
+# Batch.batch_number is String(64) and child lots suffix their parent (`-S1`, `-R2`),
+# so a split of a split of a split can outgrow the column. Reserve room for the
+# suffix and clamp the parent portion instead of trusting the nesting depth.
+_LOT_NUMBER_MAX_LEN = 64
+_LOT_SUFFIX_RESERVE = 6
+
+
+async def _child_lot_number(db: AsyncSession, parent: Batch, kind: str) -> str:
+    """Next `<parent>-S<n>` / `<parent>-R<n>` sub-lot number for a split or a partial
+    QC reject.
+
+    Counting the parent's existing children and adding one raced two splits of the
+    same lot onto one number, and `batch_number` is unique — so one of the two split
+    postings rolled back. One range per (parent, kind)."""
+    stem = (parent.batch_number or "")[:_LOT_NUMBER_MAX_LEN - _LOT_SUFFIX_RESERVE]
+
+    async def _seed() -> int:
+        return int((await db.execute(
+            select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{stem}-{kind}%"))
+        )).scalar() or 0)
+
+    async def _taken(code: str) -> bool:
+        return (await db.execute(
+            select(Batch.id).filter(Batch.batch_number == code).limit(1)
+        )).scalars().first() is not None
+
+    _, code = await numbering_service.allocate_code(
+        db, f"LOT_CHILD:{kind}:{parent.id}", lambda n: f"{stem}-{kind}{n}", seed=_seed, exists=_taken,
+    )
+    return code
 
 
 @router.post("", response_model=BatchResponse)
@@ -550,12 +592,9 @@ async def split_batch(
     if qty >= remaining - 1e-9:
         raise HTTPException(status_code=400, detail=f"Split qty {qty:g} must be less than remaining {remaining:g}")
 
-    seq = (await db.execute(
-        select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{batch.batch_number}-S%"))
-    )).scalar() or 0
     reason = (payload.reason or "").strip() or None
     sub = Batch(
-        batch_number=f"{batch.batch_number}-S{seq + 1}",
+        batch_number=await _child_lot_number(db, batch, "S"),
         item_id=batch.item_id,
         quality_status="GOOD",
         source_wo_id=batch.source_wo_id,
@@ -657,11 +696,8 @@ async def reject_batch(
     if partial:
         # Split: move reject_qty into a new REJECTED sub-lot (same item/location/
         # variant), leaving the original lot GOOD/active for the good remainder.
-        seq = (await db.execute(
-            select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{batch.batch_number}-R%"))
-        )).scalar() or 0
         sub = Batch(
-            batch_number=f"{batch.batch_number}-R{seq + 1}",
+            batch_number=await _child_lot_number(db, batch, "R"),
             item_id=batch.item_id,
             quality_status=grade,
             source_wo_id=batch.source_wo_id,

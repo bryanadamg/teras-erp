@@ -11,7 +11,7 @@ from app.models.bom import BOM, BOMLine, BOMOperation, BOMSize
 from app.models.item import Item
 from app.models.attribute import Attribute, AttributeValue
 from app.models.manufacturing import ManufacturingOrder, MODependency, MOPlannedComponent
-from app.services import beam_service
+from app.services import beam_service, numbering_service
 
 # ManufacturingOrder.code is String(128). MO codes are composed (from a PR code and
 # line, or from the item name), never sequential, so every minting site clamps
@@ -189,14 +189,23 @@ async def create_mo_recursive(
     # "MO-" + name + "-00000" must fit MO.code or the INSERT dies with
     # StringDataRightTruncation and takes the whole MRP explosion with it.
     base = f"MO-{safe_name[:MO_CODE_MAX_LEN - len('MO-') - len('-00000')]}"
-    counter = 1
-    while True:
-        candidate = f"{base}-{str(counter).zfill(5)}"
-        existing = await db.execute(select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1))
-        if existing.scalars().first() is None:
-            mo_code = candidate
-            break
-        counter += 1
+
+    async def _seed() -> int:
+        """Highest number already issued under this base, for installs whose codes
+        predate the number range. Runs once per series, not per MO."""
+        codes = (await db.execute(
+            select(ManufacturingOrder.code).filter(ManufacturingOrder.code.like(f"{base}-%"))
+        )).scalars().all()
+        return max((int(m.group(1)) for m in (re.fullmatch(rf"{re.escape(base)}-(\d+)", c or "") for c in codes) if m), default=0)
+
+    async def _taken(code: str) -> bool:
+        return (await db.execute(
+            select(ManufacturingOrder.id).filter(ManufacturingOrder.code == code).limit(1)
+        )).scalars().first() is not None
+
+    _, mo_code = await numbering_service.allocate_code(
+        db, f"MO:{base}", lambda n: f"{base}-{n:05d}", seed=_seed, exists=_taken,
+    )
 
     # 3. Create this MO (bom_size_id only applies to the root MO, not sub-assemblies)
     mo = ManufacturingOrder(
