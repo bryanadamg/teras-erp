@@ -80,6 +80,11 @@ VERDICT_WAITING_UPSTREAM = "WAITING_UPSTREAM"
 VERDICT_WAITING_PRIOR = "WAITING_PRIOR"
 VERDICT_SHORT = "SHORT"
 VERDICT_NO_MATERIALS = "NO_MATERIALS"
+# The order exists and its material may well be ready, but nobody has cut a work
+# order for it, so no operator can start it and it appears on no floor list. On a
+# WO-grain queue these orders are simply invisible — which is the failure this
+# closes: greige lands, the ticket is never written, the order sits.
+VERDICT_NOT_RELEASED = "NOT_RELEASED"
 
 # Sort weight for the queue: the actionable rows float to the top of their date
 # band, blocked ones sink. Within a weight, scheduled date decides.
@@ -92,9 +97,17 @@ _VERDICT_WEIGHT = {
     VERDICT_SHORT: 5,
     VERDICT_WAITING_PRIOR: 6,
     VERDICT_NO_MATERIALS: 7,
+    # Below the dispatched work: a released order that is ready outranks an order
+    # that still needs a ticket written, even when both have material.
+    VERDICT_NOT_RELEASED: 8,
 }
 
 _FAR_FUTURE = datetime(9999, 12, 31)
+
+# Where a row's priority date came from, most authoritative first. Reported per row
+# so the PIC can tell a real plan date from a stand-in: `created` means nobody ever
+# scheduled the order and the queue is falling back to order-entry sequence (FIFO).
+DATE_SOURCES = ("wo_start", "wo_end", "mo_start", "mo_end", "so_due", "created")
 
 
 def center_type_ids_query(center_type: str):
@@ -174,12 +187,12 @@ def _step_components(wo: WorkOrder, mo: ManufacturingOrder, wc_type: str,
     return [c for c in comps if not c.bom_operation_id]
 
 
-def _required_qty(wo: WorkOrder, mo: ManufacturingOrder, c: MOPlannedComponent) -> float:
+def _required_qty(wo: Optional[WorkOrder], mo: ManufacturingOrder, c: MOPlannedComponent) -> float:
     """Requirement for this WO's run size. Mirrors _wo_required_rows exactly —
     percentage-of-output first, else qty-per-unit. No BOM input tolerance: the
     staging screen does not apply it either, and a queue that promises more than
     staging demands would read READY on an order staging then refuses."""
-    wo_qty = float(wo.qty or mo.qty or 0)
+    wo_qty = float((wo.qty if wo is not None else None) or mo.qty or 0)
     if c.percentage:
         return (wo_qty * float(c.percentage)) / 100
     if c.qty:
@@ -316,6 +329,139 @@ async def _prior_ops_open(db: AsyncSession, wos: list[WorkOrder]) -> dict[str, s
     return out
 
 
+async def _so_due_dates(db: AsyncSession, mos: list) -> dict[str, datetime]:
+    """mo_id -> earliest customer due date behind that order.
+
+    The due date lives on SalesOrderLine, not the header, and an MO reaches its SO
+    either directly or through its Production Run — so both paths are resolved and
+    the earliest line date wins (the order is late the moment its first line is)."""
+    from app.models.sales import SalesOrderLine
+    from app.models.production_run import ProductionRun
+
+    pr_ids = {m.production_run_id for m in mos if m.production_run_id and not m.sales_order_id}
+    pr_to_so: dict[str, uuid.UUID] = {}
+    if pr_ids:
+        rows = await db.execute(
+            select(ProductionRun.id, ProductionRun.sales_order_id)
+            .where(ProductionRun.id.in_(list(pr_ids)), ProductionRun.sales_order_id.is_not(None))
+        )
+        pr_to_so = {str(p): s for p, s in rows.all()}
+
+    mo_to_so: dict[str, uuid.UUID] = {}
+    for m in mos:
+        so = m.sales_order_id or pr_to_so.get(str(m.production_run_id))
+        if so:
+            mo_to_so[str(m.id)] = so
+    if not mo_to_so:
+        return {}
+
+    rows = await db.execute(
+        select(SalesOrderLine.sales_order_id, func.min(SalesOrderLine.due_date))
+        .where(
+            SalesOrderLine.sales_order_id.in_(set(mo_to_so.values())),
+            SalesOrderLine.due_date.is_not(None),
+        )
+        .group_by(SalesOrderLine.sales_order_id)
+    )
+    by_so = {str(s): d for s, d in rows.all()}
+    return {mo_id: by_so[str(so)] for mo_id, so in mo_to_so.items() if str(so) in by_so}
+
+
+def _priority_date(wo: Optional[WorkOrder], mo: ManufacturingOrder,
+                   so_due: dict[str, datetime]) -> tuple[datetime, str]:
+    """The date this row is queued on, and where it came from.
+
+    Falls back down the planning chain rather than dropping undated rows to the
+    bottom: on real data most work orders carry no target date, and a queue that
+    parks 100+ of them in one undifferentiated tail is not a schedule. The last
+    resort is the order's creation time — FIFO by order entry, which is at least a
+    defensible rule, unlike alphabetical-by-code."""
+    if wo is not None and wo.target_start_date:
+        return wo.target_start_date, "wo_start"
+    if wo is not None and wo.target_end_date:
+        return wo.target_end_date, "wo_end"
+    if mo.target_start_date:
+        return mo.target_start_date, "mo_start"
+    if mo.target_end_date:
+        return mo.target_end_date, "mo_end"
+    due = so_due.get(str(mo.id))
+    if due:
+        return due, "so_due"
+    return mo.created_at or _FAR_FUTURE, "created"
+
+
+async def _load_unreleased_mos(db: AsyncSession) -> list[ManufacturingOrder]:
+    """Open MOs that have no work order at all.
+
+    These are invisible to a WO-grain queue, which is the hole this closes: on real
+    data most open production has not been dispatched yet, so a Dyeing PIC watching
+    only work orders never learns that an order is sitting there with its greige
+    ready and nobody has cut the ticket."""
+    no_wo = ~select(WorkOrder.id).where(
+        WorkOrder.manufacturing_order_id == ManufacturingOrder.id
+    ).exists()
+    stmt = (
+        select(ManufacturingOrder)
+        .where(ManufacturingOrder.status.in_(QUEUE_STATUSES), no_wo)
+        .options(
+            joinedload(ManufacturingOrder.item),
+            joinedload(ManufacturingOrder.color),
+            selectinload(ManufacturingOrder.planned_components).joinedload(MOPlannedComponent.item),
+        )
+    )
+    return list((await db.execute(stmt)).unique().scalars().all())
+
+
+async def _bom_next_center_type(db: AsyncSession, mos: list) -> dict[str, str]:
+    """bom_id -> center type of the FIRST routing step, when the BOM has routing.
+
+    The precise answer to "which operation comes next" lives in BOMOperation. It is
+    unpopulated on this install (zero rows), so this returns nothing today and the
+    heuristic below takes over — but the moment routing is entered, the exact answer
+    wins automatically and the guess stops being used."""
+    bom_ids = {m.bom_id for m in mos if m.bom_id}
+    if not bom_ids:
+        return {}
+    rows = await db.execute(
+        select(BOMOperation.bom_id, BOMOperation.sequence, WorkCenter.center_type)
+        .join(WorkCenter, BOMOperation.work_center_id == WorkCenter.id)
+        .where(BOMOperation.bom_id.in_(list(bom_ids)))
+        .order_by(BOMOperation.bom_id, BOMOperation.sequence)
+    )
+    out: dict[str, str] = {}
+    for bom_id, _seq, ct in rows.all():
+        out.setdefault(str(bom_id), (ct or "").upper())
+    return out
+
+
+def _release_hint(mo: ManufacturingOrder, routing: dict[str, str], beam_ids: set[str]) -> tuple[str, str]:
+    """(center type this unreleased order most likely needs next, how we know).
+
+    Only evidence that survives contact with real data is used:
+
+    - ``routing`` — read from BOMOperation. A fact. Wins outright.
+    - ``colour``  — ``MO.color_id`` is set, i.e. someone deliberately assigned a
+      shade to this order, so it must pass through dyeing.
+    - ``beam``    — the output is a warp beam by ``beam_service``'s definition.
+
+    ``Item.variant_type == 'color'`` is deliberately NOT used, though it looks
+    tempting: on this install it is set on greige and beam items as well as finished
+    goods (ITM-21 GRIGE, BEAM A ITM-21), so it would drop warping and weaving orders
+    into the dyeing queue. A PIC tab that is wrong is worse than one that is short.
+
+    ``unknown`` means we genuinely cannot say. Those rows appear ONLY in the
+    unfiltered queue, never inside a work centre's tab — the queue does not guess
+    which floor an order belongs to."""
+    ct = routing.get(str(mo.bom_id))
+    if ct:
+        return ct, "routing"
+    if mo.color_id:
+        return "DYEING", "colour"
+    if mo.item and str(mo.item.id) in beam_ids:
+        return "BEAMING", "beam"
+    return "", "unknown"
+
+
 async def _beam_readiness(db: AsyncSession, wcs: set, item_ids: set) -> dict[tuple[str, str], tuple[int, float]]:
     """(work_center_id, item_id) -> (mounted pcs, mounted kg) for open mounts.
 
@@ -354,24 +500,42 @@ async def build_queue(
     center_type: str = "",
     work_center_id: str = "",
     search: str = "",
-) -> list[dict]:
-    """The dispatch list. Returns plain dicts (serialized by WorkQueueRow)."""
+    sort: str = "date",
+    include_unreleased: bool = True,
+    now: Optional[datetime] = None,
+) -> tuple[list[dict], list[dict]]:
+    """(dispatch rows, gating-material summary). Plain dicts, serialized upstream."""
+    now = now or datetime.utcnow()
     wos = await _load_work_orders(db, center_type, work_center_id)
-    if not wos:
-        return []
+    # Orders nobody has dispatched yet. Skipped when the caller narrowed to one
+    # machine: unreleased work is not assigned to a machine, so it cannot honestly
+    # answer a per-machine question.
+    unreleased = [] if (work_center_id or not include_unreleased) else await _load_unreleased_mos(db)
+    if not wos and not unreleased:
+        return [], []
 
     # --- bulk prefetch -----------------------------------------------------
     wc_types = {
         str(w.work_center_id): (w.work_center.center_type or "")
         for w in wos if w.work_center_id and w.work_center
     }
-    all_comps = [c for w in wos for c in (w.manufacturing_order.planned_components or [])]
+    all_mos = [w.manufacturing_order for w in wos] + unreleased
+    all_comps = [c for m in all_mos for c in (m.planned_components or [])]
     op_types = await _op_center_types(db, {c.bom_operation_id for c in all_comps if c.bom_operation_id})
-    beam_ids = await beam_service.beam_item_ids(db, [c.item_id for c in all_comps])
+    beam_ids = await beam_service.beam_item_ids(
+        db, [c.item_id for c in all_comps] + [m.item_id for m in unreleased]
+    )
+
+    routing = await _bom_next_center_type(db, unreleased)
+    if unreleased and center_type:
+        want = set(CENTER_TYPE_ALIASES.get(center_type.upper(), [center_type.upper()]))
+        unreleased = [m for m in unreleased if _release_hint(m, routing, beam_ids)[0] in want]
+        all_mos = [w.manufacturing_order for w in wos] + unreleased
 
     staged = await _staged_by_wo(db, wos)
     prior_blockers = await _prior_ops_open(db, wos)
-    pegged = await _pegged_supply(db, [w.manufacturing_order_id for w in wos])
+    pegged = await _pegged_supply(db, [m.id for m in all_mos])
+    so_due = await _so_due_dates(db, all_mos)
 
     # --- resolve each WO's step materials ----------------------------------
     resolved: list[dict] = []
@@ -391,11 +555,41 @@ async def build_queue(
                 "is_beam": str(c.item_id) in beam_ids,
                 "staged": staged.get((str(w.id), str(c.item_id)), 0.0),
             })
-        resolved.append({"wo": w, "mo": mo, "wc_type": wc_type, "mats": mats})
+        pdate, psource = _priority_date(w, mo, so_due)
+        resolved.append({
+            "wo": w, "mo": mo, "wc_type": wc_type, "mats": mats,
+            "priority_date": pdate, "date_source": psource,
+            "released": True, "hint_source": "",
+        })
+
+    # Unreleased orders enter the SAME list, so they compete for stock in date order
+    # alongside dispatched work. Leaving them out would let a released order read
+    # READY against greige an earlier, undispatched order is already entitled to.
+    for mo in unreleased:
+        hint_ct, hint_src = _release_hint(mo, routing, beam_ids)
+        mats = []
+        # No routing step to filter by, so the whole BOM snapshot is the requirement.
+        for c in (mo.planned_components or []):
+            req = _required_qty(None, mo, c)
+            if req <= 0:
+                continue
+            mats.append({
+                "comp": c,
+                "required": req,
+                "variant_key": _generate_variant_key(list(c.attribute_value_ids or [])),
+                "is_beam": str(c.item_id) in beam_ids,
+                "staged": 0.0,   # nothing can be staged without a WO to stage it to
+            })
+        pdate, psource = _priority_date(None, mo, so_due)
+        resolved.append({
+            "wo": None, "mo": mo, "wc_type": hint_ct, "mats": mats,
+            "priority_date": pdate, "date_source": psource,
+            "released": False, "hint_source": hint_src,
+        })
 
     beam_state = await _beam_readiness(
         db,
-        {r["wo"].work_center_id for r in resolved if r["wo"].work_center_id},
+        {r["wo"].work_center_id for r in resolved if r["wo"] is not None and r["wo"].work_center_id},
         {m["comp"].item_id for r in resolved for m in r["mats"] if m["is_beam"]},
     )
     pool = await _on_hand_pool(
@@ -413,11 +607,14 @@ async def build_queue(
             key = (str(m["comp"].item_id), m["variant_key"])
             pool[key] = max(0.0, pool.get(key, 0.0) - m["staged"])
 
-    # --- pass 1: allocate in priority order --------------------------------
+    # --- pass 1: allocate in scheduled order -------------------------------
+    # This order decides who gets scarce stock, so it is ALWAYS by date — the
+    # display sort below may differ, but stock is never allocated by readiness
+    # (that would be circular: ready because it allocated, allocated because ready).
     resolved.sort(key=lambda r: (
-        r["wo"].target_start_date or r["mo"].target_start_date or _FAR_FUTURE,
-        int(r["wo"].sequence or 0),
-        r["wo"].code or "",
+        r["priority_date"] or _FAR_FUTURE,
+        int((r["wo"].sequence if r["wo"] is not None else 0) or 0),
+        (r["wo"].code if r["wo"] is not None else r["mo"].code) or "",
     ))
 
     # Beam readiness has to be known BEFORE the substrate is picked: a loom fed by
@@ -426,13 +623,20 @@ async def build_queue(
     for r in resolved:
         for m in r["mats"]:
             if m["is_beam"]:
+                wc_id = r["wo"].work_center_id if r["wo"] is not None else None
                 m["mounted_pcs"] = beam_state.get(
-                    (str(r["wo"].work_center_id), str(m["comp"].item_id)), (0, 0.0)
-                )[0]
+                    (str(wc_id), str(m["comp"].item_id)), (0, 0.0)
+                )[0] if wc_id else 0
 
     rows: list[dict] = []
     for r in resolved:
         w, mo, mats = r["wo"], r["mo"], r["mats"]
+        released = r["released"]
+        # An unreleased order has no work centre, so it has no beam slots and no
+        # staging; everything WO-shaped below reads through these guards.
+        wc = w.work_center if w is not None else None
+        slots = max(1, int((wc.beam_slots if wc else 1) or 1))
+        wc_id = w.work_center_id if w is not None else None
         substrate = _pick_substrate(mats)
         materials_out = []
         allocated_map: dict[str, float] = {}
@@ -441,7 +645,7 @@ async def build_queue(
             c = m["comp"]
             gates = substrate is not None and m is substrate
             if m["is_beam"]:
-                pcs, kg = beam_state.get((str(w.work_center_id), str(c.item_id)), (0, 0.0))
+                pcs, kg = beam_state.get((str(wc_id), str(c.item_id)), (0, 0.0)) if wc_id else (0, 0.0)
                 materials_out.append({
                     "item_id": c.item_id,
                     "item_code": c.item.code if c.item else None,
@@ -450,7 +654,7 @@ async def build_queue(
                     "on_hand_qty": kg, "allocated_qty": kg, "shortfall_qty": 0.0,
                     "is_beam": True, "is_substrate": gates,
                     "mounted_pcs": pcs,
-                    "required_pcs": max(1, int((w.work_center.beam_slots if w.work_center else 1) or 1)),
+                    "required_pcs": slots,
                     "incoming_qty": 0.0, "incoming_mo_code": None, "incoming_eta": None,
                 })
                 continue
@@ -480,28 +684,45 @@ async def build_queue(
                 "incoming_eta": peg.get("eta"),
             })
 
-        verdict, detail = _verdict(w, substrate, materials_out, prior_blockers.get(str(w.id)))
+        if released:
+            verdict, detail = _verdict(w, substrate, materials_out, prior_blockers.get(str(w.id)))
+        else:
+            verdict, detail = _unreleased_verdict(substrate, materials_out, r["hint_source"])
         chem_short = [
             m for m in materials_out
             if not m["is_substrate"] and not m["is_beam"] and m["shortfall_qty"] > EPS
         ]
         rows.append({
-            "work_order_id": w.id,
-            "work_order_code": w.code,
-            "work_order_name": w.name,
-            "status": w.status,
-            "sequence": w.sequence,
-            "staging_status": w.staging_status or "NOT_STAGED",
-            "work_center_id": w.work_center_id,
-            "work_center_name": w.work_center.name if w.work_center else None,
+            "work_order_id": w.id if w is not None else None,
+            "work_order_code": w.code if w is not None else None,
+            "work_order_name": w.name if w is not None else None,
+            "status": w.status if w is not None else mo.status,
+            "sequence": w.sequence if w is not None else None,
+            "staging_status": (w.staging_status or "NOT_STAGED") if w is not None else "NOT_STAGED",
+            "is_released": released,
+            # How the centre type was decided for an unreleased row: routing (a fact
+            # from the BOM) vs colour/beam (inferred from the order's own output) vs
+            # unknown. Blank on released rows — their work centre is not a guess.
+            "release_hint_source": r["hint_source"],
+            "work_center_id": wc_id,
+            "work_center_name": wc.name if wc else None,
             "work_center_type": r["wc_type"],
             "mo_id": mo.id,
             "mo_code": mo.code,
             "item_code": mo.item.code if mo.item else None,
             "item_name": mo.item.name if mo.item else None,
             "color_name": mo.color.name if mo.color else None,
-            "qty": float(w.qty or mo.qty or 0),
-            "target_start_date": w.target_start_date or mo.target_start_date,
+            "qty": float((w.qty if w is not None else None) or mo.qty or 0),
+            "target_start_date": (w.target_start_date if w is not None else None) or mo.target_start_date,
+            "priority_date": r["priority_date"],
+            "date_source": r["date_source"],
+            # Only a real planned date can be late. `created` is a stand-in for a
+            # missing schedule, so flagging it overdue would paint the whole queue red.
+            "is_overdue": bool(
+                r["date_source"] != "created"
+                and r["priority_date"] and r["priority_date"] < now
+                and (w.status if w is not None else mo.status) != "IN_PROGRESS"
+            ),
             "verdict": verdict,
             "verdict_detail": detail,
             "substrate_item_code": (substrate and substrate["comp"].item and substrate["comp"].item.code) or None,
@@ -510,7 +731,7 @@ async def build_queue(
             # shortfall on a fully-warped loom.
             "substrate_is_beam": bool(substrate and substrate["is_beam"]),
             "substrate_required_qty": (
-                float(max(1, int((w.work_center.beam_slots if w.work_center else 1) or 1)))
+                float(slots)
                 if substrate and substrate["is_beam"]
                 else (substrate["required"] if substrate else 0.0)
             ),
@@ -534,12 +755,27 @@ async def build_queue(
             or term in (r["color_name"] or "").lower()
         ]
 
-    rows.sort(key=lambda r: (
-        _VERDICT_WEIGHT.get(r["verdict"], 9),
-        r["target_start_date"] or _FAR_FUTURE,
-        r["work_order_code"] or "",
-    ))
-    return rows
+    # Built from the SAME allocation walk the rows came from, so the panel and the
+    # list can never disagree about how much greige is left.
+    summary = await _gating_material_summary(db, rows, pool)
+
+    # Default is date order — a schedule the PIC can read against the calendar, with
+    # readiness carried as the chip and the filter. Sorting by readiness first would
+    # sink an order that is due tomorrow and short below one that is ready and due
+    # next month, which is precisely the thing the PIC must be told about.
+    if sort == "readiness":
+        rows.sort(key=lambda r: (
+            _VERDICT_WEIGHT.get(r["verdict"], 9),
+            r["priority_date"] or _FAR_FUTURE,
+            r["work_order_code"] or r["mo_code"] or "",
+        ))
+    else:
+        rows.sort(key=lambda r: (
+            r["priority_date"] or _FAR_FUTURE,
+            _VERDICT_WEIGHT.get(r["verdict"], 9),
+            r["work_order_code"] or r["mo_code"] or "",
+        ))
+    return rows, summary
 
 
 def _pick_substrate(mats: list[dict]) -> Optional[dict]:
@@ -557,6 +793,130 @@ def _pick_substrate(mats: list[dict]) -> Optional[dict]:
     if beams:
         return min(beams, key=lambda m: (m.get("mounted_pcs", 0), -m["required"]))
     return max(mats, key=lambda m: m["required"])
+
+
+async def _gating_material_summary(db: AsyncSession, rows: list[dict],
+                                   pool: dict[tuple[str, str], float]) -> list[dict]:
+    """Stock-side view of the same queue: per gating material, what is on hand, what
+    the queue has claimed, what is left, and which lots it sits in.
+
+    This is the question a Dyeing PIC actually asks — "which greige can I dye?" —
+    and it is not answerable from the order list alone, because most open orders
+    carry no work order and some carry no schedule. Numbers come out of the SAME
+    allocation walk the rows did, so the panel can never contradict the list.
+    """
+    agg: dict[str, dict] = {}
+    for r in rows:
+        for m in r["materials"]:
+            if not m["is_substrate"] or m["is_beam"]:
+                continue
+            item_id = str(m["item_id"])
+            a = agg.setdefault(item_id, {
+                "item_id": m["item_id"], "item_code": m["item_code"], "item_name": m["item_name"],
+                "required_total": 0.0, "allocated_total": 0.0, "staged_total": 0.0,
+                "shortfall_total": 0.0, "orders_waiting": 0, "orders_total": 0,
+                "free_qty": 0.0, "lots": [],
+            })
+            a["required_total"] += m["required_qty"]
+            a["allocated_total"] += m["allocated_qty"]
+            a["staged_total"] += m["staged_qty"]
+            a["shortfall_total"] += m["shortfall_qty"]
+            a["orders_total"] += 1
+            if m["shortfall_qty"] > EPS:
+                a["orders_waiting"] += 1
+    if not agg:
+        return []
+
+    # What the walk left unclaimed, across every variant of the item.
+    for (item_id, _vkey), qty in pool.items():
+        if item_id in agg:
+            agg[item_id]["free_qty"] += max(0.0, qty)
+
+    # Lots behind the free stock — the PIC picks a physical roll, not a number.
+    from app.models.batch import Batch
+    from app.models.location import Location
+    lot_rows = await db.execute(
+        select(StockBalance.item_id, StockBalance.batch_key, func.sum(StockBalance.qty),
+               Batch.batch_number, Location.name)
+        .outerjoin(Batch, cast(Batch.id, String) == StockBalance.batch_key)
+        .outerjoin(Location, Location.id == StockBalance.location_id)
+        .where(
+            StockBalance.item_id.in_([uuid.UUID(i) for i in agg]),
+            StockBalance.qty > 0,
+            StockBalance.batch_key != "",
+            StockBalance.batch_key.notin_(netting_service.rejected_batch_keys()),
+        )
+        .group_by(StockBalance.item_id, StockBalance.batch_key, Batch.batch_number, Location.name)
+        .order_by(Batch.batch_number)
+    )
+    for item_id, batch_key, qty, batch_number, loc_name in lot_rows.all():
+        a = agg.get(str(item_id))
+        if a is not None:
+            a["lots"].append({
+                "batch_id": batch_key,
+                "batch_number": batch_number or batch_key,
+                "qty": float(qty or 0),
+                "location_name": loc_name,
+            })
+
+    # Real balance, not allocated + staged + free. Those three do not add up to it:
+    # `staged_total` is a historical sum of Staging ledger rows and deliberately
+    # keeps counting material that has since been consumed (same semantics as
+    # api/work_orders._wo_staged_by_item), so deriving on-hand from it overstates
+    # the shelf. The panel must show what is physically there.
+    real_rows = await db.execute(
+        select(StockBalance.item_id, func.sum(StockBalance.qty))
+        .where(
+            StockBalance.item_id.in_([uuid.UUID(i) for i in agg]),
+            StockBalance.qty > 0,
+            or_(
+                StockBalance.batch_key == "",
+                StockBalance.batch_key.notin_(netting_service.rejected_batch_keys()),
+            ),
+        )
+        .group_by(StockBalance.item_id)
+    )
+    real = {str(i): float(q or 0) for i, q in real_rows.all()}
+
+    out = list(agg.values())
+    for a in out:
+        a["on_hand_qty"] = real.get(str(a["item_id"]), 0.0)
+        a["lot_count"] = len(a["lots"])
+        # Longest lot lists are noise on a floor screen; the total stays exact.
+        a["lots"] = sorted(a["lots"], key=lambda l: -l["qty"])[:12]
+    # Shortest supply first — that is what needs a decision.
+    out.sort(key=lambda a: (-a["shortfall_total"], a["item_code"] or ""))
+    return out
+
+
+def _unreleased_verdict(substrate: Optional[dict], materials: list[dict],
+                        hint_source: str) -> tuple[str, Optional[str]]:
+    """Verdict for an order with no work order yet.
+
+    The verdict itself is always NOT_RELEASED — that is the action needed — but the
+    detail line carries the material answer, because "no work order, greige ready"
+    and "no work order, greige short 120" call for very different responses from the
+    planner."""
+    if not substrate:
+        return VERDICT_NOT_RELEASED, "No work order - no materials on the order"
+    row = next((m for m in materials if m["is_substrate"]), None)
+    if row is None:
+        return VERDICT_NOT_RELEASED, "No work order"
+
+    if row["is_beam"]:
+        mat = f"{row['mounted_pcs']}/{max(1, int(row['required_pcs'] or 1))} beams mounted"
+    elif row["shortfall_qty"] <= EPS:
+        mat = "material ready"
+    elif row["allocated_qty"] > EPS:
+        mat = f"only {row['allocated_qty']:.1f} of {row['required_qty']:.1f} available"
+    elif row["incoming_qty"] > EPS:
+        mat = f"waiting on {row['incoming_mo_code'] or 'upstream order'}"
+    else:
+        mat = f"short {row['shortfall_qty']:.1f}"
+
+    # An inferred work centre is flagged so nobody treats a guess as a routing fact.
+    guess = " (centre inferred)" if hint_source in ("colour", "beam") else ""
+    return VERDICT_NOT_RELEASED, f"No work order - {mat}{guess}"
 
 
 def _verdict(wo: WorkOrder, substrate: Optional[dict], materials: list[dict],

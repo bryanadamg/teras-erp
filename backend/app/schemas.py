@@ -3096,12 +3096,18 @@ class WorkQueueMaterial(BaseModel):
 
 
 class WorkQueueRow(BaseModel):
-    work_order_id: UUID
+    # Null on an unreleased row: the order exists, the work order does not.
+    work_order_id: UUID | None = None
     work_order_code: str | None = None
     work_order_name: str | None = None
     status: str
     sequence: int | None = None
     staging_status: str = 'NOT_STAGED'
+    is_released: bool = True
+    # How an unreleased row's work centre was decided: routing (read from
+    # BOMOperation) | colour | beam (inferred from the order's output) | unknown.
+    # Blank on released rows.
+    release_hint_source: str = ''
     work_center_id: UUID | None = None
     work_center_name: str | None = None
     work_center_type: str | None = None
@@ -3112,8 +3118,16 @@ class WorkQueueRow(BaseModel):
     color_name: str | None = None
     qty: float = 0
     target_start_date: datetime | None = None
+    # The date the row is queued on, and which planning field it came from:
+    # wo_start | wo_end | mo_start | mo_end | so_due | created. `created` means the
+    # order was never scheduled and the queue fell back to order-entry (FIFO) order.
+    priority_date: datetime | None = None
+    date_source: str = 'created'
+    # Past its planned date and not yet started. Never set when date_source is
+    # 'created' — an unscheduled order cannot be late.
+    is_overdue: bool = False
     # RUNNING | STAGED | READY | PARTIAL | WAITING_UPSTREAM | WAITING_PRIOR
-    # | SHORT | NO_MATERIALS
+    # | SHORT | NO_MATERIALS | NOT_RELEASED
     verdict: str
     verdict_detail: str | None = None
     substrate_item_code: str | None = None
@@ -3126,6 +3140,31 @@ class WorkQueueRow(BaseModel):
     materials: list[WorkQueueMaterial] = []
 
 
+class WorkQueueLot(BaseModel):
+    batch_id: str | None = None
+    batch_number: str | None = None
+    qty: float = 0
+    location_name: str | None = None
+
+
+class WorkQueueMaterialSummary(BaseModel):
+    """Stock-side companion to the order list: per gating material (greige, yarn),
+    how much the queue has claimed and how much is still free, with the lots."""
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    on_hand_qty: float = 0
+    required_total: float = 0
+    allocated_total: float = 0
+    staged_total: float = 0
+    free_qty: float = 0
+    shortfall_total: float = 0
+    orders_total: int = 0
+    orders_waiting: int = 0
+    lot_count: int = 0
+    lots: list[WorkQueueLot] = []
+
+
 class WorkQueueResponse(BaseModel):
     items: list[WorkQueueRow]
     total: int
@@ -3134,3 +3173,14 @@ class WorkQueueResponse(BaseModel):
     # Row count per verdict across the WHOLE queue, not the current page — the
     # tab badges ("3 ready, 2 short") must not change when the PIC pages.
     counts: dict[str, int] = {}
+    # How many rows are late, and how many carry no planned date at all. The second
+    # is a data-quality signal the PIC must see: a queue where most rows fall back
+    # to order-entry order is not really a schedule, and saying so beats implying
+    # a precision that isn't there.
+    overdue_count: int = 0
+    undated_count: int = 0
+    # Open orders with no work order at all — work the floor cannot start and a
+    # WO-grain list would never show.
+    unreleased_count: int = 0
+    sort: str = 'date'
+    materials: list[WorkQueueMaterialSummary] = []

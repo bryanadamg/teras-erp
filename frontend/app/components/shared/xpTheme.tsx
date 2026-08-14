@@ -133,6 +133,9 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     RUNNING: 'blue',
     WAITING_UPSTREAM: 'amber', WAITING_PRIOR: 'amber',
     SHORT: 'red', NO_MATERIALS: 'gray',
+    // An open order with no work order cut for it. Amber, not red: nothing is
+    // broken, someone just has to release it before the floor can touch it.
+    NOT_RELEASED: 'amber',
 };
 
 const FAMILY_SOLID: Record<StatusFamily, string> = {

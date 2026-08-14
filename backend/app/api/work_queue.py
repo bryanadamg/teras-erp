@@ -24,6 +24,10 @@ async def get_work_queue(
     work_center_id: str = Query("", description="Narrow to a single machine"),
     verdict: str = Query("", description="Filter to one verdict, or READY_ONLY for startable rows"),
     search: str = Query(""),
+    sort: str = Query("date", description="date (scheduled order) or readiness (verdict first)"),
+    overdue_only: bool = Query(False),
+    include_unreleased: bool = Query(True, description="Include open orders that have no work order yet"),
+    unreleased_only: bool = Query(False),
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_async_db),
@@ -34,13 +38,21 @@ async def get_work_queue(
     if center_type and not wo_scope_ok(current_user, center_type):
         raise HTTPException(status_code=403, detail="Not permitted for this work center type")
 
-    rows = await work_queue_service.build_queue(
-        db, center_type=center_type, work_center_id=work_center_id, search=search
+    rows, materials = await work_queue_service.build_queue(
+        db, center_type=center_type, work_center_id=work_center_id, search=search,
+        sort=(sort or "date").lower(), include_unreleased=include_unreleased,
     )
-    # Counts are taken before the verdict filter so the tab badges keep showing the
+    # Counts are taken before the row filters so the tab badges keep showing the
     # whole queue while the list shows one slice of it.
     counts = dict(Counter(r["verdict"] for r in rows))
+    overdue_count = sum(1 for r in rows if r["is_overdue"])
+    undated_count = sum(1 for r in rows if r["date_source"] == "created")
+    unreleased_count = sum(1 for r in rows if not r["is_released"])
 
+    if unreleased_only:
+        rows = [r for r in rows if not r["is_released"]]
+    if overdue_only:
+        rows = [r for r in rows if r["is_overdue"]]
     if verdict:
         if verdict.upper() == "READY_ONLY":
             keep = {work_queue_service.VERDICT_READY, work_queue_service.VERDICT_STAGED}
@@ -51,5 +63,8 @@ async def get_work_queue(
     total = len(rows)
     start = (page - 1) * size
     return WorkQueueResponse(
-        items=rows[start:start + size], total=total, page=page, size=size, counts=counts
+        items=rows[start:start + size], total=total, page=page, size=size, counts=counts,
+        overdue_count=overdue_count, undated_count=undated_count,
+        unreleased_count=unreleased_count, sort=(sort or "date").lower(),
+        materials=materials,
     )
