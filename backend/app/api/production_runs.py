@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, and_
+from sqlalchemy import select, func, or_, and_, cast, String
 from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from uuid import UUID
@@ -9,14 +9,14 @@ from app.models.manufacturing import ManufacturingOrder
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.location import Location
-from app.models.batch import BatchConsumption
+from app.models.batch import BatchConsumption, Batch
 from app.schemas import (
     ProductionRunCreate, ProductionRunResponse,
     PaginatedProductionRunResponse, PaginatedProductionRunListResponse,
     ManufacturingOrderCreate,
     PRMaterialRequirementItem, PRMOContribution, BookingSupplyMO, PRProductionMO,
     ProductionRunPreviewRequest, NettingPreviewNode,
-    PRMaterialStatusRequest, PRMaterialStatusItem,
+    PRMaterialStatusRequest, PRMaterialStatusItem, PRMaterialLot,
 )
 from app.models.production_run import PRBomEntry, PRBomEntrySize
 from app.models.item import Item
@@ -456,6 +456,41 @@ async def get_production_run_material_requirements(
         onhand_map[(str(iid), vk or "")] = float(q or 0)
         onhand_by_item[str(iid)] += float(q or 0)
 
+    # Lots behind the on-hand figure. A Dyeing PIC checking "can I dye this run?"
+    # picks a physical roll, not a number, and one 40 kg total can be four lots in
+    # four bins. Batch-less (non-lotted) stock simply contributes no rows.
+    lots_by_item: dict[str, list] = defaultdict(list)
+    for iid, bkey, qty, bnum, loc_name in (await db.execute(
+        select(StockBalance.item_id, StockBalance.batch_key, func.sum(StockBalance.qty),
+               Batch.batch_number, Location.name)
+        .outerjoin(Batch, cast(Batch.id, String) == StockBalance.batch_key)
+        .outerjoin(Location, Location.id == StockBalance.location_id)
+        .where(
+            StockBalance.item_id.in_(item_ids),
+            StockBalance.qty > 0,
+            StockBalance.batch_key != "",
+            StockBalance.batch_key.not_in(rejected_batch_keys()),
+        )
+        .group_by(StockBalance.item_id, StockBalance.batch_key, Batch.batch_number, Location.name)
+    )).all():
+        lots_by_item[str(iid)].append(PRMaterialLot(
+            batch_id=bkey, batch_number=bnum or bkey,
+            qty=float(qty or 0), location_name=loc_name,
+        ))
+
+    # Plant-wide demand from OTHER orders, so "Available" cannot promise the same
+    # greige to two runs. Read off the shared Booking Stock cache rather than a
+    # second netting pass — a private copy of this maths would drift from the
+    # /booking-stock page it has to agree with.
+    from app.api.stock import booking_rows_cached
+    own_mo_ids = {str(m.id) for m in pr.manufacturing_orders}
+    claimed_elsewhere: dict[tuple, float] = {}
+    for brow in await booking_rows_cached():
+        own = sum(float(d.required_qty) for d in (brow.demand_mos or [])
+                  if str(d.mo_id) in own_mo_ids)
+        key = (str(brow.item_id), ",".join(sorted(str(a) for a in brow.attribute_value_ids)))
+        claimed_elsewhere[key] = max(0.0, float(brow.qty_required) - own)
+
     results = []
     for (item_id_str, attr_key), data in agg.items():
         item = item_map.get(data["item_id"])
@@ -468,6 +503,13 @@ async def get_production_run_material_requirements(
             available = onhand_by_item.get(item_id_str, 0.0)
         else:
             available = onhand_map.get((item_id_str, v_key), 0.0)
+        # What is left of that on-hand once every OTHER open order's outstanding
+        # demand is honoured. This is the number a PIC should act on: "Available"
+        # alone says 500 kg to three runs that each need 400.
+        others = claimed_elsewhere.get((item_id_str, v_key), 0.0)
+        if is_batch_identity and not others:
+            others = claimed_elsewhere.get((item_id_str, ""), 0.0)
+        free = max(0.0, available - others)
         sup = supply.get((item_id_str, v_key))
         incoming = sup["total_incoming"] if sup else 0.0
         total = data["total_required"]
@@ -508,6 +550,9 @@ async def get_production_run_material_requirements(
             item_name=item.name if item else str(data["item_id"]),
             uom=item.uom if item else "",
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
+            qty_claimed_elsewhere=others,
+            qty_free=free,
+            lots=sorted(lots_by_item.get(item_id_str, []), key=lambda l: -l.qty)[:12],
             location_id=item.default_source_location_id if item else None,
             total_required=total,
             gross_required=data["gross_required"],

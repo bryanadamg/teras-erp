@@ -614,6 +614,15 @@ class PRProductionMO(BaseModel):
     wo_count: int = 0               # work orders opened on this MO (0 = nothing dispatched yet)
     status: str                     # NOT_STARTED | SHORT | OK  (vs this MO's own qty)
 
+class PRMaterialLot(BaseModel):
+    """One lot behind a component's on-hand figure. Non-lotted stock contributes
+    no rows, so an empty list means "on hand, but not lot-tracked" — not "none"."""
+    batch_id: str | None = None
+    batch_number: str | None = None
+    qty: float = 0
+    location_name: str | None = None
+
+
 class PRMaterialRequirementItem(BaseModel):
     item_id: UUID
     item_code: str
@@ -624,6 +633,12 @@ class PRMaterialRequirementItem(BaseModel):
     total_required: float                  # NET requirement: scaled by each MO's OUTSTANDING output
     gross_required: float = 0.0            # requirement at full order qty (never decrements)
     qty_available: float                   # physical on-hand, plant-wide, good stock only
+    # Outstanding demand for this component from every OTHER open order, read off the
+    # shared Booking Stock netting. qty_available alone promises the same greige to
+    # every run that needs it; qty_free is what this run can actually count on.
+    qty_claimed_elsewhere: float = 0.0
+    qty_free: float = 0.0                  # max(0, qty_available - qty_claimed_elsewhere)
+    lots: list['PRMaterialLot'] = []       # lots behind qty_available (empty = not lot-tracked)
     qty_incoming: float = 0.0              # outstanding output of this PR's own MOs that produce the item
     shortfall: float                       # max(0, total_required - qty_available - qty_incoming) — MATERIAL blocker
     qty_produced: float = 0.0              # good output logged by this PR's MOs producing the item

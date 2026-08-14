@@ -497,6 +497,22 @@ def _invalidate_booking_cache(message: dict):
 manager.register_invalidation_hook(_invalidate_booking_cache)
 
 
+async def booking_rows_cached() -> list:
+    """Booking-stock rows, served from the same cache the /stock/availability
+    endpoint uses (cold-compute, then stale-while-revalidate).
+
+    Public so other views can net against plant-wide demand without duplicating
+    _compute_booking_rows — the PR material panel does exactly that, and any second
+    copy of this netting would drift from the Booking Stock page it must agree with.
+    """
+    now = time.monotonic()
+    if _booking_cache["rows"] is None:
+        return await _recompute_booking_cache()
+    if _booking_cache["stale"] or now - _booking_cache["at"] >= _BOOKING_TTL_SECONDS:
+        _spawn_booking_refresh()
+    return _booking_cache["rows"]
+
+
 async def _recompute_booking_cache() -> list:
     """Recompute booking rows on a fresh session and store them. Returns the rows."""
     from app.core.db_manager import db_manager

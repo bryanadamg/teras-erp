@@ -405,7 +405,8 @@ export default function ProductionRunsTab({
                                                                         { h: 'UOM', t: '', num: false },
                                                                         { h: 'Req (fix)', t: 'Fixed requirement at full order qty — never decrements. Grey figure below it is the NET still required after what this run has already been issued.', num: true },
                                                                         { h: 'Produced', t: 'Good output logged so far by this Production Run’s own MOs that make this item. Dash = nothing here produces it (bought or taken from stock).', num: true },
-                                                                        { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded).', num: true },
+                                                                        { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded). Hover a figure to see the lots behind it.', num: true },
+                                                                        { h: 'Free', t: 'On-hand minus what every OTHER open order has already claimed. This is what this run can actually count on — “Available” alone shows the same stock to every run that needs it.', num: true },
                                                                         { h: 'Incoming', t: 'Outstanding output of this Production Run’s own component MOs — already scheduled, not yet made.', num: true },
                                                                         { h: 'Status', t: 'SHORT = material genuinely missing (nothing on hand, nothing scheduled) — needs action. NO WO = no work order opened on the producing MO yet. NOT STARTED = WO opened, nothing logged. IN PROGRESS = output logged, not finished. DONE = made in full. Dash = bought or taken from stock, covered.', num: false },
                                                                         { h: 'MOs', t: 'needs = MOs consuming this component. made = MOs producing it (logged / target).', num: false },
@@ -498,9 +499,37 @@ export default function ProductionRunsTab({
                                                                             >
                                                                                 {isMade ? produced.toFixed(2) : '—'}
                                                                             </td>
-                                                                            <td style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT }}>
+                                                                            <td
+                                                                                style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, cursor: (req.lots || []).length ? 'help' : undefined }}
+                                                                                title={(req.lots || []).length
+                                                                                    ? (req.lots || []).map((l: any) => `${l.batch_number}: ${parseFloat(l.qty).toFixed(2)}${l.location_name ? ` @ ${l.location_name}` : ''}`).join('\n')
+                                                                                    : 'On hand but not lot-tracked, so there are no lots to list.'}
+                                                                            >
                                                                                 {parseFloat(req.qty_available).toFixed(2)}
+                                                                                {(req.lots || []).length > 0 && (
+                                                                                    <div style={{ color: '#777', fontWeight: 'normal', fontSize: classic ? 9 : 10 }}>
+                                                                                        {(req.lots || []).length} lot{(req.lots || []).length === 1 ? '' : 's'}
+                                                                                    </div>
+                                                                                )}
                                                                             </td>
+                                                                            {(() => {
+                                                                                const avail = parseFloat(req.qty_available ?? 0);
+                                                                                const claimed = parseFloat(req.qty_claimed_elsewhere ?? 0);
+                                                                                const free = parseFloat(req.qty_free ?? avail);
+                                                                                // Amber only when other orders are the reason it is not
+                                                                                // free — plain zero stock is the Available column's story.
+                                                                                const squeezed = claimed > 0.005 && free < avail - 0.005;
+                                                                                return (
+                                                                                    <td
+                                                                                        style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: squeezed ? '#b8860b' : undefined, fontWeight: squeezed ? 'bold' : undefined, cursor: claimed > 0.005 ? 'help' : undefined }}
+                                                                                        title={claimed > 0.005
+                                                                                            ? `${claimed.toFixed(2)} ${req.uom} of the ${avail.toFixed(2)} on hand is already claimed by other open orders.`
+                                                                                            : undefined}
+                                                                                    >
+                                                                                        {free.toFixed(2)}
+                                                                                    </td>
+                                                                                );
+                                                                            })()}
                                                                             <td
                                                                                 style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: incoming > 0 ? '#1b5e9c' : '#999' }}
                                                                                 title={incoming > 0
