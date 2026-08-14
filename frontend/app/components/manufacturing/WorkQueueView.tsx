@@ -121,6 +121,7 @@ const VERDICT_HELP: Record<string, string> = {
 // the others are inferences and are labelled as such on the row.
 const HINT_LABEL: Record<string, string> = {
     routing: 'from BOM routing',
+    bom: 'from BOM work centre',
     colour: 'inferred from assigned colour',
     beam: 'inferred from beam output',
     unknown: 'work centre unknown',

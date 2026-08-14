@@ -412,36 +412,53 @@ async def _load_unreleased_mos(db: AsyncSession) -> list[ManufacturingOrder]:
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
-async def _bom_next_center_type(db: AsyncSession, mos: list) -> dict[str, str]:
-    """bom_id -> center type of the FIRST routing step, when the BOM has routing.
+async def _bom_center_types(db: AsyncSession, mos: list) -> tuple[dict[str, str], dict[str, str]]:
+    """(routing map, header map), both bom_id -> center type.
 
-    The precise answer to "which operation comes next" lives in BOMOperation. It is
-    unpopulated on this install (zero rows), so this returns nothing today and the
-    heuristic below takes over — but the moment routing is entered, the exact answer
-    wins automatically and the guess stops being used."""
+    Two independent places record where a BOM is made, and they are not the same
+    thing:
+
+    - ``BOMOperation`` — the full routing, one row per step. The precise answer to
+      "which operation comes next". Unpopulated on this install (zero rows).
+    - ``BOM.work_center_id`` — a single work centre set on the BOM header when the
+      recipe is created. Populated on 190 of 344 BOMs here, so in practice this is
+      the signal that actually works, and it is a recorded decision rather than an
+      inference from the item.
+
+    Routing wins where both exist; the header carries everything else."""
     bom_ids = {m.bom_id for m in mos if m.bom_id}
     if not bom_ids:
-        return {}
+        return {}, {}
+
+    routing: dict[str, str] = {}
     rows = await db.execute(
         select(BOMOperation.bom_id, BOMOperation.sequence, WorkCenter.center_type)
         .join(WorkCenter, BOMOperation.work_center_id == WorkCenter.id)
         .where(BOMOperation.bom_id.in_(list(bom_ids)))
         .order_by(BOMOperation.bom_id, BOMOperation.sequence)
     )
-    out: dict[str, str] = {}
     for bom_id, _seq, ct in rows.all():
-        out.setdefault(str(bom_id), (ct or "").upper())
-    return out
+        routing.setdefault(str(bom_id), (ct or "").upper())
+
+    from app.models.bom import BOM
+    hdr_rows = await db.execute(
+        select(BOM.id, WorkCenter.center_type)
+        .join(WorkCenter, BOM.work_center_id == WorkCenter.id)
+        .where(BOM.id.in_(list(bom_ids)))
+    )
+    header = {str(b): (ct or "").upper() for b, ct in hdr_rows.all()}
+    return routing, header
 
 
-def _release_hint(mo: ManufacturingOrder, routing: dict[str, str], beam_ids: set[str]) -> tuple[str, str]:
-    """(center type this unreleased order most likely needs next, how we know).
+def _release_hint(mo: ManufacturingOrder, routing: dict[str, str], header: dict[str, str],
+                  beam_ids: set[str]) -> tuple[str, str]:
+    """(center type this unreleased order needs, how we know). Best evidence first:
 
-    Only evidence that survives contact with real data is used:
-
-    - ``routing`` — read from BOMOperation. A fact. Wins outright.
-    - ``colour``  — ``MO.color_id`` is set, i.e. someone deliberately assigned a
-      shade to this order, so it must pass through dyeing.
+    - ``routing`` — the BOM's own routing steps (BOMOperation). A per-step fact.
+    - ``bom``     — the work centre assigned on the BOM header at creation. A
+      recorded decision, and the one that is actually populated here.
+    - ``colour``  — ``MO.color_id`` is set, so a shade was deliberately assigned to
+      this order and it must pass through dyeing.
     - ``beam``    — the output is a warp beam by ``beam_service``'s definition.
 
     ``Item.variant_type == 'color'`` is deliberately NOT used, though it looks
@@ -455,6 +472,9 @@ def _release_hint(mo: ManufacturingOrder, routing: dict[str, str], beam_ids: set
     ct = routing.get(str(mo.bom_id))
     if ct:
         return ct, "routing"
+    ct = header.get(str(mo.bom_id))
+    if ct:
+        return ct, "bom"
     if mo.color_id:
         return "DYEING", "colour"
     if mo.item and str(mo.item.id) in beam_ids:
@@ -526,10 +546,10 @@ async def build_queue(
         db, [c.item_id for c in all_comps] + [m.item_id for m in unreleased]
     )
 
-    routing = await _bom_next_center_type(db, unreleased)
+    routing, bom_header = await _bom_center_types(db, unreleased)
     if unreleased and center_type:
         want = set(CENTER_TYPE_ALIASES.get(center_type.upper(), [center_type.upper()]))
-        unreleased = [m for m in unreleased if _release_hint(m, routing, beam_ids)[0] in want]
+        unreleased = [m for m in unreleased if _release_hint(m, routing, bom_header, beam_ids)[0] in want]
         all_mos = [w.manufacturing_order for w in wos] + unreleased
 
     staged = await _staged_by_wo(db, wos)
@@ -566,7 +586,7 @@ async def build_queue(
     # alongside dispatched work. Leaving them out would let a released order read
     # READY against greige an earlier, undispatched order is already entitled to.
     for mo in unreleased:
-        hint_ct, hint_src = _release_hint(mo, routing, beam_ids)
+        hint_ct, hint_src = _release_hint(mo, routing, bom_header, beam_ids)
         mats = []
         # No routing step to filter by, so the whole BOM snapshot is the requirement.
         for c in (mo.planned_components or []):
