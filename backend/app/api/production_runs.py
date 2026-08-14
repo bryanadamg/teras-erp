@@ -38,6 +38,12 @@ from datetime import datetime
 
 router = APIRouter()
 
+# Quantities are shown to 2 decimals, so every qty verdict must be decided at that
+# precision — not against a bare 0. Percentage scaling times a tolerance multiplier
+# leaves float residue around 1e-13, which `> 0` happily calls a shortage: rows
+# rendered as "SHORT 0.00", red for a gap of nothing. Compare against this instead.
+_QTY_EPS = 0.005
+
 
 MO_CODE_MAX_LEN = 64          # ManufacturingOrder.code is String(64)
 _MO_CODE_UNIQ_RESERVE = 3     # room for the "-NN" suffix _find_unique_mo_code appends
@@ -190,6 +196,7 @@ def _pr_material_req_load_options():
         mos.selectinload(ManufacturingOrder.required_dependencies),
         mos.selectinload(ManufacturingOrder.completions),
         mos.selectinload(ManufacturingOrder.attribute_values),
+        mos.selectinload(ManufacturingOrder.work_orders),
         mos.selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
     ]
 
@@ -374,7 +381,7 @@ async def get_production_run_material_requirements(
     # Production progress: good logged output of this PR's MOs, keyed the same way as
     # supply. Lets the PR panel show "requirement vs what has actually been made" per
     # component, so the whole run can be monitored without opening each MO.
-    production: dict[tuple, dict] = defaultdict(lambda: {"qty_produced": 0.0, "mos": []})
+    production: dict[tuple, dict] = defaultdict(lambda: {"qty_produced": 0.0, "wo_count": 0, "mos": []})
 
     so_linked_prs = await _sales_order_linked_prs(db, pr.manufacturing_orders)
 
@@ -391,11 +398,18 @@ async def get_production_run_material_requirements(
         out_key = _generate_variant_key(
             [str(v.id) for v in (mo.attribute_values or [])], getattr(mo, "color_id", None)
         )
+        # WOs are created MANUALLY (an MO existing never means work has begun), so a
+        # producing MO with no WO yet is a dispatch action, not a floor delay. Counted
+        # here so the row can say NO WO instead of a misleading IN PROGRESS.
+        wo_count = len(mo.work_orders or [])
         p = production[(str(mo.item_id), out_key)]
         p["qty_produced"] += produced
+        p["wo_count"] += wo_count
         p["mos"].append(PRProductionMO(
             mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), qty_produced=produced,
-            status="NOT_STARTED" if produced <= 0 else ("OK" if produced >= float(mo.qty) else "SHORT"),
+            wo_count=wo_count,
+            status=("NOT_STARTED" if produced <= _QTY_EPS
+                    else ("OK" if produced >= float(mo.qty) - _QTY_EPS else "SHORT")),
         ))
 
         for comp in mo.planned_components:
@@ -485,16 +499,26 @@ async def get_production_run_material_requirements(
         # One verdict per row. Material shortage outranks production progress: a red
         # status must mean "someone has to act", never "a healthy run isn't finished
         # yet" — otherwise every in-flight component reads as an alarm and the
-        # column stops carrying information.
+        # column stops carrying information. Nothing logged yet is NOT "in progress":
+        # it splits into NO_WO (no work order opened — a dispatch decision) vs
+        # NOT_STARTED (WO opened, floor hasn't logged). Every test uses _QTY_EPS.
         mat_short = max(0.0, total - available - incoming)
-        if mat_short > 0:
+        if mat_short > _QTY_EPS:
             status = "SHORT"
         elif not prod:
             status = "SUPPLIED"       # bought / drawn from stock, and covered
-        elif prod_short > 0:
+        elif prod_short <= _QTY_EPS:
+            status = "DONE"
+        elif produced > _QTY_EPS:
             status = "IN_PROGRESS"
         else:
-            status = "DONE"
+            status = "NOT_STARTED" if prod["wo_count"] > 0 else "NO_WO"
+        # Snap sub-precision residue to a clean zero so no consumer re-derives a
+        # phantom gap from the raw floats.
+        if mat_short <= _QTY_EPS:
+            mat_short = 0.0
+        if prod_short <= _QTY_EPS:
+            prod_short = 0.0
 
         results.append(PRMaterialRequirementItem(
             item_id=data["item_id"],
@@ -616,7 +640,9 @@ async def get_production_runs_material_status(
             item = item_map.get(item_id_str)
             is_batch_identity = bool(item and (item.lot_tracked or (item.category and (item.category.name or "").lower() == "beam")))
             available = onhand_by_item.get(item_id_str, 0.0) if is_batch_identity else onhand_map.get((item_id_str, attr_key), 0.0)
-            if total - available - sup.get((item_id_str, attr_key), 0.0) > 0:
+            # Same epsilon as the detail endpoint — otherwise float residue counts a
+            # zero-gap component as short and the column badge contradicts the panel.
+            if total - available - sup.get((item_id_str, attr_key), 0.0) > _QTY_EPS:
                 short += 1
             else:
                 suff += 1

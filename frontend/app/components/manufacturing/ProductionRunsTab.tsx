@@ -237,7 +237,9 @@ export default function ProductionRunsTab({
                                 const statusShort = mstat?.shortfall_count ?? 0;
                                 const statusSuff = mstat?.sufficient_count ?? 0;
                                 const statusTotal = mstat?.total_count ?? 0;
-                                const hasShortfall = mstat ? statusShort > 0 : reqs.some((r: any) => r.shortfall > 0);
+                                // Trust the backend verdict, not a raw float compare — sub-precision
+                                // residue must never light this up (see _QTY_EPS server-side).
+                                const hasShortfall = mstat ? statusShort > 0 : reqs.some((r: any) => (r.status ? r.status === 'SHORT' : r.shortfall > 0.005));
                                 return (
                                     <React.Fragment key={pr.id}>
                                     <tr style={{ background: rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
@@ -374,10 +376,20 @@ export default function ProductionRunsTab({
                                                                 const made = reqs.filter((r: any) => (r.production_mos || []).length > 0);
                                                                 if (made.length === 0) return null;
                                                                 const done = made.filter((r: any) => r.status === 'DONE').length;
+                                                                // Components whose producing MO has no work order yet — the user's own
+                                                                // next action, so it earns its own badge rather than hiding in a row.
+                                                                const noWo = made.filter((r: any) => r.status === 'NO_WO').length;
                                                                 return (
-                                                                    <span style={{ marginLeft: 8, color: done === made.length ? '#2d7a2d' : '#a05a00', fontWeight: 'bold' }}>
-                                                                        PRODUCTION {done}/{made.length} DONE
-                                                                    </span>
+                                                                    <>
+                                                                        <span style={{ marginLeft: 8, color: done === made.length ? '#2d7a2d' : '#1b5e9c', fontWeight: 'bold' }}>
+                                                                            PRODUCTION {done}/{made.length} DONE
+                                                                        </span>
+                                                                        {noWo > 0 && (
+                                                                            <span style={{ marginLeft: 8, color: '#a05a00', fontWeight: 'bold' }} title="Producing MOs with no work order opened yet">
+                                                                                {noWo} NO WO
+                                                                            </span>
+                                                                        )}
+                                                                    </>
                                                                 );
                                                             })()}
                                                         </div>
@@ -395,7 +407,7 @@ export default function ProductionRunsTab({
                                                                         { h: 'Produced', t: 'Good output logged so far by this Production Run’s own MOs that make this item. Dash = nothing here produces it (bought or taken from stock).', num: true },
                                                                         { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded).', num: true },
                                                                         { h: 'Incoming', t: 'Outstanding output of this Production Run’s own component MOs — already scheduled, not yet made.', num: true },
-                                                                        { h: 'Status', t: 'DONE = made in full. IN PROGRESS = still being produced, material covered. SHORT = material genuinely missing (nothing on hand, nothing scheduled) — the only state that needs action. Dash = bought or taken from stock, covered.', num: false },
+                                                                        { h: 'Status', t: 'SHORT = material genuinely missing (nothing on hand, nothing scheduled) — needs action. NO WO = no work order opened on the producing MO yet. NOT STARTED = WO opened, nothing logged. IN PROGRESS = output logged, not finished. DONE = made in full. Dash = bought or taken from stock, covered.', num: false },
                                                                         { h: 'MOs', t: 'needs = MOs consuming this component. made = MOs producing it (logged / target).', num: false },
                                                                     ].map(({ h, t, num }) => (
                                                                         <th key={h} title={t || undefined} style={{ padding: '2px 6px', textAlign: num ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', fontWeight: 'bold', cursor: t ? 'help' : undefined }}>{h}</th>
@@ -404,7 +416,9 @@ export default function ProductionRunsTab({
                                                             </thead>
                                                             <tbody>
                                                                 {reqs.map((req: any, ri: number) => {
-                                                                    const short = req.shortfall > 0;
+                                                                    // Row tint = genuine material shortage only. Epsilon-guarded so a
+                                                                    // zero gap can't paint the row red (the "SHORT 0.00" bug).
+                                                                    const short = req.status ? req.status === 'SHORT' : req.shortfall > 0.005;
                                                                     const rowColor = classic
                                                                         ? (short ? '#fff0f0' : ri % 2 === 0 ? '#fff' : '#ece7dc')
                                                                         : (short ? '#fff5f5' : ri % 2 === 0 ? '#fff' : '#eef1f4');
@@ -424,22 +438,39 @@ export default function ProductionRunsTab({
                                                                     const isMade = prodMos.length > 0;
                                                                     const produced = parseFloat(req.qty_produced ?? 0);
                                                                     const prodShort = parseFloat(req.production_shortfall ?? 0);
-                                                                    // One verdict per row (backend `status`). Amber for a run still in flight,
-                                                                    // red ONLY for material that is genuinely missing — so red always means
-                                                                    // "act on this" and never "a healthy run isn't finished yet".
-                                                                    const status = req.status || (short ? 'SHORT' : isMade ? (prodShort > 0.0001 ? 'IN_PROGRESS' : 'DONE') : 'SUPPLIED');
-                                                                    const statusColor = status === 'SHORT' ? '#c00000'
-                                                                        : status === 'IN_PROGRESS' ? '#a05a00'
-                                                                        : status === 'DONE' ? '#2d7a2d' : '#999';
-                                                                    const statusText = status === 'SHORT' ? `SHORT ${parseFloat(req.shortfall).toFixed(2)}`
-                                                                        : status === 'IN_PROGRESS' ? `IN PROGRESS ${produced.toFixed(2)}/${gross.toFixed(2)}`
-                                                                        : status === 'DONE' ? 'DONE' : '—';
-                                                                    const statusTitle = status === 'SHORT'
-                                                                        ? `Missing ${parseFloat(req.shortfall).toFixed(2)} ${req.uom}: ${net.toFixed(2)} still required, ${parseFloat(req.qty_available).toFixed(2)} on hand, ${incoming.toFixed(2)} scheduled.`
-                                                                        : status === 'IN_PROGRESS'
-                                                                            ? `Still being produced — ${prodShort.toFixed(2)} ${req.uom} to go. Material for it is covered, so this is on plan, not a shortage.`
-                                                                            : status === 'DONE' ? 'Requirement has been produced in full.'
-                                                                            : 'Not produced by this Production Run — bought or drawn from stock, and covered.';
+                                                                    // One verdict per row, from the backend `status`. Colours follow the
+                                                                    // app's 5 semantic families (xpTheme STATUS_FAMILY): red = stopped,
+                                                                    // amber = needs attention, blue = active, green = done, grey = inactive.
+                                                                    // Red is reserved for material genuinely missing, so it always means
+                                                                    // "act on this" — never "a healthy run isn't finished yet".
+                                                                    const woCount = prodMos.reduce((n: number, m: any) => n + (m.wo_count || 0), 0);
+                                                                    const status = req.status || (short ? 'SHORT' : isMade ? (prodShort > 0.005 ? (produced > 0.005 ? 'IN_PROGRESS' : (woCount > 0 ? 'NOT_STARTED' : 'NO_WO')) : 'DONE') : 'SUPPLIED');
+                                                                    const STATUS_UI: Record<string, { color: string; text: string; title: string }> = {
+                                                                        SHORT: {
+                                                                            color: '#c00000',
+                                                                            text: `SHORT ${parseFloat(req.shortfall).toFixed(2)}`,
+                                                                            title: `Missing ${parseFloat(req.shortfall).toFixed(2)} ${req.uom}: ${net.toFixed(2)} still required, ${parseFloat(req.qty_available).toFixed(2)} on hand, ${incoming.toFixed(2)} scheduled.`,
+                                                                        },
+                                                                        NO_WO: {
+                                                                            color: '#a05a00',
+                                                                            text: 'NO WO',
+                                                                            title: `No work order opened yet on ${prodMos.map((m: any) => m.mo_code).join(', ') || 'the producing MO'} — nothing has been dispatched to the floor.`,
+                                                                        },
+                                                                        NOT_STARTED: {
+                                                                            color: '#777',
+                                                                            text: 'NOT STARTED',
+                                                                            title: `Work order opened (${woCount}) but no output logged yet.`,
+                                                                        },
+                                                                        IN_PROGRESS: {
+                                                                            color: '#1b5e9c',
+                                                                            text: `IN PROGRESS ${produced.toFixed(2)}/${gross.toFixed(2)}`,
+                                                                            title: `Still being produced — ${prodShort.toFixed(2)} ${req.uom} to go. Material for it is covered, so this is on plan, not a shortage.`,
+                                                                        },
+                                                                        DONE: { color: '#2d7a2d', text: 'DONE', title: 'Requirement has been produced in full.' },
+                                                                        SUPPLIED: { color: '#999', text: '—', title: 'Not produced by this Production Run — bought or drawn from stock, and covered.' },
+                                                                    };
+                                                                    const ui = STATUS_UI[status] || STATUS_UI.SUPPLIED;
+                                                                    const statusColor = ui.color;
                                                                     const needsSummary = (req.mo_contributions || []).map((c: any) => `${c.mo_code} (${parseFloat(c.required_qty).toFixed(2)})`).join(', ');
                                                                     return (
                                                                         <tr key={ri}>
@@ -462,7 +493,7 @@ export default function ProductionRunsTab({
                                                                             <td
                                                                                 style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, color: statusColor, fontWeight: isMade ? 'bold' : undefined, cursor: isMade ? 'help' : undefined }}
                                                                                 title={isMade
-                                                                                    ? prodMos.map((m: any) => `${m.mo_code}: ${parseFloat(m.qty_produced).toFixed(2)} / ${parseFloat(m.mo_qty).toFixed(2)} ${m.status}`).join('\n')
+                                                                                    ? prodMos.map((m: any) => `${m.mo_code}: ${parseFloat(m.qty_produced).toFixed(2)} / ${parseFloat(m.mo_qty).toFixed(2)} ${m.status} — ${m.wo_count || 0} WO`).join('\n')
                                                                                     : 'Not produced by this Production Run — bought or drawn from stock.'}
                                                                             >
                                                                                 {isMade ? produced.toFixed(2) : '—'}
@@ -479,17 +510,17 @@ export default function ProductionRunsTab({
                                                                                 {incoming > 0 ? incoming.toFixed(2) : '—'}
                                                                             </td>
                                                                             <td
-                                                                                style={{ ...cellStyle, fontFamily: CODE_FONT, color: statusColor, fontWeight: status === 'SUPPLIED' ? undefined : 'bold', cursor: 'help', whiteSpace: 'nowrap' }}
-                                                                                title={statusTitle}
+                                                                                style={{ ...cellStyle, fontFamily: CODE_FONT, color: ui.color, fontWeight: status === 'SUPPLIED' ? undefined : 'bold', cursor: 'help', whiteSpace: 'nowrap' }}
+                                                                                title={ui.title}
                                                                             >
-                                                                                {statusText}
+                                                                                {ui.text}
                                                                             </td>
                                                                             <td style={{ ...cellStyle, fontSize: classic ? 9 : 11, color: '#555' }}>
                                                                                 <div><span style={{ color: '#888' }}>needs:</span> {needsSummary}</div>
                                                                                 {isMade && (
                                                                                     <div>
                                                                                         <span style={{ color: '#888' }}>made:</span>{' '}
-                                                                                        {prodMos.map((m: any) => `${m.mo_code} (${parseFloat(m.qty_produced).toFixed(2)}/${parseFloat(m.mo_qty).toFixed(2)})`).join(', ')}
+                                                                                        {prodMos.map((m: any) => `${m.mo_code} (${parseFloat(m.qty_produced).toFixed(2)}/${parseFloat(m.mo_qty).toFixed(2)}${(m.wo_count || 0) === 0 ? ', no WO' : ''})`).join(', ')}
                                                                                     </div>
                                                                                 )}
                                                                             </td>

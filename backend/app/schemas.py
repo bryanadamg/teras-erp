@@ -611,6 +611,7 @@ class PRProductionMO(BaseModel):
     mo_code: str
     mo_qty: float                   # order target
     qty_produced: float             # good logged output so far
+    wo_count: int = 0               # work orders opened on this MO (0 = nothing dispatched yet)
     status: str                     # NOT_STARTED | SHORT | OK  (vs this MO's own qty)
 
 class PRMaterialRequirementItem(BaseModel):
@@ -629,9 +630,10 @@ class PRMaterialRequirementItem(BaseModel):
     production_shortfall: float = 0.0      # max(0, gross_required - qty_produced); 0 when nothing here produces it
     # Single row verdict, driven by progress and escalated by material. Precedence:
     # SHORT (material genuinely missing — nothing on hand, nothing scheduled) beats
-    # everything; then DONE (made in full) / IN_PROGRESS (still being made, covered) /
-    # SUPPLIED (not produced here — bought or drawn from stock, and covered).
-    status: str = "SUPPLIED"               # SHORT | IN_PROGRESS | DONE | SUPPLIED
+    # everything; then DONE (made in full) / IN_PROGRESS (output logged, not finished) /
+    # NOT_STARTED (WO opened, nothing logged) / NO_WO (no work order opened yet — a
+    # dispatch decision, since WOs are created manually) / SUPPLIED (not produced here).
+    status: str = "SUPPLIED"               # SHORT | IN_PROGRESS | DONE | NOT_STARTED | NO_WO | SUPPLIED
     mo_contributions: list[PRMOContribution]
     supply_mos: list['BookingSupplyMO'] = []
     production_mos: list[PRProductionMO] = []
