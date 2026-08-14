@@ -602,6 +602,17 @@ class PRMOContribution(BaseModel):
     gross_required_qty: float = 0.0  # full-order basis, for reference
     mo_outstanding_qty: float = 0.0  # mo.qty - good completions (0 once closed)
 
+class PRProductionMO(BaseModel):
+    """One of this PR's MOs that PRODUCES the component — its logged output so far.
+
+    Lets the PR panel answer "has this component actually been made yet?" without
+    opening each MO: qty_produced is good (non-rejected) logged output."""
+    mo_id: UUID
+    mo_code: str
+    mo_qty: float                   # order target
+    qty_produced: float             # good logged output so far
+    status: str                     # NOT_STARTED | SHORT | OK  (vs this MO's own qty)
+
 class PRMaterialRequirementItem(BaseModel):
     item_id: UUID
     item_code: str
@@ -613,9 +624,12 @@ class PRMaterialRequirementItem(BaseModel):
     gross_required: float = 0.0            # requirement at full order qty (never decrements)
     qty_available: float                   # physical on-hand, plant-wide, good stock only
     qty_incoming: float = 0.0              # outstanding output of this PR's own MOs that produce the item
-    shortfall: float                       # max(0, total_required - qty_available - qty_incoming)
+    shortfall: float                       # max(0, total_required - qty_available - qty_incoming) — MATERIAL blocker
+    qty_produced: float = 0.0              # good output logged by this PR's MOs producing the item
+    production_shortfall: float = 0.0      # max(0, gross_required - qty_produced); 0 when nothing here produces it
     mo_contributions: list[PRMOContribution]
     supply_mos: list['BookingSupplyMO'] = []
+    production_mos: list[PRProductionMO] = []
 
 # ── Booking Stock (material availability across all ongoing MOs) ──────────────
 class BookingDemandMO(BaseModel):

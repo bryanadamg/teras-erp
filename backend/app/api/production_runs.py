@@ -14,7 +14,7 @@ from app.schemas import (
     ProductionRunCreate, ProductionRunResponse,
     PaginatedProductionRunResponse, PaginatedProductionRunListResponse,
     ManufacturingOrderCreate,
-    PRMaterialRequirementItem, PRMOContribution, BookingSupplyMO,
+    PRMaterialRequirementItem, PRMOContribution, BookingSupplyMO, PRProductionMO,
     ProductionRunPreviewRequest, NettingPreviewNode,
     PRMaterialStatusRequest, PRMaterialStatusItem,
 )
@@ -347,18 +347,32 @@ async def get_production_run_material_requirements(
     # cross-PR sweep would credit supply another PR's demand is already claiming;
     # /booking-stock is the plant-wide demand-vs-supply view.
     supply: dict[tuple, dict] = defaultdict(lambda: {"total_incoming": 0.0, "contributions": []})
+    # Production progress: good logged output of this PR's MOs, keyed the same way as
+    # supply. Lets the PR panel show "requirement vs what has actually been made" per
+    # component, so the whole run can be monitored without opening each MO.
+    production: dict[tuple, dict] = defaultdict(lambda: {"qty_produced": 0.0, "mos": []})
 
     so_linked_prs = await _sales_order_linked_prs(db, pr.manufacturing_orders)
 
     for mo in pr.manufacturing_orders:
+        produced = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
         # Closed orders make no more output and consume no more material.
         if mo.status in ("COMPLETED", "CANCELLED"):
             outstanding = 0.0
         else:
-            completed = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
-            outstanding = max(0.0, float(mo.qty) - completed)
+            outstanding = max(0.0, float(mo.qty) - produced)
 
         tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
+
+        out_key = _generate_variant_key(
+            [str(v.id) for v in (mo.attribute_values or [])], getattr(mo, "color_id", None)
+        )
+        p = production[(str(mo.item_id), out_key)]
+        p["qty_produced"] += produced
+        p["mos"].append(PRProductionMO(
+            mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), qty_produced=produced,
+            status="NOT_STARTED" if produced <= 0 else ("OK" if produced >= float(mo.qty) else "SHORT"),
+        ))
 
         for comp in mo.planned_components:
             if not comp.percentage and not comp.qty:
@@ -393,9 +407,6 @@ async def get_production_run_material_requirements(
         # always supply — their output is exactly what the demand above consumes.
         if outstanding <= 0 or _output_committed(mo, so_linked_prs):
             continue
-        out_key = _generate_variant_key(
-            [str(v.id) for v in (mo.attribute_values or [])], getattr(mo, "color_id", None)
-        )
         s = supply[(str(mo.item_id), out_key)]
         s["total_incoming"] += outstanding
         s["contributions"].append(BookingSupplyMO(
@@ -440,6 +451,12 @@ async def get_production_run_material_requirements(
         sup = supply.get((item_id_str, v_key))
         incoming = sup["total_incoming"] if sup else 0.0
         total = data["total_required"]
+        # Production progress vs the FIXED (full-order) requirement — the figure the
+        # floor plans against. Only meaningful when this PR actually makes the item;
+        # a purchased/stocked component has no producing MO and stays at 0.
+        prod = production.get((item_id_str, v_key))
+        produced = prod["qty_produced"] if prod else 0.0
+        prod_short = max(0.0, data["gross_required"] - produced) if prod else 0.0
         results.append(PRMaterialRequirementItem(
             item_id=data["item_id"],
             item_code=item.code if item else str(data["item_id"]),
@@ -452,8 +469,11 @@ async def get_production_run_material_requirements(
             qty_available=available,
             qty_incoming=incoming,
             shortfall=max(0.0, total - available - incoming),
+            qty_produced=produced,
+            production_shortfall=prod_short,
             mo_contributions=data["mo_contributions"],
             supply_mos=sup["contributions"] if sup else [],
+            production_mos=prod["mos"] if prod else [],
         ))
 
     bom_order = _bom_traversal_order(pr)
