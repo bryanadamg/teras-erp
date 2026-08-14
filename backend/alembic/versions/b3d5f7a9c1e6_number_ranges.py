@@ -10,14 +10,14 @@ gapless-counter behaviour ERPs use for document numbering. No backfill: series
 rows are created lazily on first allocation, seeded from the highest number
 already in use, so existing codes keep their numbers.
 
-Revision ID: f1a3c5e7b9d2
+Revision ID: b3d5f7a9c1e6
 Revises: e8b0d2f4a6c9
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision = 'f1a3c5e7b9d2'
+revision = 'b3d5f7a9c1e6'
 down_revision = 'e8b0d2f4a6c9'
 branch_labels = None
 depends_on = None
