@@ -221,7 +221,7 @@ export default function BookingStockView() {
         const numCell: React.CSSProperties = { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap', ...colLine };
 
         return (
-            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}>
+            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 }}>
                 <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <div style={xpTitleBar}>
                         <span><i className="bi bi-bookmark-check" style={{ marginRight: 6 }} />{t('booking_stock') || 'Booking Stock'}</span>
@@ -242,7 +242,7 @@ export default function BookingStockView() {
                         </span>
                     </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(100vh - 200px)' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(var(--app-vh) - 200px)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>

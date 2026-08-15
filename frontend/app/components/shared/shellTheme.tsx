@@ -188,7 +188,7 @@ export function FilterChipBar({ classic, options, value, onChange, style }: {
 export type ShellFill = 'page' | 'flex' | false;
 
 const fillStyleFor = (fill: ShellFill): React.CSSProperties =>
-    fill === 'page' ? { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }
+    fill === 'page' ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 }
     : fill === 'flex' ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }
     : {};
 
@@ -200,7 +200,7 @@ const fillStyleFor = (fill: ShellFill): React.CSSProperties =>
  */
 export function ShellWindow({ classic, fill = 'page', className, style, children }: {
     classic: boolean;
-    /** 'page' = calc(100vh - 80px) for a top-level route. 'flex' = flex:1 when nested
+    /** 'page' = calc(var(--app-vh) - 80px) for a top-level route. 'flex' = flex:1 when nested
      *  under an already-sized parent. false = caller manages its own sizing. */
     fill?: ShellFill;
     className?: string;

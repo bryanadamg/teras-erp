@@ -6,6 +6,48 @@
   --text-color: #1f2937;
 }
 
+/* ============================================================
+   Interface scale — the app renders denser than the browser's
+   100%, so nobody has to reach for Ctrl+minus. `zoom` on the root
+   is the same mechanism as browser zoom: lengths shrink and the
+   layout genuinely reflows (unlike transform: scale), so more rows
+   fit and nothing overlaps.
+   The scale is a data attribute on <html> (set pre-paint by the
+   boot script in layout.tsx, then by ThemeContext) rather than an
+   inline style, so the mobile and print overrides below can still
+   win — an inline custom property would outrank them.
+   Caveat that comes with zoom: viewport units are NOT rescaled by
+   it, so a bare 100vh renders at 80% of the window (verified in
+   Chrome). Everything sizing to the window therefore goes through
+   var(--app-vh) / --app-dvh / --app-vw, which divide the zoom back
+   out — e.g. 70vh is written calc(var(--app-vh) * 70 / 100).
+   Never reintroduce a raw vh/vw unit.
+   ============================================================ */
+:root {
+  --ui-zoom: 1;
+  --app-vh: calc(100vh / var(--ui-zoom));
+  --app-dvh: calc(100dvh / var(--ui-zoom));
+  --app-vw: calc(100vw / var(--ui-zoom));
+}
+html { zoom: var(--ui-zoom); }
+html[data-ui-scale="70"]  { --ui-zoom: 0.7; }
+html[data-ui-scale="75"]  { --ui-zoom: 0.75; }
+html[data-ui-scale="80"]  { --ui-zoom: 0.8; }
+html[data-ui-scale="90"]  { --ui-zoom: 0.9; }
+html[data-ui-scale="100"] { --ui-zoom: 1; }
+html[data-ui-scale="110"] { --ui-zoom: 1.1; }
+
+/* Phones drive the mobile shell, where 44px touch targets are the
+   point — never shrink those. Print goes to paper at 1:1 so the
+   print templates keep their A4 measurements. Both must sit after
+   the scale rules: equal specificity, last one wins. */
+@media (max-width: 767px) {
+  html[data-ui-scale] { --ui-zoom: 1; }
+}
+@media print {
+  html[data-ui-scale] { --ui-zoom: 1; }
+}
+
 body {
   background-color: var(--bg-color);
   color: var(--text-color);
@@ -16,7 +58,7 @@ body {
 @media (max-width: 767px) {
   body {
     overflow: hidden;
-    height: 100dvh;
+    height: var(--app-dvh);
   }
   button, input, select, textarea {
     min-height: 44px;
@@ -846,7 +888,7 @@ body {
 /* Sidebar Area */
 .sidebar {
   width: var(--sidebar-width);
-  height: 100vh;
+  height: var(--app-vh);
   position: fixed;
   top: 0;
   left: 0;

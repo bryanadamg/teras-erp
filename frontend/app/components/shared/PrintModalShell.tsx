@@ -36,7 +36,7 @@ interface PrintModalShellProps {
 // ModalWrapper directly" case.
 export default function PrintModalShell({
     title, onClose, children,
-    width = '90vw', maxWidth = 960, height = '88vh',
+    width = 'calc(var(--app-vw) * 90 / 100)', maxWidth = 960, height = 'calc(var(--app-vh) * 88 / 100)',
     bevel = true, closeGlyph = 'X', modeless = false,
 }: PrintModalShellProps) {
     const { uiStyle } = useTheme();

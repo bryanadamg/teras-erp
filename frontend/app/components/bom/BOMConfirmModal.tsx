@@ -253,7 +253,7 @@ const BOMConfirmModal = memo(({ isOpen, plan, saving, onConfirm, onClose }: BOMC
         >
             <div
                 data-testid="bom-confirm-modal"
-                style={{ fontFamily: xpFont, fontSize: 11, display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}
+                style={{ fontFamily: xpFont, fontSize: 11, display: 'flex', flexDirection: 'column', maxHeight: 'calc(var(--app-vh) * 70 / 100)' }}
             >
                 {/* Summary tiles */}
                 <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>

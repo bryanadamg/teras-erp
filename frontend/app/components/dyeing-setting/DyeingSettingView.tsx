@@ -82,7 +82,7 @@ export default function DyeingSettingView() {
         <div style={classic ? {
             display: 'flex',
             flexDirection: 'column',
-            height: 'calc(100vh - 80px)',
+            height: 'calc(var(--app-vh) - 80px)',
             minHeight: 0,
             fontFamily: xpFont,
             border: '2px solid',
@@ -91,7 +91,7 @@ export default function DyeingSettingView() {
         } : {
             display: 'flex',
             flexDirection: 'column',
-            height: 'calc(100vh - 80px)',
+            height: 'calc(var(--app-vh) - 80px)',
             minHeight: 0,
             fontFamily: modernFont,
             border: '1px solid #dbe1ea',

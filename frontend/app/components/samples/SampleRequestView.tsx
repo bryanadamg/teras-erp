@@ -1994,14 +1994,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <img
                            src={filePreview.url}
                            alt="Preview"
-                           style={{ maxWidth: '100%', maxHeight: '68vh', display: 'block', objectFit: 'contain' }}
+                           style={{ maxWidth: '100%', maxHeight: 'calc(var(--app-vh) * 68 / 100)', display: 'block', objectFit: 'contain' }}
                        />
                    </div>
                ) : (
                    <div style={{ margin: classic ? '-12px -14px' : '-24px' }}>
                        <iframe
                            src={filePreview.url}
-                           style={{ width: '100%', height: '70vh', border: 'none', display: 'block' }}
+                           style={{ width: '100%', height: 'calc(var(--app-vh) * 70 / 100)', border: 'none', display: 'block' }}
                            title="PDF Preview"
                        />
                    </div>

@@ -359,9 +359,9 @@ export default function PurchaseOrderPrintModal({
             <PrintModalShell
                 title={`Print Purchase Order — ${po.po_number}`}
                 onClose={onClose}
-                width="92vw"
+                width="calc(var(--app-vw) * 92 / 100)"
                 maxWidth={1020}
-                height="90vh"
+                height="calc(var(--app-vh) * 90 / 100)"
                 bevel={false}
                 modeless
             >

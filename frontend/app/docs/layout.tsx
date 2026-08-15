@@ -13,7 +13,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         <div style={{
             display: 'flex',
             flexDirection: 'column',
-            height: '100vh',
+            height: 'var(--app-vh)',
             fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
             fontSize: 13,
             background: '#d4e8f8',

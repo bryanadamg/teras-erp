@@ -211,9 +211,9 @@ export default function SOTablePrintModal({
             <PrintModalShell
                 title={`Print Sales Order Table — ${salesOrders.length} order(s)`}
                 onClose={onClose}
-                width="96vw"
+                width="calc(var(--app-vw) * 96 / 100)"
                 maxWidth={1300}
-                height="90vh"
+                height="calc(var(--app-vh) * 90 / 100)"
                 bevel={false}
                 modeless
             >

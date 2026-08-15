@@ -1216,7 +1216,7 @@ export default function InventoryView({
       <div className="col-12 order-2 order-md-1">
         {/* ── Outer shell: XP bevel in classic, Bootstrap card in default ── */}
         <div
-          style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' } : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}
+          style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' } : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}
           className={classic ? '' : 'card h-100 border-0 shadow-sm'}
         >
           {/* ── Title bar ── */}

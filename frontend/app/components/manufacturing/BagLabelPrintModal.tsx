@@ -111,9 +111,9 @@ export default function BagLabelPrintModal({
             <PrintModalShell
                 title={`Print Bag Labels — ${bags.length} ${bags.length === 1 ? 'bag' : 'bags'} (${parentMO?.code})`}
                 onClose={onClose}
-                width="90vw"
+                width="calc(var(--app-vw) * 90 / 100)"
                 maxWidth={880}
-                height="88vh"
+                height="calc(var(--app-vh) * 88 / 100)"
                 modeless
             >
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>

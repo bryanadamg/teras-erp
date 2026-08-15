@@ -855,7 +855,7 @@ export default function BOMView({
                 modeless
                 bodyScroll={false}
             >
-                <div style={{ width: '100%', height: 'min(82vh, 860px)', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: 'min(calc(var(--app-vh) * 82 / 100), 860px)', overflow: 'hidden' }}>
                     <BOMDesigner
                         rootItemCode={editingBOM ? editingBOM.item_code : (initialItemCode || '')}
                         initialAttributeValueIds={editingBOM ? (editingBOM.attribute_value_ids || []) : initialAttributeIds}
@@ -875,7 +875,7 @@ export default function BOMView({
             {/* BOM List */}
             <div className="col-12">
                 <div
-                    style={classic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' } : undefined}
+                    style={classic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0, display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' } : undefined}
                     className={classic ? '' : 'card h-100 shadow-sm border-0'}
                 >
                     {/* Toolbar */}

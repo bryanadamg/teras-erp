@@ -246,9 +246,9 @@ export default function StockLedgerPrintModal({
                 title={`Print Stock Ledger — ${entries.length.toLocaleString()} movement(s)${hiddenCount > 0 ? ` of ${totals.total.toLocaleString()}` : ''}`}
                 onClose={onClose}
                 modeless
-                width="96vw"
+                width="calc(var(--app-vw) * 96 / 100)"
                 maxWidth={1300}
-                height="90vh"
+                height="calc(var(--app-vh) * 90 / 100)"
                 bevel={false}
             >
                     <div style={{ padding: '6px 12px', borderBottom: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 11 }}>

@@ -152,7 +152,7 @@ export default function PackingCardPrintModal({ po, attributes, companyProfile, 
 
     return (
         <>
-            <PrintModalShell title={`Kartu Packing — ${po.code}`} onClose={onClose} width="92vw" maxWidth={900} height="90vh" modeless>
+            <PrintModalShell title={`Kartu Packing — ${po.code}`} onClose={onClose} width="calc(var(--app-vw) * 92 / 100)" maxWidth={900} height="calc(var(--app-vh) * 90 / 100)" modeless>
                 <div style={{ flex: 1, background: '#808080', overflowY: 'auto', padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
                     <div className="so-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 680, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>
                         {doc}

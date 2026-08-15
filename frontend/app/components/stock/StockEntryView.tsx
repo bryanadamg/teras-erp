@@ -187,7 +187,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                           <div style={xpSep} />
                           <ToolbarCount classic>{filteredBalance.length} row{filteredBalance.length === 1 ? '' : 's'}</ToolbarCount>
                       </div>
-                      <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(100vh - 200px)' }}>
+                      <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(var(--app-vh) - 200px)' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                               <thead>
                                   <tr>

@@ -1308,7 +1308,7 @@ export default function BOMDesigner({
     );
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '80vh', fontFamily: xpFont, fontSize: 11, background: '#ece9d8' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(var(--app-vh) * 80 / 100)', fontFamily: xpFont, fontSize: 11, background: '#ece9d8' }}>
             <CodeConfigModal
                 isOpen={isConfigOpen}
                 onClose={() => setIsConfigOpen(false)}
@@ -2437,13 +2437,13 @@ export default function BOMDesigner({
             {/* Photo preview overlay */}
             {photoPreview && (
             <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ background: '#ece9d8', border: '2px solid #0a246a', borderRadius: 4, overflow: 'hidden', maxWidth: '80vw', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ background: '#ece9d8', border: '2px solid #0a246a', borderRadius: 4, overflow: 'hidden', maxWidth: 'calc(var(--app-vw) * 80 / 100)', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}>
                         <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, fontFamily: xpFont, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>Product Sample Photo</span>
                         <button onClick={() => setPhotoPreview(null)} style={{ width: 21, height: 21, padding: 0, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
                     </div>
                     <div style={{ background: '#1e1e1e', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-                        <img src={photoPreview} alt="Sample" style={{ maxWidth: '72vw', maxHeight: '62vh', objectFit: 'contain', display: 'block' }} />
+                        <img src={photoPreview} alt="Sample" style={{ maxWidth: 'calc(var(--app-vw) * 72 / 100)', maxHeight: 'calc(var(--app-vh) * 62 / 100)', objectFit: 'contain', display: 'block' }} />
                     </div>
                     <div style={{ padding: '5px 8px', display: 'flex', justifyContent: 'flex-end', gap: 4, background: '#f0efe6', borderTop: '1px solid #ccc' }}>
                         <button style={{ ...xpBtn, padding: '2px 10px' }} onClick={() => window.open(photoPreview, '_blank')}>

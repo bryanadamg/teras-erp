@@ -35,7 +35,7 @@ export default function MobileShell({
     const activeTab = getActiveTab(pathname);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: XP_BEIGE, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'var(--app-dvh)', background: XP_BEIGE, overflow: 'hidden' }}>
 
             {/* XP Title Bar */}
             <div style={{

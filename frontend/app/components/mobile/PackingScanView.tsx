@@ -199,7 +199,7 @@ export default function PackingScanView({ authFetch, onClose }: { authFetch: (ur
     const reset = () => { setPo(null); setUnit(null); setError(null); setLastCartons([]); setManualCode(''); };
 
     return (
-        <div style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: '100vh', padding: 12 }}>
+        <div style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: 'var(--app-vh)', padding: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <strong style={{ fontSize: 15 }}>Packing Scanner</strong>
                 <button style={xpBtn()} onClick={onClose}>Close</button>

@@ -637,7 +637,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info" modeless bodyScroll={false}>
             {tabBar}
 
-            <div style={{ height: `min(${TAB_PANEL_HEIGHT}px, calc(100vh - 220px))`, overflowY: 'auto', paddingTop: 12 }}>
+            <div style={{ height: `min(${TAB_PANEL_HEIGHT}px, calc(var(--app-vh) - 220px))`, overflowY: 'auto', paddingTop: 12 }}>
 
             {tab === 'performance' && (
                 <div>

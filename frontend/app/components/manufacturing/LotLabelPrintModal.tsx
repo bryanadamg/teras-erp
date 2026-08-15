@@ -161,9 +161,9 @@ export default function LotLabelPrintModal({
             <PrintModalShell
                 title={`Print Lot Label — ${lots.length} ${lots.length === 1 ? 'lot' : 'lots'}`}
                 onClose={onClose}
-                width="90vw"
+                width="calc(var(--app-vw) * 90 / 100)"
                 maxWidth={880}
-                height="88vh"
+                height="calc(var(--app-vh) * 88 / 100)"
                 modeless
             >
                 <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>

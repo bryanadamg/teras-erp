@@ -623,7 +623,7 @@ export default function WorkOrderListView({
     };
 
     const containerStyle: React.CSSProperties = {
-        display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)',
+        display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)',
         ...(classic ? {
             border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
             background: '#ece9d8', fontFamily: xpFont,

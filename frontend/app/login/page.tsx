@@ -89,7 +89,7 @@ export default function LoginPage() {
         return (
             <div
                 style={{
-                    minHeight: '100vh', width: '100%',
+                    minHeight: 'var(--app-vh)', width: '100%',
                     background: 'linear-gradient(135deg, #0d1f5c 0%, #1a3fa8 40%, #0a246a 100%)',
                     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
                     display: 'flex', flexDirection: 'column', overflowY: 'auto',
@@ -283,13 +283,13 @@ export default function LoginPage() {
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
-        padding: 'clamp(16px, 3vh, 40px) 6%',
+        padding: 'clamp(16px, calc(var(--app-vh) * 3 / 100), 40px) 6%',
     };
 
     return (
         <div
             style={{
-                minHeight: '100vh', width: '100%',
+                minHeight: 'var(--app-vh)', width: '100%',
                 background: 'linear-gradient(135deg, #0d1f5c 0%, #1a3fa8 40%, #0a246a 100%)',
                 fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
                 display: 'flex', flexDirection: 'column', overflowY: 'auto',
@@ -304,32 +304,32 @@ export default function LoginPage() {
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <div style={{
-                        fontSize: 'clamp(20px,3.5vw,42px)', fontWeight: 600,
+                        fontSize: 'clamp(20px,calc(var(--app-vw) * 3.5 / 100),42px)', fontWeight: 600,
                         letterSpacing: 1, color: 'white',
                     }}>
                         Teras ERP
                     </div>
                     <div style={{
-                        fontSize: 'clamp(8px,1.1vw,13px)', color: '#a0c2f5',
+                        fontSize: 'clamp(8px,calc(var(--app-vw) * 1.1 / 100),13px)', color: '#a0c2f5',
                         letterSpacing: 5, textTransform: 'uppercase',
                     }}>
                         Manufacturing &amp; Inventory
                     </div>
                 </div>
                 <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <div style={{ fontSize: 'clamp(7px,0.9vw,11px)', color: '#9fb8dc', lineHeight: 1.9, letterSpacing: 1 }}>
+                    <div style={{ fontSize: 'clamp(7px,calc(var(--app-vw) * 0.9 / 100),11px)', color: '#9fb8dc', lineHeight: 1.9, letterSpacing: 1 }}>
                         Production · Stock · Sales<br />
                         BOM · Work Orders · Reports
                     </div>
                     <a
                         href="/docs"
                         style={{
-                            fontSize: 'clamp(9px,0.9vw,11px)',
+                            fontSize: 'clamp(9px,calc(var(--app-vw) * 0.9 / 100),11px)',
                             color: '#a8cef2',
                             textDecoration: 'none',
                             border: '1px solid rgba(122,176,232,0.3)',
                             borderRadius: 3,
-                            padding: 'clamp(2px,0.4vw,4px) clamp(6px,1vw,10px)',
+                            padding: 'clamp(2px,calc(var(--app-vw) * 0.4 / 100),4px) clamp(6px,calc(var(--app-vw) * 1 / 100),10px)',
                         }}
                     >
                         <i className="bi bi-journal-text" style={{ marginRight: 4 }} />View Documentation
@@ -349,7 +349,7 @@ export default function LoginPage() {
                         width: '60%', height: 1,
                         background: 'linear-gradient(to right, transparent, rgba(166,202,240,0.5), transparent)',
                     }} />
-                    <div style={{ fontSize: 'clamp(9px,1.2vw,14px)', color: '#b8ccf0', letterSpacing: 1 }}>
+                    <div style={{ fontSize: 'clamp(9px,calc(var(--app-vw) * 1.2 / 100),14px)', color: '#b8ccf0', letterSpacing: 1 }}>
                         {step === 'username' ? 'Type your username to sign in' : 'Enter your password to continue'}
                     </div>
                 </div>
@@ -367,7 +367,7 @@ export default function LoginPage() {
                 }}>
                     {/* Avatar */}
                     <div style={{
-                        width: 'clamp(40px,6vw,64px)', height: 'clamp(40px,6vw,64px)',
+                        width: 'clamp(40px,calc(var(--app-vw) * 6 / 100),64px)', height: 'clamp(40px,calc(var(--app-vw) * 6 / 100),64px)',
                         background: '#c8d8f0',
                         border: '2px solid',
                         borderColor: '#fff #888 #888 #fff',
@@ -378,7 +378,7 @@ export default function LoginPage() {
                     </div>
 
                     {step === 'password' && (
-                        <div style={{ fontSize: 'clamp(10px,1.3vw,15px)', color: 'white', fontWeight: 600 }}>
+                        <div style={{ fontSize: 'clamp(10px,calc(var(--app-vw) * 1.3 / 100),15px)', color: 'white', fontWeight: 600 }}>
                             {selectedUsername}
                         </div>
                     )}
@@ -395,7 +395,7 @@ export default function LoginPage() {
                     >
                         {step === 'username' && (
                             <div>
-                                <div style={{ fontSize: 'clamp(9px,1.1vw,12px)', color: '#c0d8f8', marginBottom: 4 }}>
+                                <div style={{ fontSize: 'clamp(9px,calc(var(--app-vw) * 1.1 / 100),12px)', color: '#c0d8f8', marginBottom: 4 }}>
                                     Username
                                 </div>
                                 <input
@@ -408,11 +408,11 @@ export default function LoginPage() {
                                     value={usernameInput}
                                     onChange={e => setUsernameInput(e.target.value)}
                                     style={{
-                                        width: '100%', height: 'clamp(24px,3vw,36px)',
+                                        width: '100%', height: 'clamp(24px,calc(var(--app-vw) * 3 / 100),36px)',
                                         background: 'rgba(255,255,255,0.15)',
                                         border: '1px solid rgba(166,202,240,0.6)',
                                         borderRadius: 3, color: 'white', padding: '0 8px',
-                                        fontSize: 'clamp(9px,1.1vw,13px)', outline: 'none',
+                                        fontSize: 'clamp(9px,calc(var(--app-vw) * 1.1 / 100),13px)', outline: 'none',
                                     }}
                                     required
                                 />
@@ -421,7 +421,7 @@ export default function LoginPage() {
 
                         {step === 'password' && (
                             <div>
-                                <div style={{ fontSize: 'clamp(9px,1.1vw,12px)', color: '#e8c870', marginBottom: 4 }}>
+                                <div style={{ fontSize: 'clamp(9px,calc(var(--app-vw) * 1.1 / 100),12px)', color: '#e8c870', marginBottom: 4 }}>
                                     Password
                                 </div>
                                 <input
@@ -433,15 +433,15 @@ export default function LoginPage() {
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     style={{
-                                        width: '100%', height: 'clamp(24px,3vw,36px)',
+                                        width: '100%', height: 'clamp(24px,calc(var(--app-vw) * 3 / 100),36px)',
                                         background: 'rgba(255,255,255,0.15)',
                                         border: '1px solid rgba(232,200,112,0.5)',
                                         borderRadius: 3, color: 'white', padding: '0 8px',
-                                        fontSize: 'clamp(9px,1.1vw,13px)', outline: 'none',
+                                        fontSize: 'clamp(9px,calc(var(--app-vw) * 1.1 / 100),13px)', outline: 'none',
                                     }}
                                     required
                                 />
-                                <div style={{ fontSize: 'clamp(8px,0.9vw,11px)', color: '#9fb8dc', marginTop: 6 }}>
+                                <div style={{ fontSize: 'clamp(8px,calc(var(--app-vw) * 0.9 / 100),11px)', color: '#9fb8dc', marginTop: 6 }}>
                                     Forgot your password? Contact your supervisor or IT.
                                 </div>
                             </div>
@@ -451,7 +451,7 @@ export default function LoginPage() {
                             <div
                                 data-testid="login-error"
                                 style={{
-                                    fontSize: 'clamp(8px,1vw,11px)', color: '#ff9080',
+                                    fontSize: 'clamp(8px,calc(var(--app-vw) * 1 / 100),11px)', color: '#ff9080',
                                     background: 'rgba(180,40,20,0.25)',
                                     border: '1px solid rgba(180,40,20,0.4)',
                                     borderRadius: 3, padding: '4px 8px',
@@ -464,7 +464,7 @@ export default function LoginPage() {
                                     style={{
                                         background: 'none', border: 'none', padding: 0, marginTop: 4,
                                         color: '#ffc0b0', textDecoration: 'underline',
-                                        fontSize: 'clamp(8px,0.9vw,11px)', cursor: 'pointer',
+                                        fontSize: 'clamp(8px,calc(var(--app-vw) * 0.9 / 100),11px)', cursor: 'pointer',
                                     }}
                                 >
                                     <i className="bi bi-arrow-left" style={{ marginRight: 4 }} />Try a different username
@@ -484,8 +484,8 @@ export default function LoginPage() {
                                     style={{
                                         background: 'linear-gradient(to bottom,#607090,#404860)',
                                         border: '1px solid rgba(100,130,180,0.4)', borderRadius: 3,
-                                        color: 'white', fontSize: 'clamp(8px,1vw,12px)',
-                                        padding: 'clamp(3px,0.5vw,6px) clamp(10px,2vw,20px)',
+                                        color: 'white', fontSize: 'clamp(8px,calc(var(--app-vw) * 1 / 100),12px)',
+                                        padding: 'clamp(3px,calc(var(--app-vw) * 0.5 / 100),6px) clamp(10px,calc(var(--app-vw) * 2 / 100),20px)',
                                         cursor: 'pointer',
                                     }}
                                 >
@@ -501,8 +501,8 @@ export default function LoginPage() {
                                         ? 'linear-gradient(to bottom,#3a6090,#1a3a6a)'
                                         : 'linear-gradient(to bottom,#4a90d9,#2563c4)',
                                     border: '1px solid #0a246a', borderRadius: 3,
-                                    color: 'white', fontSize: 'clamp(8px,1vw,12px)',
-                                    padding: 'clamp(3px,0.5vw,6px) clamp(10px,2vw,20px)',
+                                    color: 'white', fontSize: 'clamp(8px,calc(var(--app-vw) * 1 / 100),12px)',
+                                    padding: 'clamp(3px,calc(var(--app-vw) * 0.5 / 100),6px) clamp(10px,calc(var(--app-vw) * 2 / 100),20px)',
                                     cursor: isLoggingIn ? 'not-allowed' : 'pointer',
                                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
                                 }}
@@ -521,7 +521,7 @@ export default function LoginPage() {
                 borderTop: '1px solid rgba(166,202,240,0.1)',
                 justifyContent: 'flex-end',
             }}>
-                <div style={{ textAlign: 'right', fontSize: 'clamp(8px,1vw,12px)', color: '#a8bee0', lineHeight: 1.6 }}>
+                <div style={{ textAlign: 'right', fontSize: 'clamp(8px,calc(var(--app-vw) * 1 / 100),12px)', color: '#a8bee0', lineHeight: 1.6 }}>
                     {formatTime(currentTime)}<br />
                     {formatDate(currentTime)}
                 </div>

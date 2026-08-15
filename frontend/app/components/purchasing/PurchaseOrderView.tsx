@@ -854,7 +854,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
            <div className={classic ? '' : 'card-body p-0'}>
                {/* vertical scroll must live on the same element as overflow-x,
                    otherwise sticky headers bind to the inner wrapper and never stick */}
-               <div className="table-responsive" style={classic ? { height: 'calc(100vh - 160px)', overflowY: 'auto' } : undefined}>
+               <div className="table-responsive" style={classic ? { height: 'calc(var(--app-vh) - 160px)', overflowY: 'auto' } : undefined}>
                    <table
                        className={classic ? '' : 'table table-hover align-middle mb-0'}
                        style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}

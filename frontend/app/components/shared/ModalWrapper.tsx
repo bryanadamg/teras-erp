@@ -182,14 +182,14 @@ export default function ModalWrapper({
                 aria-labelledby={titleId}
                 tabIndex={-1}
                 style={{
-                    width: xpSizeWidths[size] || 480, maxWidth: '96vw',
+                    width: xpSizeWidths[size] || 480, maxWidth: 'calc(var(--app-vw) * 96 / 100)',
                     border: '2px solid',
                     borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                     boxShadow: floating ? '5px 5px 16px rgba(0,0,0,0.45)' : '4px 4px 12px rgba(0,0,0,0.55)',
                     background: '#ece9d8',
                     borderRadius: 0,
                     display: 'flex', flexDirection: 'column',
-                    maxHeight: floating ? 'calc(100vh - 80px)' : '92vh',
+                    maxHeight: floating ? 'calc(var(--app-vh) - 80px)' : 'calc(var(--app-vh) * 92 / 100)',
                     ...(floating ? floatingPos : {}),
                 }}
                 onClick={e => e.stopPropagation()}
@@ -297,7 +297,7 @@ export default function ModalWrapper({
                 <h5 id={titleId} className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
                 <button type="button" className={`btn-close ${variant === 'dark' ? 'btn-close-white' : ''}`} onClick={onClose} aria-label="Close"></button>
             </div>
-            <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(100vh - 160px)' : '85vh', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'white' }}>
+            <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(var(--app-vh) - 160px)' : 'calc(var(--app-vh) * 85 / 100)', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'white' }}>
                 {children}
             </div>
             {footer && (
@@ -309,7 +309,7 @@ export default function ModalWrapper({
     if (floating) {
         const widths: Record<string, number> = { sm: 320, md: 520, lg: 760, xl: 960, xxl: 1100 };
         return (
-            <div ref={panelRef} tabIndex={-1} style={{ ...floatingPos, width: widths[size] || 520, maxWidth: '96vw', outline: 'none' }}>
+            <div ref={panelRef} tabIndex={-1} style={{ ...floatingPos, width: widths[size] || 520, maxWidth: 'calc(var(--app-vw) * 96 / 100)', outline: 'none' }}>
                 {modernContent}
             </div>
         );

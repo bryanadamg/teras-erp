@@ -339,7 +339,7 @@ export default function ReportsView(_props: any) {
 
         return (
             <>
-            <div className="fade-in print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
+            <div className="fade-in print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
                 <div style={sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })}>
                     <div style={titleBar} className="no-print">
                         <span><i className="bi bi-journal-text" style={{ marginRight: 6 }} />{t('stock_ledger')}</span>
@@ -470,7 +470,7 @@ export default function ReportsView(_props: any) {
 
     return (
         <>
-        <div className="card fade-in border-0 shadow-sm print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
+        <div className="card fade-in border-0 shadow-sm print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
             <div className="card-header bg-white border-bottom no-print py-3">
                 <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                     <div>

@@ -186,7 +186,7 @@ export default function SuratJalanPrintModal({ pl, attributes, companyProfile, c
     return (
         <>
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-                <div style={{ ...xpBevel, width: '92vw', maxWidth: 900, height: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                <div style={{ ...xpBevel, width: 'calc(var(--app-vw) * 92 / 100)', maxWidth: 900, height: 'calc(var(--app-vh) * 90 / 100)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
                     <div style={xpTitleBar}>
                         <span>Surat Jalan — {pl.code}</span>
                         <button onClick={onClose} style={xpBtn({ padding: '0 6px', fontWeight: 'bold' })}>X</button>

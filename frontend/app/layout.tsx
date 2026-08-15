@@ -34,9 +34,19 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the boot script below stamps data-ui-scale on
+    // <html> before React hydrates, which the server markup can't know about.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Interface scale, applied before first paint so the UI never flashes
+            at full size and then snaps down. ThemeContext owns the value after
+            hydration; the scale list here mirrors UI_SCALES there. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=Number(localStorage.getItem('ui_scale'));if([70,75,80,90,100,110].indexOf(s)<0)s=80;document.documentElement.setAttribute('data-ui-scale',String(s));}catch(e){document.documentElement.setAttribute('data-ui-scale','80');}})();`,
+          }}
+        />
       </head>
       <body>
         <SWRegister />

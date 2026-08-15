@@ -393,7 +393,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                 style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    maxHeight: '70vh',
+                    maxHeight: 'calc(var(--app-vh) * 70 / 100)',
                     fontFamily: xpFont,
                     fontSize: 11,
                 }}

@@ -514,8 +514,8 @@ export default function LabDipRequestView({
 
     return (
         <div style={classic
-            ? { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0, fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0, fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
             {/* Title bar */}
             <div style={classic
                 ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
@@ -1135,7 +1135,7 @@ export default function LabDipRequestView({
                     }
                 >
                     <div style={{ textAlign: 'center' as const, padding: 6 }}>
-                        <img src={photoPreview.url} alt={photoPreview.filename} style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+                        <img src={photoPreview.url} alt={photoPreview.filename} style={{ maxWidth: '100%', maxHeight: 'calc(var(--app-vh) * 70 / 100)' }} />
                     </div>
                 </ModalWrapper>
             )}

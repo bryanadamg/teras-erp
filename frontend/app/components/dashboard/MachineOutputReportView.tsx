@@ -633,7 +633,7 @@ export default function MachineOutputReportView() {
         );
 
         return (
-            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
+            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
                 <div style={sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })}>
                     <div style={sharedXpTitleBar()}>
                         <span><i className="bi bi-clipboard-data" style={{ marginRight: 6 }} />Production Output &amp; QC Reject</span>
@@ -774,7 +774,7 @@ export default function MachineOutputReportView() {
 
     // ── Modern (Bootstrap) ───────────────────────────────────────────────────
     return (
-        <div className="card fade-in border-0 shadow-sm" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
+        <div className="card fade-in border-0 shadow-sm" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
             <div className="card-header bg-white border-bottom py-3">
                 <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                     <div>

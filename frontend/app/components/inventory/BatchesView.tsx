@@ -804,7 +804,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const ROW_H = classic ? 40 : 44;
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
       {classic ? (
         <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* ── Title bar (actions live here) ── */}

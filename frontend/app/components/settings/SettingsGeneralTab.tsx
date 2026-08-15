@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useToast } from '../shared/Toast';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme, UI_SCALES } from '../../context/ThemeContext';
 import { useTimezone, AVAILABLE_TIMEZONES } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpBtn, xpInput, FieldLabel } from '../shared/xpTheme';
@@ -16,19 +16,21 @@ export default function SettingsGeneralTab({
 }: any) {
     const { showToast } = useToast();
     const { hasPermission } = useUser();
-    const { uiStyle: currentStyle } = useTheme();
+    const { uiStyle: currentStyle, uiScale, setUiScale } = useTheme();
     const { timezone, setTimezone } = useTimezone();
     const classic = currentStyle === 'classic';
 
     const [name, setName] = useState(appName);
     const [style, setStyle] = useState(uiStyle || currentStyle || 'classic');
     const [tz, setTz] = useState(timezone);
+    const [scale, setScale] = useState(uiScale);
 
     const handleSubmitSystem = (e: React.FormEvent) => {
         e.preventDefault();
         if (onUpdateAppName) onUpdateAppName(name);
         if (onUpdateUIStyle) onUpdateUIStyle(style);
         setTimezone(tz);
+        setUiScale(scale);
         showToast('System preferences updated!', 'success');
     };
 
@@ -57,6 +59,25 @@ export default function SettingsGeneralTab({
                                 <option value="classic">Classic (Windows XP)</option>
                                 <option value="modern">Modern (Clean)</option>
                             </select>
+                        </div>
+                        <div>
+                            <FieldLabel classic={classic}>Interface Scale</FieldLabel>
+                            <select
+                                style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
+                                className={classic ? '' : 'form-select form-select-sm'}
+                                value={scale}
+                                onChange={e => setScale(Number(e.target.value))}
+                            >
+                                {UI_SCALES.map(s => (
+                                    <option key={s} value={s}>
+                                        {s}%{s === 80 ? ' (Default)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <div style={settingsHint(classic)}>
+                                Fits more rows on screen without browser zoom. Applies on this
+                                device; phones and printouts always render at 100%.
+                            </div>
                         </div>
                         <div>
                             <FieldLabel classic={classic}>Display Timezone</FieldLabel>
