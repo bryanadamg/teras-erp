@@ -480,7 +480,13 @@ export default function ProductionRunsTab({
                                                                     };
                                                                     const ui = STATUS_UI[status] || STATUS_UI.SUPPLIED;
                                                                     const statusColor = ui.color;
-                                                                    const needsSummary = (req.mo_contributions || []).map((c: any) => `${c.mo_code} (${parseFloat(c.required_qty).toFixed(2)})`).join(', ');
+                                                                    const needsList = req.mo_contributions || [];
+                                                                    const needsTotal = needsList.reduce((sum: number, c: any) => sum + parseFloat(c.required_qty || 0), 0);
+                                                                    const needsDetail = needsList.map((c: any) => `${c.mo_code} (${parseFloat(c.required_qty).toFixed(2)})`).join('\n');
+                                                                    const madeTotalProduced = prodMos.reduce((sum: number, m: any) => sum + parseFloat(m.qty_produced || 0), 0);
+                                                                    const madeTotalQty = prodMos.reduce((sum: number, m: any) => sum + parseFloat(m.mo_qty || 0), 0);
+                                                                    const madeNoWoCount = prodMos.filter((m: any) => (m.wo_count || 0) === 0).length;
+                                                                    const madeDetail = prodMos.map((m: any) => `${m.mo_code} (${parseFloat(m.qty_produced).toFixed(2)}/${parseFloat(m.mo_qty).toFixed(2)}${(m.wo_count || 0) === 0 ? ', no WO' : ''})`).join('\n');
                                                                     return (
                                                                         <tr key={ri}>
                                                                             <td style={cellStyle}><CodeChip code={req.item_code} classic={classic} /></td>
@@ -553,11 +559,13 @@ export default function ProductionRunsTab({
                                                                                 {ui.text}
                                                                             </td>
                                                                             <td style={{ ...cellStyle, fontSize: classic ? 9 : 11, color: '#555' }}>
-                                                                                <div><span style={{ color: '#888' }}>needs:</span> {needsSummary}</div>
+                                                                                <div title={needsDetail || undefined} style={{ cursor: needsList.length ? 'help' : undefined }}>
+                                                                                    <span style={{ color: '#888' }}>needs:</span> {needsList.length} MO{needsList.length === 1 ? '' : 's'} ({needsTotal.toFixed(2)} total)
+                                                                                </div>
                                                                                 {isMade && (
-                                                                                    <div>
+                                                                                    <div title={madeDetail || undefined} style={{ cursor: 'help' }}>
                                                                                         <span style={{ color: '#888' }}>made:</span>{' '}
-                                                                                        {prodMos.map((m: any) => `${m.mo_code} (${parseFloat(m.qty_produced).toFixed(2)}/${parseFloat(m.mo_qty).toFixed(2)}${(m.wo_count || 0) === 0 ? ', no WO' : ''})`).join(', ')}
+                                                                                        {prodMos.length} MO{prodMos.length === 1 ? '' : 's'} · {madeTotalProduced.toFixed(2)}/{madeTotalQty.toFixed(2)}{madeNoWoCount > 0 ? `, ${madeNoWoCount} no WO` : ''}
                                                                                     </div>
                                                                                 )}
                                                                             </td>
