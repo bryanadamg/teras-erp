@@ -570,6 +570,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const [operator, setOperator] = useState('');
     const [packNotes, setPackNotes] = useState('');
     const [lots, setLots] = useState<any[]>([]);
+    const [heldLotCount, setHeldLotCount] = useState(0);
     const [lotsLoading, setLotsLoading] = useState(false);
     const [selectedLots, setSelectedLots] = useState<string[]>([]);
     const [logging, setLogging] = useState(false);
@@ -603,7 +604,12 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                 );
                 const list = res.ok ? (await res.json() || []) : [];
                 if (!alive) return;
-                setLots((list || []).filter((b: any) => (b.remaining ?? 0) > 0 && b.quality_status !== 'REJECTED'));
+                const withStock = (list || []).filter((b: any) => (b.remaining ?? 0) > 0 && b.quality_status !== 'REJECTED');
+                // Held lots are excluded here rather than merely flagged — the server
+                // hard-blocks packing them anyway (assert_lots_released), so offering
+                // them as selectable would just be a checkbox that always 400s on submit.
+                setHeldLotCount(withStock.filter((b: any) => b.held).length);
+                setLots(withStock.filter((b: any) => !b.held));
             } finally {
                 if (alive) setLotsLoading(false);
             }
@@ -876,7 +882,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                             {lotsLoading && <div style={{ fontSize: 10, color: '#888', padding: '3px 5px' }}>Loading lots...</div>}
                                             {!lotsLoading && lots.length === 0 && (
                                                 <div style={{ fontSize: 10, color: '#888', padding: '3px 5px' }}>
-                                                    No lots of this item in stock at the pack-from location.
+                                                    {heldLotCount > 0
+                                                        ? `${heldLotCount} lot${heldLotCount === 1 ? '' : 's'} here ${heldLotCount === 1 ? 'is' : 'are'} held in quarantine — release on the Quarantine Packing page before packing.`
+                                                        : 'No lots of this item in stock at the pack-from location.'}
                                                 </div>
                                             )}
                                             {lots.map((b: any) => {
@@ -916,6 +924,11 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                         <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
                                             Each lot is logged as its own pack event, so no carton ever mixes two lots.
                                             The variant is read from the lot&apos;s own stock row.
+                                            {heldLotCount > 0 && (
+                                                <span style={{ color: '#7a4a00' }}>
+                                                    {' '}· {heldLotCount} more lot{heldLotCount === 1 ? '' : 's'} held in quarantine, not shown.
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 )

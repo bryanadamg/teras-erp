@@ -2569,6 +2569,8 @@ class BatchResponse(BaseModel):
     bom_size_id: Optional[UUID] = None
     bom_size_snapshot: Optional[dict] = None
     quality_status: str = "GOOD"    # GOOD | REJECTED
+    quarantine_status: Optional[str] = None  # disposition snapshot; only meaningful when `held` is true
+    held: bool = False  # quarantine_status not yet OK AND the batch's current location is a quarantine hold area (populated by list endpoint)
     remaining: Optional[float] = None  # stock balance for this batch (populated by list endpoint)
     location_id: Optional[UUID] = None    # current location — beam is atomic, always at most one (populated by list endpoint)
     location_name: Optional[str] = None

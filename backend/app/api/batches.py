@@ -20,7 +20,7 @@ from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchDispose, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service
+from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service, quarantine_service
 from app.core.ws_manager import manager
 from datetime import datetime, timezone
 import uuid
@@ -323,12 +323,18 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
             cur = parent
         return list(reversed(chain)) or None
 
+    # A lot is "held" only when it currently sits in a quarantine location AND its
+    # disposition hasn't passed — a stale REJECTED-style status left over after a
+    # transfer to a normal store must not block anything (see quarantine_service).
+    quarantine_loc_ids = await quarantine_service.quarantine_location_ids(db) if location_map else set()
+
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.location_id, b.location_name = location_map.get(str(b.id), (None, None))
         b.location_path = _build_path(b.location_id) if b.location_id else None
         b.item_code = b.item.code if b.item else None
         b.item_name = b.item.name if b.item else None
+        b.held = bool(b.location_id in quarantine_loc_ids) and not quarantine_service.is_pass(b.quarantine_status)
     await _resolve_gr_origins(db, list(batches))
     await _resolve_batch_origins(db, list(batches))
     await _resolve_batch_variants(db, list(batches))
