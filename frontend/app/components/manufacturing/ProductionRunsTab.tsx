@@ -265,8 +265,13 @@ export default function ProductionRunsTab({
                                                 </div>
                                             )}
                                         </td>
-                                        <td style={tdStyle}>
-                                            <div style={{ fontWeight: 'bold', fontSize: classic ? '11px' : undefined }}>
+                                        <td style={{ ...tdStyle, overflow: 'hidden' }}>
+                                            <div style={{
+                                                fontWeight: 'bold', fontSize: classic ? '11px' : undefined,
+                                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                            }} title={pr.bom_entries?.length > 0
+                                                ? pr.bom_entries.map((e: any) => e.bom?.item_name || e.bom?.item_code || e.bom?.code).filter(Boolean).join(' / ')
+                                                : (pr.bom?.item_name || pr.bom?.item_code || pr.bom?.code || pr.bom_id)}>
                                                 {pr.bom_entries?.length > 0
                                                     ? pr.bom_entries.map((e: any) => e.bom?.item_name || e.bom?.item_code || e.bom?.code).filter(Boolean).join(' / ')
                                                     : (pr.bom?.item_name || pr.bom?.item_code || pr.bom?.code || pr.bom_id)}
@@ -278,7 +283,10 @@ export default function ProductionRunsTab({
                                                 <CodeChip
                                                     classic={classic}
                                                     tier={2}
-                                                    style={{ display: 'block' }}
+                                                    style={{
+                                                        display: 'block', maxWidth: '100%',
+                                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    }}
                                                     code={pr.bom_entries?.length > 0
                                                         ? pr.bom_entries.map((e: any) => e.bom?.code).filter(Boolean).join(' / ')
                                                         : pr.bom?.code}
