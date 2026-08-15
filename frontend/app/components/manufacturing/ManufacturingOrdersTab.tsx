@@ -1230,9 +1230,9 @@ export default function ManufacturingOrdersTab({
                                         </td>
 
                                         {/* BOM — code + originating SO + nested marker */}
-                                        <td style={tdStyle}>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '9px', color: '#555' }}>
-                                                <CodeChip code={getBOMCode(wo.bom_id)} classic={classic} tier={2} />
+                                        <td style={{ ...tdStyle, overflow: 'hidden' }}>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '9px', color: '#555', minWidth: 0, maxWidth: '100%' }}>
+                                                <CodeChip code={getBOMCode(wo.bom_id)} classic={classic} tier={2} style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                                                 {wo.sales_order_id && (
                                                     <span style={classic ? {
                                                         fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
