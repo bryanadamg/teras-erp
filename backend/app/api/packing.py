@@ -542,13 +542,32 @@ async def add_packing_completion(
             return qty / max(1, int(stated_count))
         return float(po.pack_size or 0)
 
+    lot_qtys = [float(lot.qty) if lot else float(payload.qty) for lot in lots]
+
+    # An explicit, user-edited box list spans the whole event (every lot
+    # combined) and wins over box_size entirely — a box that doesn't fit in
+    # one lot's draw splits across the lot boundary rather than being
+    # rejected, since the packer edited the list without regard to lot lines.
+    per_lot_cartons: Optional[list[list[float]]] = None
+    if payload.boxes:
+        try:
+            per_lot_cartons = packing_service.allocate_boxes_to_lots(
+                lot_qtys, [float(b) for b in payload.boxes]
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     completions: list[PackingCompletion] = []
     all_mats: list[PackingCompletionMaterial] = []
     box_breakdown: list[float] = []
     for idx, lot in enumerate(lots):
-        lot_qty = float(lot.qty) if lot else float(payload.qty)
+        lot_qty = lot_qtys[idx]
         batch_id = lot.batch_id if lot else None
-        box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
+        if per_lot_cartons is not None:
+            carton_qtys = per_lot_cartons[idx]
+        else:
+            box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
+            carton_qtys = packing_service.split_qty(lot_qty, box_size)
 
         try:
             if batch_id:
@@ -613,8 +632,7 @@ async def add_packing_completion(
         try:
             units = await packing_service.mint_packed_units(
                 db, po, completion,
-                qty=lot_qty,
-                box_size=box_size,
+                carton_qtys=carton_qtys,
                 attribute_value_ids=[str(a) for a in attr_ids],
                 color_id=color_id,
                 username=completion.operator,

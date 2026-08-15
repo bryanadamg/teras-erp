@@ -668,8 +668,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     for (const l of alloc) takeByBatch[l.batch_id] = l.qty;
 
     // Mirrors packing_service.split_qty on the backend: fixed-size boxes plus one
-    // remainder box, never an even split — this is a preview only, the server is
-    // still the source of truth for what actually gets minted.
+    // remainder box, never an even split. Only used to *seed* the editable rows
+    // below — once seeded, the rows are the user's own to edit, add to, or remove.
     const splitBoxes = (total: number, size: number): number[] => {
         if (total <= 0) return [];
         if (!(size > 0)) return [Number(total.toFixed(4))];
@@ -680,24 +680,30 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
         return parts.length ? parts : [Number(total.toFixed(4))];
     };
 
-    const bs = num(boxSize);
-    // Each lot boxes up independently — a carton never straddles two lots, which
-    // is what keeps carton genealogy exact.
-    const previewBoxes: number[] = useLotPicker
-        ? alloc.flatMap(l => splitBoxes(l.qty, bs))
-        : splitBoxes(num(qty), bs);
+    // Boxes are edited as one flat list against the combined total, regardless
+    // of how many lots feed it — the server is the one that works out which lot
+    // backs each box (splitting a box across a lot boundary if needed), so the
+    // packer never has to think about lot lines while boxing up.
+    const [boxRows, setBoxRows] = useState<string[]>([]);
+    const packTotal = useLotPicker ? drawn : num(qty);
 
-    const boxSummary = (boxes: number[]): string => {
-        const counts = new Map<number, number>();
-        for (const b of boxes) {
-            const key = Math.round(b * 10000) / 10000;
-            counts.set(key, (counts.get(key) || 0) + 1);
+    // Seed once a qty is entered and no rows exist yet (a fresh form, or right
+    // after Regenerate clears them) — after that, edits belong to the user.
+    useEffect(() => {
+        if (boxRows.length === 0 && packTotal > 0) {
+            setBoxRows(splitBoxes(packTotal, num(boxSize)).map(String));
         }
-        return Array.from(counts.entries())
-            .sort((a, b) => b[0] - a[0])
-            .map(([q, n]) => `${n} × ${q}`)
-            .join(' + ');
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [packTotal]);
+
+    const regenerateBoxes = () => setBoxRows(splitBoxes(packTotal, num(boxSize)).map(String));
+    const updateBoxRow = (i: number, v: string) => setBoxRows(prev => prev.map((b, idx) => (idx === i ? v : b)));
+    const removeBoxRow = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
+    const addBoxRow = () => setBoxRows(prev => [...prev, '']);
+
+    const boxValues = boxRows.map(num).filter(v => v > 0);
+    const boxTotal = boxValues.reduce((s, v) => s + v, 0);
+    const boxMismatch = packTotal > 0 && Math.abs(boxTotal - packTotal) > 1e-3;
 
     const toggleLot = (id: string, on: boolean) =>
         setSelectedLots(prev => on ? [...prev, id] : prev.filter(x => x !== id));
@@ -708,11 +714,18 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
         e.preventDefault();
         const q = num(qty);
         if (q <= 0) { showToast('Enter a positive quantity', 'danger'); return; }
-        if (previewBoxes.length <= 0) { showToast(`At least one ${po.package_label.toLowerCase()} is required`, 'danger'); return; }
+        if (boxValues.length <= 0) { showToast(`At least one ${po.package_label.toLowerCase()} is required`, 'danger'); return; }
+        if (boxMismatch) {
+            showToast(
+                `Boxes total ${boxTotal.toFixed(2)} but ${packTotal.toFixed(2)} is being packed — fix the box list`,
+                'danger',
+            );
+            return;
+        }
 
         let body: any = {
             qty: q,
-            box_size: bs > 0 ? bs : undefined,
+            boxes: boxValues,
             operator: operator || null,
             notes: packNotes || null,
         };
@@ -727,7 +740,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
             }
             body = {
                 lots: alloc,
-                box_size: bs > 0 ? bs : undefined,
+                boxes: boxValues,
                 operator: operator || null,
                 notes: packNotes || null,
             };
@@ -742,8 +755,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
             if (res.ok) {
                 const fresh = await res.json();
                 setPo(fresh);
-                setQty(''); setPackNotes('');
-                showToast(`Packed ${q} into ${previewBoxes.length} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
+                setQty(''); setPackNotes(''); setBoxRows([]);
+                showToast(`Packed ${q} into ${boxValues.length} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
                 await onChanged();
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -810,8 +823,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                         Carton Labels
                     </button>
                     {!readOnly && (
-                        <button type="submit" form="packing-log-form" disabled={logging}
-                            style={{ ...xpBtnGreen(), opacity: logging ? 0.6 : 1 }}>
+                        <button type="submit" form="packing-log-form" disabled={logging || boxMismatch}
+                            style={{ ...xpBtnGreen(), opacity: logging || boxMismatch ? 0.6 : 1 }}>
                             {logging ? 'Packing...' : 'Log Packing'}
                         </button>
                     )}
@@ -874,7 +887,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                     required
                                 />
                             </div>
-                            <div style={{ display: 'flex', gap: 8 }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={{ ...xpFormLabel, fontWeight: 'bold' }}>Box size</label>
                                     <input
@@ -886,13 +899,72 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                         placeholder="whole qty in one box"
                                     />
                                 </div>
-                                <div style={{ flex: 2 }}>
-                                    <label style={xpFormLabel}>{po.package_label}s to be made</label>
-                                    <div style={{ fontSize: 11, paddingTop: 3, color: previewBoxes.length ? '#000080' : '#888', fontWeight: previewBoxes.length ? 'bold' : 'normal' }}>
-                                        {previewBoxes.length
-                                            ? `${previewBoxes.length} — ${boxSummary(previewBoxes)} ${uom}`
-                                            : 'enter a quantity to preview'}
-                                    </div>
+                                <button
+                                    type="button"
+                                    onClick={regenerateBoxes}
+                                    title="Reset the box list below from Qty to Pack ÷ Box size"
+                                    style={{ ...xpBtn(), fontSize: 9, padding: '3px 8px', marginBottom: 1 }}
+                                >
+                                    Regenerate
+                                </button>
+                            </div>
+
+                            <div>
+                                <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span>{po.package_label}s to be Made</span>
+                                    <button
+                                        type="button"
+                                        onClick={addBoxRow}
+                                        style={{ ...xpBtn(), fontSize: 9, padding: '0 6px' }}
+                                    >+ Add {po.package_label.toLowerCase()}</button>
+                                </label>
+                                <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 140, overflowY: 'auto' }}>
+                                    {boxRows.length === 0 && (
+                                        <div style={{ fontSize: 10, color: '#888', padding: '4px 5px' }}>
+                                            Enter a quantity above to generate boxes.
+                                        </div>
+                                    )}
+                                    {boxRows.map((b, i) => (
+                                        <div key={i} style={{
+                                            display: 'flex', alignItems: 'center', gap: 5, padding: '2px 5px',
+                                            borderBottom: '1px solid #eceae2',
+                                        }}>
+                                            <span style={{ fontSize: 9, color: '#888', width: 36, flexShrink: 0 }}>#{i + 1}</span>
+                                            <input
+                                                type="number"
+                                                style={{ ...xpInput, flex: 1 }}
+                                                value={b}
+                                                onChange={e => updateBoxRow(i, e.target.value)}
+                                                min="0" step="any"
+                                            />
+                                            {uom && <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>{uom}</span>}
+                                            <button
+                                                type="button"
+                                                onClick={() => removeBoxRow(i)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aa0000', fontSize: 13, fontWeight: 'bold', padding: '0 3px' }}
+                                                title="Remove"
+                                            >×</button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 6, fontSize: 10,
+                                    padding: '3px 5px', background: '#f0efe6', border: '1px solid #c0bdb5', borderTop: 'none',
+                                }}>
+                                    <span style={{
+                                        width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+                                        background: boxMismatch ? '#cc3300' : '#4caf50',
+                                    }} />
+                                    <span style={{ color: '#555' }}>Boxed:</span>
+                                    <span style={{ fontWeight: 'bold', color: boxMismatch ? '#a00000' : '#2e7d32' }}>
+                                        {boxTotal.toFixed(2)}
+                                    </span>
+                                    <span style={{ color: '#c0bdb5' }}>/</span>
+                                    <span style={{ fontWeight: 'bold' }}>{packTotal.toFixed(2)} {uom}</span>
+                                    <span style={{ color: '#c0bdb5' }}>|</span>
+                                    <span style={{ color: '#555' }}>{po.package_label}s:</span>
+                                    <span style={{ fontWeight: 'bold' }}>{boxValues.length}</span>
+                                    {boxMismatch && <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>}
                                 </div>
                             </div>
                             {outputLocName && (

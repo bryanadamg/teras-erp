@@ -2719,8 +2719,13 @@ class PackingCompletionCreate(BaseModel):
     # Fixed box size driving the carton split (N full boxes + one remainder),
     # e.g. 5 for 5kg boxes. Overrides the order's own pack_size for this event;
     # omit to fall back to pack_size, or to the legacy package_count if neither
-    # is set. Applies across every lot in `lots`.
+    # is set. Applies across every lot in `lots`. Ignored when `boxes` is given.
     box_size: float | None = None
+    # Explicit, user-edited box quantities for the whole event (spanning every
+    # lot in `lots` combined) — must sum to the total qty being packed. Wins
+    # over `box_size`; a box that doesn't fit within one lot's draw is split
+    # across the lot boundary (see packing_service.allocate_boxes_to_lots).
+    boxes: list[float] | None = None
     source_batch_id: UUID | None = None
     # Multi-lot pack: one completion row is written per lot, so each keeps a
     # truthful source_batch_id and its own carton range.

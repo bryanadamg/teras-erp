@@ -7,7 +7,7 @@ location, and there is no second qty record to drift. `Batch.packing_order_id`
 is the discriminator: non-null means "this batch is a carton".
 """
 import uuid
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime
 from typing import Optional
 
@@ -68,6 +68,40 @@ def describe_box_breakdown(qtys: list[float]) -> str:
     return " + ".join(
         f"{n} × {q:g}" for q, n in sorted(counts.items(), key=lambda kv: -kv[0])
     )
+
+
+def allocate_boxes_to_lots(lot_qtys: list[float], boxes: list[float]) -> list[list[float]]:
+    """Assign a user-edited, FIFO-ordered list of box quantities across lots.
+
+    A physical carton can only be pegged to one lot (BatchConsumption is 1:1),
+    so a box that doesn't fit in what's left of the current lot splits there —
+    the leftover continues into the next lot as its own carton. This is what
+    lets the packer edit one flat box list without caring which lot backs each
+    box; the split only becomes visible (as one extra carton) at a lot seam.
+    """
+    total_lots = round(sum(float(q) for q in lot_qtys), 4)
+    total_boxes = round(sum(float(b) for b in boxes), 4)
+    if abs(total_lots - total_boxes) > 1e-3:
+        raise ValueError(
+            f"Boxes total {total_boxes:g} does not match the {total_lots:g} being packed"
+        )
+
+    queue = deque(round(float(b), 4) for b in boxes if float(b) > 1e-9)
+    out: list[list[float]] = []
+    for lot_qty in lot_qtys:
+        remaining = round(float(lot_qty), 4)
+        cartons: list[float] = []
+        while remaining > 1e-6 and queue:
+            box = queue[0]
+            take = round(min(box, remaining), 4)
+            cartons.append(take)
+            remaining = round(remaining - take, 4)
+            if take >= box - 1e-6:
+                queue.popleft()
+            else:
+                queue[0] = round(box - take, 4)
+        out.append(cartons)
+    return out
 
 
 async def resolve_lot_variant(db: AsyncSession, po: PackingOrder, batch_id) -> tuple[list, object, float]:
@@ -145,33 +179,32 @@ async def mint_packed_units(
     db: AsyncSession,
     po: PackingOrder,
     completion: PackingCompletion,
-    qty: float,
-    box_size: float,
+    carton_qtys: list[float],
     attribute_value_ids: list[str],
     color_id,
     username: Optional[str] = None,
     source_batch_id=None,
 ) -> list[tuple[Batch, float]]:
-    """Consume bulk FG and mint fixed-size cartons for one completion event.
+    """Consume bulk FG and mint one carton per entry in `carton_qtys`.
 
-    Carton count is derived from `qty` / `box_size` (see `split_qty`), never
-    passed in directly — the caller states how big a box is, not how many.
-    Stock moves twice per carton: OUT of the packing order's source location on
-    the incoming lot, IN at the output location keyed by the new carton batch.
-    `BatchConsumption` pegs input lot -> carton so lot genealogy survives packing.
-    Returns each minted carton alongside its qty, so a caller can render the
-    box breakdown (e.g. for an audit log entry) without recomputing the split.
+    The caller decides the split (a fixed box size via `split_qty`, or an
+    explicit user-edited list via `allocate_boxes_to_lots`) — this function
+    just mints whatever list it's handed. Stock moves twice per carton: OUT of
+    the packing order's source location on the incoming lot, IN at the output
+    location keyed by the new carton batch. `BatchConsumption` pegs input lot ->
+    carton so lot genealogy survives packing. Returns each minted carton
+    alongside its qty, so a caller can render the box breakdown (e.g. for an
+    audit log entry) without recomputing the split.
     """
     if not po.output_location_id:
         raise ValueError("Packing order has no output location")
     if not po.source_location_id:
         raise ValueError("Packing order has no source location")
 
-    qtys = split_qty(qty, box_size)
-    completion.package_count = len(qtys)
+    completion.package_count = len(carton_qtys)
     units: list[tuple[Batch, float]] = []
 
-    for carton_qty in qtys:
+    for carton_qty in carton_qtys:
         pu = Batch(
             batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
             item_id=po.item_id,
