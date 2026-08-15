@@ -345,7 +345,7 @@ export default function QuarantinePackingView() {
                 Lots on hold, banded by the day they were decided — status is set per lot; the row above is their rollup
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                <thead style={lvThead(classic)}>
+                <thead style={classic ? { background: '#e4e0d4', borderBottom: '2px solid #808080' } : lvThead(classic)}>
                     <tr>
                         <th style={lvTh(classic)}>Lot</th>
                         <th style={{ ...lvTh(classic), width: 110, textAlign: 'right' }}>Qty</th>
