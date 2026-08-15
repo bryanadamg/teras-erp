@@ -586,7 +586,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const pct = target > 0 ? Math.min(100, Math.round((packed / target) * 100)) : 0;
 
     const [qty, setQty] = useState<string>('');
-    const [packageCount, setPackageCount] = useState<string>('1');
+    const [boxSize, setBoxSize] = useState<string>(() => (num(po.pack_size) > 0 ? String(num(po.pack_size)) : ''));
     const [operator, setOperator] = useState('');
     const [packNotes, setPackNotes] = useState('');
     const [lots, setLots] = useState<any[]>([]);
@@ -629,21 +629,17 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                 // hard-blocks packing them anyway (assert_lots_released), so offering
                 // them as selectable would just be a checkbox that always 400s on submit.
                 setHeldLotCount(withStock.filter((b: any) => b.held).length);
-                setLots(withStock.filter((b: any) => !b.held));
+                const available = withStock.filter((b: any) => !b.held);
+                setLots(available);
+                // Default to every ready lot combined — the packer normally wants the
+                // whole released pool, not to hand-pick which lot each box comes from.
+                setSelectedLots(available.map((b: any) => String(b.id)));
             } finally {
                 if (alive) setLotsLoading(false);
             }
         })();
         return () => { alive = false; };
     }, [po.item_id, po.source_location_id, useLotPicker, authFetch, po.qty_packed]);
-
-    // Cartons follow qty via pack_size — the count is what mints carton rows, so
-    // a stale value silently produces the wrong number of physical labels.
-    const onQtyChange = (v: string) => {
-        setQty(v);
-        const ps = num(po.pack_size);
-        if (ps > 0 && num(v) > 0) setPackageCount(String(Math.max(1, Math.ceil(num(v) / ps))));
-    };
 
     const selSet = new Set(selectedLots);
     const selAvailable = lots.filter((b: any) => selSet.has(String(b.id)))
@@ -671,21 +667,36 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const takeByBatch: Record<string, number> = {};
     for (const l of alloc) takeByBatch[l.batch_id] = l.qty;
 
-    // Cartons are entered as one total, then split across the drawing lots in
-    // proportion to their qty (largest remainder, at least one each) — a carton
-    // never straddles two lots, which is what keeps carton genealogy exact.
-    const splitCartons = (total: number): number[] => {
-        const n = alloc.length;
-        if (n === 0) return [];
-        if (total <= n) return alloc.map(() => 1);
-        const exact = alloc.map(l => (l.qty / drawn) * total);
-        const base = exact.map(v => Math.max(1, Math.floor(v)));
-        let left = total - base.reduce((s, v) => s + v, 0);
-        const order = exact
-            .map((v, i) => ({ i, frac: v - Math.floor(v) }))
-            .sort((a, b) => b.frac - a.frac);
-        for (let k = 0; left > 0; k = (k + 1) % n) { base[order[k].i] += 1; left -= 1; }
-        return base;
+    // Mirrors packing_service.split_qty on the backend: fixed-size boxes plus one
+    // remainder box, never an even split — this is a preview only, the server is
+    // still the source of truth for what actually gets minted.
+    const splitBoxes = (total: number, size: number): number[] => {
+        if (total <= 0) return [];
+        if (!(size > 0)) return [Number(total.toFixed(4))];
+        const full = Math.floor(total / size + 1e-9);
+        const remainder = Number((total - full * size).toFixed(4));
+        const parts = Array(full).fill(Number(size.toFixed(4)));
+        if (remainder > 1e-6) parts.push(remainder);
+        return parts.length ? parts : [Number(total.toFixed(4))];
+    };
+
+    const bs = num(boxSize);
+    // Each lot boxes up independently — a carton never straddles two lots, which
+    // is what keeps carton genealogy exact.
+    const previewBoxes: number[] = useLotPicker
+        ? alloc.flatMap(l => splitBoxes(l.qty, bs))
+        : splitBoxes(num(qty), bs);
+
+    const boxSummary = (boxes: number[]): string => {
+        const counts = new Map<number, number>();
+        for (const b of boxes) {
+            const key = Math.round(b * 10000) / 10000;
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        return Array.from(counts.entries())
+            .sort((a, b) => b[0] - a[0])
+            .map(([q, n]) => `${n} × ${q}`)
+            .join(' + ');
     };
 
     const toggleLot = (id: string, on: boolean) =>
@@ -696,11 +707,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const q = num(qty);
-        const cartons = parseInt(packageCount, 10) || 0;
         if (q <= 0) { showToast('Enter a positive quantity', 'danger'); return; }
-        if (cartons <= 0) { showToast(`At least one ${po.package_label.toLowerCase()} is required`, 'danger'); return; }
+        if (previewBoxes.length <= 0) { showToast(`At least one ${po.package_label.toLowerCase()} is required`, 'danger'); return; }
 
-        let body: any = { qty: q, package_count: cartons, operator: operator || null, notes: packNotes || null };
+        let body: any = {
+            qty: q,
+            box_size: bs > 0 ? bs : undefined,
+            operator: operator || null,
+            notes: packNotes || null,
+        };
         if (useLotPicker) {
             if (!selectedLots.length) { showToast('Select at least one lot to pack from', 'danger'); return; }
             if (short) {
@@ -710,9 +725,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                 );
                 return;
             }
-            const perLot = splitCartons(cartons);
             body = {
-                lots: alloc.map((l, i) => ({ ...l, package_count: perLot[i] })),
+                lots: alloc,
+                box_size: bs > 0 ? bs : undefined,
                 operator: operator || null,
                 notes: packNotes || null,
             };
@@ -727,8 +742,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
             if (res.ok) {
                 const fresh = await res.json();
                 setPo(fresh);
-                setQty(''); setPackageCount('1'); setPackNotes(''); setSelectedLots([]);
-                showToast(`Packed ${q} into ${cartons} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
+                setQty(''); setPackNotes('');
+                showToast(`Packed ${q} into ${previewBoxes.length} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
                 await onChanged();
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -852,7 +867,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                     type="number"
                                     style={{ ...xpInput, width: '100%', fontSize: 13, height: 22 }}
                                     value={qty}
-                                    onChange={e => onQtyChange(e.target.value)}
+                                    onChange={e => setQty(e.target.value)}
                                     min="0.0001" step="any"
                                     placeholder={remaining > 0 ? remaining.toFixed(2) : String(target)}
                                     autoFocus
@@ -861,14 +876,22 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
-                                    <label style={{ ...xpFormLabel, fontWeight: 'bold' }}>{po.package_label}s</label>
-                                    <input type="number" style={{ ...xpInput, width: '100%' }} value={packageCount}
-                                        onChange={e => setPackageCount(e.target.value)} min="1" step="1" required />
+                                    <label style={{ ...xpFormLabel, fontWeight: 'bold' }}>Box size</label>
+                                    <input
+                                        type="number"
+                                        style={{ ...xpInput, width: '100%' }}
+                                        value={boxSize}
+                                        onChange={e => setBoxSize(e.target.value)}
+                                        min="0" step="any"
+                                        placeholder="whole qty in one box"
+                                    />
                                 </div>
-                                <div style={{ flex: 1 }}>
-                                    <label style={xpFormLabel}>Qty per {po.package_label.toLowerCase()}</label>
-                                    <div style={{ fontSize: 11, paddingTop: 3, color: '#555' }}>
-                                        {num(po.pack_size) > 0 ? `${num(po.pack_size).toLocaleString()} ${uom}` : 'not set — enter the count'}
+                                <div style={{ flex: 2 }}>
+                                    <label style={xpFormLabel}>{po.package_label}s to be made</label>
+                                    <div style={{ fontSize: 11, paddingTop: 3, color: previewBoxes.length ? '#000080' : '#888', fontWeight: previewBoxes.length ? 'bold' : 'normal' }}>
+                                        {previewBoxes.length
+                                            ? `${previewBoxes.length} — ${boxSummary(previewBoxes)} ${uom}`
+                                            : 'enter a quantity to preview'}
                                     </div>
                                 </div>
                             </div>

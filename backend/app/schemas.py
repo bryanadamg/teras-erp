@@ -2716,6 +2716,11 @@ class PackingCompletionCreate(BaseModel):
     # given — each lot carries its own. Defaults keep a lots-only payload valid.
     qty: float = 0
     package_count: int = 1
+    # Fixed box size driving the carton split (N full boxes + one remainder),
+    # e.g. 5 for 5kg boxes. Overrides the order's own pack_size for this event;
+    # omit to fall back to pack_size, or to the legacy package_count if neither
+    # is set. Applies across every lot in `lots`.
+    box_size: float | None = None
     source_batch_id: UUID | None = None
     # Multi-lot pack: one completion row is written per lot, so each keeps a
     # truthful source_batch_id and its own carton range.

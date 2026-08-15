@@ -4,7 +4,6 @@ from sqlalchemy import select, func, cast, String, nulls_last, inspect as sa_ins
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import datetime
-import math
 import uuid
 
 from app.db.session import get_async_db
@@ -528,18 +527,28 @@ async def add_packing_completion(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    def _cartons(qty: float, stated: Optional[int]) -> int:
-        if stated:
-            return max(1, int(stated))
-        ps = float(po.pack_size or 0)
-        return max(1, math.ceil(qty / ps)) if ps > 0 else 1
+    def _box_size(stated_count: Optional[int], qty: float) -> float:
+        """Resolve the fixed box size driving this lot's carton split.
+
+        A payload-level `box_size` (the bulk-log path) wins; a legacy explicit
+        `package_count` reconstructs the exact box size it implies, so older
+        callers (the mobile scanner, which still states a carton count) keep
+        their existing behavior unchanged. Otherwise falls back to the order's
+        own `pack_size`.
+        """
+        if payload.box_size:
+            return float(payload.box_size)
+        if stated_count:
+            return qty / max(1, int(stated_count))
+        return float(po.pack_size or 0)
 
     completions: list[PackingCompletion] = []
     all_mats: list[PackingCompletionMaterial] = []
+    box_breakdown: list[float] = []
     for idx, lot in enumerate(lots):
         lot_qty = float(lot.qty) if lot else float(payload.qty)
         batch_id = lot.batch_id if lot else None
-        cartons = _cartons(lot_qty, lot.package_count if lot else payload.package_count)
+        box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
 
         try:
             if batch_id:
@@ -560,7 +569,8 @@ async def add_packing_completion(
         completion = PackingCompletion(
             packing_order_id=po.id,
             qty=lot_qty,
-            package_count=cartons,
+            # Overwritten by mint_packed_units below, once the real split is known.
+            package_count=0,
             source_batch_id=batch_id,
             operator=payload.operator or current_user.username,
             notes=payload.notes,
@@ -601,10 +611,10 @@ async def add_packing_completion(
         all_mats.extend(mats)
 
         try:
-            await packing_service.mint_packed_units(
+            units = await packing_service.mint_packed_units(
                 db, po, completion,
                 qty=lot_qty,
-                package_count=cartons,
+                box_size=box_size,
                 attribute_value_ids=[str(a) for a in attr_ids],
                 color_id=color_id,
                 username=completion.operator,
@@ -612,6 +622,7 @@ async def add_packing_completion(
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        box_breakdown.extend(carton_qty for _, carton_qty in units)
 
     try:
         await packing_service.consume_packaging_materials(db, po, all_mats)
@@ -638,10 +649,15 @@ async def add_packing_completion(
             await manager.broadcast({"type": "SALES_ORDER_UPDATE", "id": str(po.sales_order_id)})
 
     lot_note = f" from {len(completions)} lots" if len(completions) > 1 else ""
+    breakdown = packing_service.describe_box_breakdown(box_breakdown)
+    breakdown_note = f" ({breakdown})" if len(set(round(q, 4) for q in box_breakdown)) > 1 else ""
     await audit_service.log_activity(
         db, user_id=current_user.id, action="PACK", entity_type="PackingOrder",
         entity_id=str(po_id),
-        details=f"Packed {total_qty} into {total_cartons} {po.package_label.lower()}(s){lot_note} on {po.code}",
+        details=(
+            f"Packed {total_qty} into {total_cartons} {po.package_label.lower()}(s)"
+            f"{breakdown_note}{lot_note} on {po.code}"
+        ),
     )
     try:
         await kpi_service.invalidate_kpis_async(db)

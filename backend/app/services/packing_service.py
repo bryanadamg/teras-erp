@@ -7,6 +7,7 @@ location, and there is no second qty record to drift. `Batch.packing_order_id`
 is the discriminator: non-null means "this batch is a carton".
 """
 import uuid
+from collections import Counter
 from datetime import datetime
 from typing import Optional
 
@@ -36,18 +37,37 @@ def packed_unit_filter():
     return Batch.packing_order_id.isnot(None)
 
 
-def split_qty(total: float, count: int) -> list[float]:
-    """Even split across cartons, remainder onto the last one.
+def split_qty(total: float, box_size: float) -> list[float]:
+    """Fixed-size boxes plus one remainder box, not an even split.
 
-    Rounded to 4dp to match Numeric(14, 4); the last carton absorbs the rounding
-    residue so the cartons always sum back to exactly `total`.
+    A carton is a physical box of a known size (e.g. 5kg) — the packer expects
+    `floor(total / box_size)` full boxes, with only the leftover in a smaller
+    final box, never all boxes shrunk to absorb it. Rounded to 4dp to match
+    Numeric(14, 4). `box_size <= 0` means no box size is configured — the whole
+    qty goes into a single carton.
     """
-    count = max(1, int(count))
     total = float(total)
-    each = round(total / count, 4)
-    parts = [each] * (count - 1)
-    parts.append(round(total - each * (count - 1), 4))
-    return parts
+    box_size = float(box_size)
+    if box_size <= 0:
+        return [round(total, 4)]
+    full = int(total // box_size)
+    remainder = round(total - full * box_size, 4)
+    parts = [round(box_size, 4)] * full
+    if remainder > 1e-6:
+        parts.append(remainder)
+    return parts or [round(total, 4)]
+
+
+def describe_box_breakdown(qtys: list[float]) -> str:
+    """Human-readable box breakdown for an audit log entry, e.g. "5 × 5 + 1 × 3".
+
+    Groups equal-sized boxes together (largest first) rather than listing every
+    carton, since a bulk log event can mint dozens of identically-sized boxes.
+    """
+    counts = Counter(round(float(q), 4) for q in qtys)
+    return " + ".join(
+        f"{n} × {q:g}" for q, n in sorted(counts.items(), key=lambda kv: -kv[0])
+    )
 
 
 async def resolve_lot_variant(db: AsyncSession, po: PackingOrder, batch_id) -> tuple[list, object, float]:
@@ -126,25 +146,30 @@ async def mint_packed_units(
     po: PackingOrder,
     completion: PackingCompletion,
     qty: float,
-    package_count: int,
+    box_size: float,
     attribute_value_ids: list[str],
     color_id,
     username: Optional[str] = None,
     source_batch_id=None,
-) -> list[Batch]:
-    """Consume bulk FG and mint `package_count` cartons for one completion event.
+) -> list[tuple[Batch, float]]:
+    """Consume bulk FG and mint fixed-size cartons for one completion event.
 
+    Carton count is derived from `qty` / `box_size` (see `split_qty`), never
+    passed in directly — the caller states how big a box is, not how many.
     Stock moves twice per carton: OUT of the packing order's source location on
     the incoming lot, IN at the output location keyed by the new carton batch.
     `BatchConsumption` pegs input lot -> carton so lot genealogy survives packing.
+    Returns each minted carton alongside its qty, so a caller can render the
+    box breakdown (e.g. for an audit log entry) without recomputing the split.
     """
     if not po.output_location_id:
         raise ValueError("Packing order has no output location")
     if not po.source_location_id:
         raise ValueError("Packing order has no source location")
 
-    qtys = split_qty(qty, package_count)
-    units: list[Batch] = []
+    qtys = split_qty(qty, box_size)
+    completion.package_count = len(qtys)
+    units: list[tuple[Batch, float]] = []
 
     for carton_qty in qtys:
         pu = Batch(
@@ -194,7 +219,7 @@ async def mint_packed_units(
                 output_batch_id=pu.id,
                 qty_consumed=float(carton_qty),
             ))
-        units.append(pu)
+        units.append((pu, carton_qty))
 
     return units
 
