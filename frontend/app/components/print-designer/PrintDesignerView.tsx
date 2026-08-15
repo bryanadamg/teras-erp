@@ -328,7 +328,9 @@ export default function PrintDesignerView() {
     };
 
     return (
-        <ShellWindow classic={classic}>
+        // ui-scale-exempt: the canvas drag math mixes screen-px measurements with
+        // layout-px writes, which only agree at 1:1 — see globals.css.
+        <ShellWindow classic={classic} className="ui-scale-exempt">
             <ShellTitleBar
                 classic={classic}
                 icon="bi-printer"

@@ -390,7 +390,8 @@ export default function ManufacturingOrdersTab({
 
         return (
             <div style={{ width: '100%' }}>
-                <div id={readerId} style={{ width: '100%' }}></div>
+                {/* ui-scale-exempt: html5-qrcode measures its own viewfinder — keep it 1:1. */}
+                <div id={readerId} className="ui-scale-exempt" style={{ width: '100%' }}></div>
                 <button className="btn btn-sm btn-outline-secondary w-100 mt-1 extra-small" onClick={onClose}>
                     <i className="bi bi-x me-1"></i>Cancel Scan
                 </button>

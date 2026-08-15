@@ -37,6 +37,24 @@ html[data-ui-scale="90"]  { --ui-zoom: 0.9; }
 html[data-ui-scale="100"] { --ui-zoom: 1; }
 html[data-ui-scale="110"] { --ui-zoom: 1.1; }
 
+/* Opt a subtree back out to 1:1. Zoom is multiplicative down the
+   tree, so dividing by the root zoom cancels it exactly.
+   For the print designer this is load-bearing, not cosmetic: its
+   drag handlers measure with getBoundingClientRect (screen px) and
+   write the result straight back into style.left/top (layout px).
+   Those two units only agree at effective zoom 1 — at 80% every
+   guide line and drop target would land 20% off. Cancelling zoom
+   for the whole canvas keeps that math correct with no changes to
+   the handlers, and a WYSIWYG paper surface wants 1:1 regardless. */
+.ui-scale-exempt {
+  zoom: calc(1 / var(--ui-zoom));
+  /* Effective zoom is back to 1 in here, so the viewport units need no
+     correction — leaving the compensated ones would overshoot by 1/zoom. */
+  --app-vh: 100vh;
+  --app-dvh: 100dvh;
+  --app-vw: 100vw;
+}
+
 /* Phones drive the mobile shell, where 44px touch targets are the
    point — never shrink those. Print goes to paper at 1:1 so the
    print templates keep their A4 measurements. Both must sit after

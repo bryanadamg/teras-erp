@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { layoutRectOf, layoutScroll } from './uiScale';
 
 /**
  * Shared Windows XP "classic" theme primitives.
@@ -898,7 +899,11 @@ export function useTableSkeletonMetrics(
         let observer: ResizeObserver | undefined;
         if (scroller) {
             const measureFill = () => {
-                const headH = table?.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+                // clientHeight is layout px but getBoundingClientRect is screen px —
+                // subtracting one from the other only agrees at 100% scale. Convert
+                // the rect side. See uiScale.ts.
+                const head = table?.querySelector('thead');
+                const headH = head ? layoutRectOf(head).height : 0;
                 const free = Math.round(scroller.clientHeight - headH);
                 setFillHeight(prev => (prev === free ? prev : (free > 0 ? free : undefined)));
             };
@@ -911,7 +916,8 @@ export function useTableSkeletonMetrics(
         // through the one cleanup so the observer is never left attached.
         const row = hasRows ? body.querySelector('tr') : null;
         if (row) {
-            const measured = Math.round(row.getBoundingClientRect().height);
+            // Layout px, so the cached value stays valid across scale changes.
+            const measured = Math.round(layoutRectOf(row).height);
             // 0 while the tab/table is display:none — don't cache that.
             if (measured > 0 && rowHeightCache.get(key) !== measured) {
                 rowHeightCache.set(key, measured);
@@ -1049,8 +1055,11 @@ export function useFloatingMenu(menuWidth = 175) {
     const toggle = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (openId === id) { setOpenId(null); return; }
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        setPos({ top: rect.bottom + window.scrollY + 2, left: rect.right + window.scrollX - menuWidth });
+        // Measured in screen px, written back as CSS px — convert, or the menu
+        // drifts by the interface-scale factor. See uiScale.ts.
+        const rect = layoutRectOf(e.currentTarget as HTMLElement);
+        const scroll = layoutScroll();
+        setPos({ top: rect.bottom + scroll.y + 2, left: rect.right + scroll.x - menuWidth });
         setOpenId(id);
     };
 

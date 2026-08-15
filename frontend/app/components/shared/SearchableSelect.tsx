@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { layoutRectOf, layoutViewport } from './uiScale';
 import { CODE_FONT, xpFont as font } from './xpTheme';
 
 interface Option {
@@ -56,13 +57,16 @@ export default function SearchableSelect({
 
     const calcDropdownPos = () => {
         if (!containerRef.current) return;
-        const rect = containerRef.current.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - rect.bottom;
+        // Layout px throughout: these numbers go straight into a fixed-position
+        // style, so they must not stay in screen px. See uiScale.ts.
+        const rect = layoutRectOf(containerRef.current);
+        const viewportH = layoutViewport().height;
+        const spaceBelow = viewportH - rect.bottom;
         const spaceAbove = rect.top;
         if (spaceBelow >= DROPDOWN_MAX_HEIGHT || spaceBelow >= spaceAbove) {
             setDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
         } else {
-            setDropdownPos({ bottom: window.innerHeight - rect.top, left: rect.left, width: rect.width });
+            setDropdownPos({ bottom: viewportH - rect.top, left: rect.left, width: rect.width });
         }
     };
 

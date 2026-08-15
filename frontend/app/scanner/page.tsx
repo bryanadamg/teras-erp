@@ -73,7 +73,10 @@ export default function ScannerPage() {
     }
 
     return (
-        <div className="container-fluid py-2 h-100">
+        // ui-scale-exempt: html5-qrcode sizes the camera viewfinder and its scan
+        // overlay from its own element measurements, which the interface zoom
+        // would skew. A camera view wants 1:1 anyway.
+        <div className="container-fluid py-2 h-100 ui-scale-exempt">
             <div className="row justify-content-center">
                 <div className="col-md-8 col-lg-6">
                     <QRScannerView

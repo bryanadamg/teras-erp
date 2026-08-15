@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { layoutRectOf, layoutViewport } from './uiScale';
 import { xpFont } from './xpTheme';
 
 export interface TreeSelectOption {
@@ -74,10 +75,12 @@ export default function TreeSelect({
   const computePos = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
+    // Layout px throughout — the panel is position:fixed, so screen-px values
+    // would be re-multiplied by the interface scale. See uiScale.ts.
+    const r = layoutRectOf(el);
     const margin = 8;
     const desired = 320;
-    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceBelow = layoutViewport().height - r.bottom - margin;
     const spaceAbove = r.top - margin;
     // Flip above only when below is cramped AND above genuinely has more room —
     // otherwise clamp maxHeight to whichever side we land on so the panel never

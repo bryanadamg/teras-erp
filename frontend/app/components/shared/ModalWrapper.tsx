@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useId } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { toLayoutPx } from './uiScale';
 import { xpFont } from './xpTheme';
 
 // Shared z-index tier for anything that must render as an overlay but can't use
@@ -148,7 +149,12 @@ export default function ModalWrapper({
         const base = { ...dragOffset.current };
         const el = panelRef.current;
         const onMove = (ev: PointerEvent) => {
-            dragOffset.current = { x: base.x + ev.clientX - startX, y: base.y + ev.clientY - startY };
+            // Pointer deltas are screen px, the translate is layout px — without
+            // the conversion the panel trails the cursor at any scale but 100%.
+            dragOffset.current = {
+                x: base.x + toLayoutPx(ev.clientX - startX),
+                y: base.y + toLayoutPx(ev.clientY - startY),
+            };
             el.style.transform = `translate(calc(-50% + ${dragOffset.current.x}px), ${dragOffset.current.y}px)`;
             window.dispatchEvent(new Event(MODAL_REPOSITION_EVENT));
         };

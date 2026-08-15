@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import BulkImportModal from './BulkImportModal';
+import { layoutRectOf, layoutViewport } from '../shared/uiScale';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
@@ -68,8 +69,9 @@ const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: st
     const toggle = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (open) { setOpen(false); return; }
-        const r = btnRef.current?.getBoundingClientRect();
-        if (r) setPos({ top: r.bottom + 2, right: Math.max(4, window.innerWidth - r.right) });
+        // Layout px — the menu is position:fixed. See uiScale.ts.
+        const r = btnRef.current ? layoutRectOf(btnRef.current) : null;
+        if (r) setPos({ top: r.bottom + 2, right: Math.max(4, layoutViewport().width - r.right) });
         setOpen(true);
     };
 

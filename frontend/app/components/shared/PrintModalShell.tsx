@@ -3,6 +3,7 @@ import React, { useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { MODAL_Z, MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { toLayoutPx } from './uiScale';
 import { xpFont } from './xpTheme';
 
 interface PrintModalShellProps {
@@ -58,7 +59,11 @@ export default function PrintModalShell({
         const base = { ...dragOffset.current };
         const el = panelRef.current;
         const onMove = (ev: PointerEvent) => {
-            dragOffset.current = { x: base.x + ev.clientX - startX, y: base.y + ev.clientY - startY };
+            // Screen-px pointer delta → layout-px transform. See uiScale.ts.
+            dragOffset.current = {
+                x: base.x + toLayoutPx(ev.clientX - startX),
+                y: base.y + toLayoutPx(ev.clientY - startY),
+            };
             el.style.transform = `translate(calc(-50% + ${dragOffset.current.x}px), ${dragOffset.current.y}px)`;
             window.dispatchEvent(new Event(MODAL_REPOSITION_EVENT));
         };

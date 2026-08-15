@@ -355,7 +355,8 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
 
                         {cameraOn && (
                             <div style={{ marginBottom: 8 }}>
-                                <div id="bag-scan-reader" style={{ width: '100%', maxWidth: 360, margin: '0 auto' }} />
+                                {/* ui-scale-exempt: html5-qrcode measures its own viewfinder — keep it 1:1. */}
+                                <div id="bag-scan-reader" className="ui-scale-exempt" style={{ width: '100%', maxWidth: 360, margin: '0 auto' }} />
                             </div>
                         )}
 
