@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef, Fragment } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
@@ -86,6 +87,27 @@ type Group = {
 
 type StatusOption = { id: string; value: string; is_pass: boolean };
 
+type ReadyToPackSoLine = {
+    sales_order_line_id: string;
+    sales_order_id: string;
+    sales_order_code: string | null;
+    qty_ordered: number;
+    qty_outstanding: number;
+};
+
+type ReadyToPackSuggestion = {
+    item_id: string;
+    item_code: string | null;
+    item_name: string | null;
+    uom: string | null;
+    location_id: string;
+    location_name: string | null;
+    qty_available: number;
+    so_lines: ReadyToPackSoLine[];
+    suggested_sales_order_id: string | null;
+    suggested_sales_order_line_id: string | null;
+};
+
 // Rollup filter choices that are not attribute values.
 const DERIVED_FILTERS = [
     { key: 'NONE', label: 'No status yet' },
@@ -99,11 +121,14 @@ export default function QuarantinePackingView() {
     const { hasPermission } = useUser();
     const { formatTime: tzTime, formatCustom: tzCustom } = useTimezone();
     const { showToast } = useToast();
+    const router = useRouter();
 
     const canSetStatus = hasPermission('quarantine.set_status');
+    const canPack = hasPermission('sales.manage');
 
     const [groups, setGroups] = useState<Group[]>([]);
     const [statuses, setStatuses] = useState<StatusOption[]>([]);
+    const [readyToPack, setReadyToPack] = useState<ReadyToPackSuggestion[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [truncated, setTruncated] = useState(false);
@@ -161,15 +186,41 @@ export default function QuarantinePackingView() {
         }
     }, [authFetch, page, search, statusFilter]);
 
+    const fetchReadyToPack = useCallback(async () => {
+        try {
+            const res = await authFetch(`${API_BASE}/quarantine/ready-to-pack`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            setReadyToPack(await res.json());
+        } catch {
+            setReadyToPack([]);
+        }
+    }, [authFetch]);
+
     useEffect(() => { fetchStatuses(); }, [fetchStatuses]);
     useEffect(() => { fetchGroups(); }, [fetchGroups]);
+    useEffect(() => { fetchReadyToPack(); }, [fetchReadyToPack]);
 
     // Another QC user releasing a lot, or production landing more output in the
     // hold area, both arrive as a 'stock' live event — reload rather than leave a
     // stale queue on screen.
     useEffect(() => subscribeLiveEvents(kind => {
-        if (kind === 'stock') fetchGroups();
-    }), [subscribeLiveEvents, fetchGroups]);
+        if (kind === 'stock') { fetchGroups(); fetchReadyToPack(); }
+    }), [subscribeLiveEvents, fetchGroups, fetchReadyToPack]);
+
+    // "Pack" hands the suggestion to the Packing page as a deep link — it opens
+    // the New Packing Order form pre-filled, not creates the order itself. Which
+    // SO line (if any) this serves is still the planner's call to confirm.
+    const packSuggestion = useCallback((s: ReadyToPackSuggestion) => {
+        const params = new URLSearchParams({
+            action: 'create_packing_order',
+            item_id: s.item_id,
+            source_location_id: s.location_id,
+            qty_target: String(s.qty_available),
+        });
+        if (s.suggested_sales_order_id) params.set('sales_order_id', s.suggested_sales_order_id);
+        if (s.suggested_sales_order_line_id) params.set('sales_order_line_id', s.suggested_sales_order_line_id);
+        router.push(`/packing?${params.toString()}`);
+    }, [router]);
 
     const passOption = useMemo(() => statuses.find(s => s.is_pass), [statuses]);
 
@@ -542,6 +593,58 @@ export default function QuarantinePackingView() {
                 subtitle="Stock held in quarantine, grouped by MO. Only lots set to OK can be packed."
             />
             {toolbar}
+            {readyToPack.length > 0 && (
+                <ExpandedRowPanel classic={classic} style={{ padding: classic ? '6px 10px' : '8px 12px', flexShrink: 0 }}>
+                    <div style={{
+                        fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
+                        fontSize: classic ? 10 : 11, color: '#2d7a2d',
+                        fontVariant: 'all-small-caps', letterSpacing: '0.5px', marginBottom: 4, fontWeight: 'bold',
+                    }}>
+                        <i className="bi bi-check2-circle" style={{ marginRight: 5 }} />
+                        Ready to Pack — released stock not yet on a packing order
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {readyToPack.map(s => {
+                            const bestLine = s.so_lines.find(l => l.sales_order_line_id === s.suggested_sales_order_line_id);
+                            return (
+                                <div key={`${s.item_id}:${s.location_id}`} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                                    padding: '4px 8px', background: '#fff',
+                                    border: `1px solid ${classic ? '#c9c2ae' : '#e2e8f0'}`,
+                                    fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: classic ? 10 : 11,
+                                }}>
+                                    <div style={{ minWidth: 160 }}>
+                                        <span style={{ fontWeight: 'bold' }}>{s.item_name || s.item_code}</span>
+                                        <span style={{ color: '#666', marginLeft: 6 }}>{s.item_code}</span>
+                                    </div>
+                                    <div style={{ color: '#666' }}>
+                                        <i className="bi bi-geo-alt" style={{ marginRight: 3 }} />{s.location_name}
+                                    </div>
+                                    <div style={{ fontWeight: 'bold', color: '#2d7a2d' }}>
+                                        {fmtQty(s.qty_available)} {s.uom} available
+                                    </div>
+                                    <div style={{ color: '#666' }}>
+                                        {s.so_lines.length > 0
+                                            ? `${s.so_lines.length} open SO line${s.so_lines.length > 1 ? 's' : ''} need it${bestLine ? ` — earliest ${bestLine.sales_order_code || ''}` : ''}`
+                                            : 'No open SO lines for this item — would pack to stock'}
+                                    </div>
+                                    <div style={{ marginLeft: 'auto' }}>
+                                        <XPActionButton
+                                            classic={classic}
+                                            tone="success"
+                                            icon="bi-box2"
+                                            label="Pack"
+                                            title={canPack ? 'Open New Packing Order, pre-filled' : 'Needs the Manage Sales Orders permission'}
+                                            disabled={!canPack}
+                                            onClick={() => packSuggestion(s)}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </ExpandedRowPanel>
+            )}
             {error && (
                 <div style={{
                     fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: 11,

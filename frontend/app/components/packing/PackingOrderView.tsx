@@ -56,7 +56,7 @@ const uomChip: React.CSSProperties = {
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
 
-export default function PackingOrderView() {
+export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
     const { locations, attributes, companyProfile, itemIndex, authFetch } = useData();
     const { uiStyle } = useTheme();
     const { formatDate: tzDate } = useTimezone();
@@ -76,6 +76,7 @@ export default function PackingOrderView() {
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics('packing-orders', listBodyRef, orders.length > 0);
     const [creating, setCreating] = useState(false);
+    const [createInitialValues, setCreateInitialValues] = useState<any>(null);
     const [detail, setDetail] = useState<any | null>(null);
     const [printCard, setPrintCard] = useState<any | null>(null);
     const [printLabels, setPrintLabels] = useState<{ order: any; units: any[] } | null>(null);
@@ -121,6 +122,17 @@ export default function PackingOrderView() {
 
     useEffect(() => { loadCounts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { loadPage(page); }, [page, loadPage]);
+
+    // Deep-linked pre-fill from a Quarantine Packing "ready to pack" suggestion —
+    // item/location/SO line are proposed, not committed; the form still opens for
+    // the user to confirm or change before Create.
+    useEffect(() => {
+        if (initialCreateState) {
+            setCreateInitialValues(initialCreateState);
+            setCreating(true);
+            onClearInitialState?.();
+        }
+    }, [initialCreateState, onClearInitialState]);
 
     const deleteOrder = async (po: any) => {
         const ok = await confirm({ title: 'Delete Packing Order', message: `Delete ${po.code}?`, confirmText: 'Delete', variant: 'danger' });
@@ -260,8 +272,9 @@ export default function PackingOrderView() {
                     locPickerTreeOptions={locPickerTreeOptions}
                     authFetch={authFetch}
                     showToast={showToast}
-                    onClose={() => setCreating(false)}
-                    onCreated={async (po: any) => { setCreating(false); await loadAll(); setDetail(po); }}
+                    initialValues={createInitialValues}
+                    onClose={() => { setCreating(false); setCreateInitialValues(null); }}
+                    onCreated={async (po: any) => { setCreating(false); setCreateInitialValues(null); await loadAll(); setDetail(po); }}
                 />
             )}
 
@@ -303,16 +316,16 @@ export default function PackingOrderView() {
 }
 
 // ── create form ──────────────────────────────────────────────────────────────
-function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose, onCreated }: any) {
+function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose, onCreated, initialValues }: any) {
     const { results: fgResults, onSearch: fgSearch } = useFinishedGoodsSearch();
-    const [itemId, setItemId] = useState('');
-    const [qtyTarget, setQtyTarget] = useState('');
+    const [itemId, setItemId] = useState(initialValues?.item_id || '');
+    const [qtyTarget, setQtyTarget] = useState(initialValues?.qty_target != null ? String(initialValues.qty_target) : '');
     const [packSize, setPackSize] = useState('');
     const [packageLabel, setPackageLabel] = useState('Carton');
-    const [sourceLoc, setSourceLoc] = useState('');
+    const [sourceLoc, setSourceLoc] = useState(initialValues?.source_location_id || '');
     const [outputLoc, setOutputLoc] = useState('');
-    const [soId, setSoId] = useState('');
-    const [soLineId, setSoLineId] = useState('');
+    const [soId, setSoId] = useState(initialValues?.sales_order_id || '');
+    const [soLineId, setSoLineId] = useState(initialValues?.sales_order_line_id || '');
     const [notes, setNotes] = useState('');
     const [materials, setMaterials] = useState<any[]>([]);
     const [sos, setSos] = useState<any[]>([]);
@@ -324,6 +337,13 @@ function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose,
             if (res.ok) { const d = await res.json(); setSos(Array.isArray(d) ? d : (d.items || [])); }
         })();
     }, [authFetch]);
+
+    // A pre-filled item (from a Quarantine Packing suggestion) is only an id —
+    // the combobox can't show its name/code until a search has actually returned
+    // it, so seed one from whatever identifying text the suggestion carried.
+    useEffect(() => {
+        if (initialValues?.item_id) fgSearch(initialValues.item_code || initialValues.item_name || '');
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const selectedSO = useMemo(() => sos.find((s: any) => String(s.id) === soId), [sos, soId]);
     const soLines = selectedSO?.lines || [];
