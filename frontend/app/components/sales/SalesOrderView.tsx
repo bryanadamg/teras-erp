@@ -574,6 +574,22 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       setNewLine(prev => ({ ...prev, qty: yd, qty_kg: kg !== null ? kg : prev.qty_kg }));
   };
 
+  // Alt Unit table cell echoes the conversion the line was entered with (qty2 × factor → Yd).
+  // The factor's target unit lives on the UOM master, not on the SO line, so resolve it by value.
+  const describeUom2 = (line: any): { chip: string; total: string | null } | null => {
+      const factor = line?.uom2_factor != null && line.uom2_factor !== '' ? parseFloat(line.uom2_factor) : null;
+      if (!factor || !line?.uom2) return null;
+      const qty2 = parseFloat(line.qty2) || 0;
+      const uomObj = (uoms || []).find((u: any) => u.name === line.uom2);
+      const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factor);
+      const toUnit = (factorObj?.to_uom_name || 'yard').toLowerCase();
+      const isMeter = toUnit === 'm' || toUnit === 'meter';
+      const totalYd = qty2 > 0
+          ? Math.round((isMeter ? qty2 * factor / 0.9144 : qty2 * factor) * 100) / 100
+          : null;
+      return { chip: `×${factor} ${isMeter ? 'm' : 'Yd'}`, total: totalYd !== null ? `${totalYd} Yd` : null };
+  };
+
   const handleQty2Change = (val: string) => {
       setNewLine(prev => ({ ...prev, qty2: val }));
       applyFactor(val, newLine.uom2_factor);
@@ -1664,7 +1680,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                <th style={classic ? { ...xpThCell, width: '180px' } : undefined}>Item</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Size</th>
                                <th style={classic ? { ...xpThCell, width: '140px' } : undefined}>Qty</th>
-                               <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Alt Unit</th>
+                               <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Alt Unit</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
                                <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty. READY needs packed cartons in stock.">Fulfilment</th>
@@ -1828,7 +1844,20 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            {/* Alt Unit */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                {line.qty2 != null && line.qty2 !== '' && line.uom2 ? (
-                                                   <div style={{ fontFamily:xpFont, fontSize:'10px', color: classic?'#444':'' }}>{line.qty2} {line.uom2}</div>
+                                                   (() => {
+                                                       const conv = describeUom2(line);
+                                                       return (
+                                                           <>
+                                                               <div style={{ fontFamily:xpFont, fontSize:'10px', color: classic?'#444':'' }}>{line.qty2} {line.uom2}</div>
+                                                               {conv && (
+                                                                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#003ea6':'#0d6efd', whiteSpace:'nowrap' }}
+                                                                       title={`1 ${line.uom2} = ${conv.chip.replace('×','')}`}>
+                                                                       {conv.chip}{conv.total ? ` = ${conv.total}` : ''}
+                                                                   </div>
+                                                               )}
+                                                           </>
+                                                       );
+                                                   })()
                                                ) : (
                                                    <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>
                                                )}
