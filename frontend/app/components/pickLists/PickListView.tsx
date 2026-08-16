@@ -34,8 +34,6 @@ const xpTableHeader: React.CSSProperties = {
 };
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
-// Title-bar "create" button — same style as SalesOrderView / PartnersView / SampleRequestView.
-const xpBtnCreate = xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' });
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
 const xpLabel: React.CSSProperties = lvLabel(true);
@@ -60,7 +58,11 @@ export default function PickListView() {
     // Two surfaces for one planner: "To Pick" is the release board (which order
     // do I cut a list for next), "Pick Lists" is the register of lists already
     // cut. Same user, same permission — tabs, not separate pages.
-    const [tab, setTab] = useState<PLTab>('lists');
+    //
+    // The board lands first: opening this page is nearly always "what should ship
+    // next", and the Pick row on the board is the only way to create a list, so
+    // the register is the follow-up view rather than the entry point.
+    const [tab, setTab] = useState<PLTab>('topick');
 
     const [pickLists, setPickLists] = useState<any[]>([]);
     const [plTotal, setPlTotal] = useState(0);
@@ -372,19 +374,17 @@ export default function PickListView() {
                 classic
                 icon="bi-clipboard-check"
                 title="Pick Lists & Dispatch"
-                right={canManage && tab === 'lists' ? (
-                    <button style={xpBtnCreate} onClick={() => setTab('topick')} title="Choose a sales order to pick">
-                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Pick List
-                    </button>
-                ) : undefined}
             />
+            {/* No "New Pick List" button: a list is only ever created from a scored
+                order on the board, so the Pick action lives on the row that says
+                whether the order can be picked at all. */}
             <Tabs<PLTab>
                 classic
                 activeKey={tab}
                 onChange={setTab}
                 tabs={[
-                    { key: 'lists' as const, label: 'Pick Lists', icon: 'bi-clipboard-check' },
                     { key: 'topick' as const, label: pickableLoaded ? `To Pick (${readyCount})` : 'To Pick', icon: 'bi-box-arrow-in-down' },
+                    { key: 'lists' as const, label: 'Pick Lists', icon: 'bi-clipboard-check' },
                 ]}
             />
             {tab === 'topick' ? (
