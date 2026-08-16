@@ -56,7 +56,7 @@ function playBeep() {
  * PCK- code opens the pack-logging form; a PU- code just reports what that
  * carton is, so a packer can identify a box without opening the desktop app.
  */
-export default function PackingScanView({ authFetch, onClose }: { authFetch: (url: string, options?: any) => Promise<Response>; onClose: () => void }) {
+export default function PackingScanView({ authFetch, initialCode, onClose }: { authFetch: (url: string, options?: any) => Promise<Response>; initialCode?: string; onClose: () => void }) {
     const [po, setPo] = useState<any | null>(null);
     const [unit, setUnit] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -109,6 +109,15 @@ export default function PackingScanView({ authFetch, onClose }: { authFetch: (ur
 
         setError('Not a packing QR code. Expected PCK- (packing order) or PU- (carton).');
     }, [authFetch]);
+
+    // Opened from the shared scanner: that screen already decoded the label, so
+    // act on it here instead of making the packer scan the same card twice.
+    const seededRef = useRef(false);
+    useEffect(() => {
+        if (!initialCode || seededRef.current) return;
+        seededRef.current = true;
+        resolveCode(initialCode);
+    }, [initialCode, resolveCode]);
 
     // Camera stays mounted only while nothing is resolved — same lifecycle as the
     // WO scanner, so the stream is released as soon as a form takes over.
@@ -202,7 +211,7 @@ export default function PackingScanView({ authFetch, onClose }: { authFetch: (ur
         <div style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: 'var(--app-vh)', padding: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <strong style={{ fontSize: 15 }}>Packing Scanner</strong>
-                <button style={xpBtn()} onClick={onClose}>Close</button>
+                <button style={xpBtn()} onClick={onClose}>Back</button>
             </div>
 
             {error && (

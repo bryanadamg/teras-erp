@@ -13,6 +13,8 @@ interface QRScannerViewProps {
     locations: any[];
     attributes: any[];
     stockBalance: any[];
+    /** WO id already decoded by the shared scanner — opens straight on that WO. */
+    initialWOId?: string;
     onUpdateStatus: (id: string, status: string) => Promise<boolean>;
     onClose: () => void;
 }
@@ -24,6 +26,7 @@ export default function QRScannerView({
     locations,
     attributes,
     stockBalance,
+    initialWOId,
     onUpdateStatus,
     onClose
 }: QRScannerViewProps) {
@@ -47,6 +50,23 @@ export default function QRScannerView({
     const allWOs = flattenMOs(workOrders).flatMap((mo: any) =>
         (mo.work_orders || []).map((wo: any) => ({ ...wo, _mo: mo }))
     );
+
+    // Seeded from the shared scanner: the label was already decoded there, so open
+    // that WO rather than asking the floor to scan it twice. A UUID missing from
+    // the loaded MO tree falls through to the camera with the reason shown.
+    const seededRef = useRef(false);
+    useEffect(() => {
+        if (!initialWOId || seededRef.current) return;
+        const found = allWOs.find((wo: any) => wo.id === initialWOId);
+        if (!found) {
+            if (!(workOrders || []).length) return;   // tree not in yet
+            seededRef.current = true;
+            setError(`WO "${initialWOId.slice(0, 8)}..." not found in active orders.`);
+            return;
+        }
+        seededRef.current = true;
+        setScannedWO(found);
+    }, [initialWOId, workOrders]);
 
     // --- XP Style Constants ---
     const xpBevel: React.CSSProperties = sharedXpBevel();

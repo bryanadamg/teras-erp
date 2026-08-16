@@ -10,8 +10,8 @@ import { xpFont } from '../shared/xpTheme';
  * Pick list shop card — the floor document for a pick list, sibling of the
  * Kartu Packing and in the same spirit as the Kartu Kerja.
  *
- * The QR encodes the pick list CODE (PL-…), which the picker scans at
- * /pick-scan to open the list. Carton QRs are already printed on the A6 labels
+ * The QR encodes the pick list CODE (PL-…), which the picker scans at /scanner
+ * to open the list. Carton QRs are already printed on the A6 labels
  * from PackedUnitLabelPrintModal — this card lists them as a paper checklist so
  * the pick can still be walked when a phone is flat, and keyed afterwards.
  *

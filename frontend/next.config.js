@@ -13,6 +13,10 @@ const nextConfig = {
       { source: '/attributes', destination: '/item-metadata', permanent: false },
       { source: '/categories', destination: '/item-metadata', permanent: false },
       { source: '/uom', destination: '/item-metadata', permanent: false },
+      // Three camera pages folded into one dispatcher — /scanner decodes the code
+      // and opens the right screen, so the floor no longer picks a scanner first.
+      { source: '/pick-scan', destination: '/scanner', permanent: false },
+      { source: '/packing-scan', destination: '/scanner', permanent: false },
     ]
   },
   async rewrites() {

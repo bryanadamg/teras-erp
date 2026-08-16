@@ -58,7 +58,7 @@ function playBeep(ok = true) {
  * the server's own `detail` string rather than re-deciding any of it, so the
  * floor and the API can never disagree about why a box was refused.
  */
-export default function PickScanView({ authFetch, onClose }: { authFetch: (url: string, options?: any) => Promise<Response>; onClose: () => void }) {
+export default function PickScanView({ authFetch, initialCode, onClose }: { authFetch: (url: string, options?: any) => Promise<Response>; initialCode?: string; onClose: () => void }) {
     const [pl, setPl] = useState<any | null>(null);
     const [unit, setUnit] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -136,13 +136,22 @@ export default function PickScanView({ authFetch, onClose }: { authFetch: (url: 
         }
 
         if (upper.startsWith('PCK-')) {
-            setError('That is a packing order — use the Packing Scanner (/packing-scan).');
+            setError('That is a packing order — tap Back, then scan it again to open Packing.');
             playBeep(false);
             return;
         }
         setError('Not a pick QR code. Expected PL- (pick list) or PU- (carton).');
         playBeep(false);
     }, [authFetch, scanCarton]);
+
+    // Opened from the shared scanner: that screen already decoded the label, so
+    // act on it here instead of making the floor scan the same box twice.
+    const seededRef = useRef(false);
+    useEffect(() => {
+        if (!initialCode || seededRef.current) return;
+        seededRef.current = true;
+        resolveCode(initialCode);
+    }, [initialCode, resolveCode]);
 
     // Camera runs whenever a carton report is not on screen. Unlike the packing
     // scanner it stays up while a pick list is open — that is the scan loop.
@@ -206,7 +215,7 @@ export default function PickScanView({ authFetch, onClose }: { authFetch: (url: 
         <div style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: 'var(--app-vh)', padding: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <strong style={{ fontSize: 15 }}>Pick Scanner</strong>
-                <button style={xpBtn()} onClick={onClose}>Close</button>
+                <button style={xpBtn()} onClick={onClose}>Back</button>
             </div>
 
             {error && (

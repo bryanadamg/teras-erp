@@ -9,6 +9,8 @@ interface MobileScannerViewProps {
     workCenters: any[];
     items: any[];
     authFetch: (url: string, options?: any) => Promise<Response>;
+    /** WO id already decoded by the shared scanner — opens straight into the log form. */
+    initialWOId?: string;
     onRefresh: () => Promise<void> | void;
     onClose: () => void;
 }
@@ -73,12 +75,12 @@ const isUUID = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 export default function MobileScannerView({
-    manufacturingOrders, workCenters, items, authFetch, onRefresh, onClose,
+    manufacturingOrders, workCenters, items, authFetch, initialWOId, onRefresh, onClose,
 }: MobileScannerViewProps) {
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    const [scannedWOId, setScannedWOId]         = useState<string | null>(null);
+    const [scannedWOId, setScannedWOId]         = useState<string | null>(initialWOId || null);
     const [logQty, setLogQty]                   = useState('');
     const [logOperator, setLogOperator]         = useState('');
     const [logNotes, setLogNotes]               = useState('');
@@ -151,6 +153,16 @@ export default function MobileScannerView({
         ? (allWOs.find((wo: any) => wo.id === scannedWOId) || null)
         : null;
     const scannedWOParentMO = scannedWO?._mo || null;
+
+    // Seeded from the shared scanner. A UUID that isn't in the loaded MO tree
+    // would otherwise leave this screen blank — the camera effect is suppressed
+    // while scannedWOId is set — so drop back to the camera with the reason.
+    useEffect(() => {
+        if (!initialWOId || scannedWOId !== initialWOId) return;
+        if (allWOs.some((wo: any) => wo.id === scannedWOId)) return;
+        setScannedWOId(null);
+        setError(`WO "${initialWOId.slice(0, 8)}..." not found in active orders.`);
+    }, [initialWOId, scannedWOId, manufacturingOrders]);
 
     const woTarget = scannedWO?.qty ?? 0;
     const woDone   = scannedWO?.qty_completed_total ?? 0;
@@ -234,16 +246,12 @@ export default function MobileScannerView({
                 (decodedText: string) => {
                     if (scanLockRef.current) return;   // ignore extra frames after a match
                     if (!isUUID(decodedText)) {
-                        // Packing codes look nothing like a WO UUID, and a packer
-                        // pointing this screen at a carton is a routing mistake,
-                        // not a bad scan — say where the code does work.
+                        // The shared scanner routes these prefixes on its own, so
+                        // this branch only fires on a WO screen already open —
+                        // point back at the entry rather than at a dead route.
                         const upper = decodedText.trim().toUpperCase();
-                        if (upper.startsWith('PL-') || upper.startsWith('PK-')) {
-                            setError('That is a pick list — use the Pick Scanner (/pick-scan).');
-                            return;
-                        }
-                        if (upper.startsWith('PCK-') || upper.startsWith('PU-')) {
-                            setError('That is a packing code — use the Packing Scanner (/packing-scan) or, to pick a carton, the Pick Scanner (/pick-scan).');
+                        if (upper.startsWith('PL-') || upper.startsWith('PK-') || upper.startsWith('PCK-') || upper.startsWith('PU-')) {
+                            setError('That is a packing or pick code — tap Back, then scan it again.');
                             return;
                         }
                         setError('Not a valid Work Order QR code.');
@@ -386,6 +394,9 @@ export default function MobileScannerView({
                 <i className="bi bi-qr-code-scan" style={{ color: '#1a4a8a' }} />
                 Operator Scan Terminal
                 <span style={{ marginLeft: 'auto', fontWeight: 'normal', fontSize: 10, color: '#888' }}>ID: {terminalId.current}</span>
+                {/* Route back to the shared scanner — the only way to reach a
+                    pick or packing code once this screen owns the camera. */}
+                <button style={xpBtn({ padding: '2px 8px', fontSize: 11 })} type="button" onClick={onClose}>Back</button>
             </div>
 
             {scannedWO && scannedWOParentMO ? (

@@ -35,7 +35,10 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Sales', i18nKey: 'sales', icon: 'bi-graph-up', accent: 'green',
-        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage', 'quarantine.view', 'pick_list.scan', 'shipment.view'],
+        // pick_list.scan is deliberately absent: the picker's only surface is the
+        // QUICK SCAN button, which sits above the sections and is always visible.
+        // Listing it here would open an otherwise empty Sales section for them.
+        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage', 'quarantine.view', 'shipment.view'],
         items: [
             { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales_order.view' },
             // Packing Orders / Pick Lists are a separate feature not covered by the
@@ -45,10 +48,9 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'quarantine-packing', label: 'Quarantine Packing', icon: 'bi-shield-exclamation', permission: 'quarantine.view' },
             { tab: 'packing', label: 'Packing Orders', icon: 'bi-box2', permission: 'sales.manage' },
             { tab: 'pick-lists', label: 'Pick Lists', icon: 'bi-clipboard-check', permission: 'sales.manage' },
-            // Floor half of a pick list. Visible to pickers holding only
-            // pick_list.scan as well as to planners on the legacy blob code, so a
-            // picker role can be exactly this one entry and nothing else.
-            { tab: 'pick-scan', label: 'Pick Scanner', icon: 'bi-upc-scan', permission: ['pick_list.scan', 'sales.manage'] },
+            // No Pick Scanner leaf: the floor half of a pick list is reached by
+            // scanning the PL- QR at QUICK SCAN, which routes to it. A dedicated
+            // entry only asked the picker to choose a scanner before scanning.
             // Loading deck. Deliberately its own page and not a Pick Lists tab: the
             // Surat Jalan check must be done by someone other than the picker, so
             // the two surfaces carry different permissions.
