@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -48,7 +48,7 @@ export default function PickListView() {
     // balances are all fetched here scoped to what's actually on screen.
     const { partners, locations, attributes, companyProfile, itemIndex, authFetch } = useData();
     const { uiStyle } = useTheme();
-    const { formatDate: tzDate } = useTimezone();
+    const { formatDate: tzDate, formatDateTime: tzDateTime } = useTimezone();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { hasPermission } = useUser();
@@ -70,6 +70,8 @@ export default function PickListView() {
     const [picking, setPicking] = useState(false);
     const [editing, setEditing] = useState<any | null>(null);
     const [printPL, setPrintPL] = useState<any | null>(null);
+    // One row open at a time, same as the packing order and WO lists.
+    const [expandedId, setExpandedId] = useState<string | null>(null);
     const [plPage, setPlPage] = useState(1);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
@@ -80,6 +82,11 @@ export default function PickListView() {
     }, [itemIndex]);
 
     const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+    const locationById = useMemo(() => {
+        const m: Record<string, any> = {};
+        (locations || []).forEach((l: any) => { m[String(l.id)] = l; });
+        return m;
+    }, [locations]);
 
     const loadPickListPage = useCallback(async (page: number) => {
         setLoading(true);
@@ -165,6 +172,177 @@ export default function PickListView() {
         return `${cartons.filter((l: any) => l.picked_at).length}/${cartons.length}`;
     };
 
+    const PL_COLS = 9; // chevron + 7 data cols + actions
+
+    // Expanded row — same three-pane shape as the packing order and WO list
+    // panels (info, the physical units, the log/summary). Everything rendered
+    // here is already on the list payload (`_load_options` eager-loads lines with
+    // item + batch), so opening a row costs no fetch.
+    const renderPickDetail = (pl: any) => {
+        const lines: any[] = pl.lines || [];
+        const cartons = lines.filter((l: any) => l.batch_id);
+        const pickedCount = cartons.filter((l: any) => l.picked_at).length;
+        const srcName = locationById?.[String(pl.source_location_id)]?.name || null;
+
+        // Per-item roll-up across cartons: what actually goes on the Surat Jalan.
+        const byItem: Record<string, { code: string; name: string; qty: number; cartons: number; picked: number; uom: string }> = {};
+        for (const l of lines) {
+            const key = String(l.item_id);
+            const it = itemById[key];
+            const row = byItem[key] || (byItem[key] = {
+                code: l.item_code || it?.code || key,
+                name: l.item_name || it?.name || '',
+                qty: 0, cartons: 0, picked: 0,
+                uom: l.item_uom || it?.uom || '',
+            });
+            row.qty += num(l.qty_picked);
+            if (l.batch_id) { row.cartons += 1; if (l.picked_at) row.picked += 1; }
+        }
+        const itemRows = Object.values(byItem);
+
+        const colHeader: React.CSSProperties = {
+            fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: '#555',
+            letterSpacing: 0.5, borderBottom: '1px solid #c0bdb5', paddingBottom: 2, marginBottom: 4,
+        };
+        const infoRow = (label: string, val: React.ReactNode) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 1, fontSize: 9 }}>
+                <span style={{ color: '#888' }}>{label}</span>
+                <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+            </div>
+        );
+        const th: React.CSSProperties = {
+            padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444',
+            background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899',
+        };
+
+        return (
+            <tr key={`${pl.id}-detail`}>
+                <td colSpan={PL_COLS} style={{ padding: 0 }}>
+                    <ExpandedRowPanel classic>
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: '250px minmax(280px, 1fr) 260px',
+                            border: '1px solid #7f9db9', fontFamily: xpFont, fontSize: 10,
+                        }}>
+                            {/* Info + dispatch paperwork */}
+                            <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef' }}>
+                                <div style={colHeader}>Info</div>
+                                {infoRow('Sales Order', pl.sales_order_code || '—')}
+                                {infoRow('Customer', pl.customer_name || '—')}
+                                {infoRow('Pick from', srcName || 'any location')}
+                                {infoRow('Cartons', `${pickedCount} / ${cartons.length} scanned`)}
+                                <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
+                                <div style={colHeader}>QC</div>
+                                {infoRow('Passed', pl.qc_passed
+                                    ? <span style={{ color: '#0a3e0a' }}>yes</span>
+                                    : <span style={{ color: '#a00000' }}>not yet</span>)}
+                                {infoRow('Inspector', pl.qc_inspector || '—')}
+                                {infoRow('Checked', pl.qc_at ? tzDateTime(pl.qc_at) : '—')}
+                                <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
+                                <div style={colHeader}>Surat Jalan</div>
+                                {infoRow('DN no.', pl.delivery_note_number || '—')}
+                                {infoRow('Delivery date', pl.delivery_date ? tzDate(pl.delivery_date) : '—')}
+                                {infoRow('Carrier', pl.carrier || '—')}
+                                {infoRow('Vehicle', pl.vehicle_plate || '—')}
+                                {infoRow('Driver', pl.driver || '—')}
+                                <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
+                                {infoRow('Created', pl.created_at ? tzDateTime(pl.created_at) : '—')}
+                                {infoRow('Dispatched', pl.dispatched_at ? tzDateTime(pl.dispatched_at) : '—')}
+                                {pl.notes && (
+                                    <div style={{ marginTop: 4, padding: '2px 5px', background: '#fffbe6', border: '1px solid #e0d080', fontSize: 9, fontStyle: 'italic', color: '#666' }}>
+                                        {pl.notes}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Carton lines — the floor's scan sheet */}
+                            <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
+                                <div style={{ ...colHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span>Cartons ({cartons.length})</span>
+                                    {cartons.length > 0 && (
+                                        <span style={{ color: pickedCount === cartons.length ? '#0a3e0a' : '#b8860b' }}>
+                                            {pickedCount} scanned
+                                        </span>
+                                    )}
+                                </div>
+                                {lines.length === 0 ? (
+                                    <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>
+                                        No lines — nothing was packed for this order when it was created.
+                                    </div>
+                                ) : (
+                                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ ...th, width: 24 }}>#</th>
+                                                    <th style={th}>Lot</th>
+                                                    <th style={th}>Item</th>
+                                                    <th style={{ ...th, textAlign: 'right', width: 54 }}>Qty</th>
+                                                    <th style={{ ...th, width: 96 }}>Scanned</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {lines.map((l: any, li: number) => (
+                                                    <tr key={l.id} style={{ background: l.picked_at ? '#eef7ee' : li % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
+                                                        <td style={{ padding: '2px 5px', color: '#888' }}>{l.package_no ?? '—'}</td>
+                                                        <td style={{ padding: '2px 5px', fontFamily: CODE_FONT, color: '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}
+                                                            title={l.batch_number || undefined}>
+                                                            {/* No batch = a bulk line from before pick lists became carton-only. */}
+                                                            {l.batch_number || <span style={{ fontFamily: xpFont, color: '#b8860b' }}>bulk line</span>}
+                                                        </td>
+                                                        <td style={{ padding: '2px 5px', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}
+                                                            title={l.item_name || undefined}>
+                                                            {l.item_code || itemById[String(l.item_id)]?.code || '—'}
+                                                        </td>
+                                                        <td style={{ padding: '2px 5px', textAlign: 'right', fontWeight: 'bold' }}>{num(l.qty_picked).toFixed(2)}</td>
+                                                        <td style={{ padding: '2px 5px', color: '#555', whiteSpace: 'nowrap' }}>
+                                                            {l.picked_at
+                                                                ? <span title={l.picked_by ? `by ${l.picked_by}` : undefined} style={{ color: '#0a3e0a' }}>
+                                                                    {tzDateTime(l.picked_at)}
+                                                                </span>
+                                                                : <span style={{ color: '#aaa' }}>pending</span>}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* What ships, per item */}
+                            <div style={{ padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
+                                <div style={colHeader}>Shipping ({itemRows.length} item{itemRows.length === 1 ? '' : 's'})</div>
+                                {itemRows.length === 0 ? (
+                                    <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>Nothing allocated.</div>
+                                ) : (
+                                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                                        {itemRows.map(r => (
+                                            <div key={r.code} style={{ marginBottom: 3, paddingBottom: 3, borderBottom: '1px solid #e8e6e0' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, fontSize: 9 }}>
+                                                    <span style={{ fontWeight: 'bold', color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.name}>
+                                                        {r.code}
+                                                    </span>
+                                                    <span style={{ fontWeight: 'bold', color: '#000080', whiteSpace: 'nowrap' }}>
+                                                        {r.qty.toLocaleString()} {r.uom}
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: 9, color: '#888' }}>
+                                                    {r.cartons > 0
+                                                        ? `${r.picked}/${r.cartons} carton${r.cartons === 1 ? '' : 's'} scanned`
+                                                        : 'bulk line'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </ExpandedRowPanel>
+                </td>
+            </tr>
+        );
+    };
+
     return (
         <ShellWindow classic fill="page" className="fade-in" style={{ fontFamily: xpFont }}>
             <ShellTitleBar
@@ -189,6 +367,7 @@ export default function PickListView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr>
+                            <th style={{ ...xpTableHeader, width: 22 }} />
                             <th style={xpTableHeader}>Code</th>
                             <th style={xpTableHeader}>Sales Order</th>
                             <th style={xpTableHeader}>Customer</th>
@@ -201,14 +380,23 @@ export default function PickListView() {
                     </thead>
                     <tbody ref={listBodyRef}>
                         {pickLists.length === 0 && (loading ? (
-                            <TableSkeleton rows={7} cols={skel.cols ?? 8} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                            <TableSkeleton rows={7} cols={skel.cols ?? PL_COLS} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={8} style={{ padding: 0 }}>
+                            <tr><td colSpan={PL_COLS} style={{ padding: 0 }}>
                                 <XPEmptyState icon="bi-clipboard-check" message='No pick lists yet. Click "New Pick List" to pick packed cartons for an order.' />
                             </td></tr>
                         ))}
-                        {pickLists.map((pl: any, idx: number) => (
-                            <tr key={pl.id} style={rowStyle(idx)}>
+                        {pickLists.map((pl: any, idx: number) => {
+                            const isExpanded = expandedId === String(pl.id);
+                            return (
+                            <React.Fragment key={pl.id}>
+                            <tr
+                                style={{ ...rowStyle(idx), ...(isExpanded ? { background: '#eef2ff' } : {}), cursor: 'pointer' }}
+                                onClick={() => setExpandedId(prev => prev === String(pl.id) ? null : String(pl.id))}
+                            >
+                                <td style={{ ...td, padding: '3px 4px', textAlign: 'center' }}>
+                                    <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>{isExpanded ? '▼' : '►'}</span>
+                                </td>
                                 <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{pl.code}</td>
                                 <td style={td}>{pl.sales_order_code || '-'}</td>
                                 <td style={td}>{pl.customer_name || '-'}</td>
@@ -216,11 +404,14 @@ export default function PickListView() {
                                 <td style={{ ...td, textAlign: 'right' }}>{cartonProgress(pl)}</td>
                                 <td style={td}>{pl.delivery_note_number || '-'}</td>
                                 <td style={td}>{pl.dispatched_at ? tzDate(pl.dispatched_at) : '-'}</td>
-                                <td style={{ ...td, textAlign: 'right' }}>
+                                <td style={{ ...td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                                     <MenuTriggerButton classic onClick={e => menuToggle(String(pl.id), e)} />
                                 </td>
                             </tr>
-                        ))}
+                            {isExpanded && renderPickDetail(pl)}
+                            </React.Fragment>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
