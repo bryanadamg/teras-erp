@@ -2920,6 +2920,10 @@ class PickListLineResponse(BaseModel):
     package_no: int | None = None
     picked_at: datetime | None = None
     picked_by: str | None = None
+    # Surat Jalan "WARNA" column — decorated from the SO line, not stored here.
+    color_name: str | None = None
+    color_code: str | None = None
+    attribute_value_ids: list[UUID] = []
     class Config:
         from_attributes = True
 
@@ -2928,6 +2932,7 @@ class PickListResponse(BaseModel):
     code: str
     sales_order_id: UUID
     sales_order_code: str | None = None
+    customer_po_ref: str | None = None
     customer_name: str | None = None
     source_location_id: UUID | None = None
     status: str

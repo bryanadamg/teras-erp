@@ -7,6 +7,10 @@ import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../sha
 import { xpFont as font } from '../shared/xpTheme';
 
 
+// Perincian spreads each group's cartons across fixed columns; a group with more
+// cartons than this spills onto continuation rows rather than squeezing the grid.
+const PERINCIAN_COLS = 8;
+
 function SJDocument({ pl, so, attributes, companyProfile, customerAddr, preparedBy }: any) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const { itemIndex } = useData();
@@ -18,142 +22,225 @@ function SJDocument({ pl, so, attributes, companyProfile, customerAddr, prepared
         for (const attr of attributes) { const v = attr.values?.find((x: any) => x.id === vid); if (v) return v.value; }
         return '';
     };
-    const fmt = (d: any) => { if (!d) return ''; try { return tzFmt(d, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'en-GB').replace(/\//g, '.'); } catch { return ''; } };
+    const fmt = (d: any) => {
+        if (!d) return '';
+        try { return tzFmt(d, { day: '2-digit', month: 'short', year: 'numeric' }, 'en-GB').replace(/ /g, '-'); }
+        catch { return ''; }
+    };
+    const num = (n: any) => {
+        const v = Number(n) || 0;
+        // Indonesian decimal comma, and no trailing ",0" on whole numbers (the
+        // client's sheet reads "37" and "36,7" side by side).
+        return v.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+    };
 
     const lines: any[] = pl.lines || [];
-    // Cartons come straight off the picked lines now — a line either names a
-    // PackedUnit (batch_number) or is a bulk ship line with no carton.
-    const cartons = lines.filter(l => l.batch_number);
+
+    // The client's Surat Jalan is one row per item+colour with a single total qty;
+    // the per-carton breakdown lives in the Perincian band below. Our lines are
+    // carton-grain, so collapse them here and keep each carton's qty for Perincian.
+    const groups = React.useMemo(() => {
+        const map = new Map<string, any>();
+        for (const l of lines) {
+            const name = l.item_name || itemName(l.item_id);
+            const colorName = l.color_name
+                || (l.attribute_value_ids || []).map((vid: string) => attrName(vid)).filter(Boolean).join(' / ');
+            const key = `${l.item_id}|${colorName}|${l.color_code || ''}`;
+            let g = map.get(key);
+            if (!g) {
+                g = {
+                    key, itemName: name, colorName, colorCode: l.color_code || '',
+                    uom: l.item_uom || itemUOM(l.item_id), qty: 0, cartons: [] as number[],
+                };
+                map.set(key, g);
+            }
+            const q = Number(l.qty_picked) || 0;
+            g.qty += q;
+            // Bulk ship lines carry no carton, so they add qty without a Dus tally.
+            if (l.batch_number) g.cartons.push(q);
+        }
+        return Array.from(map.values());
+    }, [lines, itemIndex, attributes]);
+
+    const totalDus = groups.reduce((s, g) => s + g.cartons.length, 0);
+    const warna = (g: any) => (g.colorCode ? `${g.colorName || ''} ( ${g.colorCode} )`.trim() : g.colorName || '');
+
+    // Continuation rows for any group whose cartons overflow one grid row.
+    const perincianRows = groups.flatMap((g: any) => {
+        const chunks: number[][] = [];
+        for (let i = 0; i < Math.max(1, g.cartons.length); i += PERINCIAN_COLS) {
+            chunks.push(g.cartons.slice(i, i + PERINCIAN_COLS));
+        }
+        return chunks.map((c, ci) => ({ g, cartons: c, first: ci === 0 }));
+    });
 
     const border = '1px solid #555';
     const cell: React.CSSProperties = { border, padding: '3px 5px', verticalAlign: 'top' };
-    const hCell: React.CSSProperties = { ...cell, background: '#f0f0f0', fontWeight: 'bold', textAlign: 'center' };
+    const hCell: React.CSSProperties = { ...cell, fontWeight: 'bold', textAlign: 'center' };
+    const dotCell: React.CSSProperties = { borderBottom: '1px dotted #777', padding: '3px 5px', textAlign: 'center' };
 
     const customerName = pl.customer_name || so?.customer_name || '';
+    const sjNo = pl.delivery_note_number || pl.code;
+    const poNo = pl.customer_po_ref || pl.sales_order_code || so?.po_number || '';
+    const tanggal = fmt(pl.delivery_date || pl.dispatched_at);
+
+    const CompanyBlock = () => (
+        <div style={{ display: 'flex', gap: 8 }}>
+            {companyProfile?.logo_url
+                ? <img src={`${API_BASE}${companyProfile.logo_url}`} alt="Logo" style={{ maxHeight: 34, maxWidth: 46, objectFit: 'contain' }} />
+                : <div style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 10 }}>SJ</div>}
+            <div style={{ fontWeight: 'bold', fontSize: 12, letterSpacing: 0.5, alignSelf: 'center' }}>
+                {(companyProfile?.name || 'PT. BOLA INTAN ELASTIC').toUpperCase()}
+            </div>
+        </div>
+    );
+
+    const KepadaBlock = () => (
+        <div>
+            <div>Kepada Yth :</div>
+            <div style={{ fontWeight: 'bold', marginTop: 2 }}>{customerName}</div>
+            <div style={{ whiteSpace: 'pre-line' }}>{customerAddr(customerName)}</div>
+        </div>
+    );
+
+    // Four sign-off blocks, in the client's order.
+    const SignRow = ({ showCompany }: { showCompany?: boolean }) => (
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 18, textAlign: 'left' }}>
+            {['Tanda Terima dan Cap Perusahaan', 'Nama Supir', 'Gudang', 'Hormat Kami'].map((role, i) => (
+                <div key={i} style={{ width: '24%' }}>
+                    <div>{role}</div>
+                    <div style={{ height: 40 }} />
+                    {showCompany && i === 3 && (
+                        <div style={{ fontWeight: 'bold' }}>{companyProfile?.name || 'PT. Bola Intan Elastic'}</div>
+                    )}
+                    {showCompany && i === 3 && preparedBy && <div>{preparedBy}</div>}
+                </div>
+            ))}
+        </div>
+    );
 
     return (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.4 }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 5, borderBottom: '2px solid #000' }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    {companyProfile?.logo_url
-                        ? <img src={`${API_BASE}${companyProfile.logo_url}`} alt="Logo" style={{ maxHeight: 52, maxWidth: 72, objectFit: 'contain' }} />
-                        : <div style={{ width: 56, height: 44, border: '2px solid #003080', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#003080' }}>BIE</div>}
-                    <div>
-                        <div style={{ fontWeight: 'bold', fontSize: 11 }}>{companyProfile?.name || 'PT. BOLA INTAN ELASTIC'}</div>
-                        {companyProfile?.address && <div>{companyProfile.address}</div>}
-                        <div>
-                            {companyProfile?.phone && <span>Telp: {companyProfile.phone}</span>}
-                            {companyProfile?.phone && companyProfile?.fax && <span> - </span>}
-                            {companyProfile?.fax && <span>Fax: {companyProfile.fax}</span>}
-                        </div>
-                    </div>
+        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.45 }}>
+            {/* ── Band A: SURAT JALAN (the legal delivery note) ───────────────── */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                    <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 'bold', letterSpacing: 2, marginBottom: 6 }}>SURAT JALAN</div>
+                    <CompanyBlock />
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 16, fontWeight: 'bold', fontFamily: 'Georgia, serif' }}>SURAT JALAN</div>
-                    <div style={{ fontSize: 9 }}>Delivery Note</div>
+                <div style={{ width: '46%', paddingLeft: 12 }}>
+                    <div style={{ marginBottom: 6 }}>No : <span style={{ fontWeight: 'bold' }}>{sjNo}</span></div>
+                    <KepadaBlock />
                 </div>
             </div>
 
-            {/* Info block */}
-            <div style={{ display: 'flex', marginBottom: 6, paddingBottom: 5, borderBottom: border }}>
-                <div style={{ flex: 1, paddingRight: 10 }}>
-                    <div style={{ fontWeight: 'bold' }}>Kepada / To:</div>
-                    <div style={{ fontWeight: 'bold', marginTop: 4 }}>{customerName}</div>
-                    <div style={{ whiteSpace: 'pre-line' }}>{customerAddr(customerName)}</div>
-                </div>
-                <div style={{ width: '40%' }}>
-                    <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '9px' }}>
-                        <tbody>
-                            {([
-                                ['No. Surat Jalan', pl.delivery_note_number || pl.code],
-                                ['Tanggal / Date', fmt(pl.delivery_date || pl.dispatched_at)],
-                                ['No. SO', pl.sales_order_code || so?.po_number || ''],
-                                ['Pengangkut / Carrier', pl.carrier || ''],
-                                ['No. Kendaraan', pl.vehicle_plate || ''],
-                                ['Sopir / Driver', pl.driver || ''],
-                            ] as [string, string][]).map(([k, v]) => (
-                                <tr key={k}>
-                                    <td style={{ fontWeight: 'bold', paddingRight: 4, whiteSpace: 'nowrap', verticalAlign: 'top' }}>{k}</td>
-                                    <td style={{ verticalAlign: 'top' }}>: {v}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: '9px' }}>
+                    <tbody>
+                        <tr><td style={{ paddingRight: 8 }}>Tanggal</td><td>: {tanggal}</td></tr>
+                        <tr><td style={{ paddingRight: 8 }}>Kendaraan No.</td><td>: {pl.vehicle_plate || ''}</td></tr>
+                        {pl.driver && <tr><td style={{ paddingRight: 8 }}>Supir</td><td>: {pl.driver}</td></tr>}
+                    </tbody>
+                </table>
+                <div style={{ width: '46%', paddingLeft: 12 }}>Hal : 1</div>
             </div>
 
-            {/* Items */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: 8 }}>
+            <div style={{ margin: '6px 0 4px' }}>Bersama ini kami kirimkan barang-barang tersebut dibawah ini :</div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
                 <thead>
                     <tr>
-                        <th style={{ ...hCell, width: '5%' }}>No</th>
-                        <th style={{ ...hCell, width: '45%', textAlign: 'left' }}>Barang / Description</th>
-                        <th style={{ ...hCell, width: '20%' }}>Lot / Koli</th>
-                        <th style={{ ...hCell, width: '15%' }}>Qty</th>
-                        <th style={{ ...hCell, width: '15%' }}>Sat / UoM</th>
+                        <th style={{ ...hCell, width: '8%' }}>QTY</th>
+                        <th style={{ ...hCell, width: '7%' }}>Unit</th>
+                        <th style={{ ...hCell, width: '27%', textAlign: 'left' }}>NAMA BARANG</th>
+                        <th style={{ ...hCell, width: '23%', textAlign: 'left' }}>WARNA</th>
+                        <th style={{ ...hCell, width: '18%' }}>NO PO</th>
+                        <th style={{ ...hCell, width: '17%' }}>NO REF</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {lines.length === 0 && <tr><td style={cell} colSpan={5}>&nbsp;</td></tr>}
-                    {lines.map((l, i) => (
-                        <tr key={i}>
-                            <td style={{ ...cell, textAlign: 'center' }}>{i + 1}</td>
-                            <td style={cell}>
-                                <div style={{ fontWeight: 'bold' }}>{l.item_name || itemName(l.item_id)}</div>
-                                {(l.attribute_value_ids || []).map((vid: string) => <div key={vid}>{attrName(vid)}</div>)}
-                            </td>
-                            <td style={{ ...cell, textAlign: 'center' }}>{l.batch_number || '-'}</td>
-                            <td style={{ ...cell, textAlign: 'right' }}>{Number(l.qty_picked).toLocaleString()}</td>
-                            <td style={{ ...cell, textAlign: 'center' }}>{l.item_uom || itemUOM(l.item_id)}</td>
+                    {groups.length === 0 && <tr><td style={cell} colSpan={6}>&nbsp;</td></tr>}
+                    {groups.map((g: any) => (
+                        <tr key={g.key}>
+                            <td style={{ ...cell, textAlign: 'right' }}>{num(g.qty)}</td>
+                            <td style={{ ...cell, textAlign: 'center' }}>{g.uom}</td>
+                            <td style={cell}>{g.itemName}</td>
+                            <td style={cell}>{warna(g)}</td>
+                            <td style={{ ...cell, textAlign: 'center' }}>{poNo}</td>
+                            {/* NO REF is filled in by hand on receipt (over/short marks). */}
+                            <td style={cell}>&nbsp;</td>
                         </tr>
+                    ))}
+                    {/* Breathing room so the receiver can annotate, as on the client's form. */}
+                    {Array.from({ length: Math.max(0, 4 - groups.length) }).map((_, i) => (
+                        <tr key={`pad-${i}`}><td style={cell} colSpan={6}>&nbsp;</td></tr>
                     ))}
                 </tbody>
             </table>
 
-            {/* Carton manifest */}
-            {cartons.length > 0 && (
-                <>
-                    <div style={{ fontWeight: 'bold', marginBottom: 3 }}>Packing List — {cartons.length} koli:</div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: 8 }}>
-                        <thead>
-                            <tr>
-                                <th style={{ ...hCell, width: '10%' }}>No</th>
-                                <th style={{ ...hCell, width: '30%' }}>Koli / Carton</th>
-                                <th style={{ ...hCell, width: '40%', textAlign: 'left' }}>Isi / Contents</th>
-                                <th style={{ ...hCell, width: '20%' }}>Qty</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {cartons.map((c: any, i: number) => (
-                                <tr key={i}>
-                                    <td style={{ ...cell, textAlign: 'center' }}>{c.package_no ?? i + 1}</td>
-                                    <td style={{ ...cell, textAlign: 'center' }}>{c.batch_number}</td>
-                                    <td style={cell}>{c.item_name || itemName(c.item_id)}</td>
-                                    <td style={{ ...cell, textAlign: 'right' }}>
-                                        {Number(c.qty_picked).toLocaleString()} {c.item_uom || itemUOM(c.item_id)}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </>
-            )}
+            {pl.notes && <div style={{ marginTop: 6 }}>Catatan : {pl.notes}</div>}
 
-            {pl.notes && <div style={{ marginBottom: 8 }}><strong>Catatan / Notes:</strong> {pl.notes}</div>}
+            <SignRow showCompany />
 
-            {/* Signatures */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, fontSize: '9px', textAlign: 'center' }}>
-                {['Hormat Kami / Prepared by', 'Pengangkut / Driver', 'Penerima / Received by'].map((role, i) => (
-                    <div key={i} style={{ width: '30%' }}>
-                        <div>{role}</div>
-                        <div style={{ height: 46 }} />
-                        <div style={{ borderTop: '1px solid #000', paddingTop: 2 }}>
-                            {i === 0 ? (preparedBy || '(________________)') : '(________________)'}
-                        </div>
-                    </div>
-                ))}
+            {/* ── Tear line ──────────────────────────────────────────────────── */}
+            <div style={{ borderTop: '1px dashed #000', margin: '22px 0 14px' }} />
+
+            {/* ── Band B: PERINCIAN (per-carton breakdown, same SJ number) ───── */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                    <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 'bold', letterSpacing: 2, marginBottom: 6 }}>PERINCIAN</div>
+                    <CompanyBlock />
+                    <div style={{ marginTop: 4 }}>Tanggal : {tanggal}</div>
+                </div>
+                <div style={{ width: '46%', paddingLeft: 12 }}>
+                    <div style={{ marginBottom: 6 }}>SJ No : <span style={{ fontWeight: 'bold' }}>{sjNo}</span></div>
+                    <KepadaBlock />
+                    <div style={{ marginTop: 4 }}>Hal : 1</div>
+                </div>
             </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginTop: 8 }}>
+                <thead>
+                    <tr>
+                        <th style={{ ...hCell, textAlign: 'left' }}>Nama Barang :</th>
+                        {Array.from({ length: PERINCIAN_COLS }).map((_, i) => (
+                            <th key={i} style={{ ...hCell, width: `${44 / PERINCIAN_COLS}%` }}>&nbsp;</th>
+                        ))}
+                        <th style={{ ...hCell, width: '7%' }}>Dus</th>
+                        <th style={{ ...hCell, width: '9%' }}>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {perincianRows.length === 0 && <tr><td style={cell} colSpan={PERINCIAN_COLS + 3}>&nbsp;</td></tr>}
+                    {perincianRows.map((r: any, i: number) => (
+                        <tr key={i}>
+                            <td style={cell}>
+                                {r.first ? `${r.g.itemName}${r.g.colorName ? ` ${r.g.colorName}` : ''}` : ''}
+                            </td>
+                            {Array.from({ length: PERINCIAN_COLS }).map((_, c) => (
+                                <td key={c} style={dotCell}>{r.cartons[c] != null ? num(r.cartons[c]) : ''}</td>
+                            ))}
+                            <td style={{ ...cell, textAlign: 'center' }}>{r.first ? (r.g.cartons.length || '') : ''}</td>
+                            <td style={{ ...cell, textAlign: 'right' }}>{r.first ? num(r.g.qty) : ''}</td>
+                        </tr>
+                    ))}
+                    {Array.from({ length: Math.max(0, 6 - perincianRows.length) }).map((_, i) => (
+                        <tr key={`ppad-${i}`}>
+                            <td style={cell}>&nbsp;</td>
+                            {Array.from({ length: PERINCIAN_COLS }).map((_, c) => <td key={c} style={dotCell}>&nbsp;</td>)}
+                            <td style={cell}>&nbsp;</td>
+                            <td style={cell}>&nbsp;</td>
+                        </tr>
+                    ))}
+                    <tr>
+                        <td style={{ ...cell, border: 'none' }} colSpan={PERINCIAN_COLS} />
+                        <td style={{ ...cell, fontWeight: 'bold', textAlign: 'right' }}>Total :</td>
+                        <td style={{ ...cell, fontWeight: 'bold', textAlign: 'center' }}>{totalDus}</td>
+                        <td style={{ ...cell, border: 'none' }} />
+                    </tr>
+                </tbody>
+            </table>
+
+            <SignRow showCompany />
         </div>
     );
 }

@@ -33,10 +33,15 @@ def _load_options():
     # one place that needs sales_order.lines, and it already runs its own dedicated
     # query for it; loading it here on every list/detail fetch was two pure-waste
     # queries that scale with SO line count for zero benefit.
+    # The SO line hop is for the Surat Jalan: the doc prints a WARNA column, and the
+    # ordered shade lives on the SO line (color_id -> Color, plus the legacy variant
+    # attribute values), never on the pick list line itself.
     return (
         selectinload(PickList.sales_order),
         selectinload(PickList.lines).selectinload(PickListLine.item),
         selectinload(PickList.lines).selectinload(PickListLine.batch),
+        selectinload(PickList.lines).selectinload(PickListLine.sales_order_line).selectinload(SalesOrderLine.color),
+        selectinload(PickList.lines).selectinload(PickListLine.sales_order_line).selectinload(SalesOrderLine.attribute_values),
     )
 
 
@@ -56,6 +61,17 @@ def _decorate(pl: PickList) -> PickList:
     if pl.sales_order:
         pl.sales_order_code = pl.sales_order.po_number
         pl.customer_name = pl.sales_order.customer_name
+        # The customer's own PO — the "NO PO" column of the Surat Jalan. Their
+        # reference, not ours; po_number is the internal SO code.
+        pl.customer_po_ref = pl.sales_order.customer_po_ref
+    for line in (pl.lines or []):
+        sol = line.sales_order_line
+        color = sol.color if sol else None
+        line.color_name = color.name if color else None
+        # Customers reference their own shade code on the delivery note when they
+        # have one; ours is the fallback.
+        line.color_code = (color.customer_color_code or color.code) if color else None
+        line.attribute_value_ids = [v.id for v in (sol.attribute_values or [])] if sol else []
     return pl
 
 
