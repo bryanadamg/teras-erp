@@ -58,9 +58,9 @@ export default function PickListView() {
     const [plTotal, setPlTotal] = useState(0);
     const [openCount, setOpenCount] = useState(0);
     const [dispatchedCount, setDispatchedCount] = useState(0);
-    // pickableSOs / openSoIds are only needed while the SO picker is open.
+    // Only needed while the SO picker is open.
     const [pickableSOs, setPickableSOs] = useState<any[]>([]);
-    const [openSoIds, setOpenSoIds] = useState<Set<string>>(new Set());
+    const [pickableLoading, setPickableLoading] = useState(false);
     // True from first paint so the list shows the loader, not "none yet".
     const [loading, setLoading] = useState(true);
     // Skeleton sizing: measure one real row so the placeholders shown on the next
@@ -111,19 +111,23 @@ export default function PickListView() {
     useEffect(() => { loadCounts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { loadPickListPage(plPage); }, [plPage, loadPickListPage]);
 
+    // One readiness call instead of "every open SO" + "every draft": the server
+    // scores each order's packed cartons against what it still owes, so the picker
+    // sees what can actually ship rather than the whole order book.
     useEffect(() => {
         if (!picking) return;
+        let alive = true;
+        setPickableLoading(true);
         (async () => {
-            const [soRes, openRes] = await Promise.all([
-                authFetch(`${API_BASE}/sales-orders?status=PENDING,READY,PARTIAL`),
-                authFetch(`${API_BASE}/pick-lists?status=DRAFT&size=200`),
-            ]);
-            if (soRes.ok) { const d = await soRes.json(); setPickableSOs(Array.isArray(d) ? d : (d.items || [])); }
-            if (openRes.ok) {
-                const d = await openRes.json();
-                setOpenSoIds(new Set((d.items || []).map((p: any) => String(p.sales_order_id))));
+            try {
+                const res = await authFetch(`${API_BASE}/pick-lists/pickable-orders`);
+                if (!alive) return;
+                setPickableSOs(res.ok ? (await res.json() || []) : []);
+            } finally {
+                if (alive) setPickableLoading(false);
             }
         })();
+        return () => { alive = false; };
     }, [picking, authFetch]);
 
     const createForSO = async (so: any) => {
@@ -243,7 +247,8 @@ export default function PickListView() {
             {picking && (
                 <SOPickerModal
                     pickableSOs={pickableSOs}
-                    openSoIds={openSoIds}
+                    loading={pickableLoading}
+                    tzDate={tzDate}
                     onClose={() => setPicking(false)}
                     onPick={createForSO}
                 />
@@ -277,40 +282,111 @@ export default function PickListView() {
 }
 
 // ── SO picker ────────────────────────────────────────────────────────────────
-function SOPickerModal({ pickableSOs, openSoIds, onClose, onPick }: any) {
-    const hasOpen = (soId: string) => openSoIds.has(String(soId));
+// Due-date urgency, in the same 5-family language as StatusChip: red = late,
+// amber = this week, grey = comfortable.
+function dueChip(days: number | null | undefined) {
+    if (days == null) return { bg: '#f0efe8', border: '#c0bdb5', fg: '#666', text: 'no date' };
+    if (days < 0) return { bg: '#fbe4e4', border: '#c88', fg: '#900', text: `${-days}d late` };
+    if (days === 0) return { bg: '#ffe9c7', border: '#d9a441', fg: '#7a4a00', text: 'due today' };
+    if (days <= 7) return { bg: '#fff4e5', border: '#d9a441', fg: '#7a4a00', text: `in ${days}d` };
+    return { bg: '#eef2ff', border: '#b0c8f8', fg: '#1a56c4', text: `in ${days}d` };
+}
+
+/**
+ * Pick readiness board. Orders are listed soonest-due first, each showing how
+ * much of what it still owes is already packed into cartons — packing is
+ * upstream of picking, so an order with nothing packed cannot be picked at all
+ * (the server rejects it too; this just says so before the click).
+ */
+function SOPickerModal({ pickableSOs, loading, tzDate, onClose, onPick }: any) {
     return (
         <ModalWrapper isOpen onClose={onClose} title="Select an Order to Pick" size="lg" modeless>
             <div style={{ fontFamily: xpFont }}>
                 <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>
-                    Cartons are suggested oldest-first from packed stock. Partially-produced orders can be picked too.
+                    Soonest delivery first. &quot;Ready&quot; counts whole cartons already packed and not on
+                    another pick list — cartons are suggested oldest-first, and the last one may overshoot
+                    since a carton is never split.
                 </div>
-                {pickableSOs.length === 0
-                    ? <XPEmptyState icon="bi-inbox" message="No pickable sales orders." />
+                {loading
+                    ? <div style={{ fontSize: 11, color: '#888', padding: '12px 4px' }}>Scoring open orders...</div>
+                    : pickableSOs.length === 0
+                    ? <XPEmptyState icon="bi-inbox" message="No open sales orders with anything outstanding." />
                     : (
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>
                                     <th style={xpTableHeader}>Sales Order</th>
-                                    <th style={xpTableHeader}>Status</th>
                                     <th style={xpTableHeader}>Customer</th>
-                                    <th style={xpTableHeader}>Lines</th>
+                                    <th style={xpTableHeader}>Delivery due</th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}>Outstanding</th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ready</th>
+                                    <th style={xpTableHeader}>Coverage</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {pickableSOs.map((so: any, idx: number) => (
-                                    <tr key={so.id} style={rowStyle(idx)}>
-                                        <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{so.po_number}</td>
-                                        <td style={td}><StatusChip status={so.status} /></td>
-                                        <td style={td}>{so.customer_name}</td>
-                                        <td style={{ ...td, color: '#666' }}>{(so.lines || []).length}</td>
-                                        <td style={{ ...td, textAlign: 'right' }}>
-                                            {hasOpen(so.id) && <span style={{ fontSize: 9, color: '#b8860b', marginRight: 8 }}>has draft</span>}
-                                            <button style={xpBtnGreen()} onClick={() => onPick(so)}>Pick</button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {pickableSOs.map((so: any, idx: number) => {
+                                    const chip = dueChip(so.days_to_due);
+                                    const ready = num(so.cartons_ready) > 0;
+                                    const pct = num(so.qty_outstanding) > 0
+                                        ? Math.min(100, Math.round(num(so.qty_ready) / num(so.qty_outstanding) * 100))
+                                        : 0;
+                                    return (
+                                        <tr key={so.id} style={{ ...rowStyle(idx), opacity: ready ? 1 : 0.6 }}>
+                                            <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>
+                                                {so.po_number}
+                                                {so.customer_po_ref && (
+                                                    <div style={{ fontSize: 9, fontWeight: 'normal', color: '#888' }}>{so.customer_po_ref}</div>
+                                                )}
+                                            </td>
+                                            <td style={td}>
+                                                {so.customer_name}
+                                                <div style={{ marginTop: 1 }}><StatusChip status={so.status} tint /></div>
+                                            </td>
+                                            <td style={td}>
+                                                <span style={{
+                                                    fontSize: 9, fontWeight: 'bold', padding: '0 5px',
+                                                    background: chip.bg, border: `1px solid ${chip.border}`, color: chip.fg,
+                                                }}>{chip.text}</span>
+                                                <div style={{ fontSize: 9, color: '#888', marginTop: 1 }}>
+                                                    {so.due_date ? tzDate(so.due_date) : '—'}
+                                                </div>
+                                            </td>
+                                            <td style={{ ...td, textAlign: 'right' }}>
+                                                {num(so.qty_outstanding).toLocaleString()}
+                                                <div style={{ fontSize: 9, color: '#888' }}>
+                                                    {so.lines_outstanding} of {so.line_count} line{so.line_count === 1 ? '' : 's'}
+                                                </div>
+                                            </td>
+                                            <td style={{ ...td, textAlign: 'right', color: ready ? '#0a3e0a' : '#999', fontWeight: 'bold' }}>
+                                                {num(so.qty_ready).toLocaleString()}
+                                                <div style={{ fontSize: 9, fontWeight: 'normal', color: '#888' }}>
+                                                    {so.cartons_ready} carton{so.cartons_ready === 1 ? '' : 's'}
+                                                </div>
+                                            </td>
+                                            <td style={td}>
+                                                <div style={{ width: 70, height: 8, background: '#e6e4dc', border: '1px solid #aca899' }}>
+                                                    <div style={{
+                                                        width: `${pct}%`, height: '100%',
+                                                        background: pct >= 100 ? '#4caf50' : '#5b8dd6',
+                                                    }} />
+                                                </div>
+                                                <div style={{ fontSize: 9, color: '#888', marginTop: 1 }}>{pct}%</div>
+                                            </td>
+                                            <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                {so.has_open_pick_list && (
+                                                    <span style={{ fontSize: 9, color: '#b8860b', marginRight: 8 }}>open pick list</span>
+                                                )}
+                                                <button
+                                                    style={{ ...xpBtnGreen(), opacity: ready ? 1 : 0.5, cursor: ready ? 'pointer' : 'not-allowed' }}
+                                                    disabled={!ready}
+                                                    title={ready ? 'Create a pick list for this order' : 'Nothing packed for this order yet — pack cartons first'}
+                                                    onClick={() => onPick(so)}
+                                                >Pick</button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     )}

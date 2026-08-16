@@ -2952,6 +2952,28 @@ class PickListListResponse(BaseModel):
     page: int
     size: int
 
+
+class PickableOrderResponse(BaseModel):
+    """One row of the pick readiness board: an open order, when it is due, and
+    how much of what it still owes is already sitting packed in cartons."""
+    id: UUID
+    po_number: str
+    customer_po_ref: str | None = None
+    customer_name: str
+    status: str
+    # Earliest outstanding line due date — when the customer expects delivery.
+    due_date: datetime | None = None
+    # Negative = overdue. None when the order carries no due date at all.
+    days_to_due: int | None = None
+    line_count: int = 0
+    lines_outstanding: int = 0
+    qty_outstanding: float = 0
+    # Qty covered by whole cartons available now; may overshoot qty_outstanding
+    # on the last carton, since a carton is never split.
+    qty_ready: float = 0
+    cartons_ready: int = 0
+    has_open_pick_list: bool = False
+
 # ── Work-Center Performance Monitoring (weaving runs + production calendar) ──
 
 class WeavingRunCreate(BaseModel):

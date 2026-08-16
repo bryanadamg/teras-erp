@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, String
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import datetime
@@ -9,7 +9,7 @@ import uuid
 from app.db.session import get_async_db
 from app.schemas import (
     PickListCreate, PickListUpdate, PickListResponse, PickListListResponse,
-    PickListScanPayload,
+    PickListScanPayload, PickableOrderResponse,
 )
 from app.models.pick_list import PickList, PickListLine
 from app.models.batch import Batch
@@ -112,8 +112,11 @@ async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder, exclude_pl_id=
 async def _suggest_lines(db: AsyncSession, pl: PickList, so: SalesOrder) -> list[PickListLine]:
     """Seed a pick list with whole cartons, FIFO, for every outstanding SO line.
 
-    A line with no cartons available falls back to a single bulk line for the
-    remaining qty, so partially-cartonised orders still pick.
+    Carton-only by design: a pick list is downstream of packing, so a line with
+    nothing packed yet simply isn't seeded — it comes onto a later pick list once
+    its cartons exist. (This replaced a bulk-qty fallback that let un-cartonised
+    stock ship straight off a pick list, which put goods on a Surat Jalan that no
+    physical box backed and left the carton genealogy with a hole.)
     """
     remaining = await _remaining_by_so_line(db, so)
     taken = await packing_service.allocated_unit_ids(db)
@@ -142,14 +145,44 @@ async def _suggest_lines(db: AsyncSession, pl: PickList, so: SalesOrder) -> list
                 source_location_id=loc,
                 batch_id=pu.id,
             ))
-        if not units:
-            lines.append(PickListLine(
-                pick_list_id=pl.id,
-                sales_order_line_id=so_line.id,
-                item_id=so_line.item_id,
-                qty_picked=rem,
-            ))
     return lines
+
+
+async def _ready_carton_index(db: AsyncSession) -> dict:
+    """Every unallocated, in-stock carton keyed by (item_id, variant_key), FIFO.
+
+    One query for the whole plant instead of per-SO-line lookups: the readiness
+    board scores every open order at once, and a per-line query there is an N+1
+    that grows with the order book.
+    """
+    from app.models.stock_balance import StockBalance
+    taken = await packing_service.allocated_unit_ids(db)
+    rows = (await db.execute(
+        select(Batch, StockBalance)
+        .join(StockBalance, StockBalance.batch_key == cast(Batch.id, String))
+        .filter(
+            packing_service.packed_unit_filter(),
+            Batch.quality_status == "GOOD",
+            StockBalance.qty > 0,
+        )
+        .order_by(Batch.created_at.asc(), Batch.package_no.asc())
+    )).all()
+
+    index: dict = {}
+    seen = set()
+    for batch, bal in rows:
+        # A carton is atomic; a stray second balance row must not double-count it.
+        if batch.id in seen or batch.id in taken:
+            continue
+        seen.add(batch.id)
+        index.setdefault((str(batch.item_id), bal.variant_key), []).append(float(bal.qty))
+    return index
+
+
+def _so_due_date(so: SalesOrder):
+    """Earliest line due date — when the customer expects the order."""
+    dues = [l.due_date for l in (so.lines or []) if l.due_date]
+    return min(dues) if dues else None
 
 
 async def _unit_location(db: AsyncSession, pu: Batch):
@@ -191,6 +224,88 @@ async def list_pick_lists(
     for pl in orders:
         _decorate(pl)
     return PickListListResponse(items=orders, total=total, page=page, size=size)
+
+
+@router.get("/pickable-orders", response_model=list[PickableOrderResponse])
+async def list_pickable_orders(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Open sales orders scored for picking: soonest delivery first, showing what
+    is actually packed and waiting for each.
+
+    Declared above `/{pl_id}` on purpose — FastAPI matches in declaration order,
+    and "pickable-orders" would otherwise be parsed as a pick list UUID.
+
+    Cartons are claimed by the most urgent order first. They are not reserved —
+    any pick list may still take any carton — but scoring them in due-date order
+    is the only reading that doesn't promise the same physical box to two orders
+    at once on this board.
+    """
+    so_rows = (await db.execute(
+        select(SalesOrder)
+        .options(selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values))
+        .filter(SalesOrder.status.in_(["PENDING", "READY", "PARTIAL"]))
+    )).scalars().all()
+
+    draft_so_ids = {
+        str(r[0]) for r in (await db.execute(
+            select(PickList.sales_order_id).filter(PickList.status.in_(["DRAFT", "PICKING", "PICKED"]))
+        )).all() if r[0]
+    }
+
+    index = await _ready_carton_index(db)
+    today = datetime.utcnow().date()
+
+    # Urgent first, undated orders last — an order with no due date is not more
+    # urgent than every dated one, which is what plain ascending sort would say.
+    ordered = sorted(so_rows, key=lambda s: (_so_due_date(s) is None, _so_due_date(s) or datetime.max))
+
+    out: list[PickableOrderResponse] = []
+    for so in ordered:
+        remaining = await _remaining_by_so_line(db, so)
+        qty_outstanding = 0.0
+        qty_ready = 0.0
+        cartons_ready = 0
+        lines_outstanding = 0
+        for line in so.lines:
+            rem = remaining.get(str(line.id), 0.0)
+            if rem <= 0:
+                continue
+            lines_outstanding += 1
+            qty_outstanding += rem
+            attr_ids = [str(v.id) for v in (line.attribute_values or [])]
+            key = (str(line.item_id), stock_service._generate_variant_key(attr_ids, line.color_id))
+            pool = index.get(key)
+            if not pool:
+                continue
+            # Whole cartons only — the picker moves a physical box, so the last
+            # one may overshoot the outstanding qty rather than be split.
+            covered = 0.0
+            while pool and covered < rem - 1e-6:
+                covered += pool.pop(0)
+                cartons_ready += 1
+            qty_ready += covered
+
+        if qty_outstanding <= 0:
+            continue
+        due = _so_due_date(so)
+        out.append(PickableOrderResponse(
+            id=so.id,
+            po_number=so.po_number,
+            customer_po_ref=so.customer_po_ref,
+            customer_name=so.customer_name,
+            status=so.status,
+            due_date=due,
+            days_to_due=(due.date() - today).days if due else None,
+            line_count=len(so.lines or []),
+            lines_outstanding=lines_outstanding,
+            qty_outstanding=round(qty_outstanding, 4),
+            qty_ready=round(qty_ready, 4),
+            cartons_ready=cartons_ready,
+            has_open_pick_list=str(so.id) in draft_so_ids,
+        ))
+    return out
 
 
 @router.get("/{pl_id}", response_model=PickListResponse)
@@ -246,6 +361,37 @@ async def create_pick_list(
     # at dispatch) is the real guard, not SO completion status.
     if so.status in ("SENT", "DELIVERED", "CANCELLED"):
         raise HTTPException(status_code=400, detail=f"Cannot pick a {so.status} order")
+
+    # Packing comes first: a pick list picks cartons, so there is nothing to pick
+    # until a packing order has minted some. Checked before the pick list row is
+    # written so an order with nothing packed never leaves an empty DRAFT behind.
+    remaining_now = await _remaining_by_so_line(db, so)
+    taken_now = await packing_service.allocated_unit_ids(db)
+    has_cartons = False
+    for so_line in so.lines:
+        if remaining_now.get(str(so_line.id), 0.0) <= 0:
+            continue
+        units = await packing_service.available_packed_units(
+            db, so_line.item_id,
+            location_id=payload.source_location_id,
+            attribute_value_ids=[str(v.id) for v in (so_line.attribute_values or [])],
+            color_id=so_line.color_id,
+            exclude_ids=taken_now,
+            # No limit=1: available_packed_units applies the SQL limit before
+            # filtering exclude_ids, so a low limit full of already-allocated
+            # cartons would read as "nothing packed".
+        )
+        if units:
+            has_cartons = True
+            break
+    if not has_cartons:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Nothing packed for this order yet — create a packing order and log "
+                "cartons against it before picking."
+            ),
+        )
 
     code = await _next_code(db)
     pl = PickList(
