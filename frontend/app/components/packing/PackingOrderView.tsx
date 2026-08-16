@@ -90,6 +90,12 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     }, [itemIndex]);
 
     const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+    // Seeded stores resolved by system_code, not by name — a plant may rename the
+    // display name but the code is the stable handle (see SYSTEM_WAREHOUSES).
+    const systemLocId = useCallback((code: string) => {
+        const l = (locations || []).find((x: any) => x.system_code === code);
+        return l ? String(l.id) : '';
+    }, [locations]);
     const locationById = useMemo(() => {
         const m: Record<string, any> = {};
         (locations || []).forEach((l: any) => { m[String(l.id)] = l; });
@@ -270,6 +276,8 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
             {creating && (
                 <PackingOrderForm
                     locPickerTreeOptions={locPickerTreeOptions}
+                    defaultSourceLocId={systemLocId('QC')}
+                    defaultOutputLocId={systemLocId('FG')}
                     authFetch={authFetch}
                     showToast={showToast}
                     initialValues={createInitialValues}
@@ -283,6 +291,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                     po={detail}
                     itemById={itemById}
                     locationById={locationById}
+                    locPickerTreeOptions={locPickerTreeOptions}
                     authFetch={authFetch}
                     showToast={showToast}
                     onClose={() => setDetail(null)}
@@ -316,14 +325,18 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
 }
 
 // ── create form ──────────────────────────────────────────────────────────────
-function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose, onCreated, initialValues }: any) {
+function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOutputLocId, authFetch, showToast, onClose, onCreated, initialValues }: any) {
     const { results: fgResults, onSearch: fgSearch } = useFinishedGoodsSearch();
     const [itemId, setItemId] = useState(initialValues?.item_id || '');
     const [qtyTarget, setQtyTarget] = useState(initialValues?.qty_target != null ? String(initialValues.qty_target) : '');
     const [packSize, setPackSize] = useState('');
     const [packageLabel, setPackageLabel] = useState('Carton');
-    const [sourceLoc, setSourceLoc] = useState(initialValues?.source_location_id || '');
-    const [outputLoc, setOutputLoc] = useState('');
+    // Both stores default to the seeded ones: bulk FG waits in Quarantine until QC
+    // releases it, sealed cartons land in the Finished Goods store. A Quarantine
+    // Packing suggestion still names its own source and wins. Both stay editable —
+    // these are only the defaults, not a fixed route.
+    const [sourceLoc, setSourceLoc] = useState(initialValues?.source_location_id || defaultSourceLocId || '');
+    const [outputLoc, setOutputLoc] = useState(defaultOutputLocId || '');
     const [soId, setSoId] = useState(initialValues?.sales_order_id || '');
     const [soLineId, setSoLineId] = useState(initialValues?.sales_order_line_id || '');
     const [notes, setNotes] = useState('');
@@ -337,6 +350,13 @@ function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose,
             if (res.ok) { const d = await res.json(); setSos(Array.isArray(d) ? d : (d.items || [])); }
         })();
     }, [authFetch]);
+
+    // Locations come from DataContext, which may still be loading when this modal
+    // opens — backfill the defaults once they arrive, without clobbering a pick.
+    useEffect(() => {
+        if (defaultSourceLocId) setSourceLoc((v: string) => v || defaultSourceLocId);
+        if (defaultOutputLocId) setOutputLoc((v: string) => v || defaultOutputLocId);
+    }, [defaultSourceLocId, defaultOutputLocId]);
 
     // A pre-filled item (from a Quarantine Packing suggestion) is only an id —
     // the combobox can't show its name/code until a search has actually returned
@@ -374,6 +394,10 @@ function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose,
         // The line link is what credits these cartons to the order — without it the
         // SO can never reach READY, so an SO with no line picked is a silent dead end.
         if (soId && !soLineId) { showToast('Pick which order line this packs', 'warning'); return; }
+        // Both are hard-required by the pack endpoint, so catching it here beats
+        // creating an order that can never be packed.
+        if (!sourceLoc) { showToast('Pick where the bulk goods are packed from', 'warning'); return; }
+        if (!outputLoc) { showToast('Pick where the finished cartons are stored', 'warning'); return; }
         setSaving(true);
         try {
             const body = {
@@ -570,7 +594,7 @@ function MaterialRow({ row, authFetch, locPickerTreeOptions, onChange, onRemove 
 // same legend-panel groupboxes and Previous-Entries table. Packing is the same
 // motion as logging WO output for the operator, so it reads the same. Keep the
 // two in step — a change to one of these patterns belongs in both.
-function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
+function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTreeOptions, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
     const { hasPermission } = useUser();
     const { formatDateTime: tzDateTime } = useTimezone();
     const canManage = hasPermission('sales.manage');
@@ -607,6 +631,35 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const useLotPicker = !!it?.lot_tracked;
     const outputLocName = locationById?.[String(po.output_location_id)]?.name || null;
     const sourceLocName = locationById?.[String(po.source_location_id)]?.name || null;
+
+    // Locations are editable here, not just on the create form: /complete hard-
+    // requires both, and an order created without them (a Quarantine Packing
+    // suggestion names only a source) is otherwise dead — no other edit path exists.
+    const [srcDraft, setSrcDraft] = useState<string>(String(po.source_location_id || ''));
+    const [outDraft, setOutDraft] = useState<string>(String(po.output_location_id || ''));
+    const [savingLocs, setSavingLocs] = useState(false);
+    const locsDirty = srcDraft !== String(po.source_location_id || '') || outDraft !== String(po.output_location_id || '');
+    const locsMissing = !po.source_location_id || !po.output_location_id;
+
+    const saveLocations = async () => {
+        if (!srcDraft || !outDraft) { showToast('Both locations are required', 'danger'); return; }
+        setSavingLocs(true);
+        try {
+            const res = await authFetch(`${API_BASE}/packing/${po.id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source_location_id: srcDraft, output_location_id: outDraft }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Could not save locations');
+            }
+            setPo(await res.json());
+            showToast('Locations updated', 'success');
+            await onChanged();
+        } catch (e: any) {
+            showToast(e.message, 'danger');
+        } finally { setSavingLocs(false); }
+    };
 
     // The packer picks lots exactly as a stager picks material for a WO: the lot
     // pins the StockBalance row being drawn, which is what makes the order's
@@ -713,6 +766,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const q = num(qty);
+        if (locsMissing) { showToast('Set both locations on this order before packing', 'danger'); return; }
+        if (locsDirty) { showToast('Save the location change before logging', 'danger'); return; }
         if (q <= 0) { showToast('Enter a positive quantity', 'danger'); return; }
         if (boxValues.length <= 0) { showToast(`At least one ${po.package_label.toLowerCase()} is required`, 'danger'); return; }
         if (boxMismatch) {
@@ -823,8 +878,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                         Carton Labels
                     </button>
                     {!readOnly && (
-                        <button type="submit" form="packing-log-form" disabled={logging || boxMismatch}
-                            style={{ ...xpBtnGreen(), opacity: logging || boxMismatch ? 0.6 : 1 }}>
+                        <button type="submit" form="packing-log-form" disabled={logging || boxMismatch || locsMissing || locsDirty}
+                            style={{ ...xpBtnGreen(), opacity: logging || boxMismatch || locsMissing || locsDirty ? 0.6 : 1 }}>
                             {logging ? 'Packing...' : 'Log Packing'}
                         </button>
                     )}
@@ -865,6 +920,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                     {closed && (
                         <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '4px 8px', fontSize: 10 }}>
                             This packing order is {po.status} — read-only.
+                        </div>
+                    )}
+
+                    {readOnly && (outputLocName || sourceLocName) && (
+                        <div style={{ background: '#f5f4ee', border: '1px solid #aca899', padding: '4px 8px', fontSize: 10, color: '#555' }}>
+                            {sourceLocName && <span>Packed from <strong>{sourceLocName}</strong></span>}
+                            {outputLocName && <span style={{ marginLeft: sourceLocName ? 8 : 0 }}>{po.package_label}s stored at <strong>{outputLocName}</strong></span>}
                         </div>
                     )}
 
@@ -967,12 +1029,40 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, 
                                     {boxMismatch && <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>}
                                 </div>
                             </div>
-                            {outputLocName && (
-                                <div style={{ background: '#eef7ee', border: '1px solid #9cc79c', padding: '4px 8px', fontSize: 10 }}>
-                                    <span style={{ color: '#1a5e1a', fontWeight: 'bold' }}>{po.package_label}s stored at: {outputLocName}</span>
-                                    {sourceLocName && <span style={{ color: '#555', marginLeft: 6 }}>packed from {sourceLocName}</span>}
+                            <div style={{
+                                background: locsMissing ? '#fff4e5' : '#eef7ee',
+                                border: `1px solid ${locsMissing ? '#d9a441' : '#9cc79c'}`,
+                                padding: '5px 8px', fontSize: 10,
+                                display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap',
+                            }}>
+                                <div style={{ flex: 1, minWidth: 150 }}>
+                                    <label style={{ ...xpFormLabel, fontSize: 9, color: '#555' }}>Pack from</label>
+                                    <TreeSelect options={locPickerTreeOptions} value={srcDraft} onChange={setSrcDraft}
+                                        allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
                                 </div>
-                            )}
+                                <div style={{ flex: 1, minWidth: 150 }}>
+                                    <label style={{ ...xpFormLabel, fontSize: 9, color: '#555' }}>{po.package_label}s stored at</label>
+                                    <TreeSelect options={locPickerTreeOptions} value={outDraft} onChange={setOutDraft}
+                                        allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
+                                </div>
+                                {(locsDirty || locsMissing) && (
+                                    <button type="button" onClick={saveLocations}
+                                        disabled={savingLocs || !srcDraft || !outDraft}
+                                        style={{ ...xpBtn(), fontSize: 9, padding: '3px 8px', marginBottom: 1, opacity: savingLocs || !srcDraft || !outDraft ? 0.6 : 1 }}>
+                                        {savingLocs ? 'Saving...' : 'Save Locations'}
+                                    </button>
+                                )}
+                                {locsMissing && (
+                                    <div style={{ flexBasis: '100%', color: '#7a4a00' }}>
+                                        Both locations are required before packing can be logged.
+                                    </div>
+                                )}
+                                {locsDirty && !locsMissing && (
+                                    <div style={{ flexBasis: '100%', color: '#7a4a00' }}>
+                                        Unsaved location change — save before logging.
+                                    </div>
+                                )}
+                            </div>
 
                             {useLotPicker && (
                                 !po.source_location_id ? (
