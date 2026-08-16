@@ -31,16 +31,21 @@ def test_describe_box_breakdown_single_group():
     assert describe_box_breakdown([5, 5, 5, 5, 5]) == "5 × 5"
 
 
+def qtys(allocated):
+    """Drop the weight half of each (qty, weight) pair."""
+    return [[q for q, _w in lot] for lot in allocated]
+
+
 def test_allocate_boxes_to_lots_fits_within_one_lot():
     # All boxes fit inside the first (only) lot -> no splitting needed
-    assert allocate_boxes_to_lots([28], [5, 5, 5, 5, 5, 3]) == [[5, 5, 5, 5, 5, 3]]
+    assert qtys(allocate_boxes_to_lots([28], [5, 5, 5, 5, 5, 3])) == [[5, 5, 5, 5, 5, 3]]
 
 
 def test_allocate_boxes_to_lots_box_straddles_lot_boundary():
     # Lot 1 has 8kg, lot 2 has 20kg. Boxes are [5,5,5,5,5,3].
     # Lot 1 takes a full 5kg box, then only 3kg of the next 5kg box (2kg carries
     # over into lot 2 as its own carton) -- a box never spans two lots physically.
-    assert allocate_boxes_to_lots([8, 20], [5, 5, 5, 5, 5, 3]) == [
+    assert qtys(allocate_boxes_to_lots([8, 20], [5, 5, 5, 5, 5, 3])) == [
         [5, 3],
         [2, 5, 5, 5, 3],
     ]
@@ -49,3 +54,29 @@ def test_allocate_boxes_to_lots_box_straddles_lot_boundary():
 def test_allocate_boxes_to_lots_mismatched_total_raises():
     with pytest.raises(ValueError):
         allocate_boxes_to_lots([28], [5, 5, 5])
+
+
+def test_allocate_boxes_to_lots_no_weights_gives_none():
+    assert allocate_boxes_to_lots([10], [5, 5]) == [[(5, None), (5, None)]]
+
+
+def test_allocate_boxes_to_lots_carries_weights_positionally():
+    assert allocate_boxes_to_lots([10], [5, 5], weights=[6.19, 6.2]) == [
+        [(5, 6.19), (5, 6.2)],
+    ]
+
+
+def test_allocate_boxes_to_lots_splits_weight_pro_rata_at_lot_seam():
+    # The 5kg box straddles the seam: 3kg stays in lot 1, 2kg carries into lot 2.
+    # Its 10kg scale reading is shared 6/4 by qty, because the physical carton
+    # became two cartons and neither one weighs the original 10.
+    assert allocate_boxes_to_lots([8, 2], [5, 5], weights=[8.0, 10.0]) == [
+        [(5, 8.0), (3, 6.0)],
+        [(2, 4.0)],
+    ]
+
+
+def test_allocate_boxes_to_lots_partial_weights_leave_others_none():
+    assert allocate_boxes_to_lots([10], [5, 5], weights=[6.19, None]) == [
+        [(5, 6.19), (5, None)],
+    ]

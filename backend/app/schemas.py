@@ -2726,6 +2726,10 @@ class PackingCompletionCreate(BaseModel):
     # over `box_size`; a box that doesn't fit within one lot's draw is split
     # across the lot boundary (see packing_service.allocate_boxes_to_lots).
     boxes: list[float] | None = None
+    # Scale reading per carton, positional against `boxes`. Measured at packing,
+    # never derived from qty — the label's N.W. line is a weighing, not a
+    # conversion. A box split at a lot seam shares its weight pro-rata.
+    box_weights: list[float | None] | None = None
     source_batch_id: UUID | None = None
     # Multi-lot pack: one completion row is written per lot, so each keeps a
     # truthful source_batch_id and its own carton range.
@@ -2820,11 +2824,21 @@ class PackingOrderResponse(BaseModel):
     sales_order_id: UUID | None = None
     sales_order_line_id: UUID | None = None
     sales_order_code: str | None = None
+    # The customer's own PO reference — printed above our SO number on the
+    # carton label's PO. NO line, which is what the customer's goods-in reads.
+    customer_po_ref: str | None = None
     customer_name: str | None = None
     item_id: UUID
     item_name: str | None = None
     item_code: str | None = None
     item_uom: str | None = None
+    # Alt selling unit off the ordered SO line (e.g. 12 Pic of 50 Yard each).
+    # `uom2_factor` is base qty per alt unit, so a carton's piece count is
+    # carton_qty / uom2_factor — this is where the label's CONTENT line comes from.
+    uom2: str | None = None
+    uom2_factor: float | None = None
+    # "Keterangan stock" free text on the SO line, printed alongside CONTENT.
+    ket_stock: str | None = None
     color_id: UUID | None = None
     color_name: str | None = None
     attribute_value_ids: list[UUID] = []

@@ -70,7 +70,11 @@ def describe_box_breakdown(qtys: list[float]) -> str:
     )
 
 
-def allocate_boxes_to_lots(lot_qtys: list[float], boxes: list[float]) -> list[list[float]]:
+def allocate_boxes_to_lots(
+    lot_qtys: list[float],
+    boxes: list[float],
+    weights: Optional[list[Optional[float]]] = None,
+) -> list[list[tuple[float, Optional[float]]]]:
     """Assign a user-edited, FIFO-ordered list of box quantities across lots.
 
     A physical carton can only be pegged to one lot (BatchConsumption is 1:1),
@@ -78,6 +82,12 @@ def allocate_boxes_to_lots(lot_qtys: list[float], boxes: list[float]) -> list[li
     the leftover continues into the next lot as its own carton. This is what
     lets the packer edit one flat box list without caring which lot backs each
     box; the split only becomes visible (as one extra carton) at a lot seam.
+
+    `weights` is the packer's scale reading per box, positional against `boxes`.
+    A box that splits at a lot seam is physically two cartons, so its weight can
+    only be shared out pro-rata by qty — the scale figure entered for one box no
+    longer describes either half. Returns `(qty, weight)` pairs; weight is None
+    where the packer left it blank.
     """
     total_lots = round(sum(float(q) for q in lot_qtys), 4)
     total_boxes = round(sum(float(b) for b in boxes), 4)
@@ -86,20 +96,32 @@ def allocate_boxes_to_lots(lot_qtys: list[float], boxes: list[float]) -> list[li
             f"Boxes total {total_boxes:g} does not match the {total_lots:g} being packed"
         )
 
-    queue = deque(round(float(b), 4) for b in boxes if float(b) > 1e-9)
-    out: list[list[float]] = []
+    # (remaining qty, original qty, original weight) — the original qty is kept so
+    # a split share stays proportional to the whole box, not to the remainder.
+    queue: deque[tuple[float, float, Optional[float]]] = deque()
+    for i, b in enumerate(boxes):
+        qty = round(float(b), 4)
+        if qty <= 1e-9:
+            continue
+        w = None
+        if weights is not None and i < len(weights) and weights[i] is not None:
+            w = float(weights[i])
+        queue.append((qty, qty, w))
+
+    out: list[list[tuple[float, Optional[float]]]] = []
     for lot_qty in lot_qtys:
         remaining = round(float(lot_qty), 4)
-        cartons: list[float] = []
+        cartons: list[tuple[float, Optional[float]]] = []
         while remaining > 1e-6 and queue:
-            box = queue[0]
+            box, box_full, box_w = queue[0]
             take = round(min(box, remaining), 4)
-            cartons.append(take)
+            share = None if box_w is None else round(box_w * take / box_full, 4)
+            cartons.append((take, share))
             remaining = round(remaining - take, 4)
             if take >= box - 1e-6:
                 queue.popleft()
             else:
-                queue[0] = round(box - take, 4)
+                queue[0] = (round(box - take, 4), box_full, box_w)
         out.append(cartons)
     return out
 
@@ -179,17 +201,20 @@ async def mint_packed_units(
     db: AsyncSession,
     po: PackingOrder,
     completion: PackingCompletion,
-    carton_qtys: list[float],
+    carton_qtys: list[tuple[float, Optional[float]]],
     attribute_value_ids: list[str],
     color_id,
     username: Optional[str] = None,
     source_batch_id=None,
 ) -> list[tuple[Batch, float]]:
-    """Consume bulk FG and mint one carton per entry in `carton_qtys`.
+    """Consume bulk FG and mint one carton per `(qty, net_weight_kg)` entry.
 
     The caller decides the split (a fixed box size via `split_qty`, or an
     explicit user-edited list via `allocate_boxes_to_lots`) — this function
-    just mints whatever list it's handed. Stock moves twice per carton: OUT of
+    just mints whatever list it's handed. Net weight is the packer's scale
+    reading for that physical carton (None when not weighed); it is a measured
+    figure, never derived from qty, which is why it is captured per box at pack
+    time rather than computed here. Stock moves twice per carton: OUT of
     the packing order's source location on the incoming lot, IN at the output
     location keyed by the new carton batch. `BatchConsumption` pegs input lot ->
     carton so lot genealogy survives packing. Returns each minted carton
@@ -204,12 +229,13 @@ async def mint_packed_units(
     completion.package_count = len(carton_qtys)
     units: list[tuple[Batch, float]] = []
 
-    for carton_qty in carton_qtys:
+    for carton_qty, net_weight in carton_qtys:
         pu = Batch(
             batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
             item_id=po.item_id,
             packing_order_id=po.id,
             packing_completion_id=completion.id,
+            weight_kg=net_weight,
             # Allocated per carton, not as a pre-reserved block: a block computed
             # up front overlaps a completion posted concurrently on the same order.
             package_no=await _next_package_no(db, po.id),

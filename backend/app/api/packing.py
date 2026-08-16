@@ -37,6 +37,7 @@ router = APIRouter(prefix="/packing", tags=["packing"])
 def _load_options():
     return (
         selectinload(PackingOrder.sales_order),
+        selectinload(PackingOrder.sales_order_line),
         selectinload(PackingOrder.item),
         selectinload(PackingOrder.attribute_values),
         selectinload(PackingOrder.materials).selectinload(PackingOrderMaterial.item),
@@ -108,7 +109,14 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     """Attach non-column display fields the response schema expects."""
     if po.sales_order:
         po.sales_order_code = po.sales_order.po_number
+        po.customer_po_ref = po.sales_order.customer_po_ref
         po.customer_name = po.sales_order.customer_name
+    # Alt-unit conversion + stock note ride along from the ordered line: the
+    # carton label prints pieces (carton_qty / uom2_factor), not just base qty.
+    if po.sales_order_line:
+        po.uom2 = po.sales_order_line.uom2
+        po.uom2_factor = float(po.sales_order_line.uom2_factor) if po.sales_order_line.uom2_factor is not None else None
+        po.ket_stock = po.sales_order_line.ket_stock
     po.color_name = po.color.name if po.color else None
     po.attribute_value_ids = [v.id for v in (po.attribute_values or [])]
     # qty_consumed on each planned material rolls up from what completions used.
@@ -548,11 +556,13 @@ async def add_packing_completion(
     # combined) and wins over box_size entirely — a box that doesn't fit in
     # one lot's draw splits across the lot boundary rather than being
     # rejected, since the packer edited the list without regard to lot lines.
-    per_lot_cartons: Optional[list[list[float]]] = None
+    per_lot_cartons: Optional[list[list[tuple[float, Optional[float]]]]] = None
     if payload.boxes:
         try:
             per_lot_cartons = packing_service.allocate_boxes_to_lots(
-                lot_qtys, [float(b) for b in payload.boxes]
+                lot_qtys,
+                [float(b) for b in payload.boxes],
+                weights=list(payload.box_weights) if payload.box_weights else None,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -566,8 +576,10 @@ async def add_packing_completion(
         if per_lot_cartons is not None:
             carton_qtys = per_lot_cartons[idx]
         else:
+            # No explicit box list (mobile scanner / box-size path) — nothing was
+            # weighed, so every carton is minted with no net weight.
             box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
-            carton_qtys = packing_service.split_qty(lot_qty, box_size)
+            carton_qtys = [(q, None) for q in packing_service.split_qty(lot_qty, box_size)]
 
         try:
             if batch_id:

@@ -21,10 +21,23 @@ function makeBarcodeDataUrl(text: string): string {
     }
 }
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
+
 /**
- * Carton label — one A6 sticker per PackedUnit. The QR encodes the carton's
- * PU- number, which is exactly what the picker scans onto a pick list, so the
- * label is the physical handle for the whole outbound flow.
+ * Carton label — one A6 sticker per PackedUnit, laid out to match the customer-
+ * facing BIE sticker: a headline of style + colour, then a CONTENT / PO. NO /
+ * LOT. NO / N.W. grid with a Code 128 barcode against every line so the
+ * customer's goods-in can scan any field directly off the box.
+ *
+ * The PU- QR is kept (small, bottom-right) because that is what our own picker
+ * scans onto a pick list — the barcodes are for the receiving end, the QR for us.
+ *
+ * Field sources, none of them re-entered on this screen:
+ *   CONTENT  carton qty ÷ SO line `uom2_factor` = pieces, in `uom2`, with the
+ *            base qty in brackets; `ket_stock` rides underneath.
+ *   PO. NO   the customer's own `customer_po_ref`, our SO number under it.
+ *   LOT. NO  the source lot this carton was packed from (via its completion).
+ *   N W      `Batch.weight_kg` — the packer's scale reading at pack time.
  *
  * Reuses the bag-label print CSS (`bag-label-*` in globals.css): same A6
  * one-per-sheet geometry, so there is no second set of print rules to keep in
@@ -46,11 +59,42 @@ export default function PackedUnitLabelPrintModal({
     const isClassic = uiStyle === 'classic';
 
     const [qrUrls, setQrUrls] = useState<Record<string, string>>({});
+
+    // Source lot per carton: the completion that minted it carries the lot it
+    // drew from, so no extra field is needed on the carton itself.
+    const lotByCompletion = useMemo(() => {
+        const m: Record<string, string> = {};
+        (po.completions || []).forEach((c: any) => {
+            if (c.source_batch_number) m[String(c.id)] = c.source_batch_number;
+        });
+        return m;
+    }, [po.completions]);
+
+    const lotOf = (u: any) => lotByCompletion[String(u.packing_completion_id || '')] || '';
+
+    // Pieces in a carton, from the ordered alt unit (e.g. 600 yd ÷ 50 yd/pc = 12 Pic).
+    // No alt unit on the line -> the CONTENT line prints base qty only.
+    const factor = Number(po.uom2_factor) || 0;
+    const piecesOf = (u: any) => (factor > 0 ? Number(u.qty || 0) / factor : null);
+
+    // One barcode per printed field, keyed by carton. Built once per unit list —
+    // JsBarcode renders to a canvas, which is far too slow to redo on every paint.
     const barcodeUrls = useMemo(() => {
-        const map: Record<string, string> = {};
-        units.forEach(u => { map[u.id] = makeBarcodeDataUrl(u.batch_number || String(u.id)); });
+        const map: Record<string, Record<string, string>> = {};
+        units.forEach(u => {
+            const pcs = factor > 0 ? Number(u.qty || 0) / factor : null;
+            map[u.id] = {
+                unit: makeBarcodeDataUrl(u.batch_number || String(u.id)),
+                content: makeBarcodeDataUrl(
+                    pcs !== null ? `${pcs.toFixed(1)}` : String(Number(u.qty || 0).toFixed(2))
+                ),
+                po: makeBarcodeDataUrl(po.customer_po_ref || po.sales_order_code || ''),
+                lot: makeBarcodeDataUrl(lotByCompletion[String(u.packing_completion_id || '')] || ''),
+                nw: makeBarcodeDataUrl(u.weight_kg != null ? String(u.weight_kg) : ''),
+            };
+        });
         return map;
-    }, [units]);
+    }, [units, factor, po.customer_po_ref, po.sales_order_code, lotByCompletion]);
 
     useEffect(() => {
         document.body.classList.add('bag-label-print-active');
@@ -73,50 +117,97 @@ export default function PackedUnitLabelPrintModal({
         window.print();
     };
 
-    const gridLbl: React.CSSProperties = { background: '#f0f0f0', border: '1px solid #bbb', padding: '3px 6px', fontSize: '9px', color: '#333', fontWeight: 'bold', whiteSpace: 'nowrap' };
-    const gridVal: React.CSSProperties = { border: '1px solid #bbb', padding: '3px 6px', fontSize: '11px', color: '#000' };
+    const cell: React.CSSProperties = { border: '1px solid #000', padding: '4px 6px', verticalAlign: 'middle' };
+    const lblCell: React.CSSProperties = { ...cell, fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5, whiteSpace: 'nowrap', width: 74 };
+    const valCell: React.CSSProperties = { ...cell, fontSize: 13, fontWeight: 'bold' };
+    const barCell: React.CSSProperties = { ...cell, width: 96, padding: '2px 4px' };
 
     const renderLabel = (u: any) => {
-        const created = u.created_at
-            ? tzFmt(u.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')
-            : '';
+        const bc = barcodeUrls[u.id] || {};
+        const pcs = piecesOf(u);
+        const qty = Number(u.qty || 0);
+        // "12.0 Pic ( 600 Yard )" — pieces lead because that is what the receiving
+        // side counts; the base qty stays in brackets as the measured amount.
+        const content = pcs !== null
+            ? `${pcs.toFixed(1)}  ${po.uom2 || 'Pcs'}   ( ${qty.toLocaleString()}  ${po.item_uom || ''} )`
+            : `${qty.toLocaleString()}  ${po.item_uom || ''}`;
+        const barRow = (src?: string) => (
+            <td style={barCell}>
+                {src ? <img src={src} alt="" style={{ width: '100%', height: 26, objectFit: 'fill', display: 'block' }} /> : null}
+            </td>
+        );
+
         return (
             <div key={u.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 4, marginBottom: 6 }}>
-                    <div>
-                        <div style={{ fontWeight: 'bold', fontSize: 12 }}>{companyProfile?.name || 'PT. BOLA INTAN ELASTIC'}</div>
-                        <div style={{ fontSize: 9, color: '#555' }}>{(po.package_label || 'Carton').toUpperCase()} LABEL</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 8, color: '#555', fontWeight: 'bold' }}>NO. KOLI</div>
-                        <div style={{ fontSize: 22, fontWeight: 'bold', lineHeight: 1 }}>{u.package_no ?? '—'}</div>
-                    </div>
-                </div>
-
-                <div style={{ textAlign: 'center', marginBottom: 6 }}>
-                    {qrUrls[u.id] && <img src={qrUrls[u.id]} alt="QR" style={{ width: 150, height: 150 }} />}
-                    <div style={{ fontSize: 14, fontWeight: 'bold', letterSpacing: 1 }}>{u.batch_number}</div>
-                    {barcodeUrls[u.id] && <img src={barcodeUrls[u.id]} alt="Barcode" style={{ width: '100%', height: 40, objectFit: 'contain' }} />}
-                </div>
-
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <tbody>
-                        {([
-                            ['BARANG', u.item_name || po.item_name || ''],
-                            ['KODE', u.item_code || po.item_code || ''],
-                            ['WARNA', po.color_name || '—'],
-                            ['ISI / QTY', `${Number(u.qty || 0).toLocaleString()} ${po.item_uom || ''}`],
-                            ['NO. PACKING', po.code],
-                            ['NO. SO', po.sales_order_code || '—'],
-                            ['TANGGAL', created],
-                        ] as [string, string][]).map(([k, v]) => (
-                            <tr key={k}>
-                                <td style={gridLbl}>{k}</td>
-                                <td style={gridVal}>{v}</td>
-                            </tr>
-                        ))}
+                        {/* Headline: house mark + style/colour, with the carton's own
+                            PU- number barcoded beside it. */}
+                        <tr>
+                            <td style={{ ...cell, width: 74, textAlign: 'center' }}>
+                                {companyProfile?.logo_url
+                                    ? <img src={`${API_BASE}${companyProfile.logo_url}`} alt="" style={{ maxHeight: 30, maxWidth: 60, objectFit: 'contain' }} />
+                                    : <div style={{ fontSize: 16, fontWeight: 'bold', letterSpacing: 2 }}>BIE</div>}
+                            </td>
+                            <td style={{ ...cell, padding: '4px 8px' }}>
+                                <div style={{ fontSize: 19, fontWeight: 'bold', lineHeight: 1.1, letterSpacing: 0.5 }}>
+                                    {[u.item_code || po.item_code, po.color_name].filter(Boolean).join(' ') || u.item_name || po.item_name || ''}
+                                </div>
+                                <div style={{ fontSize: 10, marginTop: 2, letterSpacing: 0.5 }}>~{u.batch_number}</div>
+                            </td>
+                            {barRow(bc.unit)}
+                        </tr>
+
+                        <tr>
+                            <td style={lblCell}>CONTENT</td>
+                            <td style={valCell}>
+                                {content}
+                                {po.ket_stock && <div style={{ fontSize: 10, fontWeight: 'normal', marginTop: 1 }}>{po.ket_stock}</div>}
+                            </td>
+                            {barRow(bc.content)}
+                        </tr>
+
+                        <tr>
+                            <td style={lblCell}>PO. NO</td>
+                            <td style={valCell}>
+                                {po.customer_po_ref || po.sales_order_code || '—'}
+                                {/* Our own SO number stays under the customer's reference:
+                                    the customer reads the top line, we reconcile on the bottom. */}
+                                {po.customer_po_ref && po.sales_order_code && (
+                                    <div style={{ fontSize: 9, fontWeight: 'normal', color: '#333', marginTop: 1 }}>{po.sales_order_code}</div>
+                                )}
+                            </td>
+                            {barRow(bc.po)}
+                        </tr>
+
+                        <tr>
+                            <td style={lblCell}>LOT. NO</td>
+                            <td style={valCell}>{lotOf(u) || '—'}</td>
+                            {barRow(bc.lot)}
+                        </tr>
+
+                        <tr>
+                            <td style={lblCell}>N W</td>
+                            <td style={valCell}>
+                                {u.weight_kg != null
+                                    ? `${Number(u.weight_kg).toFixed(2)}  KG`
+                                    : <span style={{ fontWeight: 'normal', color: '#666' }}>__________ KG</span>}
+                            </td>
+                            {barRow(bc.nw)}
+                        </tr>
                     </tbody>
                 </table>
+
+                {/* Our handle, not the customer's: the picker scans this onto a pick
+                    list. Small and out of the way of the barcode column. */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 6 }}>
+                    <div style={{ fontSize: 9, color: '#333' }}>
+                        <div>{companyProfile?.name || 'PT. BOLA INTAN ELASTIC'}</div>
+                        <div>{po.code} · {(po.package_label || 'Carton').toUpperCase()} #{u.package_no ?? '—'}</div>
+                        <div>{u.created_at ? tzFmt(u.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID') : ''}</div>
+                    </div>
+                    {qrUrls[u.id] && <img src={qrUrls[u.id]} alt="QR" style={{ width: 72, height: 72 }} />}
+                </div>
             </div>
         );
     };

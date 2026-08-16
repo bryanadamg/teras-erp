@@ -53,6 +53,14 @@ const uomChip: React.CSSProperties = {
     borderRadius: 2, padding: '0 5px', lineHeight: '14px',
 };
 
+// Inline label button in the expanded row — same chrome as the WO list's
+// per-completion "Label" button, so the two logs read as one pattern.
+const miniBtn: React.CSSProperties = {
+    fontFamily: xpFont, fontSize: 8, padding: '0 5px', cursor: 'pointer',
+    background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080',
+    color: '#000040', textTransform: 'none', letterSpacing: 0,
+};
+
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
 
@@ -198,6 +206,10 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
             padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444',
             background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899',
         };
+        // Cartons of one pack event — the label set for that log line, matching the
+        // WO list's per-completion "Label" button.
+        const unitsOfComp = (compId: string) =>
+            units.filter((u: any) => String(u.packing_completion_id || '') === String(compId));
 
         return (
             <tr key={`${po.id}-detail`}>
@@ -266,7 +278,15 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
 
                             {/* Pack log — one row per PackingCompletion (one per lot per event) */}
                             <div style={{ padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
-                                <div style={colHeader}>Pack Log ({comps.length})</div>
+                                <div style={{ ...colHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                                    <span>Pack Log ({comps.length})</span>
+                                    {units.length > 0 && (
+                                        <button type="button" onClick={() => setPrintLabels({ order: po, units })}
+                                            style={miniBtn} title={`Print a label for every ${po.package_label.toLowerCase()} on this order`}>
+                                            All Labels
+                                        </button>
+                                    )}
+                                </div>
                                 {comps.length === 0 ? (
                                     <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>No entries yet.</div>
                                 ) : (
@@ -279,6 +299,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                     <th style={{ ...th, textAlign: 'right', width: 34 }}>{po.package_label.charAt(0)}s</th>
                                                     <th style={th}>Source lot</th>
                                                     <th style={th}>Operator</th>
+                                                    <th style={{ ...th, width: 46 }} />
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -314,10 +335,19 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                                     </span>
                                                                 )}
                                                             </td>
+                                                            <td style={{ padding: '1px 4px', textAlign: 'right' }}>
+                                                                {unitsOfComp(c.id).length > 0 && (
+                                                                    <button type="button" style={miniBtn}
+                                                                        onClick={() => setPrintLabels({ order: po, units: unitsOfComp(c.id) })}
+                                                                        title={`Print labels for the ${unitsOfComp(c.id).length} ${po.package_label.toLowerCase()}(s) of this entry`}>
+                                                                        Labels
+                                                                    </button>
+                                                                )}
+                                                            </td>
                                                         </tr>
                                                         {c.notes && (
                                                             <tr style={{ background: ci % 2 === 0 ? '#fafaf7' : '#f0efe8', borderBottom: '1px solid #e8e6e0' }}>
-                                                                <td colSpan={5} style={{ padding: '1px 5px 3px 12px', color: '#888', fontStyle: 'italic' }}>{c.notes}</td>
+                                                                <td colSpan={6} style={{ padding: '1px 5px 3px 12px', color: '#888', fontStyle: 'italic' }}>{c.notes}</td>
                                                             </tr>
                                                         )}
                                                     </React.Fragment>
@@ -916,25 +946,39 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // of how many lots feed it — the server is the one that works out which lot
     // backs each box (splitting a box across a lot boundary if needed), so the
     // packer never has to think about lot lines while boxing up.
-    const [boxRows, setBoxRows] = useState<string[]>([]);
+    // `kg` is the scale reading for that physical carton, entered by the packer —
+    // it is the label's N.W. line and is never derived from qty (the item's UOM
+    // may be yards, and the same yardage weighs differently per lot).
+    type BoxRow = { qty: string; kg: string };
+    const [boxRows, setBoxRows] = useState<BoxRow[]>([]);
     const packTotal = useLotPicker ? drawn : num(qty);
 
     // Seed once a qty is entered and no rows exist yet (a fresh form, or right
     // after Regenerate clears them) — after that, edits belong to the user.
     useEffect(() => {
         if (boxRows.length === 0 && packTotal > 0) {
-            setBoxRows(splitBoxes(packTotal, num(boxSize)).map(String));
+            setBoxRows(splitBoxes(packTotal, num(boxSize)).map(q => ({ qty: String(q), kg: '' })));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [packTotal]);
 
-    const regenerateBoxes = () => setBoxRows(splitBoxes(packTotal, num(boxSize)).map(String));
-    const updateBoxRow = (i: number, v: string) => setBoxRows(prev => prev.map((b, idx) => (idx === i ? v : b)));
+    // Regenerate rebuilds the qty split but keeps weights already keyed in
+    // positionally — re-splitting after a typo shouldn't wipe the scale readings.
+    const regenerateBoxes = () => setBoxRows(prev =>
+        splitBoxes(packTotal, num(boxSize)).map((q, i) => ({ qty: String(q), kg: prev[i]?.kg || '' })));
+    const updateBoxRow = (i: number, patch: Partial<BoxRow>) =>
+        setBoxRows(prev => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
     const removeBoxRow = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
-    const addBoxRow = () => setBoxRows(prev => [...prev, '']);
+    const addBoxRow = () => setBoxRows(prev => [...prev, { qty: '', kg: '' }]);
 
-    const boxValues = boxRows.map(num).filter(v => v > 0);
+    // Weights stay positional against the qtys the server receives, so filter both
+    // in one pass — a blank weight travels as null, not as a dropped position.
+    const boxes = boxRows.filter(b => num(b.qty) > 0);
+    const boxValues = boxes.map(b => num(b.qty));
+    const boxWeights = boxes.map(b => (num(b.kg) > 0 ? num(b.kg) : null));
+    const anyWeights = boxWeights.some(w => w !== null);
     const boxTotal = boxValues.reduce((s, v) => s + v, 0);
+    const weightTotal = boxWeights.reduce((s: number, v) => s + (v || 0), 0);
     const boxMismatch = packTotal > 0 && Math.abs(boxTotal - packTotal) > 1e-3;
 
     const toggleLot = (id: string, on: boolean) =>
@@ -960,6 +1004,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         let body: any = {
             qty: q,
             boxes: boxValues,
+            box_weights: anyWeights ? boxWeights : null,
             operator: operator || null,
             notes: packNotes || null,
         };
@@ -975,6 +1020,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             body = {
                 lots: alloc,
                 boxes: boxValues,
+                box_weights: anyWeights ? boxWeights : null,
                 operator: operator || null,
                 notes: packNotes || null,
             };
@@ -1170,15 +1216,26 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             display: 'flex', alignItems: 'center', gap: 5, padding: '2px 5px',
                                             borderBottom: '1px solid #eceae2',
                                         }}>
-                                            <span style={{ fontSize: 9, color: '#888', width: 36, flexShrink: 0 }}>#{i + 1}</span>
+                                            <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>#{i + 1}</span>
                                             <input
                                                 type="number"
-                                                style={{ ...xpInput, flex: 1 }}
-                                                value={b}
-                                                onChange={e => updateBoxRow(i, e.target.value)}
+                                                style={{ ...xpInput, flex: 1, minWidth: 0 }}
+                                                value={b.qty}
+                                                onChange={e => updateBoxRow(i, { qty: e.target.value })}
                                                 min="0" step="any"
                                             />
                                             {uom && <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>{uom}</span>}
+                                            {/* Net weight off the scale — prints as N.W. on the carton label. */}
+                                            <input
+                                                type="number"
+                                                style={{ ...xpInput, width: 62, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
+                                                value={b.kg}
+                                                onChange={e => updateBoxRow(i, { kg: e.target.value })}
+                                                min="0" step="any"
+                                                placeholder="net wt"
+                                                title="Net weight of this carton off the scale — printed as N.W. on the label"
+                                            />
+                                            <span style={{ fontSize: 9, color: '#888', width: 16, flexShrink: 0 }}>kg</span>
                                             <button
                                                 type="button"
                                                 onClick={() => removeBoxRow(i)}
@@ -1205,6 +1262,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     <span style={{ color: '#c0bdb5' }}>|</span>
                                     <span style={{ color: '#555' }}>{po.package_label}s:</span>
                                     <span style={{ fontWeight: 'bold' }}>{boxValues.length}</span>
+                                    {anyWeights && (
+                                        <>
+                                            <span style={{ color: '#c0bdb5' }}>|</span>
+                                            <span style={{ color: '#555' }}>Net wt:</span>
+                                            <span style={{ fontWeight: 'bold' }}>{weightTotal.toFixed(2)} kg</span>
+                                        </>
+                                    )}
                                     {boxMismatch && <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>}
                                 </div>
                             </div>
