@@ -491,7 +491,7 @@ function dueChip(days: number | null | undefined) {
  */
 function SOPickerModal({ pickableSOs, loading, tzDate, onClose, onPick }: any) {
     return (
-        <ModalWrapper isOpen onClose={onClose} title="Select an Order to Pick" size="lg" modeless>
+        <ModalWrapper isOpen onClose={onClose} title="Select an Order to Pick" size="xxl" modeless>
             <div style={{ fontFamily: xpFont }}>
                 <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>
                     Soonest delivery first. &quot;Ready&quot; counts whole cartons already packed and not on
