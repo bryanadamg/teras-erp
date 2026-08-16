@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -59,7 +59,7 @@ const PO_PAGE_SIZE = 20;
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
     const { locations, attributes, companyProfile, itemIndex, authFetch } = useData();
     const { uiStyle } = useTheme();
-    const { formatDate: tzDate } = useTimezone();
+    const { formatDate: tzDate, formatDateTime: tzDateTime } = useTimezone();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { hasPermission } = useUser();
@@ -78,6 +78,9 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     const [creating, setCreating] = useState(false);
     const [createInitialValues, setCreateInitialValues] = useState<any>(null);
     const [detail, setDetail] = useState<any | null>(null);
+    // One row open at a time, same as the WO list — the panel is tall and two open
+    // at once turns the list into a scroll hunt.
+    const [expandedId, setExpandedId] = useState<string | null>(null);
     const [printCard, setPrintCard] = useState<any | null>(null);
     const [printLabels, setPrintLabels] = useState<{ order: any; units: any[] } | null>(null);
     const [page, setPage] = useState(1);
@@ -166,6 +169,171 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     const pages = Math.max(1, Math.ceil(total / PO_PAGE_SIZE));
     const clampedPage = Math.min(page, pages);
 
+    const PO_COLS = 10; // chevron + 8 data cols + actions
+
+    // Expanded row — same three-pane shape as the WO list detail panel (info,
+    // outputs, log), so a supervisor reads a packing order the way they read a WO.
+    // Everything here is already on the list payload (`_load_options` eager-loads
+    // completions, `_packed_units_for` decorates cartons) — no extra fetch.
+    const renderPackDetail = (po: any) => {
+        const it = itemById[String(po.item_id)];
+        const uom = po.item_uom || it?.uom || '';
+        // Newest first, matching the pack modal's Previous Entries.
+        const comps = po.completions ? [...po.completions].reverse() : [];
+        const units = po.packed_units || [];
+        const srcName = locationById?.[String(po.source_location_id)]?.name || null;
+        const outName = locationById?.[String(po.output_location_id)]?.name || null;
+
+        const colHeader: React.CSSProperties = {
+            fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: '#555',
+            letterSpacing: 0.5, borderBottom: '1px solid #c0bdb5', paddingBottom: 2, marginBottom: 4,
+        };
+        const infoRow = (label: string, val: React.ReactNode) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 1, fontSize: 9 }}>
+                <span style={{ color: '#888' }}>{label}</span>
+                <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+            </div>
+        );
+        const th: React.CSSProperties = {
+            padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444',
+            background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899',
+        };
+
+        return (
+            <tr key={`${po.id}-detail`}>
+                <td colSpan={PO_COLS} style={{ padding: 0 }}>
+                    <ExpandedRowPanel classic={CLASSIC}>
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: '250px 230px minmax(260px, 1fr)',
+                            border: '1px solid #7f9db9', fontFamily: xpFont, fontSize: 10,
+                        }}>
+                            {/* Info */}
+                            <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef' }}>
+                                <div style={colHeader}>Info</div>
+                                {infoRow('Item', po.item_code || it?.code || '—')}
+                                {infoRow('Sales Order', po.sales_order_code || 'to stock')}
+                                {po.color_name && infoRow('Colour', po.color_name)}
+                                {infoRow(`${po.package_label} size`, num(po.pack_size) > 0 ? `${num(po.pack_size)} ${uom}` : 'per event')}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3, margin: '2px 0' }}>
+                                    <span style={{ color: '#888', fontSize: 9, minWidth: 60 }}>Route</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9 }}>
+                                        <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>{srcName || '?'}</span>
+                                        <span style={{ color: '#888' }}>&#8594;</span>
+                                        <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>{outName || '?'}</span>
+                                    </span>
+                                </div>
+                                <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
+                                {infoRow('Target', `${num(po.qty_target).toLocaleString()} ${uom}`)}
+                                {infoRow('Packed', `${num(po.qty_packed).toLocaleString()} ${uom}`)}
+                                {num(po.qty_rejected) > 0 && infoRow('QC reject', (
+                                    <span style={{ color: '#a00000' }}>
+                                        {num(po.qty_rejected).toFixed(2)}{po.package_count_rejected ? ` (${po.package_count_rejected})` : ''}
+                                    </span>
+                                ))}
+                                <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
+                                {infoRow('Created', po.created_at ? tzDateTime(po.created_at) : '—')}
+                                {infoRow('Started', po.actual_start_date ? tzDateTime(po.actual_start_date) : '—')}
+                                {infoRow('Reached target', po.actual_end_date ? tzDateTime(po.actual_end_date) : '—')}
+                                {po.notes && (
+                                    <div style={{ marginTop: 4, padding: '2px 5px', background: '#fffbe6', border: '1px solid #e0d080', fontSize: 9, fontStyle: 'italic', color: '#666' }}>
+                                        {po.notes}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Cartons minted by this order */}
+                            <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
+                                <div style={colHeader}>{po.package_label}s ({units.length})</div>
+                                {units.length === 0 ? (
+                                    <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>Nothing packed yet.</div>
+                                ) : (
+                                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                                        {units.map((u: any) => (
+                                            <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 4, fontSize: 9, marginBottom: 2, paddingBottom: 2, borderBottom: '1px solid #e8e6e0' }}>
+                                                <span style={{ color: '#888', width: 18, flexShrink: 0 }}>#{u.package_no}</span>
+                                                <span style={{ fontFamily: CODE_FONT, color: '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={u.batch_number}>
+                                                    {u.batch_number}
+                                                </span>
+                                                {/* Zero on hand = the carton has left on a pick list. */}
+                                                <span style={{ fontWeight: 'bold', color: num(u.qty) > 0 ? '#0a3e0a' : '#999' }}>
+                                                    {num(u.qty) > 0 ? num(u.qty).toFixed(2) : 'shipped'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Pack log — one row per PackingCompletion (one per lot per event) */}
+                            <div style={{ padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
+                                <div style={colHeader}>Pack Log ({comps.length})</div>
+                                {comps.length === 0 ? (
+                                    <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>No entries yet.</div>
+                                ) : (
+                                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ ...th, width: 108 }}>Date / Time</th>
+                                                    <th style={{ ...th, textAlign: 'right', width: 50 }}>Qty</th>
+                                                    <th style={{ ...th, textAlign: 'right', width: 34 }}>{po.package_label.charAt(0)}s</th>
+                                                    <th style={th}>Source lot</th>
+                                                    <th style={th}>Operator</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {comps.map((c: any, ci: number) => (
+                                                    <React.Fragment key={c.id || ci}>
+                                                        <tr style={{ background: c.rejected ? '#fbe4e4' : ci % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
+                                                            <td style={{ padding: '2px 5px', color: '#666', whiteSpace: 'nowrap' }}>
+                                                                {c.completed_at ? tzDateTime(c.completed_at) : '—'}
+                                                            </td>
+                                                            <td style={{
+                                                                padding: '2px 5px', textAlign: 'right', fontWeight: 'bold',
+                                                                color: c.rejected ? '#900' : '#000080',
+                                                                textDecoration: c.rejected ? 'line-through' : 'none',
+                                                            }} title={c.reject_reason || undefined}>
+                                                                +{num(c.qty).toFixed(2)}
+                                                            </td>
+                                                            <td style={{ padding: '2px 5px', textAlign: 'right', color: '#555' }}>{c.package_count}</td>
+                                                            <td style={{ padding: '2px 5px', color: '#555', fontFamily: c.source_batch_number ? CODE_FONT : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}
+                                                                title={c.source_batch_number || undefined}>
+                                                                {c.source_batch_number || '—'}
+                                                            </td>
+                                                            <td style={{ padding: '2px 5px', color: '#333' }}>
+                                                                {c.operator || '—'}
+                                                                {c.rejected && (
+                                                                    <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>
+                                                                )}
+                                                                {/* Partial reject: the entry stays live with its qty already
+                                                                    trimmed, so the scrapped part only shows as its own marker. */}
+                                                                {!c.rejected && num(c.qty_rejected) > 0 && (
+                                                                    <span title={c.reject_reason || 'Partially rejected'}
+                                                                        style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>
+                                                                        -{num(c.qty_rejected).toFixed(2)} REJ
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                        {c.notes && (
+                                                            <tr style={{ background: ci % 2 === 0 ? '#fafaf7' : '#f0efe8', borderBottom: '1px solid #e8e6e0' }}>
+                                                                <td colSpan={5} style={{ padding: '1px 5px 3px 12px', color: '#888', fontStyle: 'italic' }}>{c.notes}</td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </ExpandedRowPanel>
+                </td>
+            </tr>
+        );
+    };
+
     return (
         <ShellWindow classic fill="page" className="fade-in" style={{ fontFamily: xpFont }}>
             <ShellTitleBar
@@ -190,6 +358,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr>
+                            <th style={{ ...xpTableHeader, width: 22 }} />
                             <th style={xpTableHeader}>Code</th>
                             <th style={xpTableHeader}>Item</th>
                             <th style={xpTableHeader}>Sales Order</th>
@@ -203,9 +372,9 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                     </thead>
                     <tbody ref={listBodyRef}>
                         {orders.length === 0 && (loading ? (
-                            <TableSkeleton rows={7} cols={skel.cols ?? 9} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                            <TableSkeleton rows={7} cols={skel.cols ?? PO_COLS} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={9} style={{ padding: 0 }}>
+                            <tr><td colSpan={PO_COLS} style={{ padding: 0 }}>
                                 <XPEmptyState icon="bi-box2" message='No packing orders yet. Click "New Packing Order" to pack finished goods into cartons.' />
                             </td></tr>
                         ))}
@@ -213,8 +382,16 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                             const it = itemById[String(po.item_id)];
                             const shortfall = num(po.qty_packed) < num(po.qty_target);
                             const closed = po.status === 'COMPLETED' || po.status === 'CANCELLED';
+                            const isExpanded = expandedId === String(po.id);
                             return (
-                                <tr key={po.id} style={rowStyle(idx)}>
+                                <React.Fragment key={po.id}>
+                                <tr
+                                    style={{ ...rowStyle(idx), ...(isExpanded ? { background: '#eef2ff' } : {}), cursor: 'pointer' }}
+                                    onClick={() => setExpandedId(prev => prev === String(po.id) ? null : String(po.id))}
+                                >
+                                    <td style={{ ...td, padding: '3px 4px', textAlign: 'center' }}>
+                                        <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>{isExpanded ? '▼' : '►'}</span>
+                                    </td>
                                     <td style={td}><CodeChip code={po.code} classic={CLASSIC} tone="accent" style={{ fontWeight: 'bold' }} /></td>
                                     <td style={td}>
                                         <div>{po.item_name || it?.name || po.item_id}</div>
@@ -226,7 +403,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
                                     <td style={td}>{po.created_at ? tzDate(po.created_at) : '-'}</td>
-                                    <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                         {/* Pack is the row's primary action — inline, same shape as
                                             "log production output" on the WO list, not buried in the menu. */}
                                         {canManage && !closed && (
@@ -243,6 +420,8 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                         <MenuTriggerButton classic onClick={e => menuToggle(String(po.id), e)} />
                                     </td>
                                 </tr>
+                                {isExpanded && renderPackDetail(po)}
+                                </React.Fragment>
                             );
                         })}
                     </tbody>
