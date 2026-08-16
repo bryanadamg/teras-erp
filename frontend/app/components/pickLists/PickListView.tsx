@@ -13,6 +13,7 @@ import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead } from 
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
+import { Tabs } from '../shared/Tabs';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
@@ -41,6 +42,7 @@ const xpLabel: React.CSSProperties = lvLabel(true);
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PL_PAGE_SIZE = 20;
 const OPEN_STATUSES = ['DRAFT', 'PICKING', 'PICKED'];
+type PLTab = 'lists' | 'topick';
 
 export default function PickListView() {
     // partners/locations/attributes/companyProfile/itemIndex come from DataContext
@@ -54,20 +56,27 @@ export default function PickListView() {
     const { hasPermission } = useUser();
     const canManage = hasPermission('sales.manage');
 
+    // Two surfaces for one planner: "To Pick" is the release board (which order
+    // do I cut a list for next), "Pick Lists" is the register of lists already
+    // cut. Same user, same permission — tabs, not separate pages.
+    const [tab, setTab] = useState<PLTab>('lists');
+
     const [pickLists, setPickLists] = useState<any[]>([]);
     const [plTotal, setPlTotal] = useState(0);
     const [openCount, setOpenCount] = useState(0);
     const [dispatchedCount, setDispatchedCount] = useState(0);
-    // Only needed while the SO picker is open.
+    // Only loaded once the release board is opened — `pickable-orders` scores
+    // every open SO line by line, so it is not cheap enough to prefetch for a
+    // tab badge the user may never look at.
     const [pickableSOs, setPickableSOs] = useState<any[]>([]);
     const [pickableLoading, setPickableLoading] = useState(false);
+    const [pickableLoaded, setPickableLoaded] = useState(false);
     // True from first paint so the list shows the loader, not "none yet".
     const [loading, setLoading] = useState(true);
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics('pick-lists', listBodyRef, pickLists.length > 0);
-    const [picking, setPicking] = useState(false);
     const [editing, setEditing] = useState<any | null>(null);
     const [printPL, setPrintPL] = useState<any | null>(null);
     // One row open at a time, same as the packing order and WO lists.
@@ -121,21 +130,23 @@ export default function PickListView() {
     // One readiness call instead of "every open SO" + "every draft": the server
     // scores each order's packed cartons against what it still owes, so the picker
     // sees what can actually ship rather than the whole order book.
-    useEffect(() => {
-        if (!picking) return;
-        let alive = true;
+    const loadPickable = useCallback(async () => {
         setPickableLoading(true);
-        (async () => {
-            try {
-                const res = await authFetch(`${API_BASE}/pick-lists/pickable-orders`);
-                if (!alive) return;
-                setPickableSOs(res.ok ? (await res.json() || []) : []);
-            } finally {
-                if (alive) setPickableLoading(false);
-            }
-        })();
-        return () => { alive = false; };
-    }, [picking, authFetch]);
+        try {
+            const res = await authFetch(`${API_BASE}/pick-lists/pickable-orders`);
+            setPickableSOs(res.ok ? (await res.json() || []) : []);
+            setPickableLoaded(true);
+        } finally {
+            setPickableLoading(false);
+        }
+    }, [authFetch]);
+
+    // Board data is fetched on first visit to the tab and then kept — creating a
+    // list refreshes it explicitly, so re-scoring on every tab flip would only
+    // re-pay the N+1 for an unchanged answer.
+    useEffect(() => {
+        if (tab === 'topick' && !pickableLoaded && !pickableLoading) loadPickable();
+    }, [tab, pickableLoaded, pickableLoading, loadPickable]);
 
     const createForSO = async (so: any) => {
         const res = await authFetch(`${API_BASE}/pick-lists`, {
@@ -144,8 +155,10 @@ export default function PickListView() {
         });
         if (res.ok) {
             const pl = await res.json();
-            await loadAll();
-            setPicking(false);
+            // The order just consumed cartons — re-score the board before the
+            // planner returns to it, and land them on the list they just cut.
+            await Promise.all([loadAll(), loadPickable()]);
+            setTab('lists');
             setEditing(pl);
         } else {
             const err = await res.json().catch(() => ({}));
@@ -160,6 +173,13 @@ export default function PickListView() {
         if (res.ok) { showToast('Pick list deleted', 'success'); loadAll(); }
         else { const e = await res.json().catch(() => ({})); showToast(`Error: ${e.detail || 'failed'}`, 'danger'); }
     };
+
+    // Tab badge counts orders that can actually be picked today, not every open
+    // order — a board full of un-packed orders is not work waiting on the planner.
+    const readyCount = useMemo(
+        () => pickableSOs.filter((so: any) => num(so.cartons_ready) > 0).length,
+        [pickableSOs],
+    );
 
     const customerAddr = (name: string) => (partners || []).find((p: any) => p.name === name)?.address || '';
 
@@ -349,12 +369,32 @@ export default function PickListView() {
                 classic
                 icon="bi-clipboard-check"
                 title="Pick Lists & Dispatch"
-                right={canManage ? (
-                    <button style={xpBtnCreate} onClick={() => setPicking(true)} title="Create a pick list for a sales order">
+                right={canManage && tab === 'lists' ? (
+                    <button style={xpBtnCreate} onClick={() => setTab('topick')} title="Choose a sales order to pick">
                         <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Pick List
                     </button>
                 ) : undefined}
             />
+            <Tabs<PLTab>
+                classic
+                activeKey={tab}
+                onChange={setTab}
+                tabs={[
+                    { key: 'lists' as const, label: 'Pick Lists', icon: 'bi-clipboard-check' },
+                    { key: 'topick' as const, label: pickableLoaded ? `To Pick (${readyCount})` : 'To Pick', icon: 'bi-box-arrow-in-down' },
+                ]}
+            />
+            {tab === 'topick' ? (
+                <SOPickerBoard
+                    pickableSOs={pickableSOs}
+                    loading={pickableLoading}
+                    tzDate={tzDate}
+                    canManage={canManage}
+                    onRefresh={loadPickable}
+                    onPick={createForSO}
+                />
+            ) : (
+            <>
             <div style={xpToolbar()}>
                 <button style={xpBtn()} onClick={loadAll} title="Refresh">
                     <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
@@ -416,8 +456,10 @@ export default function PickListView() {
                 </table>
             </div>
             <Pager page={clampedPage} total={plTotal} pageSize={PL_PAGE_SIZE} onPageChange={setPlPage} hideWhenEmpty />
+            </>
+            )}
 
-            {menuOpenId && (() => {
+            {menuOpenId && tab === 'lists' && (() => {
                 const pl = pickLists.find((x: any) => String(x.id) === menuOpenId);
                 if (!pl) return null;
                 return (
@@ -432,18 +474,10 @@ export default function PickListView() {
                 );
             })()}
             <XPStatusBar right={`${openCount} open · ${dispatchedCount} dispatched`}>
-                {loading ? 'Loading...' : `${plTotal} pick list(s)`}
+                {tab === 'topick'
+                    ? (pickableLoading ? 'Scoring open orders...' : `${pickableSOs.length} open order(s) · ${readyCount} ready to pick`)
+                    : (loading ? 'Loading...' : `${plTotal} pick list(s)`)}
             </XPStatusBar>
-
-            {picking && (
-                <SOPickerModal
-                    pickableSOs={pickableSOs}
-                    loading={pickableLoading}
-                    tzDate={tzDate}
-                    onClose={() => setPicking(false)}
-                    onPick={createForSO}
-                />
-            )}
 
             {editing && (
                 <PickListEditor
@@ -484,22 +518,35 @@ function dueChip(days: number | null | undefined) {
 }
 
 /**
- * Pick readiness board. Orders are listed soonest-due first, each showing how
- * much of what it still owes is already packed into cartons — packing is
- * upstream of picking, so an order with nothing packed cannot be picked at all
- * (the server rejects it too; this just says so before the click).
+ * Pick readiness board — the planner's release queue, a full tab rather than a
+ * dialog because it is a work surface (sortable-width table, urgency chips,
+ * coverage bars) that the planner reads alongside the pick list register, not a
+ * one-question prompt.
+ *
+ * Orders are listed soonest-due first, each showing how much of what it still
+ * owes is already packed into cartons — packing is upstream of picking, so an
+ * order with nothing packed cannot be picked at all (the server rejects it too;
+ * this just says so before the click).
  */
-function SOPickerModal({ pickableSOs, loading, tzDate, onClose, onPick }: any) {
+function SOPickerBoard({ pickableSOs, loading, tzDate, canManage, onRefresh, onPick }: any) {
     return (
-        <ModalWrapper isOpen onClose={onClose} title="Select an Order to Pick" size="xxl" modeless>
-            <div style={{ fontFamily: xpFont }}>
-                <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>
+        <>
+            <div style={xpToolbar()}>
+                <button style={xpBtn()} onClick={onRefresh} title="Re-score open orders">
+                    <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
+                </button>
+                <span style={{ fontSize: 10, color: '#666', marginLeft: 8, maxWidth: 620, lineHeight: 1.3 }}>
                     Soonest delivery first. &quot;Ready&quot; counts whole cartons already packed and not on
                     another pick list — cartons are suggested oldest-first, and the last one may overshoot
                     since a carton is never split.
-                </div>
+                </span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333', whiteSpace: 'nowrap' }}>
+                    {pickableSOs.length.toLocaleString()} open order{pickableSOs.length !== 1 ? 's' : ''}
+                </span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0, fontFamily: xpFont }}>
                 {loading
-                    ? <div style={{ fontSize: 11, color: '#888', padding: '12px 4px' }}>Scoring open orders...</div>
+                    ? <div style={{ fontSize: 11, color: '#888', padding: '12px 8px' }}>Scoring open orders...</div>
                     : pickableSOs.length === 0
                     ? <XPEmptyState icon="bi-inbox" message="No open sales orders with anything outstanding." />
                     : (
@@ -569,9 +616,11 @@ function SOPickerModal({ pickableSOs, loading, tzDate, onClose, onPick }: any) {
                                                     <span style={{ fontSize: 9, color: '#b8860b', marginRight: 8 }}>open pick list</span>
                                                 )}
                                                 <button
-                                                    style={{ ...xpBtnGreen(), opacity: ready ? 1 : 0.5, cursor: ready ? 'pointer' : 'not-allowed' }}
-                                                    disabled={!ready}
-                                                    title={ready ? 'Create a pick list for this order' : 'Nothing packed for this order yet — pack cartons first'}
+                                                    style={{ ...xpBtnGreen(), opacity: ready && canManage ? 1 : 0.5, cursor: ready && canManage ? 'pointer' : 'not-allowed' }}
+                                                    disabled={!ready || !canManage}
+                                                    title={!canManage ? 'You do not have permission to create pick lists'
+                                                        : ready ? 'Create a pick list for this order'
+                                                        : 'Nothing packed for this order yet — pack cartons first'}
                                                     onClick={() => onPick(so)}
                                                 >Pick</button>
                                             </td>
@@ -582,7 +631,7 @@ function SOPickerModal({ pickableSOs, loading, tzDate, onClose, onPick }: any) {
                         </table>
                     )}
             </div>
-        </ModalWrapper>
+        </>
     );
 }
 
