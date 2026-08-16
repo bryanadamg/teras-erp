@@ -238,8 +238,12 @@ export default function MobileScannerView({
                         // pointing this screen at a carton is a routing mistake,
                         // not a bad scan — say where the code does work.
                         const upper = decodedText.trim().toUpperCase();
+                        if (upper.startsWith('PL-') || upper.startsWith('PK-')) {
+                            setError('That is a pick list — use the Pick Scanner (/pick-scan).');
+                            return;
+                        }
                         if (upper.startsWith('PCK-') || upper.startsWith('PU-')) {
-                            setError('That is a packing code — use the Packing Scanner (/packing-scan).');
+                            setError('That is a packing code — use the Packing Scanner (/packing-scan) or, to pick a carton, the Pick Scanner (/pick-scan).');
                             return;
                         }
                         setError('Not a valid Work Order QR code.');

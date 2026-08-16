@@ -14,7 +14,7 @@ from app.schemas import (
 from app.models.pick_list import PickList, PickListLine
 from app.models.batch import Batch
 from app.models.sales import SalesOrder, SalesOrderLine
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
 from app.services import (
     audit_service, kpi_service, stock_service, packing_service, so_fulfilment_service,
@@ -308,6 +308,32 @@ async def list_pickable_orders(
     return out
 
 
+@router.get("/resolve", response_model=PickListResponse)
+async def resolve_pick_list(
+    code: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Scanner lookup: PL-NNNNN -> the pick list it names.
+
+    Declared above `/{pl_id}` for the same reason as `/pickable-orders` — the
+    path would otherwise be parsed as a pick list UUID.
+
+    Case-insensitive because the floor types codes by hand when a label is
+    scuffed. Legacy `PK-` rows resolve too: they are the same table.
+    """
+    wanted = (code or "").strip()
+    if not wanted:
+        raise HTTPException(status_code=404, detail="No code given")
+    result = await db.execute(
+        select(PickList).options(*_load_options()).filter(func.upper(PickList.code) == wanted.upper())
+    )
+    pl = result.scalars().first()
+    if not pl:
+        raise HTTPException(status_code=404, detail=f"No pick list found for '{wanted}'")
+    return _decorate(pl)
+
+
 @router.get("/{pl_id}", response_model=PickListResponse)
 async def get_pick_list(
     pl_id: uuid.UUID,
@@ -504,7 +530,7 @@ async def scan_pick_list_unit(
     pl_id: uuid.UUID,
     payload: PickListScanPayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
+    current_user: User = Depends(require_any_permission('pick_list.scan', 'sales.manage')),
 ):
     """Picker scanned a carton QR.
 
@@ -512,6 +538,11 @@ async def scan_pick_list_unit(
     carton to the first SO line that ordered the same item. The scan is what
     turns a *suggested* pick into a *confirmed* one — a plan the floor never
     confirmed must not dispatch.
+
+    The narrow `pick_list.scan` code exists because this is the one pick-list
+    action a floor picker performs. Gating it on `sales.manage` like the rest of
+    the router would hand every picker create, edit, dispatch and delete on the
+    whole sales module. `sales.manage` still passes so existing roles keep working.
     """
     pl = await _load(db, pl_id)
     if not pl:

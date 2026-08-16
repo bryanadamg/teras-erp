@@ -2,7 +2,7 @@ import { Fragment, useState, useRef, useLayoutEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
 import { useTheme } from '../../context/ThemeContext';
-import { NAV_SECTIONS, navLabel, NavSection } from './navConfig';
+import { NAV_SECTIONS, navLabel, leafPermissions, NavSection } from './navConfig';
 import { xpFont } from './xpTheme';
 
 interface SidebarProps {
@@ -322,7 +322,10 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Sections (single source of truth: navConfig.ts) ── */}
         {NAV_SECTIONS.map((section) => {
           if (section.permissions && !section.permissions.some((p) => hasPermission(p))) return null;
-          const visibleItems = section.items.filter((i) => !i.permission || hasPermission(i.permission));
+          const visibleItems = section.items.filter((i) => {
+            const codes = leafPermissions(i);
+            return codes.length === 0 || codes.some((p) => hasPermission(p));
+          });
           if (visibleItems.length === 0) return null;
           return (
             <Fragment key={section.key}>

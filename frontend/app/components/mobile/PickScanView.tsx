@@ -1,0 +1,339 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
+import { StatusChip, xpFont as XP_FONT } from '../shared/xpTheme';
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
+
+const XP_BEIGE = '#ece9d8';
+
+const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',
+    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
+    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+    color: '#000000', borderRadius: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
+    ...extra,
+});
+const xpPanel: React.CSSProperties = {
+    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+    background: '#f5f4ef', borderRadius: 0, padding: '10px 12px',
+};
+const xpSectionLabel: React.CSSProperties = {
+    fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold',
+    textTransform: 'uppercase', letterSpacing: 0.5, color: '#555',
+    borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 8,
+};
+const xpInput: React.CSSProperties = {
+    fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
+    border: '1px solid #7f9db9', boxSizing: 'border-box',
+    borderRadius: 0, background: '#fff', width: '100%',
+};
+
+const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+
+function playBeep(ok = true) {
+    try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        // A rejected scan must not sound like an accepted one — the picker is
+        // watching the carton, not the screen.
+        osc.frequency.value = ok ? 880 : 220;
+        osc.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => { osc.stop(); ctx.close(); }, ok ? 120 : 260);
+    } catch { /* no audio on this device */ }
+}
+
+/**
+ * Mobile pick scanner — the floor half of a pick list.
+ *
+ * Separate from both the WO ScannerView (built around BOM material rows) and
+ * PackingScanView (built around a qty form): the picker's loop is scan-scan-scan
+ * with no data entry, so the camera comes straight back after every carton
+ * instead of staying down for a form.
+ *
+ * All the rules live server-side in POST /pick-lists/{id}/scan — already on
+ * another list, wrong quality, not on this SO, not a carton. This screen renders
+ * the server's own `detail` string rather than re-deciding any of it, so the
+ * floor and the API can never disagree about why a box was refused.
+ */
+export default function PickScanView({ authFetch, onClose }: { authFetch: (url: string, options?: any) => Promise<Response>; onClose: () => void }) {
+    const [pl, setPl] = useState<any | null>(null);
+    const [unit, setUnit] = useState<any | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [flash, setFlash] = useState<string | null>(null);
+    const [manualCode, setManualCode] = useState('');
+    const [busy, setBusy] = useState(false);
+    const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+    const scanLockRef = useRef(false);
+    // Latest pick list, readable from the scan callback without re-registering
+    // the camera on every state change (which would tear the stream down between
+    // cartons and make the loop unusable).
+    const plRef = useRef<any | null>(null);
+    useEffect(() => { plRef.current = pl; }, [pl]);
+
+    const scanCarton = useCallback(async (code: string, target: any) => {
+        setBusy(true);
+        try {
+            const res = await authFetch(`${API_BASE}/pick-lists/${target.id}/scan`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+            });
+            if (res.ok) {
+                const fresh = await res.json();
+                setPl(fresh);
+                setError(null);
+                setFlash(code.toUpperCase());
+                playBeep(true);
+            } else {
+                const e = await res.json().catch(() => ({}));
+                setFlash(null);
+                setError(e.detail || `Could not pick ${code}.`);
+                playBeep(false);
+            }
+        } finally { setBusy(false); }
+    }, [authFetch]);
+
+    const resolveCode = useCallback(async (raw: string) => {
+        const code = raw.trim();
+        if (!code) return;
+        const upper = code.toUpperCase();
+        const open = plRef.current;
+
+        // A carton scanned with a list open is a pick. The same code with no list
+        // open is a question — "what is this box?" — so it reports instead.
+        if (upper.startsWith('PU-')) {
+            if (open) { await scanCarton(code, open); return; }
+            const res = await authFetch(`${API_BASE}/packing/packed-units/resolve?code=${encodeURIComponent(code)}`);
+            if (res.ok) { setUnit(await res.json()); setError(null); playBeep(true); }
+            else { const e = await res.json().catch(() => ({})); setError(e.detail || `Carton "${code}" not found.`); playBeep(false); }
+            return;
+        }
+
+        // PK- is the legacy prefix these rows carried when the table was
+        // packing_orders; the codes still exist on old lists, so accept both.
+        if (upper.startsWith('PL-') || upper.startsWith('PK-')) {
+            const res = await authFetch(`${API_BASE}/pick-lists/resolve?code=${encodeURIComponent(code)}`);
+            if (!res.ok) {
+                const e = await res.json().catch(() => ({}));
+                setError(e.detail || `Pick list "${code}" not found.`);
+                playBeep(false);
+                return;
+            }
+            const found = await res.json();
+            if (found.status === 'DISPATCHED' || found.status === 'CANCELLED') {
+                setError(`Pick list ${found.code} is ${found.status}.`);
+                playBeep(false);
+                return;
+            }
+            setPl(found);
+            setUnit(null);
+            setError(null);
+            setFlash(null);
+            playBeep(true);
+            return;
+        }
+
+        if (upper.startsWith('PCK-')) {
+            setError('That is a packing order — use the Packing Scanner (/packing-scan).');
+            playBeep(false);
+            return;
+        }
+        setError('Not a pick QR code. Expected PL- (pick list) or PU- (carton).');
+        playBeep(false);
+    }, [authFetch, scanCarton]);
+
+    // Camera runs whenever a carton report is not on screen. Unlike the packing
+    // scanner it stays up while a pick list is open — that is the scan loop.
+    useEffect(() => {
+        if (unit) return;
+        const timer = setTimeout(() => {
+            const qrbox = (vw: number, vh: number) => {
+                const size = Math.floor(Math.min(vw, vh) * 0.7);
+                return { width: size, height: size };
+            };
+            const scanner = new Html5QrcodeScanner('pick-reader', {
+                fps: 10,
+                qrbox,
+                useBarCodeDetectorIfSupported: true,
+                showTorchButtonIfSupported: true,
+                videoConstraints: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    focusMode: 'continuous',
+                    advanced: [{ focusMode: 'continuous' } as any],
+                } as MediaTrackConstraints,
+            }, false);
+            scannerRef.current = scanner;
+            scanLockRef.current = false;
+            scanner.render(
+                (decodedText: string) => {
+                    // Without the lock the decoder fires the same frame several
+                    // times and the same carton posts two or three scans.
+                    if (scanLockRef.current) return;
+                    scanLockRef.current = true;
+                    resolveCode(decodedText).finally(() => {
+                        // 900ms is roughly how long it takes to move the phone off
+                        // one label and onto the next — short enough not to be felt,
+                        // long enough that the old label cannot re-trigger.
+                        setTimeout(() => { scanLockRef.current = false; }, 900);
+                    });
+                },
+                () => {}
+            );
+        }, 100);
+        return () => {
+            clearTimeout(timer);
+            scannerRef.current?.clear().catch(() => {});
+        };
+    }, [unit, resolveCode]);
+
+    const lines: any[] = pl?.lines || [];
+    const cartons = useMemo(() => lines.filter((l: any) => l.batch_id), [lines]);
+    const pending = useMemo(() => cartons.filter((l: any) => !l.picked_at), [cartons]);
+    const picked = useMemo(
+        () => cartons.filter((l: any) => l.picked_at).sort((a, b) => String(b.picked_at).localeCompare(String(a.picked_at))),
+        [cartons],
+    );
+    const pct = cartons.length ? Math.round(picked.length / cartons.length * 100) : 0;
+    const done = cartons.length > 0 && pending.length === 0;
+
+    const reset = () => { setPl(null); setUnit(null); setError(null); setFlash(null); setManualCode(''); };
+
+    return (
+        <div style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: 'var(--app-vh)', padding: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <strong style={{ fontSize: 15 }}>Pick Scanner</strong>
+                <button style={xpBtn()} onClick={onClose}>Close</button>
+            </div>
+
+            {error && (
+                <div style={{ background: '#ffe8e8', border: '1px solid #c00', color: '#800', padding: '8px 10px', fontSize: 13, fontWeight: 'bold', marginBottom: 10 }}>
+                    {error}
+                </div>
+            )}
+            {!error && flash && (
+                <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '8px 10px', fontSize: 13, fontWeight: 'bold', marginBottom: 10 }}>
+                    Picked {flash}
+                </div>
+            )}
+
+            {pl && (
+                <div style={{ ...xpPanel, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <strong style={{ fontSize: 15 }}>{pl.code}</strong>
+                        <StatusChip status={pl.status} />
+                    </div>
+                    <div style={{ fontSize: 12, color: '#333', marginTop: 4 }}>
+                        {pl.sales_order_code || '—'} · {pl.customer_name || '—'}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                        <div style={{ flex: 1, height: 14, background: '#e6e4dc', border: '1px solid #aca899' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: done ? '#4caf50' : '#5b8dd6' }} />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            {picked.length} / {cartons.length}
+                        </span>
+                    </div>
+                    {done && (
+                        <div style={{ marginTop: 8, background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '6px 8px', fontSize: 12 }}>
+                            All cartons scanned. Hand to QC — dispatch and the Surat Jalan are done on the desktop.
+                        </div>
+                    )}
+                    <button style={{ ...xpBtn(), marginTop: 10 }} onClick={reset}>Close list</button>
+                </div>
+            )}
+
+            {unit ? (
+                <div style={xpPanel}>
+                    <div style={xpSectionLabel}>Carton {unit.batch_number}</div>
+                    <Row label="Item" value={`${unit.item_name || ''} (${unit.item_code || ''})`} />
+                    <Row label="Carton no." value={String(unit.package_no ?? '—')} />
+                    <Row label="Qty in stock" value={num(unit.qty).toLocaleString()} />
+                    <Row label="Location" value={unit.location_name || '—'} />
+                    <Row label="Packing order" value={unit.packing_order_code || '—'} />
+                    <Row label="Quality" value={unit.quality_status} />
+                    <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
+                        Scan a pick list first to pick this carton onto an order.
+                    </div>
+                    <button style={{ ...xpBtn(), marginTop: 10 }} onClick={reset}>Scan another</button>
+                </div>
+            ) : (
+                <>
+                    <div style={{ ...xpPanel, marginBottom: 10, opacity: busy ? 0.6 : 1 }}>
+                        <div style={xpSectionLabel}>{pl ? 'Scan cartons' : 'Scan'}</div>
+                        <div id="pick-reader" style={{ width: '100%' }} />
+                    </div>
+                    <div style={{ ...xpPanel, marginBottom: 10 }}>
+                        <div style={xpSectionLabel}>Or type a code</div>
+                        {/* Also the USB-wedge path: a keyboard-emulating scanner types
+                            the code here and submits with Enter. */}
+                        <input
+                            style={xpInput}
+                            placeholder={pl ? 'PU-20260802-0001' : 'PL-00001 or PU-20260802-0001'}
+                            value={manualCode}
+                            onChange={e => setManualCode(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { resolveCode(manualCode); setManualCode(''); } }}
+                        />
+                        <button style={{ ...xpBtn(), marginTop: 8 }} onClick={() => { resolveCode(manualCode); setManualCode(''); }}>
+                            {pl ? 'Pick' : 'Open'}
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {pl && cartons.length > 0 && (
+                <div style={xpPanel}>
+                    <div style={xpSectionLabel}>Pending ({pending.length})</div>
+                    {pending.length === 0
+                        ? <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>Nothing left to scan.</div>
+                        : pending.map((l: any) => (
+                            <CartonRow key={l.id} line={l} />
+                        ))}
+                    {picked.length > 0 && (
+                        <>
+                            <div style={{ ...xpSectionLabel, marginTop: 12 }}>Scanned ({picked.length})</div>
+                            {picked.map((l: any) => (
+                                <CartonRow key={l.id} line={l} done />
+                            ))}
+                        </>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function CartonRow({ line, done }: { line: any; done?: boolean }) {
+    return (
+        <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8,
+            padding: '5px 6px', marginBottom: 3, fontSize: 12,
+            background: done ? '#eef7ee' : '#fff',
+            border: `1px solid ${done ? '#b6d7b6' : '#ddd9d0'}`,
+        }}>
+            <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 'bold', color: done ? '#0a3e0a' : '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {done ? '✓ ' : ''}{line.batch_number || 'bulk line'}
+                </div>
+                <div style={{ fontSize: 11, color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {line.item_code || ''}{line.picked_by ? ` · ${line.picked_by}` : ''}
+                </div>
+            </div>
+            <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                {num(line.qty_picked).toLocaleString()} {line.item_uom || ''}
+            </div>
+        </div>
+    );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+    return (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '2px 0' }}>
+            <span style={{ color: '#555' }}>{label}</span>
+            <span style={{ fontWeight: 'bold', textAlign: 'right' }}>{value}</span>
+        </div>
+    );
+}

@@ -10,7 +10,16 @@ export interface NavLeaf {
     label: string;        // English fallback label
     i18nKey?: string;     // LanguageContext key; label used when key missing
     icon: string;         // bootstrap-icons class
-    permission?: string;  // leaf visible only with this permission
+    // Leaf visible only with this permission. An array means ANY of them, same
+    // semantics as NavSection.permissions — used where one page serves two roles
+    // holding different codes. Read it through leafPermissions(), never directly.
+    permission?: string | string[];
+}
+
+/** Normalized ANY-of permission list for a leaf. Empty = open to everyone. */
+export function leafPermissions(leaf: NavLeaf): string[] {
+    if (!leaf.permission) return [];
+    return Array.isArray(leaf.permission) ? leaf.permission : [leaf.permission];
 }
 
 export interface NavSection {
@@ -26,7 +35,7 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Sales', i18nKey: 'sales', icon: 'bi-graph-up', accent: 'green',
-        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage', 'quarantine.view'],
+        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage', 'quarantine.view', 'pick_list.scan'],
         items: [
             { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales_order.view' },
             // Packing Orders / Pick Lists are a separate feature not covered by the
@@ -36,6 +45,10 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'quarantine-packing', label: 'Quarantine Packing', icon: 'bi-shield-exclamation', permission: 'quarantine.view' },
             { tab: 'packing', label: 'Packing Orders', icon: 'bi-box2', permission: 'sales.manage' },
             { tab: 'pick-lists', label: 'Pick Lists', icon: 'bi-clipboard-check', permission: 'sales.manage' },
+            // Floor half of a pick list. Visible to pickers holding only
+            // pick_list.scan as well as to planners on the legacy blob code, so a
+            // picker role can be exactly this one entry and nothing else.
+            { tab: 'pick-scan', label: 'Pick Scanner', icon: 'bi-upc-scan', permission: ['pick_list.scan', 'sales.manage'] },
             { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'customer.view' },
             { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask', permission: 'sample_request.view' },
             { tab: 'sample-report', label: 'Sample Report', i18nKey: 'sample_report', icon: 'bi-clipboard-data', permission: 'sample_request.view' },
@@ -133,8 +146,8 @@ export const SECTION_LABELS: Record<string, string> = Object.fromEntries(
  */
 export const ROUTE_PERMISSIONS: Record<string, string[]> = Object.fromEntries([
     ...NAV_SECTIONS.flatMap(s => s.items
-        .filter(i => i.permission)
-        .map(i => [i.tab, [i.permission as string]] as const)),
+        .map(i => [i.tab, leafPermissions(i)] as const)
+        .filter(([, codes]) => codes.length > 0)),
     ...NAV_SECTIONS
         .filter(s => s.permissions?.length)
         .map(s => [`sections-${s.key}`, s.permissions as string[]] as const),

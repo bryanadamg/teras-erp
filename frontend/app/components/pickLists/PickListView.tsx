@@ -15,6 +15,7 @@ import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { Tabs } from '../shared/Tabs';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
+const PickListPrintModal = dynamic(() => import('./PickListPrintModal'), { ssr: false });
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
@@ -79,6 +80,8 @@ export default function PickListView() {
     const skel = useTableSkeletonMetrics('pick-lists', listBodyRef, pickLists.length > 0);
     const [editing, setEditing] = useState<any | null>(null);
     const [printPL, setPrintPL] = useState<any | null>(null);
+    // Kartu Picking — the floor card, distinct from the Surat Jalan above it.
+    const [printCard, setPrintCard] = useState<any | null>(null);
     // One row open at a time, same as the packing order and WO lists.
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [plPage, setPlPage] = useState(1);
@@ -467,6 +470,7 @@ export default function PickListView() {
                         pos={menuPos}
                         items={[
                             { key: 'edit', label: pl.status === 'DISPATCHED' ? 'View' : 'Pick', icon: 'bi-upc-scan', onClick: () => { menuClose(); setEditing(pl); } },
+                            { key: 'card', label: 'Kartu Picking', icon: 'bi-card-list', onClick: () => { menuClose(); setPrintCard(pl); } },
                             { key: 'print', label: 'Surat Jalan', icon: 'bi-printer', onClick: () => { menuClose(); setPrintPL(pl); } },
                             { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !(canManage && pl.status !== 'DISPATCHED'), onClick: () => { menuClose(); deletePL(pl); } },
                         ]}
@@ -489,6 +493,14 @@ export default function PickListView() {
                     onSaved={async () => { await loadAll(); }}
                     onPrint={(draft: any) => setPrintPL(draft)}
                     showToast={showToast}
+                />
+            )}
+
+            {printCard && (
+                <PickListPrintModal
+                    pl={printCard}
+                    companyProfile={companyProfile}
+                    onClose={() => setPrintCard(null)}
                 />
             )}
 

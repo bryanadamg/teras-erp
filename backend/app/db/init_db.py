@@ -355,6 +355,10 @@ def seed_rbac(db):
             # that lets a lot be packed, so it is deliberately separate from lot.*.
             ("quarantine.view", "View Quarantine Packing"),
             ("quarantine.set_status", "Set Quarantine Status"),
+            # Pick List — floor half only. Everything else on the pick list router
+            # (create/edit/dispatch/delete) stays on the legacy sales.manage blob;
+            # this exists so a picker can confirm cartons without holding it.
+            ("pick_list.scan", "Scan Cartons onto Pick Lists"),
             # Stock In Hand (scoped by Role.allowed_categories)
             ("stock_on_hand.create", "Create Stock Entries"),
             ("stock_on_hand.adjust", "Adjust Stock On Hand"),
