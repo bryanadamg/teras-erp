@@ -42,6 +42,7 @@ def _load_options():
         selectinload(PickList.lines).selectinload(PickListLine.batch),
         selectinload(PickList.lines).selectinload(PickListLine.sales_order_line).selectinload(SalesOrderLine.color),
         selectinload(PickList.lines).selectinload(PickListLine.sales_order_line).selectinload(SalesOrderLine.attribute_values),
+        selectinload(PickList.shipment),
     )
 
 
@@ -64,6 +65,11 @@ def _decorate(pl: PickList) -> PickList:
         # The customer's own PO — the "NO PO" column of the Surat Jalan. Their
         # reference, not ours; po_number is the internal SO code.
         pl.customer_po_ref = pl.sales_order.customer_po_ref
+    # Which loading-deck handover this pick list is on, if any. The page shows it
+    # so a picker can see their work has moved on rather than gone missing.
+    if pl.shipment:
+        pl.shipment_code = pl.shipment.code
+        pl.shipment_status = pl.shipment.status
     for line in (pl.lines or []):
         sol = line.sales_order_line
         color = sol.color if sol else None
@@ -487,10 +493,17 @@ async def update_pick_list(
         raise HTTPException(status_code=404, detail="Pick list not found")
     if pl.status in ("DISPATCHED", "CANCELLED"):
         raise HTTPException(status_code=400, detail=f"Cannot edit a {pl.status} pick list")
+    # Once loaded onto a shipment the contents are what a checker is counting
+    # against a printed note — take it off the shipment first.
+    if pl.shipment_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Pick list is staged on shipment {pl.shipment.code if pl.shipment else ''} — unload it there first",
+        )
 
-    # Scalar header fields
-    for field in ("source_location_id", "status", "delivery_note_number", "delivery_date",
-                  "carrier", "vehicle_plate", "driver", "notes"):
+    # Scalar header fields. Surat Jalan fields are absent by design: they live on
+    # the Shipment now (see models/shipment.py).
+    for field in ("source_location_id", "status", "notes"):
         val = getattr(payload, field)
         if val is not None:
             setattr(pl, field, val)
@@ -637,117 +650,12 @@ async def scan_pick_list_unit(
     return _decorate(pl)
 
 
-@router.post("/{pl_id}/dispatch", response_model=PickListResponse)
-async def dispatch_pick_list(
-    pl_id: uuid.UUID,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('sales.manage')),
-):
-    result = await db.execute(
-        select(PickList)
-        .options(
-            selectinload(PickList.lines).selectinload(PickListLine.item),
-            selectinload(PickList.sales_order)
-            .selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
-        )
-        .filter(PickList.id == pl_id)
-    )
-    pl = result.scalars().first()
-    if not pl:
-        raise HTTPException(status_code=404, detail="Pick list not found")
-    if pl.status in ("DISPATCHED", "CANCELLED"):
-        raise HTTPException(status_code=400, detail=f"Pick list already {pl.status}")
-    if not pl.qc_passed:
-        raise HTTPException(status_code=400, detail="QC must pass before dispatch")
-
-    pick_lines = [l for l in pl.lines if float(l.qty_picked or 0) > 0]
-    if not pick_lines:
-        raise HTTPException(status_code=400, detail="Nothing to dispatch (no picked quantities)")
-
-    unconfirmed = [l for l in pick_lines if l.batch_id and not l.picked_at]
-    if unconfirmed:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{len(unconfirmed)} carton(s) not yet scanned — confirm every carton before dispatch",
-        )
-
-    # SO line variant lookup
-    sol_attrs = {
-        str(sl.id): [str(v.id) for v in sl.attribute_values]
-        for sl in pl.sales_order.lines
-    }
-    # Color-type FG stock is tagged with color_id (folded into variant_key), so
-    # dispatch must net/deduct against the same color to hit the right pool.
-    sol_colors = {
-        str(sl.id): sl.color_id
-        for sl in pl.sales_order.lines
-    }
-
-    # Pre-check availability for ALL lines before deducting anything
-    shortages = []
-    for l in pick_lines:
-        src = l.source_location_id or pl.source_location_id
-        if not src:
-            raise HTTPException(status_code=400, detail="No source location set for one or more lines")
-        attr_ids = sol_attrs.get(str(l.sales_order_line_id), [])
-        color_id = sol_colors.get(str(l.sales_order_line_id))
-        batch_key = str(l.batch_id) if l.batch_id else ""
-        bal = await stock_service.get_stock_balance(db, l.item_id, src, attr_ids, batch_key, color_id=color_id)
-        if bal + (-float(l.qty_picked)) < 0:
-            shortages.append(f"{(l.item.name if l.item else l.item_id)}: have {bal}, need {float(l.qty_picked)}")
-    if shortages:
-        raise HTTPException(status_code=400, detail="Insufficient stock — " + "; ".join(shortages))
-
-    # Deduct finished-goods stock (each call commits internally)
-    for l in pick_lines:
-        src = l.source_location_id or pl.source_location_id
-        attr_ids = sol_attrs.get(str(l.sales_order_line_id), [])
-        color_id = sol_colors.get(str(l.sales_order_line_id))
-        await stock_service.add_stock_entry(
-            db,
-            item_id=l.item_id,
-            location_id=src,
-            qty_change=-float(l.qty_picked),
-            reference_type="PICKING",
-            reference_id=pl.code,
-            attribute_value_ids=attr_ids,
-            color_id=color_id,
-            batch_id=l.batch_id,
-        )
-
-    # Mark dispatched (re-fetch: stock commits expired the instance)
-    pl = await _load(db, pl_id)
-    pl.status = "DISPATCHED"
-    pl.dispatched_at = datetime.utcnow()
-    if not pl.delivery_date:
-        pl.delivery_date = pl.dispatched_at
-    if not pl.delivery_note_number:
-        pl.delivery_note_number = pl.code
-    so_id = pl.sales_order_id
-    await db.commit()
-
-    # Recompute SO fulfilment: SENT when every line fully shipped, PARTIAL when
-    # some (but not all) shipped. Leaves terminal/edited states untouched.
-    if await so_fulfilment_service.recompute_so_status(db, so_id):
-        await db.commit()
-        try:
-            await manager.broadcast({"type": "SALES_ORDER_UPDATE", "id": str(so_id)})
-        except Exception:
-            pass
-
-    await audit_service.log_activity(
-        db, user_id=current_user.id, action="DISPATCH", entity_type="PickList",
-        entity_id=str(pl_id), details=f"Dispatched pick list {pl.code}",
-    )
-    try:
-        await kpi_service.invalidate_kpis_async(db)
-        await manager.broadcast({"type": "KPI_UPDATE"})
-        await manager.broadcast({"type": "PICK_LIST_UPDATE", "id": str(pl_id)})
-    except Exception:
-        pass
-
-    pl = await _load(db, pl_id)
-    return _decorate(pl)
+# NOTE: `POST /pick-lists/{id}/dispatch` was removed when the loading-deck gate
+# was added. A pick list is an internal instruction and ends at PICKED; goods
+# issue now runs from `POST /shipments/{id}/dispatch`, after a second person has
+# checked the load against the printed Surat Jalan. Leaving a direct route open
+# here would have left the four-eyes control bypassable by one HTTP call. The
+# stock-out logic itself lives in `services/dispatch_service.py`.
 
 
 @router.delete("/{pl_id}")

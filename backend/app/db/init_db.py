@@ -359,6 +359,15 @@ def seed_rbac(db):
             # (create/edit/dispatch/delete) stays on the legacy sales.manage blob;
             # this exists so a picker can confirm cartons without holding it.
             ("pick_list.scan", "Scan Cartons onto Pick Lists"),
+            # Shipment — the loading deck. `shipment.verify` is the four-eyes gate
+            # and is the ONE code here that sales.manage does not satisfy: a check
+            # every planner can tick is not a check. Keep it on a separate role.
+            ("shipment.view", "View Shipments"),
+            ("shipment.create", "Stage Shipments"),
+            ("shipment.edit", "Edit Shipments"),
+            ("shipment.verify", "Verify Shipments at the Loading Deck"),
+            ("shipment.dispatch", "Dispatch Shipments"),
+            ("shipment.delete", "Delete Shipments"),
             # Stock In Hand (scoped by Role.allowed_categories)
             ("stock_on_hand.create", "Create Stock Entries"),
             ("stock_on_hand.adjust", "Adjust Stock On Hand"),

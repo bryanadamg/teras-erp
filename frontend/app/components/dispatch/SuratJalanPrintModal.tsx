@@ -11,7 +11,7 @@ import { xpFont as font } from '../shared/xpTheme';
 // cartons than this spills onto continuation rows rather than squeezing the grid.
 const PERINCIAN_COLS = 8;
 
-function SJDocument({ pl, so, attributes, companyProfile, customerAddr, preparedBy }: any) {
+function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, preparedBy }: any) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const { itemIndex } = useData();
     const { formatCustom: tzFmt } = useTimezone();
@@ -34,22 +34,23 @@ function SJDocument({ pl, so, attributes, companyProfile, customerAddr, prepared
         return v.toLocaleString('id-ID', { maximumFractionDigits: 2 });
     };
 
-    const lines: any[] = pl.lines || [];
-
     // The client's Surat Jalan is one row per item+colour with a single total qty;
     // the per-carton breakdown lives in the Perincian band below. Our lines are
     // carton-grain, so collapse them here and keep each carton's qty for Perincian.
+    // A shipment may carry several pick lists, so the customer PO is part of the
+    // key — two orders for the same shade are two rows on the note, not one.
     const groups = React.useMemo(() => {
         const map = new Map<string, any>();
-        for (const l of lines) {
+        for (const l of (lines || [])) {
             const name = l.item_name || itemName(l.item_id);
             const colorName = l.color_name
                 || (l.attribute_value_ids || []).map((vid: string) => attrName(vid)).filter(Boolean).join(' / ');
-            const key = `${l.item_id}|${colorName}|${l.color_code || ''}`;
+            const key = `${l.item_id}|${colorName}|${l.color_code || ''}|${l.po_ref || ''}`;
             let g = map.get(key);
             if (!g) {
                 g = {
                     key, itemName: name, colorName, colorCode: l.color_code || '',
+                    poRef: l.po_ref || '',
                     uom: l.item_uom || itemUOM(l.item_id), qty: 0, cartons: [] as number[],
                 };
                 map.set(key, g);
@@ -79,10 +80,9 @@ function SJDocument({ pl, so, attributes, companyProfile, customerAddr, prepared
     const hCell: React.CSSProperties = { ...cell, fontWeight: 'bold', textAlign: 'center' };
     const dotCell: React.CSSProperties = { borderBottom: '1px dotted #777', padding: '3px 5px', textAlign: 'center' };
 
-    const customerName = pl.customer_name || so?.customer_name || '';
-    const sjNo = pl.delivery_note_number || pl.code;
-    const poNo = pl.customer_po_ref || pl.sales_order_code || so?.po_number || '';
-    const tanggal = fmt(pl.delivery_date || pl.dispatched_at);
+    const customerName = shp.customer_name || '';
+    const sjNo = shp.delivery_note_number || shp.code;
+    const tanggal = fmt(shp.delivery_date || shp.dispatched_at || shp.staged_at);
 
     const CompanyBlock = () => (
         <div style={{ display: 'flex', gap: 8 }}>
@@ -137,8 +137,8 @@ function SJDocument({ pl, so, attributes, companyProfile, customerAddr, prepared
                 <table style={{ borderCollapse: 'collapse', fontSize: '9px' }}>
                     <tbody>
                         <tr><td style={{ paddingRight: 8 }}>Tanggal</td><td>: {tanggal}</td></tr>
-                        <tr><td style={{ paddingRight: 8 }}>Kendaraan No.</td><td>: {pl.vehicle_plate || ''}</td></tr>
-                        {pl.driver && <tr><td style={{ paddingRight: 8 }}>Supir</td><td>: {pl.driver}</td></tr>}
+                        <tr><td style={{ paddingRight: 8 }}>Kendaraan No.</td><td>: {shp.vehicle_plate || ''}</td></tr>
+                        {shp.driver && <tr><td style={{ paddingRight: 8 }}>Supir</td><td>: {shp.driver}</td></tr>}
                     </tbody>
                 </table>
                 <div style={{ width: '46%', paddingLeft: 12 }}>Hal : 1</div>
@@ -165,7 +165,7 @@ function SJDocument({ pl, so, attributes, companyProfile, customerAddr, prepared
                             <td style={{ ...cell, textAlign: 'center' }}>{g.uom}</td>
                             <td style={cell}>{g.itemName}</td>
                             <td style={cell}>{warna(g)}</td>
-                            <td style={{ ...cell, textAlign: 'center' }}>{poNo}</td>
+                            <td style={{ ...cell, textAlign: 'center' }}>{g.poRef}</td>
                             {/* NO REF is filled in by hand on receipt (over/short marks). */}
                             <td style={cell}>&nbsp;</td>
                         </tr>
@@ -177,7 +177,7 @@ function SJDocument({ pl, so, attributes, companyProfile, customerAddr, prepared
                 </tbody>
             </table>
 
-            {pl.notes && <div style={{ marginTop: 6 }}>Catatan : {pl.notes}</div>}
+            {shp.notes && <div style={{ marginTop: 6 }}>Catatan : {shp.notes}</div>}
 
             <SignRow showCompany />
 
@@ -245,11 +245,16 @@ function SJDocument({ pl, so, attributes, companyProfile, customerAddr, prepared
     );
 }
 
-export default function SuratJalanPrintModal({ pl, attributes, companyProfile, customerAddr, currentStyle, onClose }: any) {
-    // pl already carries sales_order_code/customer_name denormalized server-side —
-    // no need to hold the full salesOrders list in memory just to print one.
-    const so = { po_number: pl.sales_order_code, customer_name: pl.customer_name };
+export default function SuratJalanPrintModal({ shipment, attributes, companyProfile, customerAddr, onClose }: any) {
     const [preparedBy, setPreparedBy] = useState('');
+
+    // One flat carton list across every pick list on the shipment, each line
+    // tagged with the customer PO it shipped against — the note's NO PO column.
+    const lines = React.useMemo(
+        () => (shipment.pick_lists || []).flatMap((pl: any) =>
+            (pl.lines || []).map((l: any) => ({ ...l, po_ref: pl.customer_po_ref || pl.sales_order_code || '' }))),
+        [shipment],
+    );
 
     useEffect(() => {
         document.body.classList.add('so-print-preview-active');
@@ -266,12 +271,12 @@ export default function SuratJalanPrintModal({ pl, attributes, companyProfile, c
     const btnGreen = xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' });
     const xpInput: React.CSSProperties = { fontFamily: font, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
 
-    const doc = <SJDocument pl={pl} so={so} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
+    const doc = <SJDocument shp={shipment} lines={lines} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
 
     return (
         <>
             <PrintModalShell
-                title={`Surat Jalan — ${pl.code}`}
+                title={`Surat Jalan — ${shipment.delivery_note_number || shipment.code}`}
                 onClose={onClose}
                 width="calc(var(--app-vw) * 92 / 100)"
                 maxWidth={900}

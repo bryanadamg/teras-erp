@@ -33,12 +33,22 @@ class PickList(Base):
     # DRAFT, PICKING, PICKED, DISPATCHED, CANCELLED
     status: Mapped[str] = mapped_column(String(16), default="DRAFT", index=True)
 
+    # The loading-deck handover this pick list was loaded onto. Null while the
+    # pick list is still on the floor; set when a Shipment stages it. Dispatch is
+    # driven from there, never from here — see models/shipment.py.
+    shipment_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("shipments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # QC / inspection gate (must pass before dispatch)
     qc_passed: Mapped[bool] = mapped_column(Boolean, default=False)
     qc_inspector: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     qc_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    # Surat Jalan (our delivery note) fields
+    # LEGACY Surat Jalan fields. The delivery note moved to `Shipment` — these are
+    # kept read-only for rows dispatched before that split (and are mirrored onto a
+    # backfilled Shipment), so nothing writes them any more. Read the note through
+    # `shipment`, never from here.
     delivery_note_number: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     delivery_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     carrier: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
@@ -55,6 +65,7 @@ class PickList(Base):
     sales_order = relationship("SalesOrder")
     source_location = relationship("Location")
     created_by = relationship("User")
+    shipment = relationship("Shipment", back_populates="pick_lists")
     lines = relationship("PickListLine", backref="pick_list", cascade="all, delete-orphan")
 
 

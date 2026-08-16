@@ -35,7 +35,7 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Sales', i18nKey: 'sales', icon: 'bi-graph-up', accent: 'green',
-        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage', 'quarantine.view', 'pick_list.scan'],
+        permissions: ['sales_order.view', 'customer.view', 'sample_request.view', 'sales.manage', 'quarantine.view', 'pick_list.scan', 'shipment.view'],
         items: [
             { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales_order.view' },
             // Packing Orders / Pick Lists are a separate feature not covered by the
@@ -49,6 +49,10 @@ export const NAV_SECTIONS: NavSection[] = [
             // pick_list.scan as well as to planners on the legacy blob code, so a
             // picker role can be exactly this one entry and nothing else.
             { tab: 'pick-scan', label: 'Pick Scanner', icon: 'bi-upc-scan', permission: ['pick_list.scan', 'sales.manage'] },
+            // Loading deck. Deliberately its own page and not a Pick Lists tab: the
+            // Surat Jalan check must be done by someone other than the picker, so
+            // the two surfaces carry different permissions.
+            { tab: 'dispatch', label: 'Dispatch', icon: 'bi-truck', permission: ['shipment.view', 'sales.manage'] },
             { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'customer.view' },
             { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask', permission: 'sample_request.view' },
             { tab: 'sample-report', label: 'Sample Report', i18nKey: 'sample_report', icon: 'bi-clipboard-data', permission: 'sample_request.view' },

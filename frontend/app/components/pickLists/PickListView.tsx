@@ -14,7 +14,6 @@ import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { Tabs } from '../shared/Tabs';
-const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
 const PickListPrintModal = dynamic(() => import('./PickListPrintModal'), { ssr: false });
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
@@ -81,7 +80,6 @@ export default function PickListView() {
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics('pick-lists', listBodyRef, pickLists.length > 0);
     const [editing, setEditing] = useState<any | null>(null);
-    const [printPL, setPrintPL] = useState<any | null>(null);
     // Kartu Picking — the floor card, distinct from the Surat Jalan above it.
     const [printCard, setPrintCard] = useState<any | null>(null);
     // One row open at a time, same as the packing order and WO lists.
@@ -186,8 +184,6 @@ export default function PickListView() {
         [pickableSOs],
     );
 
-    const customerAddr = (name: string) => (partners || []).find((p: any) => p.name === name)?.address || '';
-
     const plPages = Math.max(1, Math.ceil(plTotal / PL_PAGE_SIZE));
     const clampedPage = Math.min(plPage, plPages);
 
@@ -248,7 +244,7 @@ export default function PickListView() {
                             display: 'grid', gridTemplateColumns: '250px minmax(280px, 1fr) 260px',
                             border: '1px solid #7f9db9', fontFamily: xpFont, fontSize: 10,
                         }}>
-                            {/* Info + dispatch paperwork */}
+                            {/* Info + QC + where the goods went */}
                             <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef' }}>
                                 <div style={colHeader}>Info</div>
                                 {infoRow('Sales Order', pl.sales_order_code || '—')}
@@ -263,12 +259,12 @@ export default function PickListView() {
                                 {infoRow('Inspector', pl.qc_inspector || '—')}
                                 {infoRow('Checked', pl.qc_at ? tzDateTime(pl.qc_at) : '—')}
                                 <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
-                                <div style={colHeader}>Surat Jalan</div>
-                                {infoRow('DN no.', pl.delivery_note_number || '—')}
-                                {infoRow('Delivery date', pl.delivery_date ? tzDate(pl.delivery_date) : '—')}
-                                {infoRow('Carrier', pl.carrier || '—')}
-                                {infoRow('Vehicle', pl.vehicle_plate || '—')}
-                                {infoRow('Driver', pl.driver || '—')}
+                                {/* The delivery note itself lives on the Dispatch
+                                    page — this only says where the goods went. */}
+                                <div style={colHeader}>Loading Deck</div>
+                                {infoRow('Shipment', pl.shipment_code || 'not staged')}
+                                {infoRow('Deck status', pl.shipment_status || '—')}
+                                {infoRow('Surat Jalan', pl.delivery_note_number || '—')}
                                 <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
                                 {infoRow('Created', pl.created_at ? tzDateTime(pl.created_at) : '—')}
                                 {infoRow('Dispatched', pl.dispatched_at ? tzDateTime(pl.dispatched_at) : '—')}
@@ -471,7 +467,6 @@ export default function PickListView() {
                         items={[
                             { key: 'edit', label: pl.status === 'DISPATCHED' ? 'View' : 'Pick', icon: 'bi-upc-scan', onClick: () => { menuClose(); setEditing(pl); } },
                             { key: 'card', label: 'Kartu Picking', icon: 'bi-card-list', onClick: () => { menuClose(); setPrintCard(pl); } },
-                            { key: 'print', label: 'Surat Jalan', icon: 'bi-printer', onClick: () => { menuClose(); setPrintPL(pl); } },
                             { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !(canManage && pl.status !== 'DISPATCHED'), onClick: () => { menuClose(); deletePL(pl); } },
                         ]}
                     />
@@ -491,7 +486,6 @@ export default function PickListView() {
                     authFetch={authFetch}
                     onClose={() => setEditing(null)}
                     onSaved={async () => { await loadAll(); }}
-                    onPrint={(draft: any) => setPrintPL(draft)}
                     showToast={showToast}
                 />
             )}
@@ -504,16 +498,6 @@ export default function PickListView() {
                 />
             )}
 
-            {printPL && (
-                <SuratJalanPrintModal
-                    pl={printPL}
-                    attributes={attributes}
-                    companyProfile={companyProfile}
-                    customerAddr={customerAddr}
-                    currentStyle={uiStyle}
-                    onClose={() => setPrintPL(null)}
-                />
-            )}
         </ShellWindow>
     );
 }
@@ -648,7 +632,7 @@ function SOPickerBoard({ pickableSOs, loading, tzDate, canManage, onRefresh, onP
 }
 
 // ── editor ───────────────────────────────────────────────────────────────────
-function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFetch, onClose, onSaved, onPrint, showToast }: any) {
+function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFetch, onClose, onSaved, showToast }: any) {
     const { hasPermission } = useUser();
     const canManage = hasPermission('sales.manage');
 
@@ -668,10 +652,6 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
     const [sourceLoc, setSourceLoc] = useState<string>(initialPl.source_location_id || '');
     const [qcPassed, setQcPassed] = useState<boolean>(!!initialPl.qc_passed);
     const [qcInspector, setQcInspector] = useState<string>(initialPl.qc_inspector || '');
-    const [dn, setDn] = useState<string>(initialPl.delivery_note_number || initialPl.code || '');
-    const [carrier, setCarrier] = useState<string>(initialPl.carrier || '');
-    const [vehicle, setVehicle] = useState<string>(initialPl.vehicle_plate || '');
-    const [driver, setDriver] = useState<string>(initialPl.driver || '');
     const [notes, setNotes] = useState<string>(initialPl.notes || '');
     const [saving, setSaving] = useState(false);
     const [scanCode, setScanCode] = useState('');
@@ -705,8 +685,6 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
     const buildPayload = () => ({
         source_location_id: sourceLoc || null,
         qc_passed: qcPassed, qc_inspector: qcInspector || null,
-        delivery_note_number: dn || null,
-        carrier: carrier || null, vehicle_plate: vehicle || null, driver: driver || null,
         notes: notes || null,
         lines: lines.map(l => ({
             sales_order_line_id: l.sales_order_line_id,
@@ -751,15 +729,6 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
         } finally { setScanning(false); scanRef.current?.focus(); }
     };
 
-    const dispatch = async () => {
-        if (!qcPassed) { showToast('Tick QC passed before dispatch', 'warning'); return; }
-        const okSave = await save();
-        if (!okSave) return;
-        const res = await authFetch(`${API_BASE}/pick-lists/${pl.id}/dispatch`, { method: 'POST' });
-        if (res.ok) { showToast('Dispatched — stock deducted', 'success'); await onSaved(); onClose(); }
-        else { const e = await res.json().catch(() => ({})); showToast(`Error: ${e.detail || 'dispatch failed'}`, 'danger'); }
-    };
-
     const removeLine = (idx: number) => setLines(prev => prev.filter((_, i) => i !== idx));
     const setLineQty = (idx: number, v: any) => setLines(prev => prev.map((l, i) => i === idx ? { ...l, qty_picked: v } : l));
     const setLineLoc = (idx: number, v: any) => setLines(prev => prev.map((l, i) => i === idx ? { ...l, source_location_id: v } : l));
@@ -789,9 +758,7 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                     <button style={xpBtn()} onClick={onClose}>Close</button>
                     <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={xpBtn()} onClick={() => onPrint(buildDraftForPrint(pl, so, buildPayload(), lines))}>Surat Jalan</button>
-                        {!readOnly && <button style={xpBtn()} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
-                        {!readOnly && <button style={xpBtnGreen()} onClick={dispatch}>Confirm Dispatch</button>}
+                        {!readOnly && <button style={xpBtnGreen()} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
                     </div>
                 </div>
             }
@@ -809,22 +776,9 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                         <label style={xpLabel}>Default ship-from warehouse</label>
                         <TreeSelect options={locPickerTreeOptions} value={sourceLoc} onChange={setSourceLoc} disabled={readOnly} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
                     </div>
-                    <div style={{ minWidth: 160 }}>
-                        <label style={xpLabel}>Delivery Note No.</label>
-                        <input style={{ ...xpInput, width: '100%' }} value={dn} disabled={readOnly} onChange={e => setDn(e.target.value)} />
-                    </div>
-                    <div style={{ minWidth: 150 }}>
-                        <label style={xpLabel}>Carrier</label>
-                        <input style={{ ...xpInput, width: '100%' }} value={carrier} disabled={readOnly} onChange={e => setCarrier(e.target.value)} />
-                    </div>
-                    <div style={{ minWidth: 120 }}>
-                        <label style={xpLabel}>Vehicle Plate</label>
-                        <input style={{ ...xpInput, width: '100%' }} value={vehicle} disabled={readOnly} onChange={e => setVehicle(e.target.value)} />
-                    </div>
-                    <div style={{ minWidth: 140 }}>
-                        <label style={xpLabel}>Driver</label>
-                        <input style={{ ...xpInput, width: '100%' }} value={driver} disabled={readOnly} onChange={e => setDriver(e.target.value)} />
-                    </div>
+                    {/* Delivery-note fields (DN no., carrier, vehicle, driver) are
+                        not here: they are loading-deck facts captured on the
+                        Dispatch page when this pick list is staged. */}
                 </div>
 
                 {/* Scan */}
@@ -948,22 +902,3 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
     );
 }
 
-// `stateLines` is the same array buildPayload() mapped over, so index i lines up
-// even after a local Remove — reading carton labels off pl.lines instead would
-// drift by one for every removed row.
-function buildDraftForPrint(pl: any, so: any, payload: any, stateLines: any[]) {
-    const lineMeta: Record<string, any> = {};
-    (so?.lines || []).forEach((l: any) => { lineMeta[String(l.id)] = l; });
-    return {
-        ...pl,
-        ...payload,
-        sales_order_code: pl.sales_order_code || so?.po_number,
-        customer_name: pl.customer_name || so?.customer_name,
-        lines: (payload.lines || []).map((l: any, i: number) => ({
-            ...l,
-            batch_number: stateLines[i]?.batch_number,
-            package_no: stateLines[i]?.package_no,
-            attribute_value_ids: lineMeta[String(l.sales_order_line_id)]?.attribute_value_ids || [],
-        })),
-    };
-}

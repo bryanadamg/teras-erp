@@ -2893,11 +2893,10 @@ class PickListUpdate(BaseModel):
     status: str | None = None
     qc_passed: bool | None = None
     qc_inspector: str | None = None
-    delivery_note_number: str | None = None
-    delivery_date: datetime | None = None
-    carrier: str | None = None
-    vehicle_plate: str | None = None
-    driver: str | None = None
+    # Surat Jalan fields (DN number, delivery date, carrier, vehicle, driver) are
+    # NOT accepted here any more — they belong to the Shipment that stages this
+    # pick list at the loading deck. Accepting them in both places was two sources
+    # of truth for one printed document.
     notes: str | None = None
     lines: list[PickListLinePayload] | None = None
 
@@ -2939,11 +2938,16 @@ class PickListResponse(BaseModel):
     qc_passed: bool
     qc_inspector: str | None = None
     qc_at: datetime | None = None
+    # Legacy Surat Jalan fields, read-only: populated only on rows dispatched
+    # before the Shipment split. Live delivery-note data comes off the shipment.
     delivery_note_number: str | None = None
     delivery_date: datetime | None = None
     carrier: str | None = None
     vehicle_plate: str | None = None
     driver: str | None = None
+    shipment_id: UUID | None = None
+    shipment_code: str | None = None
+    shipment_status: str | None = None
     notes: str | None = None
     dispatched_at: datetime | None = None
     created_at: datetime
@@ -2956,6 +2960,103 @@ class PickListListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+# ── Shipment (loading deck / Surat Jalan) ──────────────────────────────────
+# One shipment = one printed delivery note = one customer, 1..n pick lists.
+# See models/shipment.py for why the note lives here and not on PickList.
+
+class ShipmentCreate(BaseModel):
+    pick_list_ids: list[UUID]
+    delivery_note_number: str | None = None
+    delivery_date: datetime | None = None
+    carrier: str | None = None
+    vehicle_plate: str | None = None
+    driver: str | None = None
+    notes: str | None = None
+
+class ShipmentUpdate(BaseModel):
+    # None = leave alone. An empty list on pick_list_ids does mean "unload
+    # everything", so it is distinguishable from omitting the field.
+    pick_list_ids: list[UUID] | None = None
+    delivery_note_number: str | None = None
+    delivery_date: datetime | None = None
+    carrier: str | None = None
+    vehicle_plate: str | None = None
+    driver: str | None = None
+    notes: str | None = None
+
+class ShipmentVerifyPayload(BaseModel):
+    """The deck check. Deliberately carries no identity field — the verifier is
+    the authenticated user, so the four-eyes rule cannot be typed around."""
+    notes: str | None = None
+    with_discrepancy: bool = False
+
+class ShipmentPickListRef(BaseModel):
+    """A member pick list, carrying enough to print the Surat Jalan without a
+    second round trip."""
+    id: UUID
+    code: str
+    sales_order_id: UUID
+    sales_order_code: str | None = None
+    customer_po_ref: str | None = None
+    customer_name: str | None = None
+    status: str
+    qc_passed: bool
+    carton_count: int = 0
+    total_qty: float = 0
+    lines: list[PickListLineResponse] = []
+    class Config:
+        from_attributes = True
+
+class ShipmentResponse(BaseModel):
+    id: UUID
+    code: str
+    delivery_note_number: str | None = None
+    delivery_date: datetime | None = None
+    customer_name: str | None = None
+    carrier: str | None = None
+    vehicle_plate: str | None = None
+    driver: str | None = None
+    status: str
+    # *_name are decorated, not columns — deliberately NOT named after the
+    # relationships (`staged_by`), which would overwrite a loaded User instance
+    # with a string on the ORM object and dirty the session.
+    staged_at: datetime | None = None
+    staged_by_name: str | None = None
+    verified_at: datetime | None = None
+    verified_by_name: str | None = None
+    verification_notes: str | None = None
+    verified_with_discrepancy: bool = False
+    dispatched_at: datetime | None = None
+    notes: str | None = None
+    created_at: datetime
+    created_by_name: str | None = None
+    pick_lists: list[ShipmentPickListRef] = []
+    carton_count: int = 0
+    total_qty: float = 0
+    class Config:
+        from_attributes = True
+
+class ShipmentListResponse(BaseModel):
+    items: list[ShipmentResponse]
+    total: int
+    page: int
+    size: int
+
+class StageablePickListResponse(BaseModel):
+    """One row of the loading-deck board: a PICKED pick list not yet on any
+    shipment, i.e. work waiting for a loader."""
+    id: UUID
+    code: str
+    sales_order_id: UUID
+    sales_order_code: str | None = None
+    customer_po_ref: str | None = None
+    customer_name: str | None = None
+    qc_passed: bool
+    carton_count: int = 0
+    total_qty: float = 0
+    picked_at: datetime | None = None
 
 
 class PickableOrderResponse(BaseModel):

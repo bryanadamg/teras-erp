@@ -45,6 +45,7 @@ from app.models.packing import (
     packing_order_values,
 )
 from app.models.pick_list import PickList, PickListLine
+from app.models.shipment import Shipment
 from app.models.weaving import WeavingRun, WorkCenterHoliday
 from app.models.print_template import PrintTemplate
 from app.models.numbering import NumberRange
