@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
+import PrintModalShell from '../shared/PrintModalShell';
 import { xpFont as font } from '../shared/xpTheme';
 
 
@@ -264,38 +264,37 @@ export default function SuratJalanPrintModal({ pl, attributes, companyProfile, c
 
     const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ fontFamily: font, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom,#ffffff 0%,#d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra });
     const btnGreen = xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' });
-    const xpBevel: React.CSSProperties = sharedXpBevel();
-    const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
     const xpInput: React.CSSProperties = { fontFamily: font, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
 
     const doc = <SJDocument pl={pl} so={so} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
 
     return (
         <>
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-                <div style={{ ...xpBevel, width: 'calc(var(--app-vw) * 92 / 100)', maxWidth: 900, height: 'calc(var(--app-vh) * 90 / 100)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-                    <div style={xpTitleBar}>
-                        <span>Surat Jalan — {pl.code}</span>
-                        <button onClick={onClose} style={xpBtn({ padding: '0 6px', fontWeight: 'bold' })}>X</button>
+            <PrintModalShell
+                title={`Surat Jalan — ${pl.code}`}
+                onClose={onClose}
+                width="calc(var(--app-vw) * 92 / 100)"
+                maxWidth={900}
+                height="calc(var(--app-vh) * 90 / 100)"
+                modeless
+            >
+                <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                    <div style={{ width: 200, borderRight: '1px solid #b0a898', background: '#f4f3ee', padding: 14 }}>
+                        <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', marginBottom: 6 }}>Prepared By</div>
+                        <input style={xpInput} value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Name" />
+                        <div style={{ fontSize: 10, color: '#555', marginTop: 14 }}>Paper size &amp; margins set in browser print dialog.</div>
                     </div>
-                    <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                        <div style={{ width: 200, borderRight: '1px solid #b0a898', background: '#f4f3ee', padding: 14 }}>
-                            <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', marginBottom: 6 }}>Prepared By</div>
-                            <input style={xpInput} value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Name" />
-                            <div style={{ fontSize: 10, color: '#555', marginTop: 14 }}>Paper size &amp; margins set in browser print dialog.</div>
+                    <div style={{ flex: 1, background: '#808080', overflowY: 'auto', padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+                        <div className="so-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 680, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>
+                            {doc}
                         </div>
-                        <div style={{ flex: 1, background: '#808080', overflowY: 'auto', padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                            <div className="so-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 680, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>
-                                {doc}
-                            </div>
-                        </div>
-                    </div>
-                    <div style={{ padding: '8px 12px', borderTop: '1px solid #b0a898', background: 'linear-gradient(to bottom,#f4f2ea,#e3e1d6)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                        <button style={xpBtn()} onClick={onClose}>Close</button>
-                        <button style={btnGreen} onClick={handlePrint}>Print</button>
                     </div>
                 </div>
-            </div>
+                <div style={{ padding: '8px 12px', borderTop: '1px solid #b0a898', background: 'linear-gradient(to bottom,#f4f2ea,#e3e1d6)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                    <button style={xpBtn()} onClick={onClose}>Close</button>
+                    <button style={btnGreen} onClick={handlePrint}>Print</button>
+                </div>
+            </PrintModalShell>
 
             {createPortal(
                 <div className="so-print-paper-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
