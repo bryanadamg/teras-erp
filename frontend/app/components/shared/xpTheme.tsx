@@ -620,27 +620,51 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
     children: React.ReactNode;
 }) {
     const c = CHIP_TONES[tone];
+    // Hover is tracked in state, not CSS: the classic chip is inline-styled (no
+    // class to hang a :hover on) and the highlight has to know `on`/`tone` to
+    // pick between "tint the raised face" and "brighten the solid fill".
+    const [hover, setHover] = React.useState(false);
+    const lit = hover && !disabled;
     return (
         <button
             type="button"
             disabled={disabled}
             onClick={onClick}
             title={title}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            onBlur={() => setHover(false)}
             className={classic ? '' : `btn btn-sm ${on ? c.cls : 'btn-outline-secondary'}`}
             style={classic ? {
                 fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
                 minWidth, padding: '2px 9px', borderRadius: 0,
                 cursor: disabled ? 'default' : 'pointer',
                 border: '1px solid',
-                borderColor: on ? c.border : '#dfdfdf #808080 #808080 #dfdfdf',
-                background: on ? c.bg : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
-                color: on ? '#fff' : '#000',
+                borderColor: on ? c.border
+                    : lit ? '#7f9db9 #4a7ab5 #4a7ab5 #7f9db9'
+                    : '#dfdfdf #808080 #808080 #dfdfdf',
+                background: on ? c.bg
+                    : lit ? 'linear-gradient(to bottom,#ffffff,#d6e6fb)'
+                    : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
+                color: on ? '#fff' : lit ? '#00006e' : '#000',
+                // Selected chips are already filled, so hover brightens the fill
+                // instead of tinting it — same feedback, tone-agnostic.
+                filter: lit && on ? 'brightness(1.18)' : 'none',
+                boxShadow: lit && !on ? 'inset 0 0 0 1px rgba(255,255,255,0.75)' : 'none',
+                transition: 'background 120ms ease, border-color 120ms ease, filter 120ms ease, box-shadow 120ms ease, color 120ms ease',
                 whiteSpace: 'nowrap',
-                // Segment members share one border line; the selected one sits on top
-                // so its darker edge isn't clipped by the neighbour drawn after it.
+                // Segment members share one border line; the selected (or hovered)
+                // one sits on top so its darker edge isn't clipped by the neighbour
+                // drawn after it.
                 ...(seg && seg !== 'first' && seg !== 'only' ? { marginLeft: -1 } : {}),
-                ...(seg ? { position: 'relative', zIndex: on ? 1 : 0 } : {}),
-            } : { minWidth, whiteSpace: 'nowrap' }}
+                ...(seg ? { position: 'relative', zIndex: lit ? 2 : on ? 1 : 0 } : {}),
+            } : {
+                minWidth, whiteSpace: 'nowrap',
+                // Bootstrap owns the modern hover colours; this only keeps the
+                // hovered segment's border above its neighbours and eases the swap.
+                transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease',
+                ...(seg ? { position: 'relative', zIndex: lit ? 2 : on ? 1 : 0 } : {}),
+            }}
         >
             {children}
         </button>
