@@ -546,6 +546,18 @@ def _spawn_booking_refresh():
     task.add_done_callback(_booking_bg_tasks.discard)
 
 
+def warm_booking_cache() -> None:
+    """Compute the first set of booking rows in the background at startup.
+
+    Cold, the cache has no rows to serve stale, so `booking_rows_cached()` runs the
+    whole plant-wide netting pass INLINE and the unlucky first caller waits it out —
+    the first PR material panel expanded after a deploy, or the first /booking-stock
+    load. Warming it costs the same one pass, just off the request path. Purely a
+    head start: if it fails the cache stays cold and the next request behaves exactly
+    as it does today."""
+    _spawn_booking_refresh()
+
+
 async def _compute_booking_rows(db: AsyncSession) -> list:
     """Booking-stock / material-availability netting.
 

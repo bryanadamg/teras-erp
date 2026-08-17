@@ -31,6 +31,8 @@ from app.core.ws_manager import manager
 async def lifespan(app: FastAPI):
     # Startup: Initialize Redis for WebSockets
     await manager.initialize()
+    # Warm the booking-netting cache off the request path (see warm_booking_cache).
+    stock.warm_booking_cache()
     yield
     # Shutdown: Close Redis connections
     await manager.stop()
