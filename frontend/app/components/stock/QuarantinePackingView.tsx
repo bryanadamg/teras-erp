@@ -386,15 +386,16 @@ export default function QuarantinePackingView() {
     const segBtn = (active: boolean, tone: 'pass' | 'stop' | 'hold' | 'clear'): React.CSSProperties => {
         if (classic) {
             const on = {
-                pass: { bg: 'linear-gradient(to bottom, #7bd88f, #1b7a34)', border: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#04220c' },
-                stop: { bg: 'linear-gradient(to bottom, #d32f2f, #8b0000)', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' },
-                hold: { bg: 'linear-gradient(to bottom, #ffe082, #c77800)', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' },
-                clear: { bg: 'linear-gradient(to bottom, #e9e6dc, #cfcbbd)', border: '#a0a09a #707070 #707070 #a0a09a', color: '#333' },
+                pass: { bg: '#2f9e44', border: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#eafff0' },
+                stop: { bg: '#b3241f', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' },
+                hold: { bg: '#d98c00', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' },
+                clear: { bg: '#d8d4c8', border: '#a0a09a #707070 #707070 #a0a09a', color: '#333' },
             }[tone];
             return {
                 fontFamily: LV_XP_FONT, fontSize: 10, padding: '1px 7px', cursor: 'pointer',
                 border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap',
-                background: active ? on.bg : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
+                transition: 'background-color 120ms ease, filter 120ms ease, transform 120ms ease',
+                background: active ? on.bg : '#eceae0',
                 borderColor: active ? on.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
                 color: active ? on.color : '#666', fontWeight: active ? 'bold' : 'normal',
             };
@@ -408,6 +409,7 @@ export default function QuarantinePackingView() {
         return {
             fontFamily: LV_MODERN_FONT, fontSize: 11, padding: '3px 9px', cursor: 'pointer',
             border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap',
+            transition: 'background-color 120ms ease, filter 120ms ease, transform 120ms ease',
             background: active ? on.bg : '#fff', borderColor: active ? on.border : '#cbd3df',
             color: active ? on.color : '#64748b', fontWeight: active ? 600 : 500,
         };
@@ -448,6 +450,7 @@ export default function QuarantinePackingView() {
                         <button
                             key={s.id}
                             type="button"
+                            className="qz-seg-btn"
                             disabled={off}
                             title={active
                                 ? `Clear ${s.value} — puts the lot back on hold`
@@ -467,6 +470,7 @@ export default function QuarantinePackingView() {
                 {hasCurrent && (
                     <button
                         type="button"
+                        className="qz-seg-btn"
                         disabled={off}
                         title="Clear the disposition — puts the lot back on hold"
                         style={{ ...segBtn(false, 'clear'), borderRight: '1px solid', ...(off ? { cursor: 'not-allowed' } : {}) }}
@@ -986,6 +990,13 @@ export default function QuarantinePackingView() {
 
     return (
         <ShellWindow classic={classic} fill="page" className="fade-in">
+            <style>{`
+                .qz-seg-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+                .qz-seg-btn:active:not(:disabled) { filter: brightness(0.96); transform: translateY(0); }
+                @media (prefers-reduced-motion: reduce) {
+                    .qz-seg-btn:hover:not(:disabled), .qz-seg-btn:active:not(:disabled) { transform: none; }
+                }
+            `}</style>
             <ShellTitleBar
                 classic={classic}
                 icon="bi-shield-exclamation"
