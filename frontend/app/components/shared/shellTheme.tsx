@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont, ToggleChip } from './xpTheme';
+import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg } from './xpTheme';
 
 // Shared "classic outer window" chrome — bevel container + colored title bar +
 // toolbar strip. Every dual-theme table/detail view (Sales Orders, Packing,
@@ -151,29 +151,62 @@ export function ToolbarCount({ classic, children, right = false, style }: {
     );
 }
 
-export type FilterChipOption = { value: string; label?: React.ReactNode; count?: number };
+export type FilterChipOption = {
+    value: string;
+    label?: React.ReactNode;
+    count?: number;
+    /** Selected-fill colour when the value carries its own semantics (In=green, Out=red). */
+    tone?: ChipTone;
+    title?: string;
+};
+
+/** Segment position for the i-th of `len` members of a flush group. */
+export const segAt = (i: number, len: number): ChipSeg =>
+    len === 1 ? 'only' : i === 0 ? 'first' : i === len - 1 ? 'last' : 'mid';
 
 /**
- * Status-filter chip row for a list toolbar. Built on `ToggleChip` so a selected
- * filter looks like every other selected thing in the app — the three views that
- * hand-rolled this (SO/PO/Samples inline XP gradient, Lab Dips' own
- * `primaryToolbarBtn`, the libraries' `lvPrimaryBtn`) each had a different
- * "selected" blue. Pass `counts` to render "PENDING (4)".
+ * Status-filter row for a list toolbar — **segmented**: the buttons sit flush
+ * against each other as one control, not as loose pills. That is the app-wide
+ * shape for "pick one of these" (see also `SegmentedBar` for stateless action
+ * groups); don't re-space it per view.
+ *
+ * Built on `ToggleChip` so a selected filter looks like every other selected
+ * thing in the app — the views that hand-rolled this (SO/PO/Samples inline XP
+ * gradient, Lab Dips' own `primaryToolbarBtn`, the libraries' `lvPrimaryBtn`,
+ * Dispatch's `#d0e4ff` xpBtn, the Calendar's bootstrap-only pair) each had a
+ * different "selected" blue. Pass `count` on an option to render "PENDING (4)".
+ *
+ * `value` takes an array for multi-select bars (the Calendar's status set); the
+ * caller does the add/remove in `onChange`.
  */
 export function FilterChipBar({ classic, options, value, onChange, style }: {
     classic: boolean;
-    /** Plain strings, or `{ value, label, count }` when a chip needs a tally. */
+    /** Plain strings, or `{ value, label, count, tone }` for a tally / coloured fill. */
     options: (string | FilterChipOption)[];
-    value: string;
+    /** Selected value, or the selected set when the bar is multi-select. */
+    value: string | string[];
     onChange: (v: string) => void;
     style?: React.CSSProperties;
 }) {
+    const isOn = (v: string) => Array.isArray(value) ? value.includes(v) : value === v;
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', ...style }}>
-            {options.map(opt => {
+        <div
+            className={classic ? undefined : 'btn-group btn-group-sm'}
+            role="group"
+            style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, ...style }}
+        >
+            {options.map((opt, i) => {
                 const o: FilterChipOption = typeof opt === 'string' ? { value: opt } : opt;
                 return (
-                    <ToggleChip key={o.value} on={value === o.value} onClick={() => onChange(o.value)} classic={classic}>
+                    <ToggleChip
+                        key={o.value}
+                        on={isOn(o.value)}
+                        onClick={() => onChange(o.value)}
+                        classic={classic}
+                        seg={segAt(i, options.length)}
+                        tone={o.tone}
+                        title={o.title}
+                    >
                         {o.label ?? o.value}
                         {o.count !== undefined && (
                             <span style={{ opacity: 0.75, fontWeight: 'normal', marginLeft: 4 }}>({o.count})</span>
@@ -181,6 +214,42 @@ export function FilterChipBar({ classic, options, value, onChange, style }: {
                     </ToggleChip>
                 );
             })}
+        </div>
+    );
+}
+
+export type SegmentedAction = { key: string; label: React.ReactNode; onClick: () => void; title?: string };
+
+/**
+ * The stateless sibling of `FilterChipBar`: a flush group of plain actions with
+ * no selected member — the date-range presets ("Today | 7d | 30d | Month") that
+ * ReportsView and MachineOutputReportView each hand-rolled twice (once per
+ * theme). Same segment geometry, so a preset row and a filter row read as the
+ * same control.
+ */
+export function SegmentedBar({ classic, actions, style }: {
+    classic: boolean;
+    actions: SegmentedAction[];
+    style?: React.CSSProperties;
+}) {
+    return (
+        <div
+            className={classic ? undefined : 'btn-group btn-group-sm'}
+            role="group"
+            style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, ...style }}
+        >
+            {actions.map((a, i) => (
+                <ToggleChip
+                    key={a.key}
+                    on={false}
+                    onClick={a.onClick}
+                    classic={classic}
+                    seg={segAt(i, actions.length)}
+                    title={a.title}
+                >
+                    {a.label}
+                </ToggleChip>
+            ))}
         </div>
     );
 }

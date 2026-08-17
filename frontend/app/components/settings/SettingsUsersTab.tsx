@@ -7,7 +7,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { xpBtn, xpInput, CodeChip, xpFont } from '../shared/xpTheme';
-import { SearchField, ToolbarCount } from '../shared/shellTheme';
+import { SearchField, ToolbarCount, FilterChipBar } from '../shared/shellTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import PixelAvatar from '../shared/PixelAvatar';
@@ -20,6 +20,12 @@ import { API_BASE } from '../shared/apiBase';
 const USERS_PAGE_SIZE = 10;
 
 type StatusFilter = 'all' | 'active' | 'inactive';
+
+const USER_STATUS_FILTERS = [
+    { value: 'all', label: 'All' },
+    { value: 'active', label: 'Active' },
+    { value: 'inactive', label: 'Inactive' },
+];
 
 export default function SettingsUsersTab({
     roles, allPermissions, roleFilter, onClearRoleFilter,
@@ -172,11 +178,12 @@ export default function SettingsUsersTab({
                     padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const,
                 }}>
                     <SearchField classic value={search} onChange={setSearch} placeholder="Search username or name…" width={200} />
-                    <select style={xpInput({ height: 'auto', padding: '1px 4px', width: 120 })} value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}>
-                        <option value="all">All Statuses</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
+                    <FilterChipBar
+                        classic
+                        options={USER_STATUS_FILTERS}
+                        value={statusFilter}
+                        onChange={v => setStatusFilter(v as StatusFilter)}
+                    />
                     {roleFilterName && (
                         <button
                             onClick={onClearRoleFilter}
@@ -202,11 +209,12 @@ export default function SettingsUsersTab({
                             <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search username or name…" width={400} grow style={{ display: 'flex', width: '100%' }} />
                         </div>
                         <div className="col-md-3">
-                            <select className="form-select form-select-sm" value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}>
-                                <option value="all">All Statuses</option>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
+                            <FilterChipBar
+                                classic={false}
+                                options={USER_STATUS_FILTERS}
+                                value={statusFilter}
+                                onChange={v => setStatusFilter(v as StatusFilter)}
+                            />
                         </div>
                         {roleFilterName && (
                             <div className="col-auto">

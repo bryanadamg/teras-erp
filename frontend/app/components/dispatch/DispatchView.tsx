@@ -12,7 +12,7 @@ import {
     useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT,
 } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { Tabs } from '../shared/Tabs';
@@ -41,6 +41,11 @@ const xpLabel: React.CSSProperties = lvLabel(true);
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const fmtQty = (v: any) => num(v).toLocaleString('id-ID', { maximumFractionDigits: 2 });
 const PAGE_SIZE = 20;
+// '' = no status filter; the bar renders it as the leading "All" segment.
+const SHIPMENT_STATUS_FILTERS = [
+    { value: '', label: 'All' },
+    { value: 'STAGED' }, { value: 'VERIFIED' }, { value: 'DISPATCHED' }, { value: 'CANCELLED' },
+];
 type DispatchTab = 'deck' | 'shipments';
 
 /**
@@ -269,21 +274,19 @@ export default function DispatchView() {
     const shipmentsTab = (
         <>
             <div style={{ ...xpToolbar(), gap: 6 }}>
-                <input
-                    style={{ ...xpInput, width: 200 }}
-                    placeholder="Search SJ no, code, vehicle..."
+                <SearchField
+                    classic
                     value={searchInput}
-                    onChange={e => setSearchInput(e.target.value)}
+                    onChange={setSearchInput}
+                    placeholder="Search SJ no, code, vehicle..."
                 />
-                {['', 'STAGED', 'VERIFIED', 'DISPATCHED', 'CANCELLED'].map(s => (
-                    <button
-                        key={s || 'all'}
-                        style={xpBtn(statusFilter === s ? { fontWeight: 'bold', background: '#d0e4ff' } : {})}
-                        onClick={() => { setStatusFilter(s); setPage(1); }}
-                    >{s || 'All'}</button>
-                ))}
-                <div style={{ flex: 1 }} />
-                <span style={{ fontSize: 11 }}>{total} shipment(s)</span>
+                <FilterChipBar
+                    classic
+                    options={SHIPMENT_STATUS_FILTERS}
+                    value={statusFilter}
+                    onChange={v => { setStatusFilter(v); setPage(1); }}
+                />
+                <ToolbarCount classic right>{total} shipment(s)</ToolbarCount>
             </div>
             <div style={{ flex: 1, overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: 11 }}>

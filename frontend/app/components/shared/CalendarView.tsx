@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { statusColor, statusTint, xpFont } from './xpTheme';
-import { xpBevel as sharedXpBevel } from './shellTheme';
+import { xpBevel as sharedXpBevel, SearchField, FilterChipBar } from './shellTheme';
 import { lvThead } from './listViewTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
@@ -237,38 +237,28 @@ export default function CalendarView({
         return next;
     });
 
+    // Multi-select status bar: `statusFilter` is a Set, so the segmented bar gets
+    // the whole selection and `toggleStatus` does the add/remove.
     const filterBar = filterable && !compact && (
-        classic ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 6 }} className="no-print">
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search"
-                    style={{ fontFamily: xpFont, fontSize: '10px', padding: '2px 6px', border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080', borderRadius: 0, width: 160 }} />
-                {statusOptions.map(s => {
-                    const on = statusFilter.has(s);
-                    const c = statusTint(s);
-                    return (
-                        <button key={s} onClick={() => toggleStatus(s)}
-                            style={{ fontFamily: xpFont, fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', cursor: 'pointer', borderRadius: 0, border: '1px solid', background: on ? c.background : '#f0ede6', borderColor: on ? c.borderColor : '#c0bdb5', color: on ? c.color : '#888' }}>
-                            {s.replace(/_/g, ' ')}
-                        </button>
-                    );
-                })}
-                {(statusFilter.size > 0 || search) && (
-                    <button onClick={() => { setStatusFilter(new Set()); setSearch(''); }} style={xpNavBtn()}>Clear</button>
-                )}
-            </div>
-        ) : (
-            <div className="d-flex flex-wrap align-items-center gap-2 mb-2 no-print">
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search" className="form-control form-control-sm" style={{ width: 180 }} />
-                {statusOptions.map(s => (
-                    <button key={s} onClick={() => toggleStatus(s)} className={`btn btn-sm ${statusFilter.has(s) ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ fontSize: '0.7rem' }}>
-                        {s.replace(/_/g, ' ')}
-                    </button>
-                ))}
-                {(statusFilter.size > 0 || search) && (
-                    <button onClick={() => { setStatusFilter(new Set()); setSearch(''); }} className="btn btn-sm btn-light border">Clear</button>
-                )}
-            </div>
-        )
+        <div
+            className={classic ? 'no-print' : 'd-flex flex-wrap align-items-center gap-2 mb-2 no-print'}
+            style={classic ? { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 6 } : undefined}
+        >
+            <SearchField classic={classic} value={search} onChange={setSearch} placeholder="Search" width={classic ? 160 : 180} />
+            <FilterChipBar
+                classic={classic}
+                options={statusOptions.map(s => ({ value: s, label: s.replace(/_/g, ' ') }))}
+                value={Array.from(statusFilter)}
+                onChange={toggleStatus}
+            />
+            {(statusFilter.size > 0 || search) && (
+                <button
+                    onClick={() => { setStatusFilter(new Set()); setSearch(''); }}
+                    style={classic ? xpNavBtn() : undefined}
+                    className={classic ? undefined : 'btn btn-sm btn-light border'}
+                >Clear</button>
+            )}
+        </div>
     );
 
     // ── Classic render ───────────────────────────────────────────────────────

@@ -12,6 +12,12 @@ import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
+import { FilterChipBar } from '../shared/shellTheme';
+
+const BOM_SCOPE_FILTERS = [
+    { value: 'root', label: 'Root BOMs' },
+    { value: 'all', label: 'All BOMs' },
+];
 
 const xpTh: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
@@ -885,16 +891,12 @@ export default function BOMView({
                                 <span><i className="bi bi-diagram-3-fill" style={{ marginRight: '6px' }} />{t('active_boms')}</span>
                                 <input type="text" value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..."
                                     style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
-                                <div style={{ display: 'flex', border: '1px solid #808080', overflow: 'hidden', flexShrink: 0 }}>
-                                    <button
-                                        onClick={() => setShowRootOnly?.(true)}
-                                        style={{ fontFamily: xpFont, fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', background: showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: showRootOnly ? '#fff' : '#000', fontWeight: showRootOnly ? 'bold' : 'normal' }}
-                                    >Root BOMs</button>
-                                    <button
-                                        onClick={() => setShowRootOnly?.(false)}
-                                        style={{ fontFamily: xpFont, fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', borderLeft: '1px solid #808080', background: !showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: !showRootOnly ? '#fff' : '#000', fontWeight: !showRootOnly ? 'bold' : 'normal' }}
-                                    >All BOMs</button>
-                                </div>
+                                <FilterChipBar
+                                    classic
+                                    options={BOM_SCOPE_FILTERS}
+                                    value={showRootOnly ? 'root' : 'all'}
+                                    onChange={v => setShowRootOnly?.(v === 'root')}
+                                />
                                 {canManage && selectedIds.size > 0 && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#fff' }}>{selectedIds.size} selected</span>
@@ -916,10 +918,12 @@ export default function BOMView({
                             <div className="d-flex align-items-center gap-2">
                                 <h5 className="card-title mb-0"><i className="bi bi-diagram-3-fill me-2" />{t('active_boms')}</h5>
                                 <input type="text" className="form-control form-control-sm" style={{ width: '180px' }} value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..." />
-                                <div className="btn-group btn-group-sm">
-                                    <button className={`btn ${showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly?.(true)}>Root BOMs</button>
-                                    <button className={`btn ${!showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly?.(false)}>All BOMs</button>
-                                </div>
+                                <FilterChipBar
+                                    classic={false}
+                                    options={BOM_SCOPE_FILTERS}
+                                    value={showRootOnly ? 'root' : 'all'}
+                                    onChange={v => setShowRootOnly?.(v === 'root')}
+                                />
                                 {canManage && selectedIds.size > 0 && (
                                     <div className="d-flex align-items-center gap-2">
                                         <span className="text-muted small">{selectedIds.size} selected</span>

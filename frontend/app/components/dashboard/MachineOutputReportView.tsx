@@ -26,7 +26,7 @@ import {
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar } from '../shared/shellTheme';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
 
 const fmtQty = (n: number) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -568,12 +568,17 @@ export default function MachineOutputReportView() {
             : hideIdle ? 'No production logged in this period' : 'No machines in scope')
         : 'No rows with QC rejects in this period';
 
-    const modeTabs: { val: Mode; label: string }[] = [
-        { val: 'machine', label: 'Per Machine' },
-        { val: 'group', label: 'Per Group' },
-        { val: 'wo', label: 'Per Work Order' },
-        { val: 'packing', label: 'Packing' },
+    const modeTabs = [
+        { value: 'machine', label: 'Per Machine' },
+        { value: 'group', label: 'Per Group' },
+        { value: 'wo', label: 'Per Work Order' },
+        { value: 'packing', label: 'Packing' },
     ];
+
+    // Same preset row in both themes — one list, rendered by SegmentedBar.
+    const presetActions = ([
+        ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7d'], ['30d', '30d'], ['month', 'Month'],
+    ] as const).map(([k, label]) => ({ key: k, label, onClick: () => applyPreset(k) }));
 
     // Summary tiles — mode-aware, reject % always present since that is the ask.
     const statTiles = useMemo(() => {
@@ -611,10 +616,6 @@ export default function MachineOutputReportView() {
         };
         const td: React.CSSProperties = { padding: '4px 8px', fontFamily: xpFont, borderRight: '1px solid #e0ddd3', fontSize: 11 };
         const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
-        const modeBtn = (val: Mode): React.CSSProperties => ({
-            ...xpBtn({ fontSize: '10px', padding: '1px 8px' }),
-            ...(mode === val ? { background: '#0058e6', color: '#fff', fontWeight: 'bold', borderColor: '#003080' } : {}),
-        });
         const statTile = (label: string, value: string, color: string) => (
             <div key={label} style={{
                 flex: 1, minWidth: 96, background: '#ffffff',
@@ -649,11 +650,7 @@ export default function MachineOutputReportView() {
                         />
                         <div style={xpSep} />
                         <span style={lbl}>View:</span>
-                        <div style={{ display: 'flex' }}>
-                            {modeTabs.map(m => (
-                                <button key={m.val} style={modeBtn(m.val)} onClick={() => setMode(m.val)}>{m.label}</button>
-                            ))}
-                        </div>
+                        <FilterChipBar classic options={modeTabs} value={mode} onChange={v => setMode(v as Mode)} />
                         <div style={xpSep} />
                         {isWoMode && (
                             <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
@@ -680,13 +677,7 @@ export default function MachineOutputReportView() {
                         <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => setStartDate(e.target.value)} />
                         <span style={lbl}>{t('to')}:</span>
                         <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => setEndDate(e.target.value)} />
-                        <div style={{ display: 'flex' }}>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('today')}>Today</button>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('yesterday')}>Yesterday</button>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('7d')}>7d</button>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('30d')}>30d</button>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('month')}>Month</button>
-                        </div>
+                        <SegmentedBar classic actions={presetActions} />
                         <div style={{ flex: 1 }} />
                         <span style={{ ...lbl, whiteSpace: 'nowrap' }}>{sorted.length} rows</span>
                         <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
@@ -799,15 +790,13 @@ export default function MachineOutputReportView() {
                         />
                     </div>
                     <div className="col-md-5">
-                        <div className="btn-group w-100" role="group">
-                            {modeTabs.map(m => (
-                                <button
-                                    key={m.val}
-                                    className={`btn btn-sm ${mode === m.val ? 'btn-primary' : 'btn-outline-primary'}`}
-                                    onClick={() => setMode(m.val)}
-                                >{m.label}</button>
-                            ))}
-                        </div>
+                        <FilterChipBar
+                            classic={false}
+                            options={modeTabs}
+                            value={mode}
+                            onChange={v => setMode(v as Mode)}
+                            style={{ width: '100%' }}
+                        />
                     </div>
                     <div className="col-md-4 d-flex flex-wrap gap-3">
                         {isWoMode && (
@@ -831,13 +820,7 @@ export default function MachineOutputReportView() {
                 <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
                     <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={startDate} onChange={e => setStartDate(e.target.value)} />
                     <input type="date" className="form-control form-control-sm me-1" style={{ width: 150 }} value={endDate} onChange={e => setEndDate(e.target.value)} />
-                    <div className="btn-group" role="group">
-                        {(['today', 'yesterday', '7d', '30d', 'month'] as const).map(k => (
-                            <button key={k} className="btn btn-light btn-sm border py-0" onClick={() => applyPreset(k)}>
-                                {k === 'today' ? 'Today' : k === 'yesterday' ? 'Yesterday' : k === 'month' ? 'This month' : k}
-                            </button>
-                        ))}
-                    </div>
+                    <SegmentedBar classic={false} actions={presetActions} />
                     <span className="text-muted small ms-auto">{sorted.length} rows</span>
                 </div>
             </div>

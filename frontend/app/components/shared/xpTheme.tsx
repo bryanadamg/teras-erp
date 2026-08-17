@@ -588,35 +588,59 @@ export function LegendPanel({ title, right, children, style }: {
     );
 }
 
+// Selected-chip tones. Blue is the default; the others exist for filters whose
+// value carries its own semantics (ledger In/Out). Same five families as
+// STATUS_FAMILY — don't add a sixth hue.
+export type ChipTone = 'blue' | 'green' | 'red' | 'amber';
+
+const CHIP_TONES: Record<ChipTone, { bg: string; border: string; cls: string }> = {
+    blue:  { bg: '#0058e6', border: '#003080', cls: 'btn-primary' },
+    green: { bg: '#1a7a1a', border: '#0a4a0a', cls: 'btn-success' },
+    red:   { bg: '#a52020', border: '#5e0000', cls: 'btn-danger' },
+    amber: { bg: '#c07000', border: '#804000', cls: 'btn-warning' },
+};
+
+/** Position inside a segmented (flush) group — see `FilterChipBar`/`SegmentedBar`. */
+export type ChipSeg = 'first' | 'mid' | 'last' | 'only';
+
 // Pressed/unpressed button — THE on-off chip shape (weekday pickers, filter chips,
-// segmented pickers). Classic gets the XP pressed-blue gradient, modern the
-// bootstrap primary/outline pair. Use this instead of styling a selected state per
-// view, so "this one is selected" always looks the same.
-export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, title, children }: {
+// segmented pickers). Classic is the raised XP button with a solid tone fill when
+// selected; modern is the bootstrap solid/outline pair. Use this instead of styling
+// a selected state per view, so "this one is selected" always looks the same.
+// Pass `seg` to make it a member of a flush segmented group (borders collapse).
+export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, title, seg, tone = 'blue', children }: {
     on: boolean;
     onClick: () => void;
     classic: boolean;
     disabled?: boolean;
     minWidth?: number;
     title?: string;
+    seg?: ChipSeg;
+    tone?: ChipTone;
     children: React.ReactNode;
 }) {
+    const c = CHIP_TONES[tone];
     return (
         <button
             type="button"
             disabled={disabled}
             onClick={onClick}
             title={title}
-            className={classic ? '' : `btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`}
+            className={classic ? '' : `btn btn-sm ${on ? c.cls : 'btn-outline-secondary'}`}
             style={classic ? {
                 fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
-                minWidth, padding: '3px 8px', borderRadius: 0,
+                minWidth, padding: '2px 9px', borderRadius: 0,
                 cursor: disabled ? 'default' : 'pointer',
                 border: '1px solid',
-                borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
-                background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
-                color: on ? '#fff' : '#444',
-            } : { minWidth }}
+                borderColor: on ? c.border : '#dfdfdf #808080 #808080 #dfdfdf',
+                background: on ? c.bg : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
+                color: on ? '#fff' : '#000',
+                whiteSpace: 'nowrap',
+                // Segment members share one border line; the selected one sits on top
+                // so its darker edge isn't clipped by the neighbour drawn after it.
+                ...(seg && seg !== 'first' && seg !== 'only' ? { marginLeft: -1 } : {}),
+                ...(seg ? { position: 'relative', zIndex: on ? 1 : 0 } : {}),
+            } : { minWidth, whiteSpace: 'nowrap' }}
         >
             {children}
         </button>

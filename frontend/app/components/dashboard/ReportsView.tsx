@@ -10,7 +10,7 @@ import {
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption } from '../shared/shellTheme';
 import { lvThead } from '../shared/listViewTheme';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
@@ -319,6 +319,17 @@ export default function ReportsView(_props: any) {
         </div>
     );
 
+    // Direction filter + date presets — one definition, both themes render them
+    // through the shared segmented bars.
+    const directionOptions: FilterChipOption[] = [
+        { value: '', label: 'All' },
+        { value: 'in', label: 'In', tone: 'green' },
+        { value: 'out', label: 'Out', tone: 'red' },
+    ];
+    const presetActions = ([
+        ['today', 'Today'], ['7d', '7d'], ['30d', '30d'], ['month', 'Month'],
+    ] as const).map(([k, label]) => ({ key: k, label, onClick: () => applyPreset(k) }));
+
     if (classic) {
         const titleBar: React.CSSProperties = sharedXpTitleBar();
         // Two stacked toolbar rows: line 1 = search + dropdowns, line 2 = date
@@ -332,10 +343,6 @@ export default function ReportsView(_props: any) {
             position: 'sticky', top: 0, textAlign: 'left', borderRight: '1px solid #b0a898',
         };
         const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
-        const dirBtn = (val: '' | 'in' | 'out', text: string, c: string): React.CSSProperties => ({
-            ...xpBtn({ fontSize: '10px', padding: '1px 8px' }),
-            ...(direction === val ? { background: c, color: '#fff', fontWeight: 'bold', borderColor: '#003080' } : {}),
-        });
 
         return (
             <>
@@ -370,11 +377,12 @@ export default function ReportsView(_props: any) {
                             <option value="">All Sources</option>
                             {refTypes.map(rt => <option key={rt} value={rt}>{refMeta(rt).label}</option>)}
                         </select>
-                        <div style={{ display: 'flex' }}>
-                            <button style={dirBtn('', 'All', '#0058e6')} onClick={() => onFilter(setDirection)('')}>All</button>
-                            <button style={dirBtn('in', 'In', '#1a5e1a')} onClick={() => onFilter(setDirection)('in')}>In</button>
-                            <button style={dirBtn('out', 'Out', '#c00000')} onClick={() => onFilter(setDirection)('out')}>Out</button>
-                        </div>
+                        <FilterChipBar
+                            classic
+                            options={directionOptions}
+                            value={direction}
+                            onChange={v => onFilter(setDirection)(v as '' | 'in' | 'out')}
+                        />
                         <div style={{ flex: 1 }} />
                     </div>
 
@@ -384,12 +392,7 @@ export default function ReportsView(_props: any) {
                         <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
                         <span style={lbl}>{t('to')}:</span>
                         <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
-                        <div style={{ display: 'flex' }}>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('today')}>Today</button>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('7d')}>7d</button>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('30d')}>30d</button>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('month')}>Month</button>
-                        </div>
+                        <SegmentedBar classic actions={presetActions} />
                         <div style={{ flex: 1 }} />
                         {hasFilters && <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
                         <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
@@ -465,9 +468,6 @@ export default function ReportsView(_props: any) {
     }
 
     // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
-    const segBtn = (val: '' | 'in' | 'out', text: string, variant: string) =>
-        `btn btn-sm ${direction === val ? `btn-${variant}` : `btn-outline-${variant}`}`;
-
     return (
         <>
         <div className="card fade-in border-0 shadow-sm print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
@@ -508,24 +508,20 @@ export default function ReportsView(_props: any) {
                         </select>
                     </div>
                     <div className="col-md-2">
-                        <div className="btn-group w-100" role="group">
-                            <button className={segBtn('', 'All', 'primary')} onClick={() => onFilter(setDirection)('')}>All</button>
-                            <button className={segBtn('in', 'In', 'success')} onClick={() => onFilter(setDirection)('in')}>In</button>
-                            <button className={segBtn('out', 'Out', 'danger')} onClick={() => onFilter(setDirection)('out')}>Out</button>
-                        </div>
+                        <FilterChipBar
+                            classic={false}
+                            options={directionOptions}
+                            value={direction}
+                            onChange={v => onFilter(setDirection)(v as '' | 'in' | 'out')}
+                            style={{ width: '100%' }}
+                        />
                     </div>
                 </div>
                 {/* Line 2: date range + presets + actions */}
                 <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
                     <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
                     <input type="date" className="form-control form-control-sm me-1" style={{ width: 150 }} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
-                    <div className="btn-group" role="group">
-                        {(['today', '7d', '30d', 'month'] as const).map(k => (
-                            <button key={k} className="btn btn-light btn-sm border py-0" onClick={() => applyPreset(k)}>
-                                {k === 'today' ? 'Today' : k === 'month' ? 'This month' : k}
-                            </button>
-                        ))}
-                    </div>
+                    <SegmentedBar classic={false} actions={presetActions} />
                     {hasFilters && <button className="btn btn-outline-secondary btn-sm py-0 ms-1" onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
                     <button className="btn btn-outline-secondary btn-sm py-0 ms-auto" onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
                     <button className="btn btn-outline-primary btn-sm py-0" onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>

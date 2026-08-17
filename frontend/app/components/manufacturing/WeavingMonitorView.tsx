@@ -5,8 +5,8 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, familyColor, ProgressBar, StatusChip, ToggleChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton } from '../shared/xpTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
+import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton } from '../shared/xpTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, FilterChipBar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
 import { useToast } from '../shared/Toast';
 import WorkCenterMonitorModal from './WorkCenterMonitorModal';
@@ -16,6 +16,8 @@ import GroupCalendarModal from './GroupCalendarModal';
 // semantic layer) — never a per-view hex.
 const GREEN = familyColor('green');
 const RED = familyColor('red');
+// Sentinel for the leading "All" segment — groupFilter itself stays null for "no filter".
+const ALL_GROUPS = '__all__';
 const BLUE = familyColor('blue');
 const AMBER = familyColor('amber');
 
@@ -557,35 +559,35 @@ export default function WeavingMonitorView() {
             <span style={{ fontSize: cls ? 11 : 12, color: '#666', fontFamily: cls ? xpFont : undefined }}>
                 <i className="bi bi-funnel" style={{ marginRight: 4 }} />{t('group')}
             </span>
-            <ToggleChip on={groupFilter === null} onClick={() => setGroupFilter(null)} classic={cls}>
-                {t('all')} ({machines.length})
-            </ToggleChip>
-            {sections.map(sec => {
-                const key = sec.id || '__ungrouped__';
-                return (
-                    <ToggleChip
-                        key={key}
-                        on={groupFilter === key}
-                        onClick={() => setGroupFilter(groupFilter === key ? null : key)}
-                        classic={cls}
-                        title={`${sec.machines.length} ${t('machines')} · ${sec.running} ${t('running')}`}
-                    >
-                        {sectionLabel(sec)}
-                        <span style={{ opacity: 0.75 }}> ({sec.machines.length})</span>
-                        {sec.belowTarget > 0 && (
-                            <span
-                                title={`${sec.belowTarget} ${t('below_target')}`}
-                                style={{
-                                    marginLeft: 5, padding: '0 4px', borderRadius: 8,
-                                    background: RED, color: '#fff', fontSize: 9, fontWeight: 700,
-                                }}
-                            >
-                                {sec.belowTarget}
-                            </span>
-                        )}
-                    </ToggleChip>
-                );
-            })}
+            <FilterChipBar
+                classic={cls}
+                value={groupFilter ?? ALL_GROUPS}
+                onChange={v => setGroupFilter(v === ALL_GROUPS || v === groupFilter ? null : v)}
+                options={[
+                    { value: ALL_GROUPS, label: `${t('all')} (${machines.length})` },
+                    ...sections.map(sec => ({
+                        value: sec.id || '__ungrouped__',
+                        title: `${sec.machines.length} ${t('machines')} · ${sec.running} ${t('running')}`,
+                        label: (
+                            <>
+                                {sectionLabel(sec)}
+                                <span style={{ opacity: 0.75 }}> ({sec.machines.length})</span>
+                                {sec.belowTarget > 0 && (
+                                    <span
+                                        title={`${sec.belowTarget} ${t('below_target')}`}
+                                        style={{
+                                            marginLeft: 5, padding: '0 4px', borderRadius: 8,
+                                            background: RED, color: '#fff', fontSize: 9, fontWeight: 700,
+                                        }}
+                                    >
+                                        {sec.belowTarget}
+                                    </span>
+                                )}
+                            </>
+                        ),
+                    })),
+                ]}
+            />
         </div>
     ) : null;
 

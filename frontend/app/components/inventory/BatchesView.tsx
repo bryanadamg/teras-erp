@@ -10,7 +10,13 @@ import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar } from '../shared/shellTheme';
+
+const LOT_STATUS_FILTERS = [
+  { value: 'active', label: 'Active' },
+  { value: 'depleted', label: 'Depleted' },
+  { value: '', label: 'All' },
+];
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
@@ -843,11 +849,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               style={{ width: 200 }}
             />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Status:</span>
-            <select style={{ ...xpInput, width: 110 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
-              <option value="active">Active</option>
-              <option value="depleted">Depleted</option>
-              <option value="">All</option>
-            </select>
+            <FilterChipBar
+              classic
+              options={LOT_STATUS_FILTERS}
+              value={statusFilter}
+              onChange={v => setStatusFilter(v as '' | 'active' | 'depleted')}
+            />
           </div>
 
           {/* ── Table ── */}
@@ -973,11 +980,12 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               size="sm"
               style={{ width: 200 }}
             />
-            <select className="form-select form-select-sm" style={{ width: 130 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
-              <option value="active">Active</option>
-              <option value="depleted">Depleted</option>
-              <option value="">All statuses</option>
-            </select>
+            <FilterChipBar
+              classic={false}
+              options={LOT_STATUS_FILTERS}
+              value={statusFilter}
+              onChange={v => setStatusFilter(v as '' | 'active' | 'depleted')}
+            />
           </div>
 
           {/* ── Table ── */}
