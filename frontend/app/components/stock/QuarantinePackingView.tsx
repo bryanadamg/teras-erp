@@ -18,7 +18,7 @@ import {
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
-import { LotChips, LotVariantAttr } from '../shared/LotChips';
+import { LotChips, LotChip, LotChipRow, LotVariantAttr, lotSizeLabel, lotComboLabel } from '../shared/LotChips';
 
 /**
  * Quarantine Packing — the QC hold desk between production output and packing.
@@ -825,22 +825,17 @@ export default function QuarantinePackingView() {
                         <th style={lvTh(classic)}>Manufacturing Order</th>
                         <th style={lvTh(classic)}>Item</th>
                         <th style={{ ...lvTh(classic), width: 150 }}>Colour</th>
+                        <th style={{ ...lvTh(classic), width: 130 }}>Variant</th>
                         <th style={{ ...lvTh(classic), width: 70, textAlign: 'right' }}>Lots</th>
                         <th style={{ ...lvTh(classic), width: 120, textAlign: 'right' }}>Qty Held</th>
                         <th style={{ ...lvTh(classic), width: 120, textAlign: 'right' }}>Released</th>
                         <th style={{ ...lvTh(classic), width: 140 }}>Status</th>
-                        <th style={{ ...lvTh(classic), width: 320 }}>Set for whole MO</th>
                         <th style={{ ...lvTh(classic), width: 110, borderRight: 'none' }}>Pack</th>
                     </tr>
                 </thead>
                 <tbody ref={listBodyRef}>
                     {groups.map((g, i) => {
                         const open = expanded.has(g.key);
-                        // Packed lots are frozen and a claimed lot is locked until its
-                        // order is cancelled/deleted, so the whole-MO apply targets only
-                        // what's still open — including either would 409 the submission.
-                        const lotIds = g.lots.filter(l => l.batch_id && !l.packed && !l.claimed_by_order_code)
-                            .map(l => l.batch_id) as string[];
                         const allReleased = g.lot_count > 0 && g.qty_released >= g.qty_total - 1e-6;
                         // What "Pack" would actually offer — released, unpacked, and not
                         // already spoken for by another open order.
@@ -883,6 +878,32 @@ export default function QuarantinePackingView() {
                                                 ? <span style={{ fontSize: 10, color: '#9a6a00' }} title="Shade still awaiting lab-dip approval">{g.labdip_variant_code}</span>
                                                 : <span style={{ color: '#999', fontStyle: 'italic', fontSize: 10 }}>Greige</span>}
                                     </td>
+                                    <td style={lvTd(classic)}>
+                                        {(() => {
+                                            // Size/combo are carried on the lot record, not the group —
+                                            // but every lot in a group shares the same bom_size_id /
+                                            // combo_value_id, so the first lot's snapshot speaks for all.
+                                            // Colour has its own column already, so it's left out here.
+                                            const sample = g.lots[0];
+                                            const size = sample ? lotSizeLabel(sample) : null;
+                                            const combo = sample ? lotComboLabel(sample) : null;
+                                            if (!size && !combo) return <span style={{ color: '#ccc' }}>—</span>;
+                                            return (
+                                                <LotChipRow>
+                                                    {size && (
+                                                        <LotChip tone="size" title={`Size: ${size}`}>
+                                                            <i className="bi bi-rulers" />{size}
+                                                        </LotChip>
+                                                    )}
+                                                    {combo && (
+                                                        <LotChip tone="combo" title={`Combo: ${combo}`}>
+                                                            <i className="bi bi-grid-3x3-gap" />{combo}
+                                                        </LotChip>
+                                                    )}
+                                                </LotChipRow>
+                                            );
+                                        })()}
+                                    </td>
                                     <td style={{ ...lvTd(classic), textAlign: 'right' }}>
                                         {g.lot_count}
                                         {g.packed_lot_count > 0 && (
@@ -908,31 +929,6 @@ export default function QuarantinePackingView() {
                                             title={Object.entries(g.status_counts)
                                                 .map(([k, n]) => `${n} × ${k === 'NONE' ? 'no status' : k}`).join(', ')}
                                         />
-                                    </td>
-                                    <td style={lvTd(classic)} onClick={e => e.stopPropagation()}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            {lotIds.length ? (
-                                                <>
-                                                    <StatusButtons
-                                                        disabled={busy(lotIds)}
-                                                        showClear
-                                                        onPick={(id, label) => setStatus(lotIds, id, label)}
-                                                    />
-                                                    <span style={{ fontSize: 10, color: '#888', whiteSpace: 'nowrap' }}>
-                                                        {lotIds.length} lot{lotIds.length > 1 ? 's' : ''}
-                                                    </span>
-                                                </>
-                                            ) : g.lots.some(l => l.packed || l.claimed_by_order_code) ? (
-                                                <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>
-                                                    <i className="bi bi-lock-fill" style={{ marginRight: 4 }} />All lots locked (packed or claimed)
-                                                </span>
-                                            ) : (
-                                                <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}
-                                                    title="Un-lotted stock carries no lot record to disposition.">
-                                                    Not lot-tracked
-                                                </span>
-                                            )}
-                                        </div>
                                     </td>
                                     <td style={{ ...lvTd(classic), borderRight: 'none' }} onClick={e => e.stopPropagation()}>
                                         <XPActionButton
