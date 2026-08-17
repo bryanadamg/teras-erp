@@ -134,20 +134,34 @@ async def list_quarantine_stock(
     history: list = []
     if include_packed:
         on_hand_ids = {b.id for (_, b, _, _) in rows if b is not None}
-        hrows = (await db.execute(
+        # Aggregate in a subquery over plain columns, then join the entities on
+        # top of it. Grouping with `Item` in the SELECT cannot work: the mapper
+        # pulls its category chain in as joined eager loads, and those columns
+        # are neither grouped nor aggregated.
+        agg = (
             select(
-                Batch, Item, Location,
-                func.sum(PackingCompletion.qty),
-                func.max(PackingCompletion.completed_at),
+                PackingCompletion.source_batch_id.label("batch_id"),
+                PackingOrder.source_location_id.label("location_id"),
+                func.sum(PackingCompletion.qty).label("qty_packed"),
+                func.max(PackingCompletion.completed_at).label("last_packed_at"),
             )
             .join(PackingOrder, PackingOrder.id == PackingCompletion.packing_order_id)
-            .join(Batch, Batch.id == PackingCompletion.source_batch_id)
-            .join(Item, Item.id == Batch.item_id)
-            .join(Location, Location.id == PackingOrder.source_location_id)
-            .filter(PackingOrder.source_location_id.in_(loc_ids))
-            .group_by(Batch.id, Item.id, Location.id)
+            .filter(
+                PackingOrder.source_location_id.in_(loc_ids),
+                PackingCompletion.source_batch_id.is_not(None),
+            )
+            .group_by(PackingCompletion.source_batch_id, PackingOrder.source_location_id)
             .order_by(func.max(PackingCompletion.completed_at).desc())
             .limit(MAX_LOT_ROWS + 1)
+            .subquery()
+        )
+        hrows = (await db.execute(
+            select(Batch, Item, Location, agg.c.qty_packed, agg.c.last_packed_at)
+            .select_from(agg)
+            .join(Batch, Batch.id == agg.c.batch_id)
+            .join(Item, Item.id == Batch.item_id)
+            .join(Location, Location.id == agg.c.location_id)
+            .order_by(agg.c.last_packed_at.desc())
         )).all()
         if len(hrows) > MAX_LOT_ROWS:
             truncated = True
