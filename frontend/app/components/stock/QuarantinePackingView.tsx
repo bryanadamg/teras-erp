@@ -261,8 +261,6 @@ export default function QuarantinePackingView() {
         router.push(`/packing?${params.toString()}`);
     }, [router]);
 
-    const passOption = useMemo(() => statuses.find(s => s.is_pass), [statuses]);
-
     const setStatus = useCallback(async (batchIds: string[], statusValueId: string | null, label: string) => {
         const ids = batchIds.filter(Boolean);
         if (!ids.length) {
@@ -323,29 +321,121 @@ export default function QuarantinePackingView() {
         });
     };
 
-    // ── Status <select>: shared by the group row and each lot row ─────────────
-    const StatusSelect = ({ value, onPick, disabled, width = 150, placeholder }: {
-        value: string; onPick: (id: string | null, label: string) => void;
-        disabled?: boolean; width?: number; placeholder: string;
-    }) => (
-        <select
-            value={value}
-            disabled={disabled || !canSetStatus || !statuses.length}
-            title={!canSetStatus ? 'Needs the Set Quarantine Status permission' : undefined}
-            onChange={e => {
-                const id = e.target.value;
-                if (!id) { onPick(null, 'No status'); return; }
-                onPick(id, statuses.find(s => s.id === id)?.value || 'Status');
-            }}
-            style={lvInput(classic, { width })}
-            className={classic ? '' : 'form-select form-select-sm'}
-        >
-            <option value="">{placeholder}</option>
-            {statuses.map(s => (
-                <option key={s.id} value={s.id}>{s.value}{s.is_pass ? ' — releases' : ''}</option>
-            ))}
-        </select>
-    );
+    // ── Status control ────────────────────────────────────────────────────────
+    // One click per disposition, not a dropdown: QC works the hold desk lot by
+    // lot, and select > option > commit is three interactions for a decision the
+    // operator has already made. Same segmented shape as the per-variant control
+    // on Sample Requests / Lab Dips, but the buttons are *data* here — the
+    // `Quarantine Status` attribute is client-extensible, so the bar is built
+    // from whatever values exist rather than a fixed Approve/Reject pair.
+    const statusTone = (s: StatusOption): 'pass' | 'stop' | 'hold' =>
+        s.is_pass ? 'pass'
+            : /REJECT|SCRAP|FAIL|NG\b/i.test(s.value) ? 'stop'
+            : 'hold';
+
+    const statusIcon = (s: StatusOption) => {
+        const tone = statusTone(s);
+        return tone === 'pass' ? 'bi-check2-circle'
+            : tone === 'stop' ? 'bi-x-octagon'
+            : 'bi-hourglass-split';
+    };
+
+    const segBtn = (active: boolean, tone: 'pass' | 'stop' | 'hold' | 'clear'): React.CSSProperties => {
+        if (classic) {
+            const on = {
+                pass: { bg: 'linear-gradient(to bottom, #7bd88f, #1b7a34)', border: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#04220c' },
+                stop: { bg: 'linear-gradient(to bottom, #d32f2f, #8b0000)', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' },
+                hold: { bg: 'linear-gradient(to bottom, #ffe082, #c77800)', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' },
+                clear: { bg: 'linear-gradient(to bottom, #e9e6dc, #cfcbbd)', border: '#a0a09a #707070 #707070 #a0a09a', color: '#333' },
+            }[tone];
+            return {
+                fontFamily: LV_XP_FONT, fontSize: 10, padding: '1px 7px', cursor: 'pointer',
+                border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap',
+                background: active ? on.bg : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
+                borderColor: active ? on.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
+                color: active ? on.color : '#666', fontWeight: active ? 'bold' : 'normal',
+            };
+        }
+        const on = {
+            pass: { bg: '#ecfdf3', border: '#abdfc0', color: '#15803d' },
+            stop: { bg: '#fef2f2', border: '#f3c4c4', color: '#dc2626' },
+            hold: { bg: '#fffbeb', border: '#fce3a6', color: '#b45309' },
+            clear: { bg: '#f1f5f9', border: '#cbd3df', color: '#475569' },
+        }[tone];
+        return {
+            fontFamily: LV_MODERN_FONT, fontSize: 11, padding: '3px 9px', cursor: 'pointer',
+            border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap',
+            background: active ? on.bg : '#fff', borderColor: active ? on.border : '#cbd3df',
+            color: active ? on.color : '#64748b', fontWeight: active ? 600 : 500,
+        };
+    };
+
+    /**
+     * Segmented disposition bar.
+     *
+     * `current` is the lot's own status id when the bar sets one lot, and null on
+     * the bulk bars (group row / selection) — nothing is "active" there because
+     * the targets may disagree. Clicking the *active* button clears the status,
+     * which re-holds the lot; that mirrors the In-Prod toggle on Sample Requests
+     * and is the only way back to undispositioned now the dropdown's blank option
+     * is gone.
+     */
+    const StatusButtons = ({ current, onPick, disabled, iconOnly, showClear, trailing }: {
+        current?: string | null;
+        onPick: (id: string | null, label: string) => void;
+        disabled?: boolean;
+        iconOnly?: boolean;
+        // Bulk bars have no active button to click twice, so they carry the clear
+        // action explicitly — otherwise re-holding a whole MO would be lot by lot.
+        showClear?: boolean;
+        trailing?: React.ReactNode;
+    }) => {
+        const off = disabled || !canSetStatus || !statuses.length;
+        if (!statuses.length) {
+            return <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>No statuses defined</span>;
+        }
+        const hasCurrent = !!current || !!showClear;
+        return (
+            <div style={{ display: 'inline-flex', alignItems: 'center', opacity: off ? 0.75 : 1 }}
+                title={!canSetStatus ? 'Needs the Set Quarantine Status permission' : undefined}>
+                {statuses.map((s, idx) => {
+                    const active = current === s.id;
+                    const last = idx === statuses.length - 1 && !hasCurrent;
+                    return (
+                        <button
+                            key={s.id}
+                            type="button"
+                            disabled={off}
+                            title={active
+                                ? `Clear ${s.value} — puts the lot back on hold`
+                                : `${s.value}${s.is_pass ? ' — releases to packing' : ''}`}
+                            style={{
+                                ...segBtn(active, statusTone(s)),
+                                ...(last ? { borderRight: '1px solid' } : {}),
+                                ...(off ? { cursor: 'not-allowed' } : {}),
+                            }}
+                            onClick={() => (active ? onPick(null, 'No status') : onPick(s.id, s.value))}
+                        >
+                            <i className={`bi ${statusIcon(s)}`} style={{ marginRight: iconOnly ? 0 : 4 }} />
+                            {iconOnly ? '' : s.value}
+                        </button>
+                    );
+                })}
+                {hasCurrent && (
+                    <button
+                        type="button"
+                        disabled={off}
+                        title="Clear the disposition — puts the lot back on hold"
+                        style={{ ...segBtn(false, 'clear'), borderRight: '1px solid', ...(off ? { cursor: 'not-allowed' } : {}) }}
+                        onClick={() => onPick(null, 'No status')}
+                    >
+                        <i className="bi bi-arrow-counterclockwise" />
+                    </button>
+                )}
+                {trailing}
+            </div>
+        );
+    };
 
     const COL_COUNT = 8;
     const LOT_COL_COUNT = 7;   // 6 data columns + the select checkbox
@@ -445,24 +535,14 @@ export default function QuarantinePackingView() {
                         {' · '}{fmtQty(chosenQty)} {g.uom || ''}
                     </span>
                     <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <StatusSelect
-                            value=""
-                            width={175}
-                            placeholder={`Apply to ${chosen.length} selected...`}
+                        <span style={{ color: '#5c4a00' }}>Apply to selected:</span>
+                        {/* No `current` — the picked lots may hold different statuses,
+                            so nothing is shown as active; each button is a write. */}
+                        <StatusButtons
                             disabled={saving !== null}
+                            showClear
                             onPick={(id, label) => setStatus(chosen, id, label)}
                         />
-                        {passOption && (
-                            <XPActionButton
-                                classic={classic}
-                                tone="success"
-                                icon="bi-check2-circle"
-                                label="OK selected"
-                                title={`Set ${passOption.value} on the ${chosen.length} selected lot${chosen.length === 1 ? '' : 's'} — releases them to packing`}
-                                disabled={pickDisabled}
-                                onClick={() => setStatus(chosen, passOption.id, passOption.value)}
-                            />
-                        )}
                         <XPActionButton
                             classic={classic}
                             tone="neutral"
@@ -494,7 +574,7 @@ export default function QuarantinePackingView() {
                         <th style={{ ...lotTh, width: 170 }}>Location</th>
                         <th style={{ ...lotTh, width: 130 }}>Status</th>
                         <th style={{ ...lotTh, width: 190 }}>Decided</th>
-                        <th style={{ ...lotTh, width: 170 }}>Set</th>
+                        <th style={{ ...lotTh, width: 300 }}>Set</th>
                     </tr>
                 </thead>
                 {lotSections(g).map(sec => {
@@ -587,10 +667,8 @@ export default function QuarantinePackingView() {
                                         <i className="bi bi-lock-fill" style={{ marginRight: 4 }} />Locked — packed
                                     </span>
                                 ) : l.batch_id ? (
-                                    <StatusSelect
-                                        value={l.quarantine_status_id || ''}
-                                        width={160}
-                                        placeholder="No status"
+                                    <StatusButtons
+                                        current={l.quarantine_status_id}
                                         disabled={saving !== null}
                                         onPick={(id, label) => setStatus([l.batch_id as string], id, label)}
                                     />
@@ -663,7 +741,7 @@ export default function QuarantinePackingView() {
                         <th style={{ ...lvTh(classic), width: 120, textAlign: 'right' }}>Qty Held</th>
                         <th style={{ ...lvTh(classic), width: 120, textAlign: 'right' }}>Released</th>
                         <th style={{ ...lvTh(classic), width: 140 }}>Status</th>
-                        <th style={{ ...lvTh(classic), width: 250, borderRight: 'none' }}>Set for whole MO</th>
+                        <th style={{ ...lvTh(classic), width: 320, borderRight: 'none' }}>Set for whole MO</th>
                     </tr>
                 </thead>
                 <tbody ref={listBodyRef}>
@@ -729,26 +807,22 @@ export default function QuarantinePackingView() {
                                         />
                                     </td>
                                     <td style={{ ...lvTd(classic), borderRight: 'none' }} onClick={e => e.stopPropagation()}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                            <StatusSelect
-                                                value=""
-                                                width={140}
-                                                placeholder={lotIds.length
-                                                    ? `Apply to ${lotIds.length} lot${lotIds.length > 1 ? 's' : ''}...`
-                                                    : 'All lots locked (packed)'}
-                                                disabled={saving !== null || !lotIds.length}
-                                                onPick={(id, label) => setStatus(lotIds, id, label)}
-                                            />
-                                            {passOption && !allReleased && lotIds.length > 0 && (
-                                                <XPActionButton
-                                                    classic={classic}
-                                                    tone="success"
-                                                    icon="bi-check2-circle"
-                                                    label="OK all"
-                                                    title={`Set ${passOption.value} on every lot of this MO — releases them to packing`}
-                                                    disabled={saving !== null || !canSetStatus}
-                                                    onClick={() => setStatus(lotIds, passOption.id, passOption.value)}
-                                                />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            {lotIds.length ? (
+                                                <>
+                                                    <StatusButtons
+                                                        disabled={saving !== null}
+                                                        showClear
+                                                        onPick={(id, label) => setStatus(lotIds, id, label)}
+                                                    />
+                                                    <span style={{ fontSize: 10, color: '#888', whiteSpace: 'nowrap' }}>
+                                                        {lotIds.length} lot{lotIds.length > 1 ? 's' : ''}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>
+                                                    <i className="bi bi-lock-fill" style={{ marginRight: 4 }} />All lots locked (packed)
+                                                </span>
                                             )}
                                         </div>
                                     </td>
