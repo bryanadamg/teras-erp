@@ -27,7 +27,7 @@ import {
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
 
 const fmtQty = (n: number) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const fmtPct = (n: number | null | undefined) => (n == null ? '-' : `${n}%`);
@@ -397,16 +397,11 @@ export default function MachineOutputReportView() {
 
     // ── Expanded detail (shared by both themes) ──────────────────────────────
     const detailPanel = (r: any) => {
-        const dth: React.CSSProperties = {
-            fontSize: 10, fontWeight: 'bold', textAlign: 'left', padding: '2px 6px',
-            borderBottom: '1px solid #b0a898', color: '#333', whiteSpace: 'nowrap',
-        };
-        const dtd: React.CSSProperties = { fontSize: 10, padding: '2px 6px', borderBottom: '1px solid #e6e2d8' };
+        const dth = lvSubTh(classic);
+        const dtd = lvSubTd(classic);
         const block = (title: string, body: React.ReactNode) => (
             <div style={{ flex: 1, minWidth: 280 }}>
-                <div style={{ fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>
-                    {title}
-                </div>
+                <div style={lvSubCaption(classic)}>{title}</div>
                 <div style={{ background: '#fff', border: classic ? '1px solid #a8a292' : '1px solid #dee2e6', maxHeight: 220, overflowY: 'auto' }}>
                     {body}
                 </div>
@@ -414,7 +409,7 @@ export default function MachineOutputReportView() {
         );
 
         const itemsTable = (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont }}>
+            <table style={{ ...lvSubTable(classic), border: 'none' }}>
                 <thead><tr>
                     <th style={dth}>Item</th>
                     <th style={{ ...dth, textAlign: 'right' }}>Output</th>
@@ -442,7 +437,7 @@ export default function MachineOutputReportView() {
         );
 
         const wosTable = (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont }}>
+            <table style={{ ...lvSubTable(classic), border: 'none' }}>
                 <thead><tr>
                     <th style={dth}>Work Order</th>
                     <th style={dth}>Item</th>
@@ -475,7 +470,7 @@ export default function MachineOutputReportView() {
         );
 
         const machinesTable = (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont }}>
+            <table style={{ ...lvSubTable(classic), border: 'none' }}>
                 <thead><tr>
                     <th style={dth}>Machine</th>
                     <th style={{ ...dth, textAlign: 'right' }}>Output</th>
@@ -504,7 +499,7 @@ export default function MachineOutputReportView() {
         // was moved into (blank = the reject predates reject routing, or the output
         // was un-lotted and written off rather than quarantined).
         const rejectsTable = (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont }}>
+            <table style={{ ...lvSubTable(classic), border: 'none' }}>
                 <thead><tr>
                     <th style={dth}>When</th>
                     {!isWoMode && !isPacking && <th style={dth}>Work Order</th>}

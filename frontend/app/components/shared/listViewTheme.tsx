@@ -72,6 +72,59 @@ export const lvTd = (classic: boolean): React.CSSProperties => (classic ? {
     padding: '6px 10px', verticalAlign: 'middle', fontFamily: LV_MODERN_FONT, fontSize: 13, color: '#334155',
 });
 
+// ── Sub-tables (mini-tables inside an expanded row) ───────────────────────────
+// A different job from lvTh/lvTd, which dress the *main* list. A table nested
+// inside an already-striped list needs to read as subordinate to it: flatter,
+// tighter, and with NO zebra — two stripe patterns one inside the other read as
+// two competing grids. Row separation is a hairline rule instead.
+//
+// ~13 expanded-row panels nest a table like this and each used to hand-write the
+// same chrome, which had already drifted (four files repeating one XP gradient
+// string, one of them with different literals). Pair `lvSubTable` on the
+// `<table>` with `lvSubTh`/`lvSubTd` on the cells.
+
+// `dense` is a genuinely second size, not a tuning knob: a few panels put the
+// sub-table in one column of a multi-column grid (pick list cartons, pack log,
+// dye recipe chemical lines) where the default would force truncation. Use it
+// only for a table sharing its row with other panes — a full-width sub-table
+// should stay at the default size.
+export const lvSubTh = (classic: boolean, dense = false): React.CSSProperties => (classic ? {
+    padding: dense ? '2px 5px' : '3px 8px', fontSize: dense ? 9 : 10,
+    fontWeight: 'bold', color: '#1a3d6b',
+    background: '#e4e0d4', borderBottom: '1px solid #b0a898',
+    textAlign: 'left', whiteSpace: 'nowrap', fontFamily: LV_XP_FONT,
+} : {
+    padding: dense ? '3px 6px' : '5px 10px', fontSize: dense ? 10 : 11,
+    fontWeight: 600, color: '#334155',
+    background: '#f1f5f9', borderBottom: '1px solid #cbd5e1',
+    textAlign: 'left', whiteSpace: 'nowrap', fontFamily: LV_MODERN_FONT,
+});
+
+// Vertical padding is 3px rather than the 2px some call sites used, because
+// several of these tables carry chips, selects and checkboxes rather than plain
+// text. On a text-only row the extra pixel is imperceptible.
+export const lvSubTd = (classic: boolean, dense = false): React.CSSProperties => (classic ? {
+    padding: dense ? '2px 5px' : '3px 8px', fontSize: dense ? 9 : 10, color: '#333',
+    borderTop: '1px solid #e6e3da', fontFamily: LV_XP_FONT,
+} : {
+    padding: dense ? '3px 6px' : '5px 10px', fontSize: dense ? 10.5 : 11.5, color: '#1e293b',
+    borderTop: '1px solid #eef2f7', fontFamily: LV_MODERN_FONT,
+});
+
+export const lvSubTable = (classic: boolean): React.CSSProperties => ({
+    width: '100%', borderCollapse: 'collapse', background: '#fff',
+    border: `1px solid ${classic ? '#c0bdb5' : '#dee2e6'}`,
+});
+
+// Small uppercase title above a sub-table. Distinct from LvSectionCaption, which
+// is a full-bleed band for stacked top-level sections; this is a quiet label for
+// a mini-table, and is what makes a panel holding two of them legible.
+export const lvSubCaption = (classic: boolean): React.CSSProperties => ({
+    fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
+    fontSize: classic ? 10 : 11, fontWeight: 'bold', color: '#444',
+    textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3,
+});
+
 export const lvSep = (classic: boolean): React.CSSProperties =>
     ({ width: 1, height: 20, background: classic ? '#a0988c' : '#dbe1ea', margin: '0 2px' });
 

@@ -8,7 +8,10 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
-import { lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
+import {
+    lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep,
+    lvSubTh, lvSubTd, lvSubTable, lvSubCaption, LV_XP_FONT, LV_MODERN_FONT,
+} from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
     XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip,
@@ -397,33 +400,8 @@ export default function QuarantinePackingView() {
         color: awaiting ? '#9a6a00' : '#444',
     });
 
-    // ── Mini-table chrome, matching the Purchase Order expanded row ───────────
-    // Tight header band, hairline row rules, and deliberately NO zebra: this
-    // table is nested inside an already-striped list, and two stripe patterns
-    // sitting one inside the other read as competing grids. Vertical padding is
-    // a touch looser than PO's 2px because these cells carry chips and a select
-    // rather than plain text.
-    const lotTh: React.CSSProperties = classic
-        ? {
-            padding: '3px 8px', fontSize: 10, fontWeight: 'bold', color: '#1a3d6b',
-            background: '#e4e0d4', borderBottom: '1px solid #b0a898',
-            textAlign: 'left', fontFamily: LV_XP_FONT, whiteSpace: 'nowrap',
-        }
-        : {
-            padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#334155',
-            background: '#f1f5f9', borderBottom: '1px solid #cbd5e1',
-            textAlign: 'left', fontFamily: LV_MODERN_FONT, whiteSpace: 'nowrap',
-        };
-
-    const lotTd: React.CSSProperties = classic
-        ? { padding: '3px 8px', fontSize: 10, color: '#333', borderTop: '1px solid #e6e3da', fontFamily: LV_XP_FONT }
-        : { padding: '5px 10px', fontSize: 11.5, color: '#1e293b', borderTop: '1px solid #eef2f7', fontFamily: LV_MODERN_FONT };
-
-    const lotSectionLabel: React.CSSProperties = {
-        fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
-        fontSize: classic ? 10 : 11, fontWeight: 'bold', color: '#444',
-        textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3,
-    };
+    const lotTh = lvSubTh(classic);
+    const lotTd = lvSubTd(classic);
 
     // ── Per-lot detail table (both themes) ────────────────────────────────────
     const renderLots = (g: Group) => {
@@ -440,7 +418,7 @@ export default function QuarantinePackingView() {
         <ExpandedRowPanel classic={classic} style={{
             padding: classic ? '8px 12px 10px 18px' : '10px 16px',
         }}>
-            <div style={lotSectionLabel}>
+            <div style={lvSubCaption(classic)}>
                 Lots on Hold — {g.lots.length} lot{g.lots.length === 1 ? '' : 's'}
             </div>
             <div style={{
@@ -497,10 +475,7 @@ export default function QuarantinePackingView() {
                 </div>
             )}
 
-            <table style={{
-                width: '100%', borderCollapse: 'collapse', background: '#fff',
-                border: `1px solid ${classic ? '#c0bdb5' : '#dee2e6'}`,
-            }}>
+            <table style={lvSubTable(classic)}>
                 <thead>
                     <tr>
                         <th style={{ ...lotTh, width: 28, textAlign: 'center' }}>

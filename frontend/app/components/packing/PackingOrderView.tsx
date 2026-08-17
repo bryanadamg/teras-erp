@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -202,10 +202,9 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
             </div>
         );
-        const th: React.CSSProperties = {
-            padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444',
-            background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899',
-        };
+        // Dense: this table shares its row with the other panes of the detail grid.
+        const th = lvSubTh(true, true);
+        const td = lvSubTd(true, true);
         // Cartons of one pack event — the label set for that log line, matching the
         // WO list's per-completion "Label" button.
         const unitsOfComp = (compId: string) =>
@@ -291,7 +290,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>No entries yet.</div>
                                 ) : (
                                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                                        <table style={{ ...lvSubTable(true), border: 'none' }}>
                                             <thead>
                                                 <tr>
                                                     <th style={{ ...th, width: 108 }}>Date / Time</th>
@@ -303,25 +302,27 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                 </tr>
                                             </thead>
                                             <tbody>
+                                                {/* No zebra — the only row fill is the rejected-red
+                                                    marker, which carries meaning. */}
                                                 {comps.map((c: any, ci: number) => (
                                                     <React.Fragment key={c.id || ci}>
-                                                        <tr style={{ background: c.rejected ? '#fbe4e4' : ci % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
-                                                            <td style={{ padding: '2px 5px', color: '#666', whiteSpace: 'nowrap' }}>
+                                                        <tr style={c.rejected ? { background: '#fbe4e4' } : undefined}>
+                                                            <td style={{ ...td, color: '#666', whiteSpace: 'nowrap' }}>
                                                                 {c.completed_at ? tzDateTime(c.completed_at) : '—'}
                                                             </td>
                                                             <td style={{
-                                                                padding: '2px 5px', textAlign: 'right', fontWeight: 'bold',
+                                                                ...td, textAlign: 'right', fontWeight: 'bold',
                                                                 color: c.rejected ? '#900' : '#000080',
                                                                 textDecoration: c.rejected ? 'line-through' : 'none',
                                                             }} title={c.reject_reason || undefined}>
                                                                 +{num(c.qty).toFixed(2)}
                                                             </td>
-                                                            <td style={{ padding: '2px 5px', textAlign: 'right', color: '#555' }}>{c.package_count}</td>
-                                                            <td style={{ padding: '2px 5px', color: '#555', fontFamily: c.source_batch_number ? CODE_FONT : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}
+                                                            <td style={{ ...td, textAlign: 'right', color: '#555' }}>{c.package_count}</td>
+                                                            <td style={{ ...td, color: '#555', fontFamily: c.source_batch_number ? CODE_FONT : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}
                                                                 title={c.source_batch_number || undefined}>
                                                                 {c.source_batch_number || '—'}
                                                             </td>
-                                                            <td style={{ padding: '2px 5px', color: '#333' }}>
+                                                            <td style={{ ...td, color: '#333' }}>
                                                                 {c.operator || '—'}
                                                                 {c.rejected && (
                                                                     <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>
@@ -335,7 +336,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                                     </span>
                                                                 )}
                                                             </td>
-                                                            <td style={{ padding: '1px 4px', textAlign: 'right' }}>
+                                                            <td style={{ ...td, padding: '1px 4px', textAlign: 'right' }}>
                                                                 {unitsOfComp(c.id).length > 0 && (
                                                                     <button type="button" style={miniBtn}
                                                                         onClick={() => setPrintLabels({ order: po, units: unitsOfComp(c.id) })}
@@ -346,8 +347,8 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                             </td>
                                                         </tr>
                                                         {c.notes && (
-                                                            <tr style={{ background: ci % 2 === 0 ? '#fafaf7' : '#f0efe8', borderBottom: '1px solid #e8e6e0' }}>
-                                                                <td colSpan={6} style={{ padding: '1px 5px 3px 12px', color: '#888', fontStyle: 'italic' }}>{c.notes}</td>
+                                                            <tr>
+                                                                <td colSpan={6} style={{ ...td, borderTop: 'none', padding: '0 5px 3px 12px', color: '#888', fontStyle: 'italic' }}>{c.notes}</td>
                                                             </tr>
                                                         )}
                                                     </React.Fragment>

@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -231,10 +231,9 @@ export default function PickListView() {
                 <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
             </div>
         );
-        const th: React.CSSProperties = {
-            padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444',
-            background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899',
-        };
+        // Dense: this table shares its row with two other panes in the grid below.
+        const th = lvSubTh(true, true);
+        const td = lvSubTd(true, true);
 
         return (
             <tr key={`${pl.id}-detail`}>
@@ -291,7 +290,7 @@ export default function PickListView() {
                                     </div>
                                 ) : (
                                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                                        <table style={{ ...lvSubTable(true), border: 'none' }}>
                                             <thead>
                                                 <tr>
                                                     <th style={{ ...th, width: 24 }}>#</th>
@@ -302,20 +301,22 @@ export default function PickListView() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {lines.map((l: any, li: number) => (
-                                                    <tr key={l.id} style={{ background: l.picked_at ? '#eef7ee' : li % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
-                                                        <td style={{ padding: '2px 5px', color: '#888' }}>{l.package_no ?? '—'}</td>
-                                                        <td style={{ padding: '2px 5px', fontFamily: CODE_FONT, color: '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}
+                                                {/* No zebra — the only row fill is the picked-green
+                                                    confirmation, which is the floor's actual signal. */}
+                                                {lines.map((l: any) => (
+                                                    <tr key={l.id} style={l.picked_at ? { background: '#eef7ee' } : undefined}>
+                                                        <td style={{ ...td, color: '#888' }}>{l.package_no ?? '—'}</td>
+                                                        <td style={{ ...td, fontFamily: CODE_FONT, color: '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}
                                                             title={l.batch_number || undefined}>
                                                             {/* No batch = a bulk line from before pick lists became carton-only. */}
                                                             {l.batch_number || <span style={{ fontFamily: xpFont, color: '#b8860b' }}>bulk line</span>}
                                                         </td>
-                                                        <td style={{ padding: '2px 5px', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}
+                                                        <td style={{ ...td, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}
                                                             title={l.item_name || undefined}>
                                                             {l.item_code || itemById[String(l.item_id)]?.code || '—'}
                                                         </td>
-                                                        <td style={{ padding: '2px 5px', textAlign: 'right', fontWeight: 'bold' }}>{num(l.qty_picked).toFixed(2)}</td>
-                                                        <td style={{ padding: '2px 5px', color: '#555', whiteSpace: 'nowrap' }}>
+                                                        <td style={{ ...td, textAlign: 'right', fontWeight: 'bold' }}>{num(l.qty_picked).toFixed(2)}</td>
+                                                        <td style={{ ...td, color: '#555', whiteSpace: 'nowrap' }}>
                                                             {l.picked_at
                                                                 ? <span title={l.picked_by ? `by ${l.picked_by}` : undefined} style={{ color: '#0a3e0a' }}>
                                                                     {tzDateTime(l.picked_at)}

@@ -14,7 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
 
 const PO_PAGE_SIZE = 50;
 
@@ -152,9 +152,11 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       fontSize: '11px',
   };
 
-  // Order-lines mini-table inside the expanded row
-  const poLineThXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', fontWeight: 'bold', color: '#1a3d6b', background: '#e4e0d4', borderBottom: '1px solid #b0a898', textAlign: 'left' as const };
-  const poLineTdXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', color: '#333', borderTop: '1px solid #e6e3da' };
+  // Order-lines / receipt-history mini-tables inside the expanded row. These used
+  // to be a classic-only const pair plus Bootstrap classNames for modern; both
+  // themes now come from the shared sub-table helpers.
+  const subTh = lvSubTh(classic);
+  const subTd = lvSubTd(classic);
 
   const freshPO = () => ({
       po_number: '',
@@ -974,16 +976,14 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                ? { padding: '6px 16px 8px 20px', fontFamily: xpFont, fontSize: '11px' }
                                                : { padding: '12px 16px' }}>
                                            <div style={{ marginBottom: 10 }}>
-                                               <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
-                                                   Order Lines
-                                               </div>
-                                               <table style={classic ? { width: '100%', maxWidth: 560, borderCollapse: 'collapse', background: '#fff', border: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'table table-sm table-bordered bg-white mb-0 align-middle small'}>
+                                               <div style={lvSubCaption(classic)}>Order Lines</div>
+                                               <table style={{ ...lvSubTable(classic), maxWidth: 560 }}>
                                                    <thead>
-                                                       <tr className={classic ? '' : 'table-light'}>
-                                                           <th style={classic ? poLineThXp : undefined}>Item</th>
-                                                           <th style={classic ? { ...poLineThXp, textAlign: 'right' } : undefined} className={classic ? '' : 'text-end'}>Received</th>
-                                                           <th style={classic ? { ...poLineThXp, textAlign: 'right' } : undefined} className={classic ? '' : 'text-end'}>Ordered</th>
-                                                           <th style={classic ? poLineThXp : undefined}>Status</th>
+                                                       <tr>
+                                                           <th style={subTh}>Item</th>
+                                                           <th style={{ ...subTh, textAlign: 'right' }}>Received</th>
+                                                           <th style={{ ...subTh, textAlign: 'right' }}>Ordered</th>
+                                                           <th style={subTh}>Status</th>
                                                        </tr>
                                                    </thead>
                                                    <tbody>
@@ -991,10 +991,10 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                            const full = (line.qty_received || 0) >= line.qty;
                                                            return (
                                                                <tr key={line.id}>
-                                                                   <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{line.item_name || getItemName(line.item_id)}</td>
-                                                                   <td style={classic ? { ...poLineTdXp, textAlign: 'right', fontWeight: 'bold' } : undefined} className={classic ? '' : 'text-end fw-bold'}>{line.qty_received || 0}</td>
-                                                                   <td style={classic ? { ...poLineTdXp, textAlign: 'right' } : undefined} className={classic ? '' : 'text-end'}>{line.qty}</td>
-                                                                   <td style={classic ? { ...poLineTdXp, color: full ? '#2d7a2d' : '#b8860b', fontWeight: 'bold' } : undefined} className={classic ? '' : full ? 'text-success fw-bold' : 'text-warning fw-bold'}>
+                                                                   <td style={{ ...subTd, fontWeight: 600 }}>{line.item_name || getItemName(line.item_id)}</td>
+                                                                   <td style={{ ...subTd, textAlign: 'right', fontWeight: 'bold' }}>{line.qty_received || 0}</td>
+                                                                   <td style={{ ...subTd, textAlign: 'right' }}>{line.qty}</td>
+                                                                   <td style={{ ...subTd, color: full ? '#2d7a2d' : '#b8860b', fontWeight: 'bold' }}>
                                                                        {full ? 'full' : 'short'}
                                                                    </td>
                                                                </tr>
@@ -1020,29 +1020,29 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                const numR = { textAlign: 'right' as const };
                                                return (
                                                    <div>
-                                                       <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
+                                                       <div style={lvSubCaption(classic)}>
                                                            Receipt History — {(po.receipts || []).length} {(po.receipts || []).length === 1 ? 'delivery' : 'deliveries'}
                                                        </div>
-                                                       <table style={classic ? { width: '100%', maxWidth: 760, borderCollapse: 'collapse', background: '#fff', border: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'table table-sm table-bordered bg-white mb-0 align-middle small'}>
+                                                       <table style={{ ...lvSubTable(classic), maxWidth: 760 }}>
                                                            <thead>
-                                                               <tr className={classic ? '' : 'table-light'}>
-                                                                   <th style={classic ? poLineThXp : undefined}>Date</th>
-                                                                   {hasDn && <th style={classic ? poLineThXp : undefined}>DN</th>}
-                                                                   <th style={classic ? poLineThXp : undefined}>Item</th>
-                                                                   <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Received</th>
-                                                                   {hasBoxes && <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Boxes</th>}
-                                                                   {hasCones && <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Cones</th>}
-                                                                   {hasDrums && <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Drums</th>}
-                                                                   {hasLots && <th style={classic ? poLineThXp : undefined}>Supplier Lot</th>}
-                                                                   {hasNotes && <th style={classic ? poLineThXp : undefined}>Notes</th>}
+                                                               <tr>
+                                                                   <th style={subTh}>Date</th>
+                                                                   {hasDn && <th style={subTh}>DN</th>}
+                                                                   <th style={subTh}>Item</th>
+                                                                   <th style={{ ...subTh, ...numR }}>Received</th>
+                                                                   {hasBoxes && <th style={{ ...subTh, ...numR }}>Boxes</th>}
+                                                                   {hasCones && <th style={{ ...subTh, ...numR }}>Cones</th>}
+                                                                   {hasDrums && <th style={{ ...subTh, ...numR }}>Drums</th>}
+                                                                   {hasLots && <th style={subTh}>Supplier Lot</th>}
+                                                                   {hasNotes && <th style={subTh}>Notes</th>}
                                                                </tr>
                                                            </thead>
                                                            <tbody>
                                                                {allLines.map((rl: any) => (
                                                                    <tr key={rl.id}>
-                                                                       <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'small'}>{tzDate(rl._receipt.receipt_date)}</td>
+                                                                       <td style={subTd}>{tzDate(rl._receipt.receipt_date)}</td>
                                                                        {hasDn && (
-                                                                           <td style={classic ? poLineTdXp : undefined}>
+                                                                           <td style={subTd}>
                                                                                {rl._receipt.delivery_note_number || <span style={{ color: '#bbb' }}>—</span>}
                                                                                {rl._receipt.delivery_note_url && (
                                                                                    <a href={`${STATIC_BASE}${rl._receipt.delivery_note_url}`} target="_blank" rel="noopener noreferrer" title="View DN"
@@ -1052,16 +1052,16 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                                                )}
                                                                            </td>
                                                                        )}
-                                                                       <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.item_name || getItemName(rl.item_id)}</td>
-                                                                       <td style={classic ? { ...poLineTdXp, ...numR, fontWeight: 'bold' } : undefined} className={classic ? '' : 'text-end fw-bold'}>
+                                                                       <td style={{ ...subTd, fontWeight: 600 }}>{rl.item_name || getItemName(rl.item_id)}</td>
+                                                                       <td style={{ ...subTd, ...numR, fontWeight: 'bold' }}>
                                                                            {rl.qty_received}
                                                                            <span style={{ marginLeft: 3, color: '#888', fontSize: '9px', textTransform: 'uppercase' }}>{rl.item_uom || getItemUom(rl.item_id)}</span>
                                                                        </td>
-                                                                       {hasBoxes && <td style={classic ? { ...poLineTdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_boxes != null ? rl.qty_boxes : <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                       {hasCones && <td style={classic ? { ...poLineTdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_cones != null ? rl.qty_cones : <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                       {hasDrums && <td style={classic ? { ...poLineTdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_drums != null ? rl.qty_drums : <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                       {hasLots && <td style={classic ? poLineTdXp : undefined}>{rl.vendor_lot || <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                       {hasNotes && <td style={classic ? { ...poLineTdXp, fontStyle: 'italic', color: '#666' } : undefined} className={classic ? '' : 'text-muted fst-italic'}>{rl._receipt.notes || ''}</td>}
+                                                                       {hasBoxes && <td style={{ ...subTd, ...numR }}>{rl.qty_boxes != null ? rl.qty_boxes : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasCones && <td style={{ ...subTd, ...numR }}>{rl.qty_cones != null ? rl.qty_cones : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasDrums && <td style={{ ...subTd, ...numR }}>{rl.qty_drums != null ? rl.qty_drums : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasLots && <td style={subTd}>{rl.vendor_lot || <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasNotes && <td style={{ ...subTd, fontStyle: 'italic', color: '#666' }}>{rl._receipt.notes || ''}</td>}
                                                                    </tr>
                                                                ))}
                                                            </tbody>
