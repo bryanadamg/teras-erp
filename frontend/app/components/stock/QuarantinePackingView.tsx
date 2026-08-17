@@ -203,8 +203,17 @@ export default function QuarantinePackingView() {
         }
     }, [authFetch]);
 
-    const fetchGroups = useCallback(async () => {
-        setLoading(true);
+    /**
+     * `silent` refetches without touching `loading`.
+     *
+     * A disposition write re-reads the same page with one field changed, but a
+     * loud refetch flips `loading` on, which appends the skeleton block under
+     * the live rows and collapses it again a moment later — the table jumps
+     * twice for a change of one chip. Skeletons are for a page that has nothing
+     * to show yet (first load, new filter, new page), not for a row edit.
+     */
+    const fetchGroups = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         setError('');
         try {
             const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
@@ -221,7 +230,7 @@ export default function QuarantinePackingView() {
             setGroups([]);
             setTotal(0);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [authFetch, page, search, statusFilter]);
 
@@ -241,10 +250,25 @@ export default function QuarantinePackingView() {
 
     // Another QC user releasing a lot, or production landing more output in the
     // hold area, both arrive as a 'stock' live event — reload rather than leave a
-    // stale queue on screen.
-    useEffect(() => subscribeLiveEvents(kind => {
-        if (kind === 'stock') { fetchGroups(); fetchReadyToPack(); }
-    }), [subscribeLiveEvents, fetchGroups, fetchReadyToPack]);
+    // stale queue on screen. Always silent: a background event must never blank
+    // the table someone is reading. Coalesced on a short timer because one write
+    // broadcasts twice (QUARANTINE_UPDATE + STOCK_UPDATE) and our own write is
+    // already refetching — without this the page reloads three times per click.
+    const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        const off = subscribeLiveEvents(kind => {
+            if (kind !== 'stock') return;
+            if (liveTimer.current) clearTimeout(liveTimer.current);
+            liveTimer.current = setTimeout(() => {
+                fetchGroups(true);
+                fetchReadyToPack();
+            }, 600);
+        });
+        return () => {
+            if (liveTimer.current) clearTimeout(liveTimer.current);
+            off();
+        };
+    }, [subscribeLiveEvents, fetchGroups, fetchReadyToPack]);
 
     // "Pack" hands the suggestion to the Packing page as a deep link — it opens
     // the New Packing Order form pre-filled, not creates the order itself. Which
@@ -286,13 +310,25 @@ export default function QuarantinePackingView() {
                 ids.forEach(id => next.delete(id));
                 return next;
             });
-            await fetchGroups();
+            await fetchGroups(true);
         } catch (e: any) {
             showToast(e?.message || 'Could not set the status', 'danger');
         } finally {
             setSaving(null);
         }
     }, [authFetch, fetchGroups, showToast]);
+
+    // In-flight lot ids. `saving` is a joined key of exactly the lots being
+    // written, so only their own controls grey out — disabling every bar on the
+    // page for one lot's write dimmed the whole table on each click.
+    const savingIds = useMemo(
+        () => new Set((saving || '').split(',').filter(Boolean)),
+        [saving],
+    );
+    const busy = useCallback(
+        (ids: (string | null)[]) => ids.some(id => !!id && savingIds.has(id)),
+        [savingIds],
+    );
 
     // ── Lot selection ─────────────────────────────────────────────────────────
     // Packed lots are locked and un-lotted rows have nothing to write a status
@@ -502,7 +538,9 @@ export default function QuarantinePackingView() {
         const allChosen = groupIds.length > 0 && chosen.length === groupIds.length;
         const chosenQty = g.lots.reduce(
             (s, l) => (l.batch_id && selectedLots.has(l.batch_id) ? s + (l.qty || 0) : s), 0);
-        const pickDisabled = !canSetStatus || saving !== null;
+        // Scoped to this group's own lots, so a write in one MO never freezes
+        // the checkboxes of another.
+        const pickDisabled = !canSetStatus || busy(groupIds);
 
         return (
         <ExpandedRowPanel classic={classic} style={{
@@ -539,7 +577,7 @@ export default function QuarantinePackingView() {
                         {/* No `current` — the picked lots may hold different statuses,
                             so nothing is shown as active; each button is a write. */}
                         <StatusButtons
-                            disabled={saving !== null}
+                            disabled={busy(chosen)}
                             showClear
                             onPick={(id, label) => setStatus(chosen, id, label)}
                         />
@@ -669,7 +707,7 @@ export default function QuarantinePackingView() {
                                 ) : l.batch_id ? (
                                     <StatusButtons
                                         current={l.quarantine_status_id}
-                                        disabled={saving !== null}
+                                        disabled={busy([l.batch_id])}
                                         onPick={(id, label) => setStatus([l.batch_id as string], id, label)}
                                     />
                                 ) : (
@@ -714,7 +752,7 @@ export default function QuarantinePackingView() {
                 ))}
             </select>
             <div style={lvSep(classic)} />
-            <button style={lvBtn(classic)} onClick={fetchGroups} title="Refresh">
+            <button style={lvBtn(classic)} onClick={() => fetchGroups()} title="Refresh">
                 <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
             </button>
             {!canSetStatus && (
@@ -811,7 +849,7 @@ export default function QuarantinePackingView() {
                                             {lotIds.length ? (
                                                 <>
                                                     <StatusButtons
-                                                        disabled={saving !== null}
+                                                        disabled={busy(lotIds)}
                                                         showClear
                                                         onPick={(id, label) => setStatus(lotIds, id, label)}
                                                     />
