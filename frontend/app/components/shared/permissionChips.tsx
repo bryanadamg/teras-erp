@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { xpFont } from './xpTheme';
+import { lvSubRow } from './listViewTheme';
 import { actionIntent, INTENT_CHIP } from './permissionMatrix';
 
 /**
@@ -140,8 +141,13 @@ export function PermissionSectionTable({
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <tbody>
+                    {/* Zebra on: with no header row and two ragged-height cells,
+                        the stripe is the only thing tying a label to its chips.
+                        Cell styling stays bespoke — this is a label/value list
+                        rendered as a table, not a data grid, so lvSubTd's uniform
+                        text metrics would fight the chip column. */}
                     {rows.map((r, i) => (
-                        <tr key={r.key} style={{ background: i % 2 === 0 ? '#ffffff' : '#fafaf7' }}>
+                        <tr key={r.key} style={lvSubRow(classic, i, { zebra: true })}>
                             <td style={{
                                 fontFamily: font, fontSize: size, color: '#000',
                                 lineHeight: 1.5,

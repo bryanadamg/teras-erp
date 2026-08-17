@@ -10,7 +10,7 @@ import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import {
     lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep,
-    lvSubTh, lvSubTd, lvSubTable, lvSubCaption, LV_XP_FONT, LV_MODERN_FONT,
+    lvSubTh, lvSubTd, lvSubTable, lvSubCaption, lvSubRow, LV_XP_FONT, LV_MODERN_FONT,
 } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
@@ -532,13 +532,16 @@ export default function QuarantinePackingView() {
                         <tr
                             key={l.batch_id || `${sec.key}-nolot-${i}`}
                             title={l.packed ? 'Already packed — this lot’s quarantine status is locked' : undefined}
-                            // No zebra here (see lotTd). The only row fills left are the
-                            // settled-packed tint and the checked highlight — both semantic.
-                            style={
-                                l.packed ? { background: classic ? '#f0efe9' : '#f6f7f9', color: '#8a8a8a' }
-                                : isChosen ? { background: classic ? '#fffbe6' : '#fffdf2' }
-                                : undefined
-                            }
+                            // No zebra. The only fills are the settled-packed tint and
+                            // the checked highlight — both semantic, both via lvSubRow.
+                            style={{
+                                ...lvSubRow(classic, i, {
+                                    fill: l.packed ? (classic ? '#f0efe9' : '#f6f7f9')
+                                        : isChosen ? (classic ? '#fffbe6' : '#fffdf2')
+                                        : undefined,
+                                }),
+                                ...(l.packed ? { color: '#8a8a8a' } : {}),
+                            }}
                         >
                             <td style={{ ...lotTd, textAlign: 'center' }}>
                                 {selectable ? (

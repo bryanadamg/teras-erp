@@ -111,6 +111,30 @@ export const lvSubTd = (classic: boolean, dense = false): React.CSSProperties =>
     borderTop: '1px solid #eef2f7', fontFamily: LV_MODERN_FONT,
 });
 
+/**
+ * Sub-table row fill. Two decisions in one place, because they interact:
+ *
+ * - `zebra` is opt-IN. A striped sub-table nested in a striped list reads as two
+ *   competing grids, so most of these are flat and separated by the cell rule in
+ *   lvSubTd. Turn it on where the table is wide and scan-heavy enough to earn it
+ *   (the Production Run material grid is 10 columns — stripes help there).
+ * - `fill` is a semantic row colour: rejected, picked, packed, selected. It
+ *   always wins over the stripe, so a meaningful row never gets overpainted by
+ *   decoration and callers don't have to hand-write that precedence each time.
+ *
+ * The stripe is deliberately lighter than lvRow's, so an inner table never
+ * out-contrasts the list it sits inside.
+ */
+export const lvSubRow = (
+    classic: boolean,
+    idx: number,
+    { zebra = false, fill }: { zebra?: boolean; fill?: string } = {},
+): React.CSSProperties | undefined => {
+    if (fill) return { background: fill };
+    if (zebra) return { background: idx % 2 === 0 ? '#fff' : (classic ? '#f7f5f0' : '#fafbfd') };
+    return undefined;
+};
+
 export const lvSubTable = (classic: boolean): React.CSSProperties => ({
     width: '100%', borderCollapse: 'collapse', background: '#fff',
     border: `1px solid ${classic ? '#c0bdb5' : '#dee2e6'}`,

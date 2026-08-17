@@ -11,7 +11,7 @@ import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
     useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT,
 } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -31,6 +31,11 @@ const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(tr
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
+// Expanded-row sub-table (shipment contents) — subordinate chrome, not the
+// main-list chrome above. Classic-only like the rest of this file.
+const subTh: React.CSSProperties = lvSubTh(true);
+const subTd: React.CSSProperties = lvSubTd(true);
+const subTable: React.CSSProperties = lvSubTable(true);
 const xpLabel: React.CSSProperties = lvLabel(true);
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
@@ -454,29 +459,33 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
                 {info('Dispatched', shp.dispatched_at ? tzDateTime(shp.dispatched_at) : null)}
             </div>
             <div style={{ flex: 1 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                {/* Sub-table chrome, not the main-list chrome it used to borrow —
+                    dressed as the outer list it reads as a second grid. No zebra:
+                    the index restarts per pick list, so the stripe was banding by
+                    position-within-document rather than by row anyway. */}
+                <table style={subTable}>
                     <thead>
                         <tr>
-                            <th style={xpTableHeader}>Pick List</th>
-                            <th style={xpTableHeader}>SO</th>
-                            <th style={xpTableHeader}>Item</th>
-                            <th style={xpTableHeader}>Colour</th>
-                            <th style={xpTableHeader}>Carton</th>
-                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty</th>
+                            <th style={subTh}>Pick List</th>
+                            <th style={subTh}>SO</th>
+                            <th style={subTh}>Item</th>
+                            <th style={subTh}>Colour</th>
+                            <th style={subTh}>Carton</th>
+                            <th style={{ ...subTh, textAlign: 'right' }}>Qty</th>
                         </tr>
                     </thead>
                     <tbody>
                         {(shp.pick_lists || []).flatMap((pl: any) =>
-                            (pl.lines || []).map((l: any, i: number) => (
-                                <tr key={`${pl.id}-${l.id}`} style={rowStyle(i)}>
-                                    <td style={{ ...td, fontFamily: CODE_FONT }}>{pl.code}</td>
-                                    <td style={td}>{pl.sales_order_code || '-'}</td>
-                                    <td style={td}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '-'}</td>
-                                    <td style={td}>
+                            (pl.lines || []).map((l: any) => (
+                                <tr key={`${pl.id}-${l.id}`}>
+                                    <td style={{ ...subTd, fontFamily: CODE_FONT }}>{pl.code}</td>
+                                    <td style={subTd}>{pl.sales_order_code || '-'}</td>
+                                    <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '-'}</td>
+                                    <td style={subTd}>
                                         {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : '-'}
                                     </td>
-                                    <td style={{ ...td, fontFamily: CODE_FONT }}>{l.batch_number || '-'}</td>
-                                    <td style={{ ...td, textAlign: 'right' }}>{fmtQty(l.qty_picked)} {l.item_uom || ''}</td>
+                                    <td style={{ ...subTd, fontFamily: CODE_FONT }}>{l.batch_number || '-'}</td>
+                                    <td style={{ ...subTd, textAlign: 'right' }}>{fmtQty(l.qty_picked)} {l.item_uom || ''}</td>
                                 </tr>
                             )))}
                     </tbody>

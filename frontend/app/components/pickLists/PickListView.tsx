@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -303,8 +303,8 @@ export default function PickListView() {
                                             <tbody>
                                                 {/* No zebra — the only row fill is the picked-green
                                                     confirmation, which is the floor's actual signal. */}
-                                                {lines.map((l: any) => (
-                                                    <tr key={l.id} style={l.picked_at ? { background: '#eef7ee' } : undefined}>
+                                                {lines.map((l: any, li: number) => (
+                                                    <tr key={l.id} style={lvSubRow(true, li, { fill: l.picked_at ? '#eef7ee' : undefined })}>
                                                         <td style={{ ...td, color: '#888' }}>{l.package_no ?? '—'}</td>
                                                         <td style={{ ...td, fontFamily: CODE_FONT, color: '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}
                                                             title={l.batch_number || undefined}>

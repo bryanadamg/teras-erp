@@ -8,6 +8,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -804,11 +805,13 @@ export default function ManufacturingOrdersTab({
                     {/* Components table */}
                     <div style={{ flex: 1, overflowY: 'auto' }}>
                         {bom ? (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                            <table style={lvSubTable(classic)}>
                                 <thead>
-                                    <tr style={{ background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa', position: 'sticky', top: 0 }}>
+                                    <tr style={{ position: 'sticky', top: 0 }}>
                                         {['Component', 'Variant', 'Required', ...(showBreakdown ? ['Breakdown'] : []), 'In Stock', 'Available At'].map(h => (
-                                            <th key={h} style={{ border: classic ? '1px solid #808080' : '1px solid #dee2e6', padding: '3px 6px', textAlign: h === 'Required' || h === 'In Stock' ? 'right' : 'left', color: '#000', fontSize: '10px' }}>{h}</th>
+                                            // Full cell borders rather than lvSubTd's single rule — this
+                                            // is a grid, and the verticals separate the paired figures.
+                                            <th key={h} style={{ ...lvSubTh(classic), border: classic ? '1px solid #808080' : '1px solid #dee2e6', textAlign: h === 'Required' || h === 'In Stock' ? 'right' : 'left' }}>{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
@@ -818,7 +821,13 @@ export default function ManufacturingOrdersTab({
                                         const { total, isEnough, locs } = getStockAcrossLocations(line.item_id, line.attribute_value_ids || [], req);
                                         const hasSubBOM = boms.some((b: any) => b.item_id === line.item_id && b.active !== false);
                                         const attrLabel = (line.attribute_value_ids || []).map(getAttributeValueName).filter(Boolean).join(', ');
-                                        const rowBg = i % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8f9fa');
+                                        // Zebra on: this is a wide grid, and the stripe is what keeps
+                                        // a component's figures tracking across six columns.
+                                        const rowStyle = lvSubRow(classic, i, { zebra: true });
+                                        const cell: React.CSSProperties = {
+                                            ...lvSubTd(classic),
+                                            border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
+                                        };
                                         const stockLevel = isEnough ? 'ok' : total > 0 ? 'low' : 'out';
                                         const dotStyle: Record<string, { dot: string; border: string }> = {
                                             ok:  { dot: '#00aa00', border: '#005500' },
@@ -827,14 +836,14 @@ export default function ManufacturingOrdersTab({
                                         };
                                         const dc = dotStyle[stockLevel];
                                         return (
-                                            <tr key={line.id} style={{ background: rowBg }}>
-                                                <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#000' }}>
+                                            <tr key={line.id} style={rowStyle}>
+                                                <td style={{ ...cell, color: '#000' }}>
                                                     <div style={{ fontWeight: 500 }}>{line.item_name || getItemName(line.item_id)}</div>
                                                     <CodeChip code={line.item_code || getItemCode(line.item_id)} classic={classic} tier={2} style={{ display: 'block' }} />
                                                     {hasSubBOM && <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
                                                 </td>
-                                                <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#333', fontSize: '10px' }}>{attrLabel || '—'}</td>
-                                                <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                <td style={{ ...cell, color: '#333' }}>{attrLabel || '—'}</td>
+                                                <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                                                         {(line.percentage || 0) > 0 && (
                                                             <span title={`${line.percentage}% of MO qty`} style={{ background: '#b46a00', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold' }}>{line.percentage}%</span>
@@ -846,7 +855,7 @@ export default function ManufacturingOrdersTab({
                                                     </div>
                                                 </td>
                                                 {showBreakdown && (
-                                                    <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', verticalAlign: 'top' }}>
+                                                    <td style={{ ...cell, verticalAlign: 'top' }}>
                                                         {parentMOBreakdown.map(({ mo, qty: parentContrib }) => {
                                                             const proportion = selectedNode.qty > 0 ? parentContrib / selectedNode.qty : 0;
                                                             const componentShare = req * proportion;
@@ -859,7 +868,7 @@ export default function ManufacturingOrdersTab({
                                                         })}
                                                     </td>
                                                 )}
-                                                <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right' }}>
+                                                <td style={{ ...cell, textAlign: 'right' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                                                         <span style={{ fontFamily: CODE_FONT, color: isEnough ? '#004400' : total > 0 ? '#664400' : '#880000', fontWeight: 'bold' }}>{total.toFixed(2)}</span>
                                                         <span style={{ display: 'inline-block', width: 8, height: 8, background: dc.dot, border: `1px solid ${dc.border}`, flexShrink: 0 }} />
@@ -868,7 +877,7 @@ export default function ManufacturingOrdersTab({
                                                         {getItemUom(line.item_id) && <span style={uomBadgeStyle}>{getItemUom(line.item_id)}</span>}
                                                     </div>
                                                 </td>
-                                                <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px' }}>
+                                                <td style={{ ...cell }}>
                                                     {locs.length === 0 ? (
                                                         <span style={{ color: '#bbb', fontSize: 9 }}>—</span>
                                                     ) : (

@@ -12,7 +12,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -480,6 +480,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     const renderDetail = (recipe: any) => {
         // Dense inline panel — matches WorkOrderListView's expanded-row skin
         // (flat single-tone columns, tiny uppercase headers, no card chrome).
+        // Dense sub-table: it occupies one column of the three-pane grid below.
+        const subTh = lvSubTh(classic, true);
+        const subTd = lvSubTd(classic, true);
         const panelStyle: React.CSSProperties = {
             display: 'grid', gridTemplateColumns: '260px minmax(180px, 1fr) 260px',
             border: classic ? '1px solid #7f9db9' : '1px solid #dee2e6',
@@ -538,14 +541,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         <div style={emptyStyle}>No chemical lines defined.</div>
                     ) : (
                         <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                            <table style={{ ...lvSubTable(classic), border: 'none' }}>
                                 <thead>
-                                    <tr style={{ background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899' }}>
-                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 20 }}>#</th>
-                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 60 }}>Type</th>
-                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444' }}>Item</th>
-                                        <th style={{ padding: '1px 5px', textAlign: 'right', fontWeight: 'bold', color: '#444', width: 60 }}>Qty</th>
-                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 55 }}>Unit</th>
+                                    <tr>
+                                        <th style={{ ...subTh, width: 20 }}>#</th>
+                                        <th style={{ ...subTh, width: 60 }}>Type</th>
+                                        <th style={subTh}>Item</th>
+                                        <th style={{ ...subTh, textAlign: 'right', width: 60 }}>Qty</th>
+                                        <th style={{ ...subTh, width: 55 }}>Unit</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -556,9 +559,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                         const rate = line.qty_per_liter ?? line.qty_per_100kg ?? null;
                                         const rateUnit = line.uom_name || (line.qty_per_liter != null ? 'g/L' : line.qty_per_100kg != null ? '/100kg' : '-');
                                         return (
-                                            <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
-                                                <td style={{ padding: '2px 5px', color: '#666' }}>{idx + 1}</td>
-                                                <td style={{ padding: '2px 5px' }}>
+                                            <tr key={idx} style={lvSubRow(classic, idx)}>
+                                                <td style={{ ...subTd, color: '#666' }}>{idx + 1}</td>
+                                                <td style={subTd}>
                                                     <span style={{
                                                         background: typeColor(line.chemical_type, classic).bg,
                                                         color: typeColor(line.chemical_type, classic).fg,
@@ -568,13 +571,13 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                         {line.chemical_type || '-'}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: '2px 5px', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={line.item_name || linkedItem?.name}>
+                                                <td style={{ ...subTd, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={line.item_name || linkedItem?.name}>
                                                     {line.item_name || linkedItem?.name || (line.item_id || '-')}
                                                 </td>
-                                                <td style={{ padding: '2px 5px', textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
+                                                <td style={{ ...subTd, textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
                                                     {rate != null ? Number(rate).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
                                                 </td>
-                                                <td style={{ padding: '2px 5px', color: '#555' }}>{rateUnit}</td>
+                                                <td style={{ ...subTd, color: '#555' }}>{rateUnit}</td>
                                             </tr>
                                         );
                                     })}

@@ -7,6 +7,7 @@ import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 export default function ProductionRunsTab({
@@ -401,12 +402,9 @@ export default function ProductionRunsTab({
                                                                 );
                                                             })()}
                                                         </div>
-                                                        <table style={{
-                                                            width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 12,
-                                                            fontFamily: classic ? xpFont : undefined,
-                                                        }}>
+                                                        <table style={lvSubTable(classic)}>
                                                             <thead>
-                                                                <tr style={{ background: classic ? '#d4d0c8' : '#e9ecef' }}>
+                                                                <tr>
                                                                     {[
                                                                         { h: 'Item Code', t: '', num: false },
                                                                         { h: 'Item Name', t: '', num: false },
@@ -419,7 +417,9 @@ export default function ProductionRunsTab({
                                                                         { h: 'Status', t: 'SHORT = material genuinely missing (nothing on hand, nothing scheduled) — needs action. NO WO = no work order opened on the producing MO yet. NOT STARTED = WO opened, nothing logged. IN PROGRESS = output logged, not finished. DONE = made in full. Dash = bought or taken from stock, covered.', num: false },
                                                                         { h: 'MOs', t: 'needs = MOs consuming this component. made = MOs producing it (logged / target).', num: false },
                                                                     ].map(({ h, t, num }) => (
-                                                                        <th key={h} title={t || undefined} style={{ padding: '2px 6px', textAlign: num ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', fontWeight: 'bold', cursor: t ? 'help' : undefined }}>{h}</th>
+                                                                        // Full cell borders, not lvSubTd's single rule: at 10 columns
+                                                                        // this reads as a grid and the verticals do real work.
+                                                                        <th key={h} title={t || undefined} style={{ ...lvSubTh(classic), textAlign: num ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', cursor: t ? 'help' : undefined }}>{h}</th>
                                                                     ))}
                                                                 </tr>
                                                             </thead>
@@ -428,12 +428,17 @@ export default function ProductionRunsTab({
                                                                     // Row tint = genuine material shortage only. Epsilon-guarded so a
                                                                     // zero gap can't paint the row red (the "SHORT 0.00" bug).
                                                                     const short = req.status ? req.status === 'SHORT' : req.shortfall > 0.005;
-                                                                    const rowColor = classic
-                                                                        ? (short ? '#fff0f0' : ri % 2 === 0 ? '#fff' : '#ece7dc')
-                                                                        : (short ? '#fff5f5' : ri % 2 === 0 ? '#fff' : '#eef1f4');
+                                                                    // Zebra is opt-in per sub-table; this grid is wide enough to earn
+                                                                    // it. The shortage tint is passed as `fill` so it overrides the
+                                                                    // stripe rather than alternating with it.
+                                                                    const rowStyle = lvSubRow(classic, ri, {
+                                                                        zebra: true,
+                                                                        fill: short ? (classic ? '#fff0f0' : '#fff5f5') : undefined,
+                                                                    });
                                                                     const cellStyle: React.CSSProperties = {
-                                                                        padding: '2px 6px', border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
-                                                                        background: rowColor, verticalAlign: 'middle',
+                                                                        ...lvSubTd(classic),
+                                                                        border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
+                                                                        verticalAlign: 'middle',
                                                                     };
                                                                     const gross = parseFloat(req.gross_required ?? req.total_required);
                                                                     const net = parseFloat(req.total_required);
@@ -488,7 +493,7 @@ export default function ProductionRunsTab({
                                                                     const madeNoWoCount = prodMos.filter((m: any) => (m.wo_count || 0) === 0).length;
                                                                     const madeDetail = prodMos.map((m: any) => `${m.mo_code} (${parseFloat(m.qty_produced).toFixed(2)}/${parseFloat(m.mo_qty).toFixed(2)}${(m.wo_count || 0) === 0 ? ', no WO' : ''})`).join('\n');
                                                                     return (
-                                                                        <tr key={ri}>
+                                                                        <tr key={ri} style={rowStyle}>
                                                                             <td style={cellStyle}><CodeChip code={req.item_code} classic={classic} /></td>
                                                                             <td style={cellStyle}>{req.item_name}</td>
                                                                             <td style={cellStyle}>{req.uom}</td>

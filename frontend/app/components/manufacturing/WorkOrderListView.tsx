@@ -18,6 +18,7 @@ import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -136,6 +137,9 @@ export default function WorkOrderListView({
     const router = useRouter();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    // Dense: the completion log shares its row with the other detail panes.
+    const subTh = lvSubTh(classic, true);
+    const subTd = lvSubTd(classic, true);
     const { hasPermission, hasAnyPermission } = useUser();
     const canManage = hasAnyPermission('work_order.edit', 'work_order.delete', 'work_order.print_card', 'work_order.stage');
     const { formatCustom: tzFmt } = useTimezone();
@@ -530,13 +534,13 @@ export default function WorkOrderListView({
                                 <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>No entries yet.</div>
                             ) : (
                                 <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                                    <table style={{ ...lvSubTable(classic), border: 'none' }}>
                                         <thead>
-                                            <tr style={{ background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899' }}>
-                                                <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 110 }}>Date / Time</th>
-                                                <th style={{ padding: '1px 5px', textAlign: 'right', fontWeight: 'bold', color: '#444', width: 44 }}>Qty</th>
-                                                <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444' }}>Operator</th>
-                                                <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444' }}>Machine</th>
+                                            <tr>
+                                                <th style={{ ...subTh, width: 110 }}>Date / Time</th>
+                                                <th style={{ ...subTh, textAlign: 'right', width: 44 }}>Qty</th>
+                                                <th style={subTh}>Operator</th>
+                                                <th style={subTh}>Machine</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -546,15 +550,17 @@ export default function WorkOrderListView({
                                                 const hasMeta = substitutes.length > 0 || bomItems.length > 0 || c.notes;
                                                 return (
                                                     <React.Fragment key={c.id || ci}>
-                                                        <tr style={{ background: c.rejected ? '#fbe4e4' : ci % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
-                                                            <td style={{ padding: '2px 5px', color: '#666', whiteSpace: 'nowrap' }}>{fmtDateTime(c.created_at)}</td>
+                                                        {/* No zebra — the rejected-red fill is the only
+                                                            meaningful row colour here. */}
+                                                        <tr style={lvSubRow(classic, ci, { fill: c.rejected ? '#fbe4e4' : undefined })}>
+                                                            <td style={{ ...subTd, color: '#666', whiteSpace: 'nowrap' }}>{fmtDateTime(c.created_at)}</td>
                                                             <td
-                                                                style={{ padding: '2px 5px', fontWeight: 'bold', color: c.rejected ? '#900' : '#000080', textAlign: 'right', textDecoration: c.rejected ? 'line-through' : 'none' }}
+                                                                style={{ ...subTd, fontWeight: 'bold', color: c.rejected ? '#900' : '#000080', textAlign: 'right', textDecoration: c.rejected ? 'line-through' : 'none' }}
                                                                 title={c.rejected ? rejectTitle(c, 'Rejected') : undefined}
                                                             >
                                                                 +{parseFloat(c.qty_completed).toFixed(2)}
                                                             </td>
-                                                            <td style={{ padding: '2px 5px', color: '#333' }}>
+                                                            <td style={{ ...subTd, color: '#333' }}>
                                                                 {c.operator_name || '—'}
                                                                 {c.rejected && <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>}
                                                                 {/* Partial reject: the log stays active with its qty already trimmed,
@@ -568,7 +574,7 @@ export default function WorkOrderListView({
                                                                     </span>
                                                                 )}
                                                             </td>
-                                                            <td style={{ padding: '2px 5px', color: '#555' }}>
+                                                            <td style={{ ...subTd, color: '#555' }}>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
                                                                     <span>{c.work_center_name || '—'}</span>
                                                                     {isLotWOType && !c.rejected && c.output_batch_number && (
@@ -586,8 +592,8 @@ export default function WorkOrderListView({
                                                             </td>
                                                         </tr>
                                                         {hasMeta && (
-                                                            <tr style={{ background: ci % 2 === 0 ? '#fafaf7' : '#f0efe8', borderBottom: '1px solid #e8e6e0' }}>
-                                                                <td colSpan={4} style={{ padding: '1px 5px 3px 12px' }}>
+                                                            <tr>
+                                                                <td colSpan={4} style={{ ...subTd, borderTop: 'none', padding: '0 5px 3px 12px' }}>
                                                                     {bomItems.length > 0 && (
                                                                         <span style={{ color: '#555', marginRight: 8 }}>
                                                                             {bomItems.map((ai: any) => (

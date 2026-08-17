@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -306,7 +306,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                     marker, which carries meaning. */}
                                                 {comps.map((c: any, ci: number) => (
                                                     <React.Fragment key={c.id || ci}>
-                                                        <tr style={c.rejected ? { background: '#fbe4e4' } : undefined}>
+                                                        <tr style={lvSubRow(true, ci, { fill: c.rejected ? '#fbe4e4' : undefined })}>
                                                             <td style={{ ...td, color: '#666', whiteSpace: 'nowrap' }}>
                                                                 {c.completed_at ? tzDateTime(c.completed_at) : '—'}
                                                             </td>

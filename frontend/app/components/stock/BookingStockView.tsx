@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -145,34 +145,38 @@ export default function BookingStockView() {
         items: { mo_id: string; mo_code: string; qty: number }[], sign: string, uom: string,
     ) => {
         const total = items.reduce((s, m) => s + m.qty, 0);
-        const cellFont: React.CSSProperties = { fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : 12.5 };
+        // Shared sub-table chrome, with the header band recoloured per side: this
+        // panel's whole point is demand (amber) vs supply (green), so the tint and
+        // rule colour are the one thing that deliberately varies per instance.
+        const th: React.CSSProperties = { ...lvSubTh(classic), background: tint, color, borderBottom: `1px solid ${color}` };
+        const td = lvSubTd(classic);
         return (
             <div style={{ flex: '1 1 260px', minWidth: 240 }}>
-                <div style={{ fontWeight: 'bold', color, marginBottom: 4, fontVariant: 'all-small-caps', letterSpacing: '0.5px', ...cellFont }}>
+                <div style={{ ...lvSubCaption(classic), color }}>
                     {title} ({items.length})
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: classic ? '1px solid #c0bdb5' : undefined }}>
+                <table style={lvSubTable(classic)}>
                     <thead>
-                        <tr style={{ background: tint }}>
-                            <th style={{ ...cellFont, textAlign: 'left', padding: '3px 8px', borderBottom: `1px solid ${color}`, fontWeight: 'bold', color }}>MO</th>
-                            <th style={{ ...cellFont, textAlign: 'right', padding: '3px 8px', borderBottom: `1px solid ${color}`, fontWeight: 'bold', color }}>Qty</th>
+                        <tr>
+                            <th style={th}>MO</th>
+                            <th style={{ ...th, textAlign: 'right' }}>Qty</th>
                         </tr>
                     </thead>
                     <tbody>
                         {items.length === 0 ? (
-                            <tr><td colSpan={2} style={{ ...cellFont, padding: '6px 8px', color: '#999', fontStyle: 'italic' }}>—</td></tr>
-                        ) : items.map(m => (
-                            <tr key={m.mo_id}>
-                                <td style={{ ...cellFont, padding: '2px 8px', fontFamily: CODE_FONT, color: '#1a3d90' }}>{m.mo_code}</td>
-                                <td style={{ ...cellFont, padding: '2px 8px', textAlign: 'right', color, whiteSpace: 'nowrap' }}>{sign}{fmtQty(m.qty)}</td>
+                            <tr><td colSpan={2} style={{ ...td, color: '#999', fontStyle: 'italic' }}>—</td></tr>
+                        ) : items.map((m, i) => (
+                            <tr key={m.mo_id} style={lvSubRow(classic, i)}>
+                                <td style={{ ...td, fontFamily: CODE_FONT, color: '#1a3d90' }}>{m.mo_code}</td>
+                                <td style={{ ...td, textAlign: 'right', color, whiteSpace: 'nowrap' }}>{sign}{fmtQty(m.qty)}</td>
                             </tr>
                         ))}
                     </tbody>
                     {items.length > 0 && (
                         <tfoot>
-                            <tr style={{ borderTop: `2px solid ${color}` }}>
-                                <td style={{ ...cellFont, padding: '3px 8px', fontWeight: 'bold', color }}>Total</td>
-                                <td style={{ ...cellFont, padding: '3px 8px', textAlign: 'right', fontWeight: 'bold', color, whiteSpace: 'nowrap' }}>
+                            <tr>
+                                <td style={{ ...td, borderTop: `2px solid ${color}`, fontWeight: 'bold', color }}>Total</td>
+                                <td style={{ ...td, borderTop: `2px solid ${color}`, textAlign: 'right', fontWeight: 'bold', color, whiteSpace: 'nowrap' }}>
                                     {sign}{fmtQty(total)} {uom}
                                 </td>
                             </tr>
