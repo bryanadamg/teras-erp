@@ -322,10 +322,11 @@ export default function QuarantinePackingView() {
     }, [dayKey, dayLabel]);
 
     const bandStyle = (awaiting: boolean): React.CSSProperties => ({
-        padding: classic ? '3px 8px' : '5px 10px',
-        background: awaiting ? (classic ? '#fff4d6' : '#fff8e6') : (classic ? '#ece9d8' : '#f1f5f9'),
+        padding: classic ? '3px 8px' : '4px 10px',
+        background: awaiting ? (classic ? '#fff4d6' : '#fff8e6') : (classic ? '#f2f0e8' : '#f8fafc'),
+        // One rule, not a top+bottom pair: the band is a divider inside a flat
+        // table, not a second header competing with the real one above it.
         borderTop: `1px solid ${classic ? '#c9c2ae' : '#e2e8f0'}`,
-        borderBottom: `1px solid ${classic ? '#c9c2ae' : '#e2e8f0'}`,
         fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
         fontSize: classic ? 10 : 11,
         fontVariant: 'all-small-caps',
@@ -334,27 +335,60 @@ export default function QuarantinePackingView() {
         color: awaiting ? '#9a6a00' : '#444',
     });
 
+    // ── Mini-table chrome, matching the Purchase Order expanded row ───────────
+    // Tight header band, hairline row rules, and deliberately NO zebra: this
+    // table is nested inside an already-striped list, and two stripe patterns
+    // sitting one inside the other read as competing grids. Vertical padding is
+    // a touch looser than PO's 2px because these cells carry chips and a select
+    // rather than plain text.
+    const lotTh: React.CSSProperties = classic
+        ? {
+            padding: '3px 8px', fontSize: 10, fontWeight: 'bold', color: '#1a3d6b',
+            background: '#e4e0d4', borderBottom: '1px solid #b0a898',
+            textAlign: 'left', fontFamily: LV_XP_FONT, whiteSpace: 'nowrap',
+        }
+        : {
+            padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#334155',
+            background: '#f1f5f9', borderBottom: '1px solid #cbd5e1',
+            textAlign: 'left', fontFamily: LV_MODERN_FONT, whiteSpace: 'nowrap',
+        };
+
+    const lotTd: React.CSSProperties = classic
+        ? { padding: '3px 8px', fontSize: 10, color: '#333', borderTop: '1px solid #e6e3da', fontFamily: LV_XP_FONT }
+        : { padding: '5px 10px', fontSize: 11.5, color: '#1e293b', borderTop: '1px solid #eef2f7', fontFamily: LV_MODERN_FONT };
+
+    const lotSectionLabel: React.CSSProperties = {
+        fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
+        fontSize: classic ? 10 : 11, fontWeight: 'bold', color: '#444',
+        textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3,
+    };
+
     // ── Per-lot detail table (both themes) ────────────────────────────────────
     const renderLots = (g: Group) => (
         <ExpandedRowPanel classic={classic} style={{
             padding: classic ? '8px 12px 10px 18px' : '10px 16px',
         }}>
+            <div style={lotSectionLabel}>
+                Lots on Hold — {g.lots.length} lot{g.lots.length === 1 ? '' : 's'}
+            </div>
             <div style={{
                 fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
-                fontSize: classic ? 10 : 11, color: '#666',
-                fontVariant: 'all-small-caps', letterSpacing: '0.5px', marginBottom: 4,
+                fontSize: classic ? 10 : 11, color: '#777', marginBottom: 4,
             }}>
-                Lots on hold, banded by the day they were decided — status is set per lot; the row above is their rollup
+                Banded by the day they were decided — status is set per lot; the row above is their rollup
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                <thead style={classic ? { background: '#e4e0d4', borderBottom: '2px solid #808080' } : lvThead(classic)}>
+            <table style={{
+                width: '100%', maxWidth: 1040, borderCollapse: 'collapse', background: '#fff',
+                border: `1px solid ${classic ? '#c0bdb5' : '#dee2e6'}`,
+            }}>
+                <thead>
                     <tr>
-                        <th style={lvTh(classic)}>Lot</th>
-                        <th style={{ ...lvTh(classic), width: 110, textAlign: 'right' }}>Qty</th>
-                        <th style={{ ...lvTh(classic), width: 170 }}>Location</th>
-                        <th style={{ ...lvTh(classic), width: 130 }}>Status</th>
-                        <th style={{ ...lvTh(classic), width: 190 }}>Decided</th>
-                        <th style={{ ...lvTh(classic), width: 170, borderRight: 'none' }}>Set</th>
+                        <th style={lotTh}>Lot</th>
+                        <th style={{ ...lotTh, width: 110, textAlign: 'right' }}>Qty</th>
+                        <th style={{ ...lotTh, width: 170 }}>Location</th>
+                        <th style={{ ...lotTh, width: 130 }}>Status</th>
+                        <th style={{ ...lotTh, width: 190 }}>Decided</th>
+                        <th style={{ ...lotTh, width: 170 }}>Set</th>
                     </tr>
                 </thead>
                 {lotSections(g).map(sec => (
@@ -378,12 +412,11 @@ export default function QuarantinePackingView() {
                         <tr
                             key={l.batch_id || `${sec.key}-nolot-${i}`}
                             title={l.packed ? 'Already packed — this lot’s quarantine status is locked' : undefined}
-                            style={{
-                                ...lvRow(classic, i),
-                                ...(l.packed ? { background: classic ? '#f0efe9' : '#f6f7f9', color: '#8a8a8a' } : {}),
-                            }}
+                            // No zebra here (see lotTd). The only row fill left is the
+                            // settled-packed tint, which is semantic rather than decorative.
+                            style={l.packed ? { background: classic ? '#f0efe9' : '#f6f7f9', color: '#8a8a8a' } : undefined}
                         >
-                            <td style={{ ...lvTd(classic), ...dim }}>
+                            <td style={{ ...lotTd, ...dim }}>
                                 {l.batch_number
                                     ? <CodeChip code={l.batch_number} classic={classic} />
                                     : <span style={{ color: '#999', fontStyle: 'italic' }}>No lot</span>}
@@ -394,22 +427,22 @@ export default function QuarantinePackingView() {
                                     <StatusChip status="PACKED" label="Packed" style={{ marginLeft: 6 }} tint />
                                 )}
                             </td>
-                            <td style={{ ...lvTd(classic), textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
+                            <td style={{ ...lotTd, textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
                                 {fmtQty(l.qty)} <span style={{ color: '#999', fontSize: 10 }}>{g.uom}</span>
                             </td>
-                            <td style={{ ...lvTd(classic), ...dim }}>{l.location_name || '—'}</td>
-                            <td style={{ ...lvTd(classic), ...dim }}>
+                            <td style={{ ...lotTd, ...dim }}>{l.location_name || '—'}</td>
+                            <td style={{ ...lotTd, ...dim }}>
                                 {l.quarantine_status
                                     ? <StatusChip status={l.quarantine_status.replace(/\s+/g, '_')} label={l.quarantine_status} />
                                     : <StatusChip status="NONE" label="No status" tint />}
                             </td>
-                            <td style={{ ...lvTd(classic), fontSize: classic ? 10 : 11, color: '#666', ...dim }}>
+                            <td style={{ ...lotTd, color: '#666', ...dim }}>
                                 {/* The band carries the day; the row only needs who and when. */}
                                 {l.quarantine_status_at
                                     ? `${l.quarantine_status_by || '—'} · ${tzTime(l.quarantine_status_at)}`
                                     : '—'}
                             </td>
-                            <td style={{ ...lvTd(classic), borderRight: 'none' }}>
+                            <td style={lotTd}>
                                 {l.packed ? (
                                     <span style={{ fontSize: 10, color: '#2d7a2d', fontStyle: 'italic' }}
                                         title="This lot has already been packed into cartons — its quarantine status is locked and can no longer be changed.">
