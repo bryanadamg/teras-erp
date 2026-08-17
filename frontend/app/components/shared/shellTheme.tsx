@@ -158,6 +158,8 @@ export type FilterChipOption = {
     /** Selected-fill colour when the value carries its own semantics (In=green, Out=red). */
     tone?: ChipTone;
     title?: string;
+    /** Disables just this segment — a per-row/per-value lock, distinct from the bar-level `disabled`. */
+    disabled?: boolean;
 };
 
 /** Segment position for the i-th of `len` members of a flush group. */
@@ -179,13 +181,18 @@ export const segAt = (i: number, len: number): ChipSeg =>
  * `value` takes an array for multi-select bars (the Calendar's status set); the
  * caller does the add/remove in `onChange`.
  */
-export function FilterChipBar({ classic, options, value, onChange, style }: {
+export function FilterChipBar({ classic, options, value, onChange, disabled, trailing, style }: {
     classic: boolean;
     /** Plain strings, or `{ value, label, count, tone }` for a tally / coloured fill. */
     options: (string | FilterChipOption)[];
     /** Selected value, or the selected set when the bar is multi-select. */
-    value: string | string[];
+    value: string | string[] | null;
     onChange: (v: string) => void;
+    /** Disables every segment — a whole-bar lock (permission, busy, row locked). */
+    disabled?: boolean;
+    /** Extra segment(s) appended after the options, flush with the last one — an
+     * "undo"/clear action that isn't itself a selectable value. */
+    trailing?: React.ReactNode;
     style?: React.CSSProperties;
 }) {
     const isOn = (v: string) => Array.isArray(value) ? value.includes(v) : value === v;
@@ -203,6 +210,7 @@ export function FilterChipBar({ classic, options, value, onChange, style }: {
                         on={isOn(o.value)}
                         onClick={() => onChange(o.value)}
                         classic={classic}
+                        disabled={disabled || o.disabled}
                         seg={segAt(i, options.length)}
                         tone={o.tone}
                         title={o.title}
@@ -214,6 +222,7 @@ export function FilterChipBar({ classic, options, value, onChange, style }: {
                     </ToggleChip>
                 );
             })}
+            {trailing}
         </div>
     );
 }

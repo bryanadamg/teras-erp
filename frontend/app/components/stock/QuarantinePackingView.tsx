@@ -7,14 +7,14 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
-import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount, FilterChipBar, FilterChipOption } from '../shared/shellTheme';
 import {
     lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep,
     lvSubTh, lvSubTd, lvSubTable, lvSubCaption, lvSubRow, LV_XP_FONT, LV_MODERN_FONT,
 } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
-    XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg, ToggleChip,
+    XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg, ToggleChip, ChipTone,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -383,40 +383,12 @@ export default function QuarantinePackingView() {
             : 'bi-hourglass-split';
     };
 
-    const segBtn = (active: boolean, tone: 'pass' | 'stop' | 'hold' | 'clear'): React.CSSProperties => {
-        if (classic) {
-            const on = {
-                pass: { bg: '#2f9e44', border: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#eafff0' },
-                stop: { bg: '#b3241f', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' },
-                hold: { bg: '#d98c00', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' },
-                clear: { bg: '#d8d4c8', border: '#a0a09a #707070 #707070 #a0a09a', color: '#333' },
-            }[tone];
-            return {
-                fontFamily: LV_XP_FONT, fontSize: 10, padding: '1px 7px', cursor: 'pointer',
-                border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap',
-                transition: 'background-color 120ms ease, filter 120ms ease, transform 120ms ease',
-                background: active ? on.bg : '#eceae0',
-                borderColor: active ? on.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-                color: active ? on.color : '#666', fontWeight: active ? 'bold' : 'normal',
-            };
-        }
-        const on = {
-            pass: { bg: '#ecfdf3', border: '#abdfc0', color: '#15803d' },
-            stop: { bg: '#fef2f2', border: '#f3c4c4', color: '#dc2626' },
-            hold: { bg: '#fffbeb', border: '#fce3a6', color: '#b45309' },
-            clear: { bg: '#f1f5f9', border: '#cbd3df', color: '#475569' },
-        }[tone];
-        return {
-            fontFamily: LV_MODERN_FONT, fontSize: 11, padding: '3px 9px', cursor: 'pointer',
-            border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap',
-            transition: 'background-color 120ms ease, filter 120ms ease, transform 120ms ease',
-            background: active ? on.bg : '#fff', borderColor: active ? on.border : '#cbd3df',
-            color: active ? on.color : '#64748b', fontWeight: active ? 600 : 500,
-        };
-    };
+    const CHIP_TONE: Record<'pass' | 'stop' | 'hold', ChipTone> = { pass: 'green', stop: 'red', hold: 'amber' };
 
     /**
-     * Segmented disposition bar.
+     * Segmented disposition bar — built on the shared `FilterChipBar`/`ToggleChip`
+     * primitives (same ones behind the Sample Request and Lab Dip status rows) so
+     * all three read as one control family instead of three hand-rolled gradients.
      *
      * `current` is the lot's own status id when the bar sets one lot, and null on
      * the bulk bars (group row / selection) — nothing is "active" there because
@@ -425,11 +397,10 @@ export default function QuarantinePackingView() {
      * and is the only way back to undispositioned now the dropdown's blank option
      * is gone.
      */
-    const StatusButtons = ({ current, onPick, disabled, iconOnly, showClear, trailing }: {
+    const StatusButtons = ({ current, onPick, disabled, showClear, trailing }: {
         current?: string | null;
         onPick: (id: string | null, label: string) => void;
         disabled?: boolean;
-        iconOnly?: boolean;
         // Bulk bars have no active button to click twice, so they carry the clear
         // action explicitly — otherwise re-holding a whole MO would be lot by lot.
         showClear?: boolean;
@@ -440,45 +411,40 @@ export default function QuarantinePackingView() {
             return <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>No statuses defined</span>;
         }
         const hasCurrent = !!current || !!showClear;
+        const options: FilterChipOption[] = statuses.map(s => ({
+            value: s.id,
+            tone: CHIP_TONE[statusTone(s)],
+            title: current === s.id
+                ? `Clear ${s.value} — puts the lot back on hold`
+                : `${s.value}${s.is_pass ? ' — releases to packing' : ''}`,
+            label: <><i className={`bi ${statusIcon(s)}`} style={{ marginRight: 4 }} />{s.value}</>,
+        }));
         return (
             <div style={{ display: 'inline-flex', alignItems: 'center', opacity: off ? 0.75 : 1 }}
                 title={!canSetStatus ? 'Needs the Set Quarantine Status permission' : undefined}>
-                {statuses.map((s, idx) => {
-                    const active = current === s.id;
-                    const last = idx === statuses.length - 1 && !hasCurrent;
-                    return (
-                        <button
-                            key={s.id}
-                            type="button"
-                            className="qz-seg-btn"
+                <FilterChipBar
+                    classic={classic}
+                    options={options}
+                    value={current ?? null}
+                    disabled={off}
+                    onChange={id => {
+                        const s = statuses.find(x => x.id === id);
+                        if (!s) return;
+                        current === id ? onPick(null, 'No status') : onPick(id, s.value);
+                    }}
+                    trailing={hasCurrent && (
+                        <ToggleChip
+                            on={false}
+                            onClick={() => onPick(null, 'No status')}
+                            classic={classic}
                             disabled={off}
-                            title={active
-                                ? `Clear ${s.value} — puts the lot back on hold`
-                                : `${s.value}${s.is_pass ? ' — releases to packing' : ''}`}
-                            style={{
-                                ...segBtn(active, statusTone(s)),
-                                ...(last ? { borderRight: '1px solid' } : {}),
-                                ...(off ? { cursor: 'not-allowed' } : {}),
-                            }}
-                            onClick={() => (active ? onPick(null, 'No status') : onPick(s.id, s.value))}
+                            seg="last"
+                            title="Clear the disposition — puts the lot back on hold"
                         >
-                            <i className={`bi ${statusIcon(s)}`} style={{ marginRight: iconOnly ? 0 : 4 }} />
-                            {iconOnly ? '' : s.value}
-                        </button>
-                    );
-                })}
-                {hasCurrent && (
-                    <button
-                        type="button"
-                        className="qz-seg-btn"
-                        disabled={off}
-                        title="Clear the disposition — puts the lot back on hold"
-                        style={{ ...segBtn(false, 'clear'), borderRight: '1px solid', ...(off ? { cursor: 'not-allowed' } : {}) }}
-                        onClick={() => onPick(null, 'No status')}
-                    >
-                        <i className="bi bi-arrow-counterclockwise" />
-                    </button>
-                )}
+                            <i className="bi bi-arrow-counterclockwise" />
+                        </ToggleChip>
+                    )}
+                />
                 {trailing}
             </div>
         );
@@ -990,13 +956,6 @@ export default function QuarantinePackingView() {
 
     return (
         <ShellWindow classic={classic} fill="page" className="fade-in">
-            <style>{`
-                .qz-seg-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
-                .qz-seg-btn:active:not(:disabled) { filter: brightness(0.96); transform: translateY(0); }
-                @media (prefers-reduced-motion: reduce) {
-                    .qz-seg-btn:hover:not(:disabled), .qz-seg-btn:active:not(:disabled) { transform: none; }
-                }
-            `}</style>
             <ShellTitleBar
                 classic={classic}
                 icon="bi-shield-exclamation"

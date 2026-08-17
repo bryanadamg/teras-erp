@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg, ToggleChip } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -538,49 +538,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   };
 
 
-  // ── Color panel status-button styles (segmented control) ─────────────────────
-  const cbBase: React.CSSProperties = {
-      fontFamily: xpFont,
-      fontSize: '10px',
-      padding: '1px 7px',
-      cursor: 'pointer',
-      borderRadius: 0,
-      whiteSpace: 'nowrap' as const,
-      border: '1px solid',
-      transition: 'background-color 120ms ease, filter 120ms ease, transform 120ms ease',
-  };
-  const cbInprod = (active: boolean): React.CSSProperties => ({
-      ...cbBase,
-      background: active ? '#d98c00' : '#eceae0',
-      borderColor: active ? '#a06000 #603000 #603000 #a06000' : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-      color: active ? '#3e2000' : '#666',
-      fontWeight: active ? 'bold' : 'normal',
-      borderRight: 'none',
-  });
-  const cbSend = (active: boolean): React.CSSProperties => ({
-      ...cbBase,
-      background: active ? '#3a68b0' : '#eceae0',
-      borderColor: active ? '#1a3a7a #0a1a4a #0a1a4a #1a3a7a' : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-      color: active ? '#fff' : '#666',
-      fontWeight: active ? 'bold' : 'normal',
-      borderRight: 'none',
-  });
-  const cbApprove = (active: boolean): React.CSSProperties => ({
-      ...cbBase,
-      background: active ? '#2f9e44' : '#eceae0',
-      borderColor: active ? '#1b5e20 #0a3e0a #0a3e0a #1b5e20' : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-      color: active ? '#eafff0' : '#666',
-      fontWeight: active ? 'bold' : 'normal',
-      borderRight: 'none',
-  });
-  const cbReject = (active: boolean): React.CSSProperties => ({
-      ...cbBase,
-      background: active ? '#b3241f' : '#eceae0',
-      borderColor: active ? '#7f0000 #4a0000 #4a0000 #7f0000' : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-      color: active ? '#fff' : '#666',
-      fontWeight: active ? 'bold' : 'normal',
-  });
-
   const createItemFromColor = (sample: any, color: any) => {
       const suggestedCode = encodeURIComponent(`${sample.code}-${color.name}`);
       router.push(
@@ -662,13 +619,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
   return (
     <>
-       <style>{`
-           .seg-btn-hover:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
-           .seg-btn-hover:active:not(:disabled) { filter: brightness(0.96); transform: translateY(0); }
-           @media (prefers-reduced-motion: reduce) {
-               .seg-btn-hover:hover:not(:disabled), .seg-btn-hover:active:not(:disabled) { transform: none; }
-           }
-       `}</style>
        <CodeConfigModal
            isOpen={isConfigOpen}
            onClose={() => setIsConfigOpen(false)}
@@ -1765,27 +1715,18 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                        {/* Rejected rests but is reopenable — remaking the variant is a new attempt,
                                                            which is what the sample report counts. Only exit is back to In Production. */}
                                                        {canManage && (
-                                                           classic
-                                                               ? <button type="button" className="seg-btn-hover" style={cbInprod(false)} onClick={() => onUpdateColorStatus(s.id, c.id, 'IN_PRODUCTION')} title="Reopen for another attempt (logs a new process run)">&#8635; Reopen</button>
-                                                               : <button type="button" className="btn btn-sm btn-outline-warning mt-1" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, 'IN_PRODUCTION')} title="Reopen for another attempt (logs a new process run)">&#8635; Reopen</button>
+                                                           <div style={{ marginTop: 4 }}>
+                                                               <ToggleChip on={false} onClick={() => onUpdateColorStatus(s.id, c.id, 'IN_PRODUCTION')} classic={classic} tone="amber" title="Reopen for another attempt (logs a new process run)">&#8635; Reopen</ToggleChip>
+                                                           </div>
                                                        )}
                                                    </div>
                                                ) : canManage ? (
-                                                   classic ? (
-                                                       <div style={{ display: 'inline-flex' }}>
-                                                           <button type="button" className="seg-btn-hover" style={cbInprod(isInProd)} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')} title={isInProd ? 'Reset to Pending' : 'Set In Production'}>&#9881; In Prod</button>
-                                                           <button type="button" className="seg-btn-hover" style={cbSend(isSent)} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')} title={isSent ? 'Reset to Pending' : 'Mark Sent to Customer'}>&#187; Sent</button>
-                                                           <button type="button" className="seg-btn-hover" style={cbApprove(false)} onClick={() => handleApproveColor(s.id, c.id, c.name)} title="Approve">&#10003; Approve</button>
-                                                           <button type="button" className="seg-btn-hover" style={cbReject(false)} onClick={() => openRejectModal(s.id, c.id, c.name)} title="Reject">&#10007; Reject</button>
-                                                       </div>
-                                                   ) : (
-                                                       <div className="btn-group btn-group-sm" role="group">
-                                                           <button type="button" className={`btn ${isInProd ? 'btn-warning' : 'btn-outline-warning'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')}>&#9881; In Prod</button>
-                                                           <button type="button" className={`btn ${isSent ? 'btn-info' : 'btn-outline-info'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')}>&#187; Sent</button>
-                                                           <button type="button" className="btn btn-outline-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => handleApproveColor(s.id, c.id, c.name)}>&#10003; Approve</button>
-                                                           <button type="button" className="btn btn-outline-danger" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => openRejectModal(s.id, c.id, c.name)}>&#10007; Reject</button>
-                                                       </div>
-                                                   )
+                                                   <div className={classic ? undefined : 'btn-group btn-group-sm'} role="group" style={{ display: 'inline-flex' }}>
+                                                       <ToggleChip on={isInProd} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')} classic={classic} tone="amber" seg="first" title={isInProd ? 'Reset to Pending' : 'Set In Production'}>&#9881; In Prod</ToggleChip>
+                                                       <ToggleChip on={isSent} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')} classic={classic} tone="blue" seg="mid" title={isSent ? 'Reset to Pending' : 'Mark Sent to Customer'}>&#187; Sent</ToggleChip>
+                                                       <ToggleChip on={false} onClick={() => handleApproveColor(s.id, c.id, c.name)} classic={classic} tone="green" seg="mid" title="Approve">&#10003; Approve</ToggleChip>
+                                                       <ToggleChip on={false} onClick={() => openRejectModal(s.id, c.id, c.name)} classic={classic} tone="red" seg="last" title="Reject">&#10007; Reject</ToggleChip>
+                                                   </div>
                                                ) : null,
                                                // Photo column — only one side can be current, so this is whichever
                                                // status the variant is resting on. Earlier rounds' photos stay on

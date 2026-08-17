@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead } from '../shared/listViewTheme';
@@ -477,36 +477,6 @@ export default function LabDipRequestView({
     const nextCode = `${isYarn ? 'LDY' : 'LD'}-${new Date().getFullYear()}-${String(maxSeq + 1).padStart(5, '0')}`;
     const displayCode = editing ? editing.code : nextCode;
 
-    // Segmented per-variant status control (Progress / Approved / Rejected).
-    const itemStatusBtn = (active: boolean, kind: 'progress' | 'approved' | 'rejected'): React.CSSProperties => {
-        if (classic) {
-            const map = {
-                progress: { on: 'linear-gradient(to bottom, #ffe082, #c77800)', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' },
-                approved: { on: 'linear-gradient(to bottom, #7bd88f, #1b7a34)', border: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#04220c' },
-                rejected: { on: 'linear-gradient(to bottom, #d32f2f, #8b0000)', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' },
-            };
-            const p = map[kind];
-            return {
-                fontFamily: xpFont, fontSize: 10, padding: '1px 8px', cursor: 'pointer', border: '1px solid',
-                borderRight: 'none', whiteSpace: 'nowrap' as const,
-                background: active ? p.on : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
-                borderColor: active ? p.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-                color: active ? p.color : '#666', fontWeight: active ? 'bold' : 'normal',
-            };
-        }
-        const map = {
-            progress: { onBg: '#fffbeb', onBorder: '#fce3a6', onColor: '#b45309' },
-            approved: { onBg: '#ecfdf3', onBorder: '#abdfc0', onColor: '#15803d' },
-            rejected: { onBg: '#fef2f2', onBorder: '#f3c4c4', onColor: '#dc2626' },
-        };
-        const p = map[kind];
-        return {
-            fontFamily: modernFont, fontSize: 12, padding: '4px 11px', cursor: 'pointer', border: '1px solid',
-            borderRight: 'none', whiteSpace: 'nowrap' as const,
-            background: active ? p.onBg : '#fff', borderColor: active ? p.onBorder : '#cbd3df',
-            color: active ? p.onColor : '#64748b', fontWeight: active ? 600 : 500,
-        };
-    };
 
     const primaryToolbarBtn = classic
         ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
@@ -720,11 +690,21 @@ export default function LabDipRequestView({
                                                         </button>
                                                     ) : <span style={{ color: classic ? '#aaa' : '#cbd5e1', fontSize: classic ? 11 : 12 }}>—</span>,
                                                     canManage ? (
-                                                        <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant, colorNames: itemColorNames(r, it), customerName: r.customer_id ? getCustomerName(r.customer_id) : null })}>Approved</button>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant })}>Rejected</button>
-                                                        </div>
+                                                        <FilterChipBar
+                                                            classic={classic}
+                                                            disabled={locked}
+                                                            value={status === 'IN_PROGRESS' ? 'progress' : status === 'APPROVED' ? 'approved' : status === 'REJECTED' ? 'rejected' : null}
+                                                            options={[
+                                                                { value: 'progress', label: 'Progress', tone: 'amber' as ChipTone },
+                                                                { value: 'approved', label: 'Approved', tone: 'green' as ChipTone },
+                                                                { value: 'rejected', label: 'Rejected', tone: 'red' as ChipTone },
+                                                            ]}
+                                                            onChange={key => {
+                                                                if (key === 'progress') setItemStatus(it.id, status, 'IN_PROGRESS');
+                                                                else if (key === 'approved') openApproval(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant, colorNames: itemColorNames(r, it), customerName: r.customer_id ? getCustomerName(r.customer_id) : null });
+                                                                else if (key === 'rejected') openReject(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant });
+                                                            }}
+                                                        />
                                                     ) : <span style={{ color: '#999' }}>—</span>,
                                                     // Photo column — only one side can be current, so this is whichever
                                                     // status the variant rests on. Earlier rounds stay on their event rows.
