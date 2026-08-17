@@ -438,15 +438,26 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                         {/* Pack is the row's primary action — inline, same shape as
                                             "log production output" on the WO list, not buried in the menu. */}
                                         {canManage && !closed && (
-                                            <span style={{ marginRight: 2 }}>
-                                                <XPActionButton
-                                                    classic={CLASSIC}
-                                                    tone="success"
-                                                    icon="bi-plus-lg"
-                                                    title="Pack — log cartons against this order"
-                                                    onClick={() => setDetail(po)}
-                                                />
-                                            </span>
+                                            <>
+                                                <span style={{ marginRight: 2 }}>
+                                                    <XPActionButton
+                                                        classic={CLASSIC}
+                                                        tone="success"
+                                                        icon="bi-plus-lg"
+                                                        title="Pack — log cartons against this order"
+                                                        onClick={() => setDetail(po)}
+                                                    />
+                                                </span>
+                                                <span style={{ marginRight: 2 }}>
+                                                    <XPActionButton
+                                                        classic={CLASSIC}
+                                                        tone="primary"
+                                                        icon="bi-check2-square"
+                                                        title="Close Order — no further cartons can be packed"
+                                                        onClick={() => closeOrder(po)}
+                                                    />
+                                                </span>
+                                            </>
                                         )}
                                         <MenuTriggerButton classic onClick={e => menuToggle(String(po.id), e)} />
                                     </td>
@@ -473,7 +484,6 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                             { key: 'open', label: closed ? 'View' : 'Pack', icon: 'bi-box-seam', hidden: canManage && !closed, onClick: () => { menuClose(); setDetail(po); } },
                             { key: 'card', label: 'Print Packing Card', icon: 'bi-printer', onClick: () => { menuClose(); setPrintCard(po); } },
                             { key: 'labels', label: 'Print Carton Labels', icon: 'bi-tags', hidden: !(po.packed_units || []).length, onClick: () => { menuClose(); setPrintLabels({ order: po, units: po.packed_units || [] }); } },
-                            { key: 'close', label: 'Close Order', icon: 'bi-check2-square', hidden: !(canManage && !closed), onClick: () => { menuClose(); closeOrder(po); } },
                             { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !(canManage && !(po.completions || []).length), onClick: () => { menuClose(); deleteOrder(po); } },
                         ]}
                     />
