@@ -112,6 +112,10 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
 
     # --- packed_available: cartons still holding stock. Carton qty lives only in
     # the StockBalance row keyed by the batch, never on the Batch itself.
+    # `quality_status == "GOOD"` mirrors the same gate pick_lists.py uses to decide
+    # what's pickable (readiness board query, carton-scan endpoint) — a rejected or
+    # disposed carton still has StockBalance.qty > 0 sitting in the defect store,
+    # but it can never be picked, so it must not count toward READY either.
     for sol_id, qty in (
         await db.execute(
             select(
@@ -123,6 +127,7 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
             .join(StockBalance, StockBalance.batch_key == cast(Batch.id, String))
             .filter(
                 PackingOrder.sales_order_line_id.in_(line_ids),
+                Batch.quality_status == "GOOD",
                 StockBalance.qty > 0,
             )
             .group_by(PackingOrder.sales_order_line_id)

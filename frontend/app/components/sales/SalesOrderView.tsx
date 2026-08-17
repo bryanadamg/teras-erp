@@ -868,18 +868,20 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const fulfilmentCell = (line: any) => {
       const f = lineFulfilment(line);
       if (f.ordered <= 0) return <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>;
-      const seg = (width: number, color: string, z: number) => (
-          <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${width}%`, background:color, zIndex:z }} />
-      );
       const title = `Made ${fmtQty(f.made)} · Packed ${fmtQty(f.packed)} · In stock ${fmtQty(f.available)} · Shipped ${fmtQty(f.shipped)} — of ${fmtQty(f.ordered)} ordered`;
+      // shipped/packed/made nest (shipped<=packed<=made), so drawn as one stacked
+      // bar: green=shipped, blue=packed-not-yet-shipped, gray=made-not-yet-packed.
+      const shippedPct = f.pct(f.shipped);
+      const packedPct = f.pct(f.packed);
+      const madePct = f.pct(f.made);
       return (
           <div title={title} style={{ display:'flex', flexDirection:'column', gap:2, minWidth:78 }}>
-              <div style={{ position:'relative', height:6, background: classic ? '#e8e5dd' : '#eceff1',
-                  border: classic ? '1px solid #b0a898' : '1px solid #dde2e6', borderRadius: classic ? 0 : 3, overflow:'hidden' }}>
-                  {seg(f.pct(f.made), classic ? '#c3ccdb' : '#cbd5e1', 1)}
-                  {seg(f.pct(f.packed), classic ? '#5a9ae0' : '#3b82f6', 2)}
-                  {seg(f.pct(f.shipped), classic ? '#2d7a2d' : '#16a34a', 3)}
-              </div>
+              <ProgressBar
+                  pct={shippedPct} tone="green"
+                  secondaryPct={Math.max(0, packedPct - shippedPct)} secondaryTone="blue"
+                  tertiaryPct={Math.max(0, madePct - packedPct)} tertiaryTone="gray"
+                  height={6}
+              />
               <div style={{ fontFamily:xpFont, fontSize:'9px', color: f.isReady ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
                   {f.shipped > 0
                       ? `${fmtQty(f.shipped)} shipped`

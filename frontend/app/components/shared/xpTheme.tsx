@@ -364,6 +364,7 @@ function progressBarFill(tone: StatusFamily, hatched: boolean): string {
 export function ProgressBar({
     pct, tone, hatched = false, height = 10, width, title,
     secondaryPct, secondaryTone = 'gray',
+    tertiaryPct, tertiaryTone = 'gray',
     markerPct, markerTitle,
     label = 'none',
 }: {
@@ -376,6 +377,10 @@ export function ProgressBar({
     /** Second segment stacked after the primary fill (e.g. "planned" after "done"). */
     secondaryPct?: number;
     secondaryTone?: StatusFamily;
+    /** Third segment stacked after the secondary fill (e.g. a 3-stage pipeline —
+     *  shipped -> packed -> made). Ignored unless secondaryPct is also set. */
+    tertiaryPct?: number;
+    tertiaryTone?: StatusFamily;
     /** Threshold tick drawn over the track (e.g. a target efficiency the fill is
      *  measured against). Not a second fill — it marks a line, not an amount. */
     markerPct?: number;
@@ -386,6 +391,7 @@ export function ProgressBar({
     const t: StatusFamily = tone || (pct >= 100 ? 'green' : pct > 0 ? 'amber' : 'gray');
     const clamped = Math.max(0, Math.min(100, pct));
     const secClamped = secondaryPct != null ? Math.max(0, Math.min(100 - clamped, secondaryPct)) : 0;
+    const terClamped = tertiaryPct != null ? Math.max(0, Math.min(100 - clamped - secClamped, tertiaryPct)) : 0;
     const pctLabel = Math.round(clamped);
 
     const track = (
@@ -393,6 +399,9 @@ export function ProgressBar({
             <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${clamped}%`, background: progressBarFill(t, hatched), transition: 'width 0.2s' }} />
             {secondaryPct != null && (
                 <div style={{ position: 'absolute', top: 0, left: `${clamped}%`, height: '100%', width: `${secClamped}%`, background: progressBarFill(secondaryTone, hatched), transition: 'width 0.2s, left 0.2s' }} />
+            )}
+            {tertiaryPct != null && (
+                <div style={{ position: 'absolute', top: 0, left: `${clamped + secClamped}%`, height: '100%', width: `${terClamped}%`, background: progressBarFill(tertiaryTone, hatched), transition: 'width 0.2s, left 0.2s' }} />
             )}
             {markerPct != null && (
                 <div
