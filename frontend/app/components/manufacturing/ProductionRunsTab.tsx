@@ -10,6 +10,22 @@ import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPAc
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
+// Column defs for the expanded row's material table. Module-level so the loading
+// skeleton can render the SAME header (and the same column count) as the real
+// table — a placeholder of a different shape is just a different flash.
+const PR_MATERIAL_COLUMNS: { h: string; t: string; num: boolean }[] = [
+    { h: 'Item Code', t: '', num: false },
+    { h: 'Item Name', t: '', num: false },
+    { h: 'UOM', t: '', num: false },
+    { h: 'Req (fix)', t: 'Fixed requirement at full order qty — never decrements. Grey figure below it is the NET still required after what this run has already been issued.', num: true },
+    { h: 'Produced', t: 'Good output logged so far by this Production Run’s own MOs that make this item. Dash = nothing here produces it (bought or taken from stock).', num: true },
+    { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded). Hover a figure to see the lots behind it.', num: true },
+    { h: 'Free', t: 'On-hand minus what every OTHER open order has already claimed. This is what this run can actually count on — “Available” alone shows the same stock to every run that needs it.', num: true },
+    { h: 'Incoming', t: 'Outstanding output of this Production Run’s own component MOs — already scheduled, not yet made.', num: true },
+    { h: 'Status', t: 'SHORT = material genuinely missing (nothing on hand, nothing scheduled) — needs action. NO WO = no work order opened on the producing MO yet. NOT STARTED = WO opened, nothing logged. IN PROGRESS = output logged, not finished. DONE = made in full. Dash = bought or taken from stock, covered.', num: false },
+    { h: 'MOs', t: 'needs = MOs consuming this component. made = MOs producing it (logged / target).', num: false },
+];
+
 export default function ProductionRunsTab({
     productionRuns,
     prPage,
@@ -374,14 +390,11 @@ export default function ProductionRunsTab({
                                             <td colSpan={9} className="p-0 border-0">
                                             <ExpandedRowPanel classic={classic}>
                                             <ExpandedRowPanelBody classic={classic}>
-                                                {/* Only stand in for the table when there is nothing to show yet.
+                                                {/* Empty message only once the pull has actually finished — while it
+                                                    is in flight the real header renders over a skeleton body instead.
                                                     A background re-pull (list refresh) keeps the current rows on
                                                     screen and swaps them when the fresh ones land. */}
-                                                {isLoading && reqs.length === 0 ? (
-                                                    <span style={{ fontSize: 11, color: '#666', fontFamily: classic ? xpFont : undefined }}>
-                                                        Loading material requirements...
-                                                    </span>
-                                                ) : reqs.length === 0 ? (
+                                                {reqs.length === 0 && !isLoading ? (
                                                     <span style={{ fontSize: 11, color: '#999', fontFamily: classic ? xpFont : undefined }}>
                                                         No component requirements found for this Production Run.
                                                     </span>
@@ -409,7 +422,7 @@ export default function ProductionRunsTab({
                                                             );
                                                         })()}
                                                         <div style={{ fontSize: classic ? 10 : 11, fontWeight: 'bold', marginBottom: 4, fontFamily: classic ? xpFont : undefined, color: '#333' }}>
-                                                            Consolidated Material Requirements — {reqs.length} component{reqs.length !== 1 ? 's' : ''}
+                                                            Consolidated Material Requirements{reqs.length > 0 ? ` — ${reqs.length} component${reqs.length !== 1 ? 's' : ''}` : ''}
                                                             {hasShortfall && <span style={{ marginLeft: 8, color: '#c00000', fontWeight: 'bold' }}>SHORTFALL DETECTED</span>}
                                                             {(() => {
                                                                 // Production roll-up: how many made-here components are DONE. Amber,
@@ -437,18 +450,7 @@ export default function ProductionRunsTab({
                                                         <table style={lvSubTable(classic)}>
                                                             <thead>
                                                                 <tr>
-                                                                    {[
-                                                                        { h: 'Item Code', t: '', num: false },
-                                                                        { h: 'Item Name', t: '', num: false },
-                                                                        { h: 'UOM', t: '', num: false },
-                                                                        { h: 'Req (fix)', t: 'Fixed requirement at full order qty — never decrements. Grey figure below it is the NET still required after what this run has already been issued.', num: true },
-                                                                        { h: 'Produced', t: 'Good output logged so far by this Production Run’s own MOs that make this item. Dash = nothing here produces it (bought or taken from stock).', num: true },
-                                                                        { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded). Hover a figure to see the lots behind it.', num: true },
-                                                                        { h: 'Free', t: 'On-hand minus what every OTHER open order has already claimed. This is what this run can actually count on — “Available” alone shows the same stock to every run that needs it.', num: true },
-                                                                        { h: 'Incoming', t: 'Outstanding output of this Production Run’s own component MOs — already scheduled, not yet made.', num: true },
-                                                                        { h: 'Status', t: 'SHORT = material genuinely missing (nothing on hand, nothing scheduled) — needs action. NO WO = no work order opened on the producing MO yet. NOT STARTED = WO opened, nothing logged. IN PROGRESS = output logged, not finished. DONE = made in full. Dash = bought or taken from stock, covered.', num: false },
-                                                                        { h: 'MOs', t: 'needs = MOs consuming this component. made = MOs producing it (logged / target).', num: false },
-                                                                    ].map(({ h, t, num }) => (
+                                                                    {PR_MATERIAL_COLUMNS.map(({ h, t, num }) => (
                                                                         // Full cell borders, not lvSubTd's single rule: at 10 columns
                                                                         // this reads as a grid and the verticals do real work.
                                                                         <th key={h} title={t || undefined} style={{ ...lvSubTh(classic), textAlign: num ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', cursor: t ? 'help' : undefined }}>{h}</th>
@@ -456,6 +458,20 @@ export default function ProductionRunsTab({
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
+                                                                {reqs.length === 0 && (
+                                                                    // Shape-matched placeholder: same 10 columns, same dense cell
+                                                                    // metrics as a real row, so the table doesn't resize when the
+                                                                    // data lands.
+                                                                    <TableSkeleton
+                                                                        rows={4}
+                                                                        cols={PR_MATERIAL_COLUMNS.length}
+                                                                        classic={classic}
+                                                                        tdStyle={{
+                                                                            ...lvSubTd(classic),
+                                                                            border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
+                                                                        }}
+                                                                    />
+                                                                )}
                                                                 {reqs.map((req: any, ri: number) => {
                                                                     // Row tint = genuine material shortage only. Epsilon-guarded so a
                                                                     // zero gap can't paint the row red (the "SHORT 0.00" bug).
