@@ -154,6 +154,12 @@ async def list_quarantine_stock(
                 "labdip_variant_code": labdip_code,
             }
 
+    # Lots already drawn by packing — their disposition is locked (frozen once
+    # cartons exist against it), so the page renders them read-only.
+    packed_ids = await quarantine_service.packed_batch_ids(
+        db, [b.id for (_, b, _, _) in rows if b is not None]
+    )
+
     groups: dict[str, QuarantineGroupResponse] = {}
     for bal, batch, item, loc in rows:
         info = origin.get(batch.source_wo_id) if batch is not None else None
@@ -204,6 +210,7 @@ async def list_quarantine_stock(
             quarantine_status_by=batch.quarantine_status_by if batch is not None else None,
             quarantine_notes=batch.quarantine_notes if batch is not None else None,
             released=released,
+            packed=batch is not None and batch.id in packed_ids,
             created_at=batch.created_at if batch is not None else None,
         ))
 
@@ -376,6 +383,14 @@ async def set_quarantine_status(
     missing = set(str(b) for b in batch_ids) - {str(b.id) for b in batches}
     if missing:
         raise HTTPException(status_code=404, detail=f"Unknown lot(s): {', '.join(sorted(missing))}")
+
+    # A lot that has already been packed is frozen — releasing it is what let the
+    # cartons be minted, so the decision is no longer QC's to revise. Checked for
+    # the whole submission so the "apply to the MO" button can't half-apply.
+    try:
+        await quarantine_service.assert_not_packed(db, batches)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
     stamped = datetime.utcnow()
     for b in batches:

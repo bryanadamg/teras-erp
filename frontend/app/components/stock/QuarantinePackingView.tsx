@@ -58,6 +58,8 @@ type Lot = {
     quarantine_status_by: string | null;
     quarantine_notes: string | null;
     released: boolean;
+    // Drawn by a packing completion — the disposition is frozen from then on.
+    packed: boolean;
     created_at: string | null;
 };
 
@@ -377,6 +379,9 @@ export default function QuarantinePackingView() {
                                 {l.quality_status === 'REJECTED' && (
                                     <StatusChip status="REJECTED" style={{ marginLeft: 6 }} tint />
                                 )}
+                                {l.packed && (
+                                    <StatusChip status="PACKED" label="Packed" style={{ marginLeft: 6 }} tint />
+                                )}
                             </td>
                             <td style={{ ...lvTd(classic), textAlign: 'right', whiteSpace: 'nowrap' }}>
                                 {fmtQty(l.qty)} <span style={{ color: '#999', fontSize: 10 }}>{g.uom}</span>
@@ -394,7 +399,12 @@ export default function QuarantinePackingView() {
                                     : '—'}
                             </td>
                             <td style={{ ...lvTd(classic), borderRight: 'none' }}>
-                                {l.batch_id ? (
+                                {l.packed ? (
+                                    <span style={{ fontSize: 10, color: '#2d7a2d', fontStyle: 'italic' }}
+                                        title="This lot has already been packed into cartons — its quarantine status is locked and can no longer be changed.">
+                                        <i className="bi bi-lock-fill" style={{ marginRight: 4 }} />Locked — packed
+                                    </span>
+                                ) : l.batch_id ? (
                                     <StatusSelect
                                         value={l.quarantine_status_id || ''}
                                         width={160}
@@ -474,7 +484,10 @@ export default function QuarantinePackingView() {
                 <tbody ref={listBodyRef}>
                     {groups.map((g, i) => {
                         const open = expanded.has(g.key);
-                        const lotIds = g.lots.map(l => l.batch_id).filter(Boolean) as string[];
+                        // Packed lots are frozen, so the whole-MO apply targets only the
+                        // ones still open — including them would 409 the whole submission.
+                        const lotIds = g.lots.filter(l => l.batch_id && !l.packed)
+                            .map(l => l.batch_id) as string[];
                         const allReleased = g.lot_count > 0 && g.qty_released >= g.qty_total - 1e-6;
                         return (
                             <Fragment key={g.key}>
@@ -535,7 +548,9 @@ export default function QuarantinePackingView() {
                                             <StatusSelect
                                                 value=""
                                                 width={140}
-                                                placeholder={`Apply to ${g.lot_count} lot${g.lot_count > 1 ? 's' : ''}...`}
+                                                placeholder={lotIds.length
+                                                    ? `Apply to ${lotIds.length} lot${lotIds.length > 1 ? 's' : ''}...`
+                                                    : 'All lots locked (packed)'}
                                                 disabled={saving !== null || !lotIds.length}
                                                 onPick={(id, label) => setStatus(lotIds, id, label)}
                                             />

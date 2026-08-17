@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.location import Location
 from app.models.batch import Batch
 from app.models.item import Item
+from app.models.packing import PackingCompletion
 from app.models.attribute import Attribute, AttributeValue
 
 # The one disposition that releases a lot to packing. Everything else — Bulk
@@ -96,6 +97,46 @@ async def resolve_status_value(db: AsyncSession, value_id) -> AttributeValue:
             "'Quarantine Status' attribute (Inventory > Attributes)."
         )
     return val
+
+
+async def packed_batch_ids(db: AsyncSession, batch_ids: Iterable) -> set:
+    """Of the given lots, those already consumed by a packing completion.
+
+    A packed lot's disposition is frozen (see `assert_not_packed`): the cartons
+    that left it were minted on the strength of an OK, and a packing order with
+    cartons cannot be deleted, so there is no path that un-packs it. Read via
+    `PackingCompletion.source_batch_id` — the completion is the packing event
+    itself, so it exists for un-lotted draws too and needs no genealogy join.
+    """
+    ids = [b for b in batch_ids if b]
+    if not ids:
+        return set()
+    rows = (await db.execute(
+        select(PackingCompletion.source_batch_id)
+        .filter(PackingCompletion.source_batch_id.in_(ids))
+        .distinct()
+    )).scalars().all()
+    return {r for r in rows if r}
+
+
+async def assert_not_packed(db: AsyncSession, batches: list[Batch]) -> None:
+    """Raise ValueError if any lot has already been packed.
+
+    QC may re-disposition a lot freely while it is still sitting on the hold
+    desk, but once packing has drawn from it the release is history: flipping it
+    to HOLD afterwards would leave sealed cartons whose source reads as blocked,
+    and the gate in `assert_lots_released` only runs at pack time so it could
+    never catch up.
+    """
+    packed = await packed_batch_ids(db, [b.id for b in batches])
+    if not packed:
+        return
+    blocked = [b for b in batches if b.id in packed]
+    detail = ", ".join(b.batch_number for b in blocked)
+    raise ValueError(
+        f"Already packed — the quarantine status is locked and can no longer be "
+        f"changed: {detail}"
+    )
 
 
 async def assert_lots_released(

@@ -128,6 +128,8 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     // someone maps it here). OK is the only one that releases a lot to packing;
     // MIXED is the derived MO rollup when its lots disagree.
     OK: 'green', BULK_SAMPLE: 'blue', WAITING_APPROVAL: 'amber', MIXED: 'amber',
+    // A quarantine lot already drawn by packing — terminal, its disposition is frozen.
+    PACKED: 'green',
     // Work-queue readiness verdicts (services/work_queue_service.py). Derived, never
     // stored. Blue = the PIC may start it (RUNNING/STAGED/READY already blue above);
     // amber = waiting on something with a known answer; red = nothing to run on.

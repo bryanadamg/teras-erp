@@ -3193,6 +3193,8 @@ class QuarantineLotResponse(BaseModel):
     quarantine_status_by: str | None = None
     quarantine_notes: str | None = None
     released: bool = False
+    # Consumed by a packing completion — the disposition is frozen from here on.
+    packed: bool = False
     created_at: datetime | None = None
 
 class QuarantineGroupResponse(BaseModel):
