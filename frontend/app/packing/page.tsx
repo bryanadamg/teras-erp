@@ -21,6 +21,7 @@ export default function PackingPage() {
                 sales_order_id: searchParams.get('sales_order_id') || '',
                 sales_order_line_id: searchParams.get('sales_order_line_id') || '',
                 qty_target: searchParams.get('qty_target') || '',
+                bom_size_id: searchParams.get('bom_size_id') || '',
             });
             router.replace('/packing');
         }

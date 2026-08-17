@@ -3227,6 +3227,9 @@ class QuarantineGroupResponse(BaseModel):
     color_name: str | None = None
     color_hex: str | None = None
     labdip_variant_code: str | None = None
+    # The MO's sized-BOM pick, if any — lets the Packing form auto-match this
+    # group to the one open SO line ordered in the same size.
+    bom_size_id: UUID | None = None
     item_id: UUID
     item_code: str | None = None
     item_name: str | None = None

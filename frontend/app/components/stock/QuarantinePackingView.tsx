@@ -121,6 +121,7 @@ type Group = {
     color_name: string | null;
     color_hex: string | null;
     labdip_variant_code: string | null;
+    bom_size_id: string | null;
     item_id: string;
     item_code: string | null;
     item_name: string | null;
@@ -271,6 +272,7 @@ export default function QuarantinePackingView() {
             qty_target: String(g.qty_released),
         });
         if (g.sales_order_id) params.set('sales_order_id', g.sales_order_id);
+        if (g.bom_size_id) params.set('bom_size_id', g.bom_size_id);
         router.push(`/packing?${params.toString()}`);
     }, [router, showToast]);
 
@@ -663,16 +665,18 @@ export default function QuarantinePackingView() {
                                 )}
                             </td>
                             <td style={{ ...lotTd, ...dim }}>
-                                {l.batch_number
-                                    ? <CodeChip code={l.batch_number} classic={classic} />
-                                    : <span style={{ color: '#999', fontStyle: 'italic' }}>No lot</span>}
-                                {l.quality_status === 'REJECTED' && (
-                                    <StatusChip status="REJECTED" style={{ marginLeft: 6 }} tint />
-                                )}
-                                {l.packed && (
-                                    <StatusChip status="PACKED" label="Packed" style={{ marginLeft: 6 }} tint />
-                                )}
-                                <div style={{ marginTop: 3 }}><LotChips batch={l} rounded /></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {l.batch_number
+                                        ? <CodeChip code={l.batch_number} classic={classic} />
+                                        : <span style={{ color: '#999', fontStyle: 'italic' }}>No lot</span>}
+                                    {l.quality_status === 'REJECTED' && (
+                                        <StatusChip status="REJECTED" tint />
+                                    )}
+                                    {l.packed && (
+                                        <StatusChip status="PACKED" label="Packed" tint />
+                                    )}
+                                    <div style={{ marginLeft: 'auto' }}><LotChips batch={l} rounded /></div>
+                                </div>
                             </td>
                             <td style={{ ...lotTd, textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
                                 {/* A fully packed lot has nothing left on hand, so the

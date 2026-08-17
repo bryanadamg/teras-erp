@@ -180,7 +180,7 @@ async def list_quarantine_stock(
     if wo_ids:
         for (wo_id, mo_id, mo_code, mo_status, mo_qty, pr_code,
              mo_so_id, mo_so_code, pr_so_id, pr_so_code,
-             color_code, color_name, color_hex, labdip_code) in (await db.execute(
+             color_code, color_name, color_hex, labdip_code, bom_size_id) in (await db.execute(
             select(
                 WorkOrder.id,
                 ManufacturingOrder.id, ManufacturingOrder.code,
@@ -190,6 +190,7 @@ async def list_quarantine_stock(
                 ProductionRun.sales_order_id, pr_so.po_number,
                 Color.code, Color.name, Color.hex,
                 ManufacturingOrder.labdip_variant_code,
+                ManufacturingOrder.bom_size_id,
             )
             .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
             .outerjoin(ProductionRun, ProductionRun.id == ManufacturingOrder.production_run_id)
@@ -205,6 +206,10 @@ async def list_quarantine_stock(
                 "sales_order_code": mo_so_code or pr_so_code,
                 "color_code": color_code, "color_name": color_name, "color_hex": color_hex,
                 "labdip_variant_code": labdip_code,
+                # The MO's own sized-BOM pick — lets the packing form auto-match this
+                # group's stock to the one order line ordered in the same size,
+                # instead of making the planner eyeball qty/name among every line.
+                "bom_size_id": bom_size_id,
             }
 
     # Lots already drawn by packing — their disposition is locked (frozen once
@@ -243,6 +248,7 @@ async def list_quarantine_stock(
                 color_name=info["color_name"] if info else None,
                 color_hex=info["color_hex"] if info else None,
                 labdip_variant_code=info["labdip_variant_code"] if info else None,
+                bom_size_id=info["bom_size_id"] if info else None,
                 item_id=item.id, item_code=item.code, item_name=item.name, uom=item.uom,
                 qty_total=0.0, qty_released=0.0, lot_count=0,
                 rollup_status="NONE", status_counts={}, lots=[],

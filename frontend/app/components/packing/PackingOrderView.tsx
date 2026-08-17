@@ -599,6 +599,26 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
         }
     };
 
+    // Once an SO is picked (and the item is already fixed — from a Quarantine
+    // Packing deep link, or a prior manual pick), auto-select the one order line
+    // that's unambiguous: same item, and — when the source lot carried a size —
+    // the same size too. Colour/combo need no matching of their own: those are
+    // already baked into item_id, since each colour/combo is its own Item row.
+    // Never auto-picks between two same-item/same-size lines — that's still the
+    // planner's call, so it's left blank for them.
+    useEffect(() => {
+        if (!soId || !itemId || soLineId) return;
+        const candidates = soLines.filter((l: any) => String(l.item_id) === String(itemId));
+        if (!candidates.length) return;
+        const sizeHint = initialValues?.bom_size_id;
+        const sizeMatch = sizeHint
+            ? candidates.find((l: any) => l.bom_size_id && String(l.bom_size_id) === String(sizeHint))
+            : null;
+        const auto = sizeMatch || (candidates.length === 1 ? candidates[0] : null);
+        if (auto) applySoLine(String(auto.id));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [soId, itemId, soLines, soLineId]);
+
     const fgOptions = useMemo(
         () => (fgResults || []).map((i: any) => ({ value: String(i.id), label: i.name, subLabel: i.code })),
         [fgResults]
