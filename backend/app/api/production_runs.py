@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, and_, cast, String
+from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from uuid import UUID
@@ -491,11 +491,17 @@ async def get_production_run_material_requirements(
     # Lots behind the on-hand figure. A Dyeing PIC checking "can I dye this run?"
     # picks a physical roll, not a number, and one 40 kg total can be four lots in
     # four bins. Batch-less (non-lotted) stock simply contributes no rows.
+    # Two steps on purpose. Joining Batch as `cast(Batch.id, String) = batch_key`
+    # casts away the PK index, so Postgres hashes the whole batches table on every
+    # expand — a cost that grows with lot history for a column that is only a
+    # display label. Group the balances first (indexed), then look the numbers up by
+    # primary key. Same grouping (item, batch, location name) and same fallback to
+    # the raw key when a batch row is missing, so the rows and quantities are
+    # unchanged.
     lots_by_item: dict[str, list] = defaultdict(list)
-    for iid, bkey, qty, bnum, loc_name in (await db.execute(
+    lot_rows = (await db.execute(
         select(StockBalance.item_id, StockBalance.batch_key, func.sum(StockBalance.qty),
-               Batch.batch_number, Location.name)
-        .outerjoin(Batch, cast(Batch.id, String) == StockBalance.batch_key)
+               Location.name)
         .outerjoin(Location, Location.id == StockBalance.location_id)
         .where(
             StockBalance.item_id.in_(item_ids),
@@ -503,10 +509,23 @@ async def get_production_run_material_requirements(
             StockBalance.batch_key != "",
             StockBalance.batch_key.not_in(rejected_batch_keys()),
         )
-        .group_by(StockBalance.item_id, StockBalance.batch_key, Batch.batch_number, Location.name)
-    )).all():
+        .group_by(StockBalance.item_id, StockBalance.batch_key, Location.name)
+    )).all()
+    batch_uuids = set()
+    for _, bkey, _, _ in lot_rows:
+        try:
+            batch_uuids.add(UUID(bkey))
+        except (ValueError, AttributeError, TypeError):
+            continue  # non-UUID key: the old cast-join matched nothing either
+    batch_numbers: dict[str, str] = {}
+    if batch_uuids:
+        for bid, bnum in (await db.execute(
+            select(Batch.id, Batch.batch_number).where(Batch.id.in_(batch_uuids))
+        )).all():
+            batch_numbers[str(bid)] = bnum
+    for iid, bkey, qty, loc_name in lot_rows:
         lots_by_item[str(iid)].append(PRMaterialLot(
-            batch_id=bkey, batch_number=bnum or bkey,
+            batch_id=bkey, batch_number=batch_numbers.get(bkey) or bkey,
             qty=float(qty or 0), location_name=loc_name,
         ))
 
@@ -584,7 +603,10 @@ async def get_production_run_material_requirements(
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
             qty_claimed_elsewhere=others,
             qty_free=free,
-            lots=sorted(lots_by_item.get(item_id_str, []), key=lambda l: -l.qty)[:12],
+            # Biggest lots first, batch number breaking ties: without the tiebreak the
+            # cut at 12 falls between equal-qty lots in whatever order the rows came
+            # back, so the same item could list a different dozen after a restart.
+            lots=sorted(lots_by_item.get(item_id_str, []), key=lambda l: (-l.qty, l.batch_number))[:12],
             location_id=item.default_source_location_id if item else None,
             total_required=total,
             gross_required=data["gross_required"],
