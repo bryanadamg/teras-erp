@@ -724,11 +724,15 @@ export function XPLoading({ label = 'Loading...', fullScreen = false }: { label?
 
 // ── Skeleton placeholders ───────────────────────────────────────────────────
 //
-// Used instead of XPLoading wherever the loader stands in for a *list*: a
-// shimmering stand-in that carries the shape of the rows that are coming beats
-// a centred marquee that says only "something is happening". XPLoading stays
-// for boot screens, modals, and single-value panes, where there is no shape to
-// preview. Shimmer keyframes live in globals.css (.xp-skel).
+// A shimmering stand-in that carries the shape of what is coming beats a centred
+// marquee that says only "something is happening". Not list-only: see the
+// non-list skeletons further down (CardGridSkeleton / TableBlockSkeleton /
+// PanelSkeleton) for grids, whole-table swaps and detail panes.
+//
+// XPLoading survives only where there is genuinely no shape to promise — a
+// transient wait inside a flow whose next screen depends on what comes back
+// (ScanDispatcher resolving a scanned code) — and for in-button spinners, which
+// are Bootstrap's and stay as they are. Shimmer keyframes: globals.css .xp-skel.
 
 /** One shimmering placeholder bar. */
 export function SkeletonBar({ width = '100%', height = 9 }: { width?: number | string; height?: number }) {
@@ -799,6 +803,188 @@ export function TableSkeleton({ rows = 6, cols, classic = false, tdStyle, rowHei
                 </tr>
             ))}
         </>
+    );
+}
+
+// ── Skeletons for non-list shapes ───────────────────────────────────────────
+//
+// TableSkeleton above only fits a <tbody>. The views that aren't lists — the
+// loom grid, the report tables that are swapped out header and all, the drill-in
+// detail panes — used to fall back to XPLoading's centred marquee, which says
+// only "something is happening" and then jumps to a full page of content.
+//
+// Same rule as TableSkeleton: the stand-in must carry the shape of what is
+// coming. Pass the real geometry (column count, card min-width, gaps) from the
+// view — a skeleton that doesn't line up with the thing that replaces it is
+// worse than no skeleton, because the shift reads as a bug. Where a view has no
+// stable shape to promise, keep XPLoading.
+
+/**
+ * Stand-in for a card grid — same `auto-fill / minmax` track as the real grid,
+ * so cards land in the same columns at every viewport width.
+ *
+ * `count` is how many placeholder cards to draw: enough to fill the fold, not
+ * the real count (unknown while loading).
+ */
+export function CardGridSkeleton({
+    count = 8, minWidth = 250, gap = 12, classic = false,
+    headerStrip = true, bodyLines = 3, bar = true, bodyHeight,
+}: {
+    count?: number;
+    /** Must match the real grid's minmax() floor. */
+    minWidth?: number;
+    gap?: number;
+    classic?: boolean;
+    /** Draw the coloured title strip cards carry across their top. */
+    headerStrip?: boolean;
+    bodyLines?: number;
+    /** Draw a progress-bar-shaped block under the lines. */
+    bar?: boolean;
+    /** Force a card body height when the real card is taller than the lines imply. */
+    bodyHeight?: number;
+}) {
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}px, 1fr))`, gap }}>
+            {Array.from({ length: count }, (_, i) => (
+                <div
+                    key={i}
+                    style={classic
+                        ? { border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff', background: '#ece9d8' }
+                        : { border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', overflow: 'hidden' }}
+                >
+                    {headerStrip && (
+                        <div
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                                padding: classic ? '4px 7px' : '8px 12px',
+                                background: classic ? '#a6a6a6' : '#f1f5f9',
+                                borderBottom: `1px solid ${classic ? '#00000033' : '#e2e8f0'}`,
+                            }}
+                        >
+                            <SkeletonBar width={skelWidth(i, 0)} height={classic ? 9 : 11} />
+                            <SkeletonBar width={44} height={classic ? 9 : 11} />
+                        </div>
+                    )}
+                    <div
+                        style={{
+                            padding: classic ? '7px 8px' : '12px',
+                            background: '#fff',
+                            display: 'flex', flexDirection: 'column', gap: classic ? 6 : 8,
+                            minHeight: bodyHeight,
+                        }}
+                    >
+                        {Array.from({ length: bodyLines }, (_, l) => (
+                            <SkeletonBar key={l} width={skelWidth(i, l + 1)} height={classic ? 8 : 10} />
+                        ))}
+                        {bar && <SkeletonBar width="100%" height={classic ? 10 : 12} />}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * Stand-in for a whole table *including* its header — for the views where the
+ * loader replaces the `<table>` element itself, so there is no live `<thead>`
+ * for TableSkeleton to sit under.
+ *
+ * Prefer TableSkeleton wherever the real header does render: it measures the
+ * live table, this one is told. Pass the same `cols` the view is about to
+ * render, and bump it for any leading spacer/expander column.
+ */
+export function TableBlockSkeleton({
+    cols = 6, rows = 10, classic = false, header = true, rowHeight,
+}: {
+    cols?: number;
+    rows?: number;
+    classic?: boolean;
+    header?: boolean;
+    rowHeight?: number;
+}) {
+    const h = rowHeight ?? (classic ? 22 : 38);
+    const pad = classic ? '4px 6px' : '8px 10px';
+    const cellWidths = ['62%', '78%', '45%', '70%', '52%', '84%', '58%', '40%'];
+
+    return (
+        <div style={{ width: '100%' }}>
+            {header && (
+                <div
+                    style={{
+                        display: 'flex', gap: 0,
+                        background: classic ? '#ece9d8' : '#f8fafc',
+                        borderBottom: `1px solid ${classic ? '#b0a898' : '#e2e8f0'}`,
+                    }}
+                >
+                    {Array.from({ length: cols }, (_, c) => (
+                        <div key={c} style={{ flex: 1, padding: pad, minWidth: 0 }}>
+                            <SkeletonBar width={cellWidths[(c * 3) % cellWidths.length]} height={classic ? 8 : 10} />
+                        </div>
+                    ))}
+                </div>
+            )}
+            {Array.from({ length: rows }, (_, r) => (
+                <div
+                    key={r}
+                    style={{
+                        display: 'flex',
+                        height: h, alignItems: 'center',
+                        background: classic ? (r % 2 === 0 ? '#ffffff' : '#f5f3ee') : '#fff',
+                        borderBottom: `1px solid ${classic ? '#e3e1dc' : '#eef2f7'}`,
+                    }}
+                >
+                    {Array.from({ length: cols }, (_, c) => (
+                        <div key={c} style={{ flex: 1, padding: pad, minWidth: 0 }}>
+                            <SkeletonBar width={skelWidth(r, c)} height={classic ? 8 : 10} />
+                        </div>
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * Stand-in for a detail pane: an optional section caption over label/value
+ * rows. For drill-in panels and modal tabs, where what arrives is a block of
+ * fields rather than rows or cards.
+ */
+export function PanelSkeleton({
+    sections = 2, rows = 4, classic = false, caption = true,
+}: {
+    sections?: number;
+    /** Label/value rows per section. */
+    rows?: number;
+    classic?: boolean;
+    caption?: boolean;
+}) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: classic ? 12 : 18, padding: classic ? 8 : 12 }}>
+            {Array.from({ length: sections }, (_, s) => (
+                <div key={s}>
+                    {caption && (
+                        <div
+                            style={{
+                                padding: classic ? '3px 6px' : '0 0 8px',
+                                background: classic ? '#ece9d8' : undefined,
+                                borderBottom: `1px solid ${classic ? '#b0a898' : '#e2e8f0'}`,
+                                marginBottom: classic ? 8 : 10,
+                            }}
+                        >
+                            <SkeletonBar width={s % 2 ? 120 : 150} height={classic ? 9 : 11} />
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: classic ? 7 : 10 }}>
+                        {Array.from({ length: rows }, (_, r) => (
+                            <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                <SkeletonBar width={classic ? 92 : 120} height={classic ? 8 : 10} />
+                                <SkeletonBar width={skelWidth(s + r, r)} height={classic ? 8 : 10} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
     );
 }
 

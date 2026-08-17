@@ -5,7 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, familyColor, ProgressBar, StatusChip, ToggleChip, XPLoading, XPEmptyState, XPActionButton } from '../shared/xpTheme';
+import { xpFont, familyColor, ProgressBar, StatusChip, ToggleChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
 import { useToast } from '../shared/Toast';
@@ -589,8 +589,18 @@ export default function WeavingMonitorView() {
         </div>
     ) : null;
 
+    // Geometry mirrors cardGrid()/card() above — same minmax floor and gap, and a
+    // body deep enough for the run stack + beam strip + prep row — so the real
+    // grid drops straight into the skeleton's tracks with no shift.
     const body = loading ? (
-        <XPLoading label={t('loading')} />
+        <CardGridSkeleton
+            count={12}
+            minWidth={cls ? 240 : 250}
+            gap={cls ? 8 : 12}
+            classic={cls}
+            bodyLines={3}
+            bodyHeight={cls ? 96 : 118}
+        />
     ) : machines.length === 0 ? (
         <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
     ) : !isGrouped ? (
@@ -625,9 +635,18 @@ export default function WeavingMonitorView() {
                 />
                 {/* Chip bar sits OUTSIDE the scroll area: the filter and its alarm
                     badges stay on screen no matter how far down the grid you are. */}
-                {!loading && machines.length > 0 && (
+                {(loading || machines.length > 0) && (
                     <div style={{ padding: cls ? '6px 8px 0' : '12px 12px 0', background: cls ? '#ece9d8' : undefined }}>
-                        {chipBar}
+                        {/* Placeholder chips hold the strip's height while loading —
+                            without them the whole grid jumps down when the real chip
+                            bar appears. */}
+                        {loading
+                            ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {[70, 96, 84, 110].map((w, i) => (
+                                    <SkeletonBar key={i} width={w} height={cls ? 17 : 24} />
+                                ))}
+                            </div>
+                            : chipBar}
                     </div>
                 )}
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: cls ? 8 : 12, background: cls ? '#ece9d8' : undefined }}>

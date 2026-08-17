@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ProgressBar, xpFont } from './xpTheme';
 import type { BootPhase } from '../../context/UserContext';
 
 /**
- * Boot screen shown before the shell can render — while the client bundle is
- * hydrating and while a stored token is being validated against /users/me.
+ * Boot screen for the case where there is no chrome to draw yet — the login
+ * route and the Electron cold start. Authenticated routes get BootShell
+ * instead, which paints the real app frame rather than covering it.
  *
  * The bar is determinate because the boot sequence is a fixed, ordered set of
  * awaited checkpoints (see BootPhase in UserContext), not because a timer is
@@ -14,10 +15,20 @@ import type { BootPhase } from '../../context/UserContext';
  * actually paints; 'ready' is the terminal value, at which point this whole
  * component unmounts and never shows 100%.
  *
+ * Two timing guards, both standard and both load-bearing:
+ *  - SHOW_DELAY: a boot that resolves faster than this shows nothing at all. A
+ *    warm start with no stored token finishes in a few ms, and flashing a
+ *    splash across it makes the app feel slower than saying nothing.
+ *  - MIN_VISIBLE: once shown, it stays up for at least this long. A splash that
+ *    appears and vanishes within one or two frames reads as a glitch.
+ *
  * The *data* load that follows login is a different, separately measured thing
  * — that one is AppLoadBar's strip inside the shell. Don't merge them: this
  * runs before there is a shell to put a strip in.
  */
+
+const SHOW_DELAY = 250;
+const MIN_VISIBLE = 400;
 
 const BOOT_STEPS: { phase: BootPhase; label: string }[] = [
     { phase: 'hydrating', label: 'Loading interface' },
@@ -25,6 +36,42 @@ const BOOT_STEPS: { phase: BootPhase; label: string }[] = [
     { phase: 'verifying', label: 'Verifying account' },
     { phase: 'ready', label: 'Ready' },
 ];
+
+/**
+ * Gates the splash on the two timing guards above. Call it unconditionally with
+ * "is the app still booting", then render the splash only while it returns
+ * true — and render *nothing* when it is false but boot is still running (that
+ * is the sub-250ms window the guard exists to keep empty).
+ *
+ * Min-visible can't live inside the component: the caller unmounts it the
+ * moment boot resolves, so the floor has to be held by whoever decides to
+ * render it.
+ */
+export function useBootIndicator(active: boolean): boolean {
+    const [visible, setVisible] = useState(false);
+    const shownAt = useRef(0);
+
+    useEffect(() => {
+        if (active) {
+            if (visible) return;
+            const t = setTimeout(() => {
+                shownAt.current = Date.now();
+                setVisible(true);
+            }, SHOW_DELAY);
+            return () => clearTimeout(t);
+        }
+        if (!visible) return;
+        const remaining = Math.max(0, MIN_VISIBLE - (Date.now() - shownAt.current));
+        if (remaining === 0) {
+            setVisible(false);
+            return;
+        }
+        const t = setTimeout(() => setVisible(false), remaining);
+        return () => clearTimeout(t);
+    }, [active, visible]);
+
+    return visible;
+}
 
 export default function BootSplash({ phase }: { phase: BootPhase }) {
     const [appName, setAppName] = useState('Teras ERP');

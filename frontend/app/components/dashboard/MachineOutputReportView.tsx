@@ -21,7 +21,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import {
-    xpFont, xpBtn, xpInput, xpSep, XPLoading, XPEmptyState,
+    xpFont, xpBtn, xpInput, xpSep, TableBlockSkeleton, XPEmptyState,
     useSortable, SortMark, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar,
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
@@ -701,7 +701,8 @@ export default function MachineOutputReportView() {
                     </div>
 
                     <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
-                        {loading ? <XPLoading label="Loading report..." />
+                        {/* +1 for the leading expander column the real table renders. */}
+                        {loading ? <TableBlockSkeleton cols={columns.length + 1} rows={14} classic />
                         : error ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load report — ${error}`} />
                         : sorted.length === 0 ? <XPEmptyState icon={emptyIcon} message={emptyMessage} />
                         : (
@@ -851,7 +852,7 @@ export default function MachineOutputReportView() {
             </div>
 
             <div className="card-body p-0" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {loading ? <XPLoading label="Loading report..." />
+                {loading ? <TableBlockSkeleton cols={columns.length + 1} rows={14} />
                 : error ? <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load report — {error}</div>
                 : sorted.length === 0 ? (
                     <div className="text-center py-5 text-muted">

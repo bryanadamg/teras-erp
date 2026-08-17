@@ -11,12 +11,12 @@ import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
 import AppLoadBar from './AppLoadBar';
-import BootSplash from './BootSplash';
+import BootShell from './BootShell';
 import { SECTION_LABELS, PREFETCH_ROUTES, ROUTE_PERMISSIONS } from './navConfig';
 import AccessDenied from './AccessDenied';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-    const { currentUser, logout, loading, bootPhase, hasPermission, hasAnyPermission } = useUser();
+    const { currentUser, logout, loading, hasPermission, hasAnyPermission } = useUser();
     const { handleTabHover } = useData();
     const { language, setLanguage, t } = useLanguage();
     const { uiStyle } = useTheme();
@@ -65,15 +65,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         return () => clearTimeout(id);
     }, [mounted, loading, currentUser, isMobile, router]);
 
-    // SSR / Initial Loading State — before hydration the boot is by definition
-    // still at its first step, whatever the context says.
-    if (!mounted || loading) {
-        return <BootSplash phase={mounted ? bootPhase : 'hydrating'} />;
-    }
-
-    // Allow Login Page and Docs pages to render without layout wrappers
+    // Allow Login Page and Docs pages to render without layout wrappers.
+    // Checked BEFORE the boot gate: these two own their whole viewport, so an
+    // unauthenticated cold start must not paint an app shell it is about to
+    // throw away. Login runs its own boot indicator.
     if (pathname === '/login' || pathname.startsWith('/docs')) {
         return <>{children}</>;
+    }
+
+    // SSR / boot state — paint the chrome instead of covering it. Same DOM
+    // classes as the real layout below, so nothing shifts when it swaps.
+    if (!mounted || loading) {
+        return <BootShell appName={appName} />;
     }
 
     // Protect all other routes

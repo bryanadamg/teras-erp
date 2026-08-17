@@ -10,7 +10,7 @@ import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import {
-    xpFont, familyColor, StatusChip, XPActionButton, XPLoading, XPEmptyState,
+    xpFont, familyColor, StatusChip, XPActionButton, PanelSkeleton, XPEmptyState,
     ExpandedRowPanel, ExpandedRowPanelBody, FormSection, FieldLabel, ProgressBar,
     xpSelect, xpPanel, SectionTitle, CodeChip,
 } from '../shared/xpTheme';
@@ -641,9 +641,10 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
             {tab === 'performance' && (
                 <div>
-                    {/* First load of this machine: the shared spinner, same as every list
-                        view — the panel used to sit blank until the fetch resolved. */}
-                    {loading && !data && <XPLoading label={t('loading')} />}
+                    {/* First load of this machine: field-shaped placeholders rather than
+                        a marquee — what arrives is a block of run/prep fields, so the
+                        panel keeps its height and the content fades into it. */}
+                    {loading && !data && <PanelSkeleton sections={2} rows={4} classic={cls} />}
 
                     {/* No run: read-only viewers get the shared empty state; managers go
                         straight to the start-run form — no extra click to get there. */}

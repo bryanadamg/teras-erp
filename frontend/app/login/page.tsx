@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
-import BootSplash from '../components/shared/BootSplash';
+import BootSplash, { useBootIndicator } from '../components/shared/BootSplash';
 
 export default function LoginPage() {
     const { currentUser, login, loading, bootPhase } = useUser();
@@ -26,6 +26,12 @@ export default function LoginPage() {
 
     const passwordRef = useRef<HTMLInputElement>(null);
     const usernameRef = useRef<HTMLInputElement>(null);
+
+    // Boot gate: hydration, plus the /users/me round-trip when a token is
+    // already stored (without it, a returning user sees the login form flash
+    // before being bounced to the dashboard).
+    const booting = !mounted || loading;
+    const showBoot = useBootIndicator(booting);
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -81,9 +87,13 @@ export default function LoginPage() {
     const formatDate = (d: Date) =>
         d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-    if (!mounted || loading) {
+    // Splash only once the wait has earned it; below SHOW_DELAY the screen stays
+    // empty rather than flashing. `showBoot` can outlast `booting` — that's the
+    // min-visible floor holding a splash that did appear.
+    if (showBoot) {
         return <BootSplash phase={mounted ? bootPhase : 'hydrating'} />;
     }
+    if (booting) return null;
 
     if (isMobile) {
         return (

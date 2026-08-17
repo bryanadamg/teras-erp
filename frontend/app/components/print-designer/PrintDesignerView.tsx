@@ -7,7 +7,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
-import { XPLoading, xpFont } from '../shared/xpTheme';
+import { PanelSkeleton, xpFont } from '../shared/xpTheme';
 
 import TemplateRenderer from '../shared/printTemplate/TemplateRenderer';
 import { buildPrintContext } from '../shared/printTemplate/renderContext';
@@ -518,7 +518,18 @@ export default function PrintDesignerView() {
                     display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
                 }}>
                     {loadingSamples ? (
-                        <div style={{ marginTop: 40 }}><XPLoading label="Loading a work order to preview with..." /></div>
+                        // Sheet-shaped placeholder at the real paper size, so the canvas
+                        // doesn't resize under the designer when the sample WO lands.
+                        <div>
+                            <div style={{ height: 10, marginBottom: 4 }} />
+                            <div style={{
+                                background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.35)',
+                                width: `${paperW}mm`, height: `${paperH}mm`,
+                                padding: `${draft.paper.marginMm}mm`, boxSizing: 'border-box',
+                            }}>
+                                <PanelSkeleton sections={3} rows={4} classic={classic} caption />
+                            </div>
+                        </div>
                     ) : (
                         <div>
                             <div style={{

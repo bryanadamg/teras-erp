@@ -6,7 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import CalendarView from '../shared/CalendarView';
 import {
     xpFont, ProgressBar, StatusChip, XPStatusBar, familyColor, familyTint, type StatusFamily,
-    CodeChip, CODE_FONT,
+    CodeChip, CODE_FONT, SkeletonBar,
 } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
@@ -131,6 +131,12 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
         itemIndex?.[String(id)]?.name || (items || []).find((i: any) => i.id === id)?.name || id;
 
     const hasSummary = !!summary;
+
+    // Until /dashboard/summary lands, `metrics` below falls back to zeros (and to
+    // whatever slice of items/SOs the client happens to hold). Rendering those as
+    // finished figures is worse than rendering nothing — "0 low stock" is a claim,
+    // not a placeholder — so the tiles show a bar until the real numbers arrive.
+    const kpisLoading = !kpis;
 
     // ── Metrics ──────────────────────────────────────────────────────────────
     const metrics = {
@@ -299,7 +305,9 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             <h6 className={`card-title mb-0 opacity-75 small text-uppercase fw-bold ${textCls}`}>{title}</h6>
                             <i className={`bi ${icon} fs-4 opacity-50`} aria-hidden="true"></i>
                         </div>
-                        <h3 className="fw-bold mb-0">{value}</h3>
+                        <h3 className="fw-bold mb-0">
+                            {kpisLoading ? <SkeletonBar width={56} height={24} /> : value}
+                        </h3>
                         <small className="opacity-75" style={{ fontSize: '0.75rem' }}>{subtext}</small>
                     </div>
                 </div>
@@ -666,7 +674,11 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
         value: React.ReactNode; label: string; tone?: StatusFamily; highlight?: 'crit' | 'warn';
     }) => (
         <div style={kpiTileStyle(highlight)}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: CODE_FONT, color: tone ? familyColor(tone) : '#333', lineHeight: 1.1 }}>{value}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: CODE_FONT, color: tone ? familyColor(tone) : '#333', lineHeight: 1.1 }}>
+                {kpisLoading
+                    ? <span style={{ display: 'inline-block', width: 42, verticalAlign: 'middle' }}><SkeletonBar width="100%" height={18} /></span>
+                    : value}
+            </div>
             <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{label}</div>
         </div>
     );

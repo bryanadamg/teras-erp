@@ -10,7 +10,7 @@ import {
     lvTh, lvThead, lvRow, lvBtn, lvInput, lvLabel, lvSep, LvSectionCaption, LV_XP_FONT, LV_MODERN_FONT,
 } from '../shared/listViewTheme';
 import {
-    StatusChip, XPLoading, XPStatusBar, XPEmptyState, useSortable, SortMark,
+    StatusChip, TableBlockSkeleton, XPStatusBar, XPEmptyState, useSortable, SortMark,
     familyColor, familyTint, xpPanel, type StatusFamily,
 } from '../shared/xpTheme';
 
@@ -385,8 +385,13 @@ export default function SampleReportView() {
             />
             <Filters />
             <KpiTiles />
+            {/* Column counts match SummaryTable (7) and VariantTable (9) so the
+                report lands in the skeleton's columns instead of replacing it. */}
             {loading && !report
-                ? <div style={{ flex: 1, minHeight: 0 }}><XPLoading label="Building sample report..." /></div>
+                ? <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                    <TableBlockSkeleton cols={7} rows={4} classic={classic} />
+                    <TableBlockSkeleton cols={9} rows={10} classic={classic} />
+                </div>
                 : <><SummaryTable /><VariantTable /></>}
             <XPStatusBar right={`Range ${rangeLabel}`}>
                 {totals.requests} requests · {totals.variants} variants · {totals.processes} processed · {totals.approvals} approved · {totals.rejects} rejected
