@@ -3201,6 +3201,16 @@ class QuarantineLotResponse(BaseModel):
     qty_packed: float | None = None
     last_packed_at: datetime | None = None
     created_at: datetime | None = None
+    # Variant identity, same shape as BatchResponse/LotChips everywhere else:
+    # size lives on the lot itself, combo/colour on the producing MO's attribute
+    # values (color_code/name/hex + labdip_variant_code mirror the group's own,
+    # since a group is one MO — shown per-lot too so the lot list reads standalone).
+    bom_size_snapshot: dict | None = None
+    variant_attributes: list[BatchVariantAttr] | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    labdip_variant_code: str | None = None
 
 class QuarantineGroupResponse(BaseModel):
     # "<mo_id|unassigned>:<item_id>" — an MO can output several items and an item

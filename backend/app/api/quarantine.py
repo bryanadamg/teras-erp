@@ -32,6 +32,7 @@ from app.models.color import Color
 from app.models.stock_balance import StockBalance
 from app.models.work_order import WorkOrder
 from app.api.auth import get_current_user, require_permission
+from app.api.batches import _resolve_batch_variants
 from app.schemas import (
     QuarantineGroupResponse, QuarantineListResponse, QuarantineLotResponse,
     QuarantineStatusOption, QuarantineStatusUpdate,
@@ -212,6 +213,13 @@ async def list_quarantine_stock(
         db, [b.id for (_, b, _, _) in rows if b is not None]
     )
 
+    # Combo/other variant attributes of the producing MO, resolved onto each
+    # batch (setattr, same as the lot pickers) — the group row already carries
+    # color/labdip from `origin`, but combo has no home there, and a lot's own
+    # size (`bom_size_snapshot`) isn't surfaced anywhere on this page at all.
+    all_batches = [b for (_, b, _, _) in rows if b is not None] + [b for (b, _, _, _, _) in history]
+    await _resolve_batch_variants(db, all_batches)
+
     groups: dict[str, QuarantineGroupResponse] = {}
 
     def _group(batch, item) -> QuarantineGroupResponse:
@@ -269,6 +277,10 @@ async def list_quarantine_stock(
             released=released,
             packed=batch is not None and batch.id in packed_qty,
             created_at=batch.created_at if batch is not None else None,
+            bom_size_snapshot=batch.bom_size_snapshot if batch is not None else None,
+            variant_attributes=getattr(batch, "variant_attributes", None) if batch is not None else None,
+            color_code=grp.color_code, color_name=grp.color_name, color_hex=grp.color_hex,
+            labdip_variant_code=grp.labdip_variant_code,
         ))
 
     # History rows deliberately touch neither the qty totals nor `lot_count`:
@@ -294,6 +306,10 @@ async def list_quarantine_stock(
             released=quarantine_service.is_pass(batch.quarantine_status),
             packed=True,
             created_at=batch.created_at,
+            bom_size_snapshot=batch.bom_size_snapshot,
+            variant_attributes=getattr(batch, "variant_attributes", None),
+            color_code=grp.color_code, color_name=grp.color_name, color_hex=grp.color_hex,
+            labdip_variant_code=grp.labdip_variant_code,
         ))
 
     items = list(groups.values())

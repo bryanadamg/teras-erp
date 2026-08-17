@@ -18,6 +18,7 @@ import {
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
+import { LotChips, LotVariantAttr } from '../shared/LotChips';
 
 /**
  * Quarantine Packing — the QC hold desk between production output and packing.
@@ -99,6 +100,12 @@ type Lot = {
     qty_packed: number | null;
     last_packed_at: string | null;
     created_at: string | null;
+    bom_size_snapshot?: { size_name?: string | null; label?: string | null } | null;
+    variant_attributes?: LotVariantAttr[] | null;
+    color_code: string | null;
+    color_name: string | null;
+    color_hex: string | null;
+    labdip_variant_code: string | null;
 };
 
 type Group = {
@@ -665,6 +672,7 @@ export default function QuarantinePackingView() {
                                 {l.packed && (
                                     <StatusChip status="PACKED" label="Packed" style={{ marginLeft: 6 }} tint />
                                 )}
+                                <div style={{ marginTop: 3 }}><LotChips batch={l} rounded /></div>
                             </td>
                             <td style={{ ...lotTd, textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
                                 {/* A fully packed lot has nothing left on hand, so the
