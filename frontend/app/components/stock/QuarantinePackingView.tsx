@@ -44,6 +44,37 @@ const PAGE_SIZE = 25;
 const fmtQty = (n: number) =>
     Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 
+/**
+ * Checkbox with a real indeterminate state — `indeterminate` is a DOM property,
+ * not an attribute, so React cannot set it through JSX and it has to be written
+ * on the node. Module-level (not nested in the view) so React keeps the same
+ * element across renders instead of remounting it on every keystroke elsewhere.
+ */
+function TriCheckbox({ checked, indeterminate, onChange, disabled, title }: {
+    checked: boolean;
+    indeterminate?: boolean;
+    onChange: (next: boolean) => void;
+    disabled?: boolean;
+    title?: string;
+}) {
+    const ref = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+    }, [indeterminate, checked]);
+    return (
+        <input
+            ref={ref}
+            type="checkbox"
+            checked={checked}
+            disabled={disabled}
+            title={title}
+            onChange={e => onChange(e.target.checked)}
+            onClick={e => e.stopPropagation()}
+            style={{ margin: 0, verticalAlign: 'middle', cursor: disabled ? 'default' : 'pointer' }}
+        />
+    );
+}
+
 type Lot = {
     batch_id: string | null;
     batch_number: string | null;
@@ -142,6 +173,9 @@ export default function QuarantinePackingView() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    // Checked lots, keyed by batch id (globally unique, so one flat set covers
+    // every expanded group). Only ever holds *selectable* lots — see selectableIds.
+    const [selectedLots, setSelectedLots] = useState<Set<string>>(new Set());
 
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
@@ -244,6 +278,13 @@ export default function QuarantinePackingView() {
                 throw new Error(body.detail || `HTTP ${res.status}`);
             }
             showToast(`${label} set on ${ids.length} lot${ids.length > 1 ? 's' : ''}`, 'success');
+            // Whatever we just wrote is done with — drop it from the checked set so
+            // the selection bar reflects what is still pending, not what was applied.
+            setSelectedLots(prev => {
+                const next = new Set(prev);
+                ids.forEach(id => next.delete(id));
+                return next;
+            });
             await fetchGroups();
         } catch (e: any) {
             showToast(e?.message || 'Could not set the status', 'danger');
@@ -252,11 +293,32 @@ export default function QuarantinePackingView() {
         }
     }, [authFetch, fetchGroups, showToast]);
 
-    const toggleRow = (k: string) => setExpanded(prev => {
+    // ── Lot selection ─────────────────────────────────────────────────────────
+    // Packed lots are locked and un-lotted rows have nothing to write a status
+    // to, so neither is ever selectable — the same filter the whole-MO apply uses.
+    const selectableIds = (lots: Lot[]) =>
+        lots.filter(l => l.batch_id && !l.packed).map(l => l.batch_id) as string[];
+
+    const setSelection = (ids: string[], on: boolean) => setSelectedLots(prev => {
         const next = new Set(prev);
-        next.has(k) ? next.delete(k) : next.add(k);
+        ids.forEach(id => (on ? next.add(id) : next.delete(id)));
         return next;
     });
+
+    const toggleRow = (k: string, lots: Lot[] = []) => {
+        setExpanded(prev => {
+            const next = new Set(prev);
+            if (next.has(k)) {
+                next.delete(k);
+                // Collapsing hides the checkboxes; leaving them ticked would arm an
+                // apply the user can no longer see the targets of.
+                setSelection(selectableIds(lots), false);
+            } else {
+                next.add(k);
+            }
+            return next;
+        });
+    };
 
     // ── Status <select>: shared by the group row and each lot row ─────────────
     const StatusSelect = ({ value, onPick, disabled, width = 150, placeholder }: {
@@ -283,7 +345,7 @@ export default function QuarantinePackingView() {
     );
 
     const COL_COUNT = 8;
-    const LOT_COL_COUNT = 6;
+    const LOT_COL_COUNT = 7;   // 6 data columns + the select checkbox
 
     // ── Decided-day banding ───────────────────────────────────────────────────
     // 'en-CA' + 2-digit gives an ISO-ish "2026-08-09", so the key sorts lexically
@@ -364,7 +426,17 @@ export default function QuarantinePackingView() {
     };
 
     // ── Per-lot detail table (both themes) ────────────────────────────────────
-    const renderLots = (g: Group) => (
+    const renderLots = (g: Group) => {
+        // Selection is computed per group off the flat set, so a group only ever
+        // reports and applies to its own lots.
+        const groupIds = selectableIds(g.lots);
+        const chosen = groupIds.filter(id => selectedLots.has(id));
+        const allChosen = groupIds.length > 0 && chosen.length === groupIds.length;
+        const chosenQty = g.lots.reduce(
+            (s, l) => (l.batch_id && selectedLots.has(l.batch_id) ? s + (l.qty || 0) : s), 0);
+        const pickDisabled = !canSetStatus || saving !== null;
+
+        return (
         <ExpandedRowPanel classic={classic} style={{
             padding: classic ? '8px 12px 10px 18px' : '10px 16px',
         }}>
@@ -377,12 +449,71 @@ export default function QuarantinePackingView() {
             }}>
                 Banded by the day they were decided — status is set per lot; the row above is their rollup
             </div>
+
+            {/* Selection bar — only present once something is ticked, so the
+                panel stays quiet during the normal read-only scan. */}
+            {chosen.length > 0 && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                    padding: classic ? '4px 8px' : '6px 10px', marginBottom: 4,
+                    background: classic ? '#fffbe6' : '#fff8e6',
+                    border: `1px solid ${classic ? '#d8c98a' : '#f0d99b'}`,
+                    fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
+                    fontSize: classic ? 10 : 11, color: '#5c4a00',
+                }}>
+                    <i className="bi bi-check2-square" />
+                    <span>
+                        <b>{chosen.length}</b> of {groupIds.length} selectable lot{groupIds.length === 1 ? '' : 's'}
+                        {' · '}{fmtQty(chosenQty)} {g.uom || ''}
+                    </span>
+                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <StatusSelect
+                            value=""
+                            width={175}
+                            placeholder={`Apply to ${chosen.length} selected...`}
+                            disabled={saving !== null}
+                            onPick={(id, label) => setStatus(chosen, id, label)}
+                        />
+                        {passOption && (
+                            <XPActionButton
+                                classic={classic}
+                                tone="success"
+                                icon="bi-check2-circle"
+                                label="OK selected"
+                                title={`Set ${passOption.value} on the ${chosen.length} selected lot${chosen.length === 1 ? '' : 's'} — releases them to packing`}
+                                disabled={pickDisabled}
+                                onClick={() => setStatus(chosen, passOption.id, passOption.value)}
+                            />
+                        )}
+                        <XPActionButton
+                            classic={classic}
+                            tone="neutral"
+                            icon="bi-x"
+                            label="Clear"
+                            title="Clear the selection"
+                            onClick={() => setSelection(groupIds, false)}
+                        />
+                    </span>
+                </div>
+            )}
+
             <table style={{
-                width: '100%', maxWidth: 1040, borderCollapse: 'collapse', background: '#fff',
+                width: '100%', borderCollapse: 'collapse', background: '#fff',
                 border: `1px solid ${classic ? '#c0bdb5' : '#dee2e6'}`,
             }}>
                 <thead>
                     <tr>
+                        <th style={{ ...lotTh, width: 28, textAlign: 'center' }}>
+                            <TriCheckbox
+                                checked={allChosen}
+                                indeterminate={chosen.length > 0}
+                                disabled={pickDisabled || !groupIds.length}
+                                title={groupIds.length
+                                    ? 'Select every lot of this MO that is still open'
+                                    : 'No selectable lots — all are packed or un-lotted'}
+                                onChange={on => setSelection(groupIds, on)}
+                            />
+                        </th>
                         <th style={lotTh}>Lot</th>
                         <th style={{ ...lotTh, width: 110, textAlign: 'right' }}>Qty</th>
                         <th style={{ ...lotTh, width: 170 }}>Location</th>
@@ -391,11 +522,23 @@ export default function QuarantinePackingView() {
                         <th style={{ ...lotTh, width: 170 }}>Set</th>
                     </tr>
                 </thead>
-                {lotSections(g).map(sec => (
+                {lotSections(g).map(sec => {
+                    const secIds = selectableIds(sec.lots);
+                    const secChosen = secIds.filter(id => selectedLots.has(id));
+                    return (
                 <tbody key={sec.key}>
                     <tr>
                         <td colSpan={LOT_COL_COUNT} style={bandStyle(sec.awaiting)}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {/* QC works the hold area a day at a time, so the band
+                                    is the selection grain the floor actually asks for. */}
+                                <TriCheckbox
+                                    checked={secIds.length > 0 && secChosen.length === secIds.length}
+                                    indeterminate={secChosen.length > 0}
+                                    disabled={pickDisabled || !secIds.length}
+                                    title={secIds.length ? `Select the ${secIds.length} open lot${secIds.length === 1 ? '' : 's'} in this band` : 'No selectable lots in this band'}
+                                    onChange={on => setSelection(secIds, on)}
+                                />
                                 <i className={`bi ${sec.awaiting ? 'bi-hourglass-split' : 'bi-calendar2-check'}`} style={{ fontSize: 10 }} />
                                 <span>{sec.label}</span>
                                 <span style={{ marginLeft: 'auto', fontWeight: 'normal', color: '#666' }}>
@@ -408,14 +551,31 @@ export default function QuarantinePackingView() {
                         // Packed lots stay in the list (they are still this MO's history)
                         // but read as settled rather than actionable — dimmed, not dropped.
                         const dim: React.CSSProperties = l.packed ? { opacity: 0.55 } : {};
+                        const selectable = !!l.batch_id && !l.packed;
+                        const isChosen = selectable && selectedLots.has(l.batch_id as string);
                         return (
                         <tr
                             key={l.batch_id || `${sec.key}-nolot-${i}`}
                             title={l.packed ? 'Already packed — this lot’s quarantine status is locked' : undefined}
-                            // No zebra here (see lotTd). The only row fill left is the
-                            // settled-packed tint, which is semantic rather than decorative.
-                            style={l.packed ? { background: classic ? '#f0efe9' : '#f6f7f9', color: '#8a8a8a' } : undefined}
+                            // No zebra here (see lotTd). The only row fills left are the
+                            // settled-packed tint and the checked highlight — both semantic.
+                            style={
+                                l.packed ? { background: classic ? '#f0efe9' : '#f6f7f9', color: '#8a8a8a' }
+                                : isChosen ? { background: classic ? '#fffbe6' : '#fffdf2' }
+                                : undefined
+                            }
                         >
+                            <td style={{ ...lotTd, textAlign: 'center' }}>
+                                {selectable ? (
+                                    <TriCheckbox
+                                        checked={isChosen}
+                                        disabled={pickDisabled}
+                                        onChange={on => setSelection([l.batch_id as string], on)}
+                                    />
+                                ) : (
+                                    <span style={{ color: '#ccc' }}>—</span>
+                                )}
+                            </td>
                             <td style={{ ...lotTd, ...dim }}>
                                 {l.batch_number
                                     ? <CodeChip code={l.batch_number} classic={classic} />
@@ -467,10 +627,12 @@ export default function QuarantinePackingView() {
                         );
                     })}
                 </tbody>
-                ))}
+                    );
+                })}
             </table>
         </ExpandedRowPanel>
-    );
+        );
+    };
 
     // ── Toolbar ───────────────────────────────────────────────────────────────
     const toolbar = (
@@ -537,7 +699,7 @@ export default function QuarantinePackingView() {
                         return (
                             <Fragment key={g.key}>
                                 <tr
-                                    onClick={() => toggleRow(g.key)}
+                                    onClick={() => toggleRow(g.key, g.lots)}
                                     title="Click to see the lots"
                                     style={{
                                         ...lvRow(classic, i),
