@@ -36,6 +36,13 @@ export interface User {
 
 
 
+/**
+ * Ordered boot checkpoints, consumed by BootSplash to draw a determinate bar.
+ * Each value is a real awaited stage, so the order here is the order of work:
+ * client hydration → read stored token → validate it against /users/me → done.
+ */
+export type BootPhase = 'hydrating' | 'session' | 'verifying' | 'ready';
+
 interface UserContextType {
     currentUser: User | null;
     users: User[];
@@ -49,6 +56,7 @@ interface UserContextType {
     login: (username: string, password: string) => Promise<boolean | 'network_error'>;
     logout: () => void;
     loading: boolean;
+    bootPhase: BootPhase;
 }
 
 
@@ -62,6 +70,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    const [bootPhase, setBootPhase] = useState<BootPhase>('hydrating');
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
     const login = async (username, password): Promise<boolean | 'network_error'> => {
@@ -123,14 +132,25 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Boot sequence, deliberately split across two effects: setting 'session'
+    // and then 'verifying' inside one pass would batch into a single render and
+    // the boot bar would skip a step it is supposed to be reporting.
+    useEffect(() => { setBootPhase('session'); }, []);
+
     useEffect(() => {
+        if (bootPhase !== 'session') return;
         const token = localStorage.getItem('access_token');
-        if (token) {
-            fetchCurrentUser(token).finally(() => setLoading(false));
-        } else {
+        if (!token) {
+            setBootPhase('ready');
             setLoading(false);
+            return;
         }
-    }, []);
+        setBootPhase('verifying');
+        fetchCurrentUser(token).finally(() => {
+            setBootPhase('ready');
+            setLoading(false);
+        });
+    }, [bootPhase]);
 
     const hasPermission = (permissionCode: string): boolean => {
         if (!currentUser) return false;
@@ -172,7 +192,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, hasAnyPermission, hasWorkCenterScope, hasCategoryScope, hasLocationScope, refreshUsers, login, logout, loading }}>
+        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, hasAnyPermission, hasWorkCenterScope, hasCategoryScope, hasLocationScope, refreshUsers, login, logout, loading, bootPhase }}>
             {children}
         </UserContext.Provider>
     );

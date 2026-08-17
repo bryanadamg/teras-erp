@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
-import { XPLoading } from '../components/shared/xpTheme';
+import BootSplash from '../components/shared/BootSplash';
 
 export default function LoginPage() {
-    const { currentUser, login, loading } = useUser();
+    const { currentUser, login, loading, bootPhase } = useUser();
     const router = useRouter();
     const isMobile = useIsMobile();
 
@@ -82,7 +82,7 @@ export default function LoginPage() {
         d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     if (!mounted || loading) {
-        return <XPLoading label="Starting Teras ERP..." fullScreen />;
+        return <BootSplash phase={mounted ? bootPhase : 'hydrating'} />;
     }
 
     if (isMobile) {

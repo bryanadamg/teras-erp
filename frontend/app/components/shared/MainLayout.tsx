@@ -10,13 +10,13 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
-import { XPLoading } from './xpTheme';
 import AppLoadBar from './AppLoadBar';
+import BootSplash from './BootSplash';
 import { SECTION_LABELS, PREFETCH_ROUTES, ROUTE_PERMISSIONS } from './navConfig';
 import AccessDenied from './AccessDenied';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-    const { currentUser, logout, loading, hasPermission, hasAnyPermission } = useUser();
+    const { currentUser, logout, loading, bootPhase, hasPermission, hasAnyPermission } = useUser();
     const { handleTabHover } = useData();
     const { language, setLanguage, t } = useLanguage();
     const { uiStyle } = useTheme();
@@ -65,9 +65,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         return () => clearTimeout(id);
     }, [mounted, loading, currentUser, isMobile, router]);
 
-    // SSR / Initial Loading State
+    // SSR / Initial Loading State — before hydration the boot is by definition
+    // still at its first step, whatever the context says.
     if (!mounted || loading) {
-        return <XPLoading label="Starting Teras ERP..." fullScreen />;
+        return <BootSplash phase={mounted ? bootPhase : 'hydrating'} />;
     }
 
     // Allow Login Page and Docs pages to render without layout wrappers
