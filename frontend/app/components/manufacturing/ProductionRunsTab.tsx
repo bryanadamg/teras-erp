@@ -6,25 +6,82 @@ import { FilterChipBar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 // Column defs for the expanded row's material table. Module-level so the loading
-// skeleton can render the SAME header (and the same column count) as the real
+// skeleton renders the SAME header, column count AND column widths as the real
 // table — a placeholder of a different shape is just a different flash.
-const PR_MATERIAL_COLUMNS: { h: string; t: string; num: boolean }[] = [
-    { h: 'Item Code', t: '', num: false },
-    { h: 'Item Name', t: '', num: false },
-    { h: 'UOM', t: '', num: false },
-    { h: 'Req (fix)', t: 'Fixed requirement at full order qty — never decrements. Grey figure below it is the NET still required after what this run has already been issued.', num: true },
-    { h: 'Produced', t: 'Good output logged so far by this Production Run’s own MOs that make this item. Dash = nothing here produces it (bought or taken from stock).', num: true },
-    { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded). Hover a figure to see the lots behind it.', num: true },
-    { h: 'Free', t: 'On-hand minus what every OTHER open order has already claimed. This is what this run can actually count on — “Available” alone shows the same stock to every run that needs it.', num: true },
-    { h: 'Incoming', t: 'Outstanding output of this Production Run’s own component MOs — already scheduled, not yet made.', num: true },
-    { h: 'Status', t: 'SHORT = material genuinely missing (nothing on hand, nothing scheduled) — needs action. NO WO = no work order opened on the producing MO yet. NOT STARTED = WO opened, nothing logged. IN PROGRESS = output logged, not finished. DONE = made in full. Dash = bought or taken from stock, covered.', num: false },
-    { h: 'MOs', t: 'needs = MOs consuming this component. made = MOs producing it (logged / target).', num: false },
+//
+// `wc`/`wm` (classic / modern px) are what make the two states line up: the table
+// is `tableLayout: 'fixed'`, so these widths hold whether the body carries bars or
+// figures, and nothing reflows when the data lands. Item Name has no width — it
+// flexes into whatever is left. `bar`/`sub` describe the placeholder for the
+// column: bar width in px, and how wide the second line is on the rows that have
+// one (Req shows a net figure, Available a lot count, MOs a "made" line).
+const PR_MATERIAL_COLUMNS: {
+    h: string; t: string; num: boolean;
+    wc?: number; wm?: number; bar: number; sub?: number;
+}[] = [
+    { h: 'Item Code', t: '', num: false, wc: 104, wm: 124, bar: 78 },
+    { h: 'Item Name', t: '', num: false, bar: 132 },
+    { h: 'UOM', t: '', num: false, wc: 42, wm: 50, bar: 24 },
+    { h: 'Req (fix)', t: 'Fixed requirement at full order qty — never decrements. Grey figure below it is the NET still required after what this run has already been issued.', num: true, wc: 74, wm: 88, bar: 44, sub: 36 },
+    { h: 'Produced', t: 'Good output logged so far by this Production Run’s own MOs that make this item. Dash = nothing here produces it (bought or taken from stock).', num: true, wc: 74, wm: 88, bar: 42 },
+    { h: 'Available', t: 'Physical on-hand across all locations (good stock only — QC-rejected lots excluded). Hover a figure to see the lots behind it.', num: true, wc: 78, wm: 92, bar: 46, sub: 30 },
+    { h: 'Free', t: 'On-hand minus what every OTHER open order has already claimed. This is what this run can actually count on — “Available” alone shows the same stock to every run that needs it.', num: true, wc: 72, wm: 86, bar: 42 },
+    { h: 'Incoming', t: 'Outstanding output of this Production Run’s own component MOs — already scheduled, not yet made.', num: true, wc: 74, wm: 88, bar: 40 },
+    { h: 'Status', t: 'SHORT = material genuinely missing (nothing on hand, nothing scheduled) — needs action. NO WO = no work order opened on the producing MO yet. NOT STARTED = WO opened, nothing logged. IN PROGRESS = output logged, not finished. DONE = made in full. Dash = bought or taken from stock, covered.', num: false, wc: 148, wm: 172, bar: 96 },
+    { h: 'MOs', t: 'needs = MOs consuming this component. made = MOs producing it (logged / target).', num: false, wc: 150, wm: 176, bar: 120, sub: 104 },
 ];
+
+const prColWidth = (c: { wc?: number; wm?: number }, classic: boolean) => (classic ? c.wc : c.wm);
+
+// Measured height of a real material row, kept module-level so it survives the
+// panel unmounting: once the user has seen one loaded panel, every later skeleton
+// stands exactly as tall as the rows it stands in for. Keyed by theme — a classic
+// row is a good deal shorter than a modern one. Fallbacks are a two-line row,
+// which is what most of these rows are (a net figure, a lot count or a "made"
+// line puts a second line in about half of them).
+const PR_ROW_H: Record<'c' | 'm', number> = { c: 27, m: 36 };
+
+/** Placeholder body for the material table: same columns, same widths, same row
+ *  height, and — when the batched Materials-column summary has already told us —
+ *  the same NUMBER of rows as the table being fetched. */
+function PRMaterialSkeletonRows({ rows, classic, cellStyle, rowHeight }: {
+    rows: number; classic: boolean; cellStyle: React.CSSProperties; rowHeight: number;
+}) {
+    return (
+        <>
+            {Array.from({ length: rows }, (_, r) => (
+                <tr key={`skel-${r}`} style={lvSubRow(classic, r, { zebra: true })}>
+                    {PR_MATERIAL_COLUMNS.map((c, ci) => {
+                        // Deterministic, not random: the bars must not reshuffle on
+                        // re-render while the fetch is in flight. Second lines land on
+                        // roughly the share of rows that really carry one.
+                        const showSub = !!c.sub && (r + ci) % 2 === 0;
+                        const jitter = 1 - ((r * 3 + ci * 5) % 4) * 0.07;
+                        return (
+                            <td key={c.h} style={{
+                                ...cellStyle,
+                                height: rowHeight, boxSizing: 'border-box', verticalAlign: 'middle',
+                            }}>
+                                <div style={{
+                                    display: 'flex', flexDirection: 'column', gap: 2,
+                                    alignItems: c.num ? 'flex-end' : 'flex-start',
+                                }}>
+                                    <SkeletonBar width={Math.round(c.bar * jitter)} height={classic ? 9 : 11} />
+                                    {showSub && <SkeletonBar width={Math.round((c.sub || 0) * jitter)} height={classic ? 7 : 9} />}
+                                </div>
+                            </td>
+                        );
+                    })}
+                </tr>
+            ))}
+        </>
+    );
+}
 
 export default function ProductionRunsTab({
     productionRuns,
@@ -72,6 +129,22 @@ export default function ProductionRunsTab({
     // Both filters are server-side (see /production-runs has_sales_order + progress) —
     // client-side narrowing would only filter the current page, not the whole result set.
     const filtersActive = !!prSoFilter || !!prProgressFilter;
+
+    // Skeleton row height: seeded from the module-level cache (so it is already
+    // right on a remount), then corrected by measuring the first real row the user
+    // sees. Re-seeded on a theme switch because classic rows are denser.
+    const [subRowHeight, setSubRowHeight] = useState<number>(PR_ROW_H[classic ? 'c' : 'm']);
+    useEffect(() => { setSubRowHeight(PR_ROW_H[classic ? 'c' : 'm']); }, [classic]);
+    const measureSubRow = (el: HTMLTableRowElement | null) => {
+        if (!el) return;
+        const h = el.offsetHeight;
+        const k = classic ? 'c' : 'm';
+        // Guarded so writing the measurement can't loop: only a real change lands.
+        if (h > 8 && Math.abs(PR_ROW_H[k] - h) > 1) {
+            PR_ROW_H[k] = h;
+            setSubRowHeight(h);
+        }
+    };
 
     const fetchPRMaterialRequirements = async (prId: string) => {
         setPrMaterialReqsLoading(prev => ({ ...prev, [prId]: true }));
@@ -422,7 +495,14 @@ export default function ProductionRunsTab({
                                                             );
                                                         })()}
                                                         <div style={{ fontSize: classic ? 10 : 11, fontWeight: 'bold', marginBottom: 4, fontFamily: classic ? xpFont : undefined, color: '#333' }}>
-                                                            Consolidated Material Requirements{reqs.length > 0 ? ` — ${reqs.length} component${reqs.length !== 1 ? 's' : ''}` : ''}
+                                                            {/* While the rows are in flight the count comes from the batched
+                                                                material-status summary, which counts the same components the
+                                                                detail rows are built from — so the caption doesn't have to
+                                                                appear late or change when the table lands. */}
+                                                            {(() => {
+                                                                const n = reqs.length || statusTotal;
+                                                                return `Consolidated Material Requirements${n ? ` — ${n} component${n !== 1 ? 's' : ''}` : ''}`;
+                                                            })()}
                                                             {hasShortfall && <span style={{ marginLeft: 8, color: '#c00000', fontWeight: 'bold' }}>SHORTFALL DETECTED</span>}
                                                             {(() => {
                                                                 // Production roll-up: how many made-here components are DONE. Amber,
@@ -447,26 +527,32 @@ export default function ProductionRunsTab({
                                                                 );
                                                             })()}
                                                         </div>
-                                                        <table style={lvSubTable(classic)}>
+                                                        {/* Fixed layout so the column widths come from PR_MATERIAL_COLUMNS
+                                                            rather than from whatever the body happens to hold: the skeleton
+                                                            and the loaded grid then occupy identical geometry and nothing
+                                                            shifts when the figures arrive. */}
+                                                        <table style={{ ...lvSubTable(classic), tableLayout: 'fixed' }}>
                                                             <thead>
                                                                 <tr>
-                                                                    {PR_MATERIAL_COLUMNS.map(({ h, t, num }) => (
+                                                                    {PR_MATERIAL_COLUMNS.map((col) => (
                                                                         // Full cell borders, not lvSubTd's single rule: at 10 columns
                                                                         // this reads as a grid and the verticals do real work.
-                                                                        <th key={h} title={t || undefined} style={{ ...lvSubTh(classic), textAlign: num ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', cursor: t ? 'help' : undefined }}>{h}</th>
+                                                                        <th key={col.h} title={col.t || undefined} style={{ ...lvSubTh(classic), textAlign: col.num ? 'right' : 'left', border: classic ? '1px solid #808080' : '1px solid #dee2e6', cursor: col.t ? 'help' : undefined, width: prColWidth(col, classic) }}>{col.h}</th>
                                                                     ))}
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 {reqs.length === 0 && (
-                                                                    // Shape-matched placeholder: same 10 columns, same dense cell
-                                                                    // metrics as a real row, so the table doesn't resize when the
-                                                                    // data lands.
-                                                                    <TableSkeleton
-                                                                        rows={4}
-                                                                        cols={PR_MATERIAL_COLUMNS.length}
+                                                                    <PRMaterialSkeletonRows
+                                                                        // Exact row count: the batched material-status call has
+                                                                        // already counted this PR's components (total_count is the
+                                                                        // same aggregate the detail rows come from), so the
+                                                                        // placeholder is as tall as the table replacing it. Only
+                                                                        // when that summary is missing does it fall back to a guess.
+                                                                        rows={Math.max(1, Math.min(statusTotal || 3, 30))}
                                                                         classic={classic}
-                                                                        tdStyle={{
+                                                                        rowHeight={subRowHeight}
+                                                                        cellStyle={{
                                                                             ...lvSubTd(classic),
                                                                             border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
                                                                         }}
@@ -541,7 +627,9 @@ export default function ProductionRunsTab({
                                                                     const madeNoWoCount = prodMos.filter((m: any) => (m.wo_count || 0) === 0).length;
                                                                     const madeDetail = prodMos.map((m: any) => `${m.mo_code} (${parseFloat(m.qty_produced).toFixed(2)}/${parseFloat(m.mo_qty).toFixed(2)}${(m.wo_count || 0) === 0 ? ', no WO' : ''})`).join('\n');
                                                                     return (
-                                                                        <tr key={ri} style={rowStyle}>
+                                                                        // First row is measured (see measureSubRow) so the next
+                                                                        // skeleton is exactly this tall.
+                                                                        <tr key={ri} ref={ri === 0 ? measureSubRow : undefined} style={rowStyle}>
                                                                             <td style={cellStyle}><CodeChip code={req.item_code} classic={classic} /></td>
                                                                             <td style={cellStyle}>{req.item_name}</td>
                                                                             <td style={cellStyle}>{req.uom}</td>
@@ -606,7 +694,11 @@ export default function ProductionRunsTab({
                                                                                 {incoming > 0 ? incoming.toFixed(2) : '—'}
                                                                             </td>
                                                                             <td
-                                                                                style={{ ...cellStyle, fontFamily: CODE_FONT, color: ui.color, fontWeight: status === 'SUPPLIED' ? undefined : 'bold', cursor: 'help', whiteSpace: 'nowrap' }}
+                                                                                // Fixed column: keep the verdict on one line, and clip
+                                                                                // rather than spill into MOs if a long IN PROGRESS
+                                                                                // figure pair outgrows the column (full text is in the
+                                                                                // tooltip either way).
+                                                                                style={{ ...cellStyle, fontFamily: CODE_FONT, color: ui.color, fontWeight: status === 'SUPPLIED' ? undefined : 'bold', cursor: 'help', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                                                                                 title={ui.title}
                                                                             >
                                                                                 {ui.text}
