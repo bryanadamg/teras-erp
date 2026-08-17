@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead } from '../shared/listViewTheme';
@@ -590,9 +590,13 @@ export default function LabDipRequestView({
                             const total = (r.items || []).length;
                             return (
                                 <React.Fragment key={r.id}>
-                                    <tr id={`labdip-row-${r.id}`} onClick={() => toggleExpand(r.id)} style={classic
-                                        ? { background: String(r.id) === String(openRequestId) ? '#ffefc0' : idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }
-                                        : { background: String(r.id) === String(openRequestId) ? '#fef9e7' : idx % 2 === 0 ? '#fff' : '#f8fafc', cursor: 'pointer' }}>
+                                    <tr id={`labdip-row-${r.id}`} onClick={() => toggleExpand(r.id)} style={{
+                                        background: String(r.id) === String(openRequestId) ? rowStateBg('highlighted', classic)
+                                            : expandedIds.has(r.id) ? rowStateBg('expanded', classic)
+                                            : idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc'),
+                                        borderBottom: classic ? '1px solid #c0bdb5' : undefined,
+                                        cursor: 'pointer',
+                                    }}>
                                         <td style={tdBase(classic)}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                 <button onClick={e => { e.stopPropagation(); toggleExpand(r.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 10, color: classic ? '#333' : '#64748b' }}>

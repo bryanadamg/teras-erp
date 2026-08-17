@@ -6,7 +6,7 @@ import { FilterChipBar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
@@ -243,7 +243,7 @@ export default function ProductionRunsTab({
                                 const hasShortfall = mstat ? statusShort > 0 : reqs.some((r: any) => (r.status ? r.status === 'SHORT' : r.shortfall > 0.005));
                                 return (
                                     <React.Fragment key={pr.id}>
-                                    <tr style={{ background: rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
+                                    <tr style={{ background: isExpanded ? rowStateBg('expanded', classic) : rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>
                                             <i
                                                 className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}

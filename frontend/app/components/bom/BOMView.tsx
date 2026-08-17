@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
 import { FilterChipBar } from '../shared/shellTheme';
@@ -974,16 +974,17 @@ export default function BOMView({
                                     ) : (
                                         boms.map((bom: any, index: number) => {
                                             const isExpanded = expandedBOMRows[bom.id];
-                                            const rowBg = classic
-                                                ? (selectedIds.has(bom.id) ? '#d8e4f8' : isExpanded ? '#eef2fc' : index % 2 === 0 ? '#ffffff' : '#f5f3ee')
-                                                : undefined;
+                                            const rowBg = selectedIds.has(bom.id) ? rowStateBg('selected', classic)
+                                                : isExpanded ? rowStateBg('expanded', classic)
+                                                : classic ? (index % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined;
 
                                             return (
                                                 <>
                                                 <tr
                                                     key={bom.id}
-                                                    className={classic ? '' : (selectedIds.has(bom.id) ? 'table-active' : '')}
-                                                    style={classic ? { background: rowBg, borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' } : undefined}
+                                                    style={classic
+                                                        ? { background: rowBg, borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' }
+                                                        : { background: rowBg }}
                                                 >
                                                     <td style={classic ? { padding: '7px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'ps-3'}>
                                                         <input className="form-check-input" type="checkbox" checked={selectedIds.has(bom.id)} onChange={() => toggleSelect(bom.id)} />

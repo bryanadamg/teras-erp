@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
-import { ExpandedRowPanel } from '../shared/xpTheme';
+import { ExpandedRowPanel, rowStateBg } from '../shared/xpTheme';
 
 interface Props {
     uoms: any[];
@@ -113,7 +113,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                             const factors: any[] = uom.factors || [];
                             return (
                                 <React.Fragment key={uom.id}>
-                                    <tr style={{ ...lvRow(classic, idx), cursor: 'pointer', background: isExpanded ? (classic ? '#fff8f0' : '#fffbeb') : lvRow(classic, idx).background }} onClick={() => toggleExpand(uom)}>
+                                    <tr style={{ ...lvRow(classic, idx), cursor: 'pointer', background: isExpanded ? rowStateBg('expanded', classic) : lvRow(classic, idx).background }} onClick={() => toggleExpand(uom)}>
                                         <td style={{ ...lvTd(classic), textAlign: 'center' }}>
                                             <i className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 10, color: '#888' }} />
                                         </td>

@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
-    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT,
+    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT, rowStateBg,
 } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -315,7 +315,7 @@ export default function DispatchView() {
                             return (
                                 <React.Fragment key={String(shp.id)}>
                                     <tr
-                                        style={{ ...rowStyle(i), cursor: 'pointer' }}
+                                        style={{ ...rowStyle(i), ...(open ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
                                         onClick={() => setExpandedId(open ? null : String(shp.id))}
                                     >
                                         <td style={{ ...td, fontFamily: CODE_FONT }}>{shp.code}</td>

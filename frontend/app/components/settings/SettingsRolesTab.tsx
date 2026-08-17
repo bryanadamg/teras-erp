@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpFont } from '../shared/xpTheme';
+import { xpBtn, xpFont, rowStateBg } from '../shared/xpTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import PermissionBreakdown from './PermissionBreakdown';
@@ -173,7 +173,9 @@ export default function SettingsRolesTab({
                                 const sections = isAdminRole ? [] : groupedPermissions(role);
                                 return (
                                     <Fragment key={role.id}>
-                                    <tr style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' } : undefined}>
+                                    <tr style={classic
+                                        ? { background: isExpanded ? rowStateBg('expanded', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' }
+                                        : { background: isExpanded ? rowStateBg('expanded', false) : undefined }}>
                                         <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold ps-4'}>{role.name}</td>
                                         <td style={classic ? tdBase : undefined} className={classic ? '' : 'text-muted small'}>{role.description || '-'}</td>
                                         <td style={classic ? tdBase : undefined}>

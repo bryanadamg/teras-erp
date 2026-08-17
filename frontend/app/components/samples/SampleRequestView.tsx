@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -1515,9 +1515,15 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    key={`${s.id}-row`}
                                    ref={s.id === highlightId ? highlightRef : undefined}
                                    onClick={() => toggleExpand(s.id)}
-                                   style={classic
-                                       ? { background: s.id === highlightId ? '#fff8cc' : s.is_unread ? '#dde8fb' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', cursor: 'pointer', outline: s.id === highlightId ? '2px solid #f0a000' : undefined }
-                                       : { cursor: 'pointer', background: s.id === highlightId ? '#fff8e1' : s.is_unread ? '#f0f7ff' : undefined, outline: s.id === highlightId ? '2px solid #f0a000' : undefined }}
+                                   style={{
+                                       background: s.id === highlightId ? rowStateBg('highlighted', classic)
+                                           : expandedIds.has(s.id) ? rowStateBg('expanded', classic)
+                                           : s.is_unread ? (classic ? '#dde8fb' : '#f0f7ff')
+                                           : classic ? (rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined,
+                                       borderBottom: classic ? '1px solid #c0bdb5' : undefined,
+                                       cursor: 'pointer',
+                                       outline: s.id === highlightId ? '2px solid #f0a000' : undefined,
+                                   }}
                                >
                                    <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}>
                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

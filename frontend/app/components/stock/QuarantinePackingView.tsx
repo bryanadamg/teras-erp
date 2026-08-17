@@ -14,7 +14,7 @@ import {
 } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
-    XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip,
+    XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -801,7 +801,7 @@ export default function QuarantinePackingView() {
                                         // Only override when open — `background: undefined` still wins over
                                         // the spread above (last key in the literal), which is what was
                                         // silently wiping the zebra stripe off every closed row.
-                                        ...(open ? { background: classic ? '#fffbe6' : '#f1f5f9' } : {}),
+                                        ...(open ? { background: rowStateBg('expanded', classic) } : {}),
                                     }}
                                 >
                                     <td style={lvTd(classic)}>

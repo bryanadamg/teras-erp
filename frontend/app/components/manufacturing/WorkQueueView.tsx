@@ -7,7 +7,7 @@ import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, x
 import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
     StatusChip, XPStatusBar, XPEmptyState, TableSkeleton, CodeChip,
-    ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip,
+    ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip, rowStateBg,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
@@ -533,6 +533,7 @@ export default function WorkQueueView() {
                                     <tr
                                         style={{
                                             ...lvRow(classic, i),
+                                            ...(open ? { background: rowStateBg('expanded', classic) } : {}),
                                             cursor: 'pointer',
                                             borderLeft: `3px solid ${statusColor(r.verdict)}`,
                                         }}

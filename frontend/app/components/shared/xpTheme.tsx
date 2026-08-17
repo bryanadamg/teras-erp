@@ -1470,6 +1470,28 @@ export function expandedRowFrame(classic: boolean, railColor?: string): React.CS
     };
 }
 
+// ---------------------------------------------------------------------------
+// Row state backgrounds
+// ---------------------------------------------------------------------------
+// Three states a list row can be in, three grounds — never mix them up:
+//   expanded    this row's detail panel is open below it. Selection blue, light.
+//   selected    checked for a bulk action. Same hue, darker, so a selected row
+//               that is also expanded still reads as selected.
+//   highlighted transient attention only — scroll target, search hit. Amber.
+// Blue is the expand convention app-wide (matches the ExpandedRowPanel rail);
+// amber never means "open". Every list that expands a row must paint
+// rowStateBg('expanded', classic) and nothing hand-rolled.
+export type RowState = 'expanded' | 'selected' | 'highlighted';
+
+const ROW_STATE_BG: Record<RowState, { classic: string; modern: string }> = {
+    expanded: { classic: '#d6e4f7', modern: '#eef2ff' },
+    selected: { classic: '#b8d0ef', modern: '#dbe4ff' },
+    highlighted: { classic: '#fff8c4', modern: '#fef9c3' },
+};
+
+export const rowStateBg = (state: RowState, classic: boolean): string =>
+    classic ? ROW_STATE_BG[state].classic : ROW_STATE_BG[state].modern;
+
 export function ExpandedRowPanel({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
     return (
         <div style={{

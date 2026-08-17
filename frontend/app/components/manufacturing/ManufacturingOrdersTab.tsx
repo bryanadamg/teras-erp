@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -1144,9 +1144,9 @@ export default function ManufacturingOrdersTab({
                                 const warning = getDueDateWarning(wo);
                                 const isExpanded = expandedRows[wo.id];
                                 const isHighlighted = !!moCodeFilter && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
-                                const rowBg = classic
-                                    ? (isHighlighted ? '#fff8c4' : isExpanded ? '#d6e4f7' : rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
-                                    : (isHighlighted ? '#fffde7' : undefined);
+                                const rowBg = isHighlighted ? rowStateBg('highlighted', classic)
+                                    : isExpanded ? rowStateBg('expanded', classic)
+                                    : classic ? (rowIdx % 2 === 0 ? '#fff' : '#f5f3ee') : undefined;
                                 const tdStyle: React.CSSProperties = classic ? {
                                     border: '1px solid #c0bdb5',
                                     padding: '4px 8px',
@@ -1195,8 +1195,7 @@ export default function ManufacturingOrdersTab({
 
                                 return (
                                     <>
-                                    <tr key={wo.id} id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}
-                                        className={!classic && isExpanded ? 'table-primary bg-opacity-10' : ''}>
+                                    <tr key={wo.id} id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}>
 
                                         {/* MO Code */}
                                         <td style={{ ...tdStyle, paddingLeft: classic ? '10px' : undefined }}

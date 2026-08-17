@@ -22,7 +22,7 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import {
     xpFont, xpBtn, xpInput, xpSep, TableBlockSkeleton, XPEmptyState,
-    useSortable, SortMark, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar,
+    useSortable, SortMark, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar, rowStateBg,
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
@@ -725,7 +725,7 @@ export default function MachineOutputReportView() {
                                         return (
                                             <React.Fragment key={key}>
                                             <tr
-                                                style={{ background: open ? '#dde8f5' : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }}
+                                                style={{ background: open ? rowStateBg('expanded', true) : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }}
                                                 onClick={() => setExpanded(open ? null : key)}
                                             >
                                                 <td style={{ ...td, textAlign: 'center', color: '#555' }}><i className={`bi bi-chevron-${open ? 'down' : 'right'}`} style={{ fontSize: 8 }} /></td>
@@ -865,7 +865,7 @@ export default function MachineOutputReportView() {
                                     const open = expanded === key;
                                     return (
                                         <React.Fragment key={key}>
-                                        <tr className={open ? 'table-primary' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpanded(open ? null : key)}>
+                                        <tr style={{ background: open ? rowStateBg('expanded', false) : undefined, cursor: 'pointer' }} onClick={() => setExpanded(open ? null : key)}>
                                             <td className="text-center text-muted"><i className={`bi bi-chevron-${open ? 'down' : 'right'}`} style={{ fontSize: 10 }} /></td>
                                             {columns.map((c, ci) => (
                                                 <td
