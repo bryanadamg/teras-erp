@@ -24,7 +24,7 @@ const PR_MATERIAL_COLUMNS: {
     h: string; t: string; num: boolean;
     wc?: number; wm?: number; bar: number; sub?: number;
 }[] = [
-    { h: 'Item Code', t: '', num: false, wc: 104, wm: 124, bar: 78 },
+    { h: 'Item Code', t: '', num: false, wc: 158, wm: 184, bar: 110 },
     { h: 'Item Name', t: '', num: false, bar: 132 },
     { h: 'UOM', t: '', num: false, wc: 42, wm: 50, bar: 24 },
     { h: 'Req (fix)', t: 'Fixed requirement at full order qty — never decrements. Grey figure below it is the NET still required after what this run has already been issued.', num: true, wc: 74, wm: 88, bar: 44, sub: 36 },
@@ -630,7 +630,11 @@ export default function ProductionRunsTab({
                                                                         // First row is measured (see measureSubRow) so the next
                                                                         // skeleton is exactly this tall.
                                                                         <tr key={ri} ref={ri === 0 ? measureSubRow : undefined} style={rowStyle}>
-                                                                            <td style={cellStyle}><CodeChip code={req.item_code} classic={classic} /></td>
+                                                                            {/* Backstop for a code even longer than the widened column:
+                                                                                clip instead of letting CodeChip's nowrap span bleed
+                                                                                into Item Name (fixed layout won't grow the cell for it).
+                                                                                Full code still available via CodeChip's own title. */}
+                                                                            <td style={{ ...cellStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><CodeChip code={req.item_code} classic={classic} /></td>
                                                                             <td style={cellStyle}>{req.item_name}</td>
                                                                             <td style={cellStyle}>{req.uom}</td>
                                                                             <td
