@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from uuid import UUID
 from app.models.production_run import ProductionRun
-from app.models.manufacturing import ManufacturingOrder
+from app.models.manufacturing import ManufacturingOrder, MOCompletion
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.location import Location
@@ -166,21 +166,50 @@ def _pr_material_req_load_options():
     """Minimal eager-load set for the /material-requirements endpoint. Called once
     per visible PR row on the Production Runs page, so it must stay lean. Loads ONLY
     what the requirements aggregation (mo.qty, mo.planned_components, mo.bom.tolerance,
-    mo.completions for outstanding-based netting, mo.attribute_values for the supply
-    variant key) and _bom_traversal_order (mo.bom.operations, mo.required_dependencies,
-    mo.is_shared_component, mo.bom_id) actually read — NOT the full nested MO tree
-    that _pr_load_options pulls for the list view. Item + StockBalance are fetched
-    separately in the endpoint, so no bom.lines / bom.item / work_orders /
-    batch_consumptions / bom_entries here."""
+    mo.attribute_values for the supply variant key) and _bom_traversal_order
+    (mo.bom.operations, mo.required_dependencies, mo.is_shared_component, mo.bom_id)
+    actually read — NOT the full nested MO tree that _pr_load_options pulls for the
+    list view. Item + StockBalance are fetched separately in the endpoint, so no
+    bom.lines / bom.item / batch_consumptions / bom_entries here.
+
+    `completions` and `work_orders` are deliberately NOT eager-loaded: the endpoint
+    reduces each to a single scalar (good logged qty / WO count) and reads them via
+    `_mo_output_aggregates` instead. Those two tables only ever grow with floor
+    activity, so hydrating every row made this panel slower every week for two
+    numbers per MO."""
     mos = selectinload(ProductionRun.manufacturing_orders)
     return [
         mos.selectinload(ManufacturingOrder.planned_components),
         mos.selectinload(ManufacturingOrder.required_dependencies),
-        mos.selectinload(ManufacturingOrder.completions),
         mos.selectinload(ManufacturingOrder.attribute_values),
-        mos.selectinload(ManufacturingOrder.work_orders),
         mos.selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
     ]
+
+
+async def _mo_output_aggregates(db: AsyncSession, mo_ids: list) -> tuple[dict, dict]:
+    """(good logged qty, WO count) per MO id, as two GROUP BY passes.
+
+    Exactly what `sum(c.qty_completed for c in mo.completions if not c.rejected)` and
+    `len(mo.work_orders)` returned — `rejected.isnot(True)` keeps a NULL flag counted
+    as good, matching the Python `not c.rejected` it replaces. MOs with no rows are
+    simply absent from the maps; callers default them to 0."""
+    if not mo_ids:
+        return {}, {}
+    produced: dict = {}
+    for mid, qty in (await db.execute(
+        select(MOCompletion.mo_id, func.sum(MOCompletion.qty_completed))
+        .where(MOCompletion.mo_id.in_(mo_ids), MOCompletion.rejected.isnot(True))
+        .group_by(MOCompletion.mo_id)
+    )).all():
+        produced[mid] = float(qty or 0)
+    wo_counts: dict = {}
+    for mid, n in (await db.execute(
+        select(WorkOrderModel.manufacturing_order_id, func.count())
+        .where(WorkOrderModel.manufacturing_order_id.in_(mo_ids))
+        .group_by(WorkOrderModel.manufacturing_order_id)
+    )).all():
+        wo_counts[mid] = int(n or 0)
+    return produced, wo_counts
 
 
 def _post_process_pr(pr: ProductionRun):
@@ -366,9 +395,12 @@ async def get_production_run_material_requirements(
     production: dict[tuple, dict] = defaultdict(lambda: {"qty_produced": 0.0, "wo_count": 0, "mos": []})
 
     so_linked_prs = await _sales_order_linked_prs(db, pr.manufacturing_orders)
+    produced_by_mo, wo_count_by_mo = await _mo_output_aggregates(
+        db, [mo.id for mo in pr.manufacturing_orders]
+    )
 
     for mo in pr.manufacturing_orders:
-        produced = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
+        produced = produced_by_mo.get(mo.id, 0.0)
         # Closed orders make no more output and consume no more material.
         if mo.status in ("COMPLETED", "CANCELLED"):
             outstanding = 0.0
@@ -383,7 +415,7 @@ async def get_production_run_material_requirements(
         # WOs are created MANUALLY (an MO existing never means work has begun), so a
         # producing MO with no WO yet is a dispatch action, not a floor delay. Counted
         # here so the row can say NO WO instead of a misleading IN PROGRESS.
-        wo_count = len(mo.work_orders or [])
+        wo_count = wo_count_by_mo.get(mo.id, 0)
         p = production[(str(mo.item_id), out_key)]
         p["qty_produced"] += produced
         p["wo_count"] += wo_count
@@ -598,7 +630,9 @@ async def get_production_runs_material_status(
         select(ProductionRun)
         .options(
             selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.planned_components),
-            selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.completions),
+            # completions are reduced to one scalar per MO — aggregated below instead
+            # of hydrated (this call covers a whole page of PRs, so it is the worst
+            # place in the app to load a growing log table row by row).
             selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.attribute_values),
             selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.bom),
         )
@@ -614,6 +648,9 @@ async def get_production_runs_material_status(
     all_item_ids: set = set()
     all_mos = [mo for pr in prs for mo in pr.manufacturing_orders]
     so_linked_prs = await _sales_order_linked_prs(db, all_mos)
+    # Same aggregate the detail endpoint uses, so both sides keep computing
+    # outstanding off an identical "good logged qty" figure.
+    produced_by_mo, _ = await _mo_output_aggregates(db, [mo.id for mo in all_mos])
     for pr in prs:
         agg: dict[tuple, float] = defaultdict(float)
         sup: dict[tuple, float] = defaultdict(float)
@@ -621,7 +658,7 @@ async def get_production_runs_material_status(
             if mo.status in ("COMPLETED", "CANCELLED"):
                 outstanding = 0.0
             else:
-                completed = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
+                completed = produced_by_mo.get(mo.id, 0.0)
                 outstanding = max(0.0, float(mo.qty) - completed)
             tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
             for comp in mo.planned_components:
