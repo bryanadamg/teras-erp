@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.db.session import get_async_db
@@ -41,6 +41,20 @@ EDITABLE = ("DRAFT", "STAGED")
 
 
 # --- helpers ---------------------------------------------------------------
+
+def _naive(dt: Optional[datetime]) -> Optional[datetime]:
+    """Coerce a client datetime to naive UTC.
+
+    Every timestamp column here is `TIMESTAMP WITHOUT TIME ZONE` and the rest of
+    the codebase writes `datetime.utcnow()`, so an offset-aware value from the
+    browser (`new Date(...).toISOString()` -> `...Z`) makes asyncpg raise
+    `DataError: can't subtract offset-naive and offset-aware datetimes` on insert.
+    Normalise on the way in rather than trusting the client to send naive.
+    """
+    if dt is not None and dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
 
 def _load_options():
     # The Surat Jalan prints item + colour per line, and colour lives on the SO
@@ -295,7 +309,7 @@ async def create_shipment(
     """Stage picked goods on the loading deck and mint the Surat Jalan number."""
     members = await _resolve_members(db, payload.pick_list_ids)
     now = datetime.utcnow()
-    delivery_date = payload.delivery_date or now
+    delivery_date = _naive(payload.delivery_date) or now
 
     shp = Shipment(
         code=await _next_code(db),
@@ -353,7 +367,7 @@ async def update_shipment(
     for field in ("delivery_note_number", "delivery_date", "carrier", "vehicle_plate", "driver", "notes"):
         val = getattr(payload, field)
         if val is not None:
-            setattr(shp, field, val)
+            setattr(shp, field, _naive(val) if isinstance(val, datetime) else val)
 
     if payload.pick_list_ids is not None:
         members = await _resolve_members(db, payload.pick_list_ids, shp=shp) if payload.pick_list_ids else []
