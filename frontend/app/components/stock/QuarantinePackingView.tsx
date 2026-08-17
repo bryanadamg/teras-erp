@@ -117,10 +117,12 @@ type Group = {
     production_run_code: string | null;
     sales_order_id: string | null;
     sales_order_code: string | null;
+    color_id: string | null;
     color_code: string | null;
     color_name: string | null;
     color_hex: string | null;
     labdip_variant_code: string | null;
+    combo_value_id: string | null;
     bom_size_id: string | null;
     item_id: string;
     item_code: string | null;
@@ -273,6 +275,8 @@ export default function QuarantinePackingView() {
         });
         if (g.sales_order_id) params.set('sales_order_id', g.sales_order_id);
         if (g.bom_size_id) params.set('bom_size_id', g.bom_size_id);
+        if (g.color_id) params.set('color_id', g.color_id);
+        if (g.combo_value_id) params.set('combo_value_id', g.combo_value_id);
         router.push(`/packing?${params.toString()}`);
     }, [router, showToast]);
 

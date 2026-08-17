@@ -3223,12 +3223,18 @@ class QuarantineGroupResponse(BaseModel):
     production_run_code: str | None = None
     sales_order_id: UUID | None = None
     sales_order_code: str | None = None
+    color_id: UUID | None = None
     color_code: str | None = None
     color_name: str | None = None
     color_hex: str | None = None
     labdip_variant_code: str | None = None
+    # The MO's combo attribute value, if this FG is combo-typed (see
+    # Item.variant_type) — color and combo are both order/production-level
+    # picks, never baked into item_id, so matching on item_id alone conflates
+    # every colour/combo of the same style.
+    combo_value_id: UUID | None = None
     # The MO's sized-BOM pick, if any — lets the Packing form auto-match this
-    # group to the one open SO line ordered in the same size.
+    # group to the one open SO line ordered in the same size/colour/combo.
     bom_size_id: UUID | None = None
     item_id: UUID
     item_code: str | None = None

@@ -600,22 +600,32 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
     };
 
     // Once an SO is picked (and the item is already fixed — from a Quarantine
-    // Packing deep link, or a prior manual pick), auto-select the one order line
-    // that's unambiguous: same item, and — when the source lot carried a size —
-    // the same size too. Colour/combo need no matching of their own: those are
-    // already baked into item_id, since each colour/combo is its own Item row.
-    // Never auto-picks between two same-item/same-size lines — that's still the
-    // planner's call, so it's left blank for them.
+    // Packing deep link, or a prior manual pick), auto-select the order line
+    // that's unambiguous. Colour and combo are order/production-level picks,
+    // never baked into item_id (Item.variant_type just says which library the
+    // SO line's own color_id/attribute_values came from), so a style ordered in
+    // several colours/combos as separate lines needs those matched too, same as
+    // size. Each hint only narrows if the source lot actually carried it, and
+    // never past zero candidates — a hint that doesn't match anything present
+    // is dropped rather than blocking the match, since a stale attribute snapshot
+    // shouldn't defeat an otherwise-exact match. Ties are left for the planner.
     useEffect(() => {
         if (!soId || !itemId || soLineId) return;
-        const candidates = soLines.filter((l: any) => String(l.item_id) === String(itemId));
+        let candidates = soLines.filter((l: any) => String(l.item_id) === String(itemId));
         if (!candidates.length) return;
+
+        const narrow = (pred: (l: any) => boolean) => {
+            const next = candidates.filter(pred);
+            if (next.length) candidates = next;
+        };
         const sizeHint = initialValues?.bom_size_id;
-        const sizeMatch = sizeHint
-            ? candidates.find((l: any) => l.bom_size_id && String(l.bom_size_id) === String(sizeHint))
-            : null;
-        const auto = sizeMatch || (candidates.length === 1 ? candidates[0] : null);
-        if (auto) applySoLine(String(auto.id));
+        const colorHint = initialValues?.color_id;
+        const comboHint = initialValues?.combo_value_id;
+        if (sizeHint) narrow((l: any) => l.bom_size_id && String(l.bom_size_id) === String(sizeHint));
+        if (colorHint) narrow((l: any) => l.color_id && String(l.color_id) === String(colorHint));
+        if (comboHint) narrow((l: any) => (l.attribute_value_ids || []).some((id: any) => String(id) === String(comboHint)));
+
+        if (candidates.length === 1) applySoLine(String(candidates[0].id));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [soId, itemId, soLines, soLineId]);
 

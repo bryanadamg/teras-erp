@@ -20,11 +20,12 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_async_db
+from app.models.attribute import Attribute, AttributeValue
 from app.models.auth import User
 from app.models.batch import Batch
 from app.models.item import Item
 from app.models.location import Location
-from app.models.manufacturing import ManufacturingOrder
+from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
 from app.models.packing import PackingOrder, PackingCompletion
 from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder
@@ -180,7 +181,7 @@ async def list_quarantine_stock(
     if wo_ids:
         for (wo_id, mo_id, mo_code, mo_status, mo_qty, pr_code,
              mo_so_id, mo_so_code, pr_so_id, pr_so_code,
-             color_code, color_name, color_hex, labdip_code, bom_size_id) in (await db.execute(
+             color_id, color_code, color_name, color_hex, labdip_code, bom_size_id) in (await db.execute(
             select(
                 WorkOrder.id,
                 ManufacturingOrder.id, ManufacturingOrder.code,
@@ -188,7 +189,7 @@ async def list_quarantine_stock(
                 ProductionRun.code,
                 ManufacturingOrder.sales_order_id, mo_so.po_number,
                 ProductionRun.sales_order_id, pr_so.po_number,
-                Color.code, Color.name, Color.hex,
+                ManufacturingOrder.color_id, Color.code, Color.name, Color.hex,
                 ManufacturingOrder.labdip_variant_code,
                 ManufacturingOrder.bom_size_id,
             )
@@ -204,13 +205,31 @@ async def list_quarantine_stock(
                 "mo_qty": float(mo_qty or 0), "production_run_code": pr_code,
                 "sales_order_id": mo_so_id or pr_so_id,
                 "sales_order_code": mo_so_code or pr_so_code,
+                "color_id": color_id,
                 "color_code": color_code, "color_name": color_name, "color_hex": color_hex,
                 "labdip_variant_code": labdip_code,
                 # The MO's own sized-BOM pick — lets the packing form auto-match this
-                # group's stock to the one order line ordered in the same size,
-                # instead of making the planner eyeball qty/name among every line.
+                # group's stock to the one order line ordered in the same size.
                 "bom_size_id": bom_size_id,
             }
+
+        # Combo is an attribute value on the MO (color-type FG uses color_id
+        # instead — see Item.variant_type), so it needs its own grouped lookup,
+        # the same shape as `_resolve_batch_variants`. One value expected per MO.
+        mo_ids = {info["mo_id"] for info in origin.values() if info["mo_id"]}
+        if mo_ids:
+            combo_rows = (await db.execute(
+                select(manufacturing_order_values.c.manufacturing_order_id, AttributeValue.id)
+                .join(AttributeValue, AttributeValue.id == manufacturing_order_values.c.attribute_value_id)
+                .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+                .filter(
+                    manufacturing_order_values.c.manufacturing_order_id.in_(mo_ids),
+                    Attribute.system_role == "combo",
+                )
+            )).all()
+            combo_by_mo = {mo_id: value_id for mo_id, value_id in combo_rows}
+            for info in origin.values():
+                info["combo_value_id"] = combo_by_mo.get(info["mo_id"])
 
     # Lots already drawn by packing — their disposition is locked (frozen once
     # cartons exist against it), so the page renders them read-only.
@@ -244,10 +263,12 @@ async def list_quarantine_stock(
                 production_run_code=info["production_run_code"] if info else None,
                 sales_order_id=info["sales_order_id"] if info else None,
                 sales_order_code=info["sales_order_code"] if info else None,
+                color_id=info["color_id"] if info else None,
                 color_code=info["color_code"] if info else None,
                 color_name=info["color_name"] if info else None,
                 color_hex=info["color_hex"] if info else None,
                 labdip_variant_code=info["labdip_variant_code"] if info else None,
+                combo_value_id=info["combo_value_id"] if info else None,
                 bom_size_id=info["bom_size_id"] if info else None,
                 item_id=item.id, item_code=item.code, item_name=item.name, uom=item.uom,
                 qty_total=0.0, qty_released=0.0, lot_count=0,
