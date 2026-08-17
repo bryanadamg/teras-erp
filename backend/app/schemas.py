@@ -3195,6 +3195,11 @@ class QuarantineLotResponse(BaseModel):
     released: bool = False
     # Consumed by a packing completion — the disposition is frozen from here on.
     packed: bool = False
+    # How much of the lot packing has drawn. Set on any packed lot; on a lot with
+    # nothing left on hand (`qty == 0`) it is the only quantity there is to show,
+    # which is what the "Show packed" history rows are.
+    qty_packed: float | None = None
+    last_packed_at: datetime | None = None
     created_at: datetime | None = None
 
 class QuarantineGroupResponse(BaseModel):
@@ -3216,10 +3221,16 @@ class QuarantineGroupResponse(BaseModel):
     item_code: str | None = None
     item_name: str | None = None
     uom: str | None = None
+    # On-hand figures only — a lot packed out of the hold area no longer counts
+    # towards any of these three, however it is listed.
     qty_total: float = 0
     qty_released: float = 0
     lot_count: int = 0
-    # NONE (nothing dispositioned) | MIXED (lots disagree) | the shared status.
+    # Listed history rows (only when `include_packed`), counted apart so the
+    # held columns above stay a picture of what is physically on the desk.
+    packed_lot_count: int = 0
+    # NONE (nothing dispositioned) | MIXED (lots disagree) | PACKED (nothing left
+    # on hand) | the shared status.
     rollup_status: str = 'NONE'
     status_counts: dict[str, int] = {}
     lots: list[QuarantineLotResponse] = []

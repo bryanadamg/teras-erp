@@ -14,7 +14,7 @@ import {
 } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
-    XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg,
+    XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg, ToggleChip,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -94,6 +94,10 @@ type Lot = {
     released: boolean;
     // Drawn by a packing completion — the disposition is frozen from then on.
     packed: boolean;
+    // How much packing has drawn. On a history row (qty 0, only present with
+    // "Show packed" on) this is the only quantity the lot still has to show.
+    qty_packed: number | null;
+    last_packed_at: string | null;
     created_at: string | null;
 };
 
@@ -116,6 +120,8 @@ type Group = {
     qty_total: number;
     qty_released: number;
     lot_count: number;
+    // Listed history lots — counted apart, so the held columns never inflate.
+    packed_lot_count: number;
     rollup_status: string;
     status_counts: Record<string, number>;
     lots: Lot[];
@@ -175,6 +181,10 @@ export default function QuarantinePackingView() {
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    // The page reads live stock, so a lot packed out of the hold area drops off
+    // it entirely. Off by default — the desk's job is the queue, not the archive
+    // — but one click brings the packed lots back as read-only history.
+    const [showPacked, setShowPacked] = useState(false);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
     // Checked lots, keyed by batch id (globally unique, so one flat set covers
     // every expanded group). Only ever holds *selectable* lots — see selectableIds.
@@ -191,7 +201,7 @@ export default function QuarantinePackingView() {
         return () => clearTimeout(id);
     }, [searchInput]);
 
-    useEffect(() => { setPage(1); }, [search, statusFilter]);
+    useEffect(() => { setPage(1); }, [search, statusFilter, showPacked]);
 
     const fetchStatuses = useCallback(async () => {
         try {
@@ -219,6 +229,7 @@ export default function QuarantinePackingView() {
             const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
             if (search) params.set('search', search);
             if (statusFilter) params.set('status', statusFilter);
+            if (showPacked) params.set('include_packed', 'true');
             const res = await authFetch(`${API_BASE}/quarantine?${params.toString()}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
@@ -232,7 +243,7 @@ export default function QuarantinePackingView() {
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [authFetch, page, search, statusFilter]);
+    }, [authFetch, page, search, statusFilter, showPacked]);
 
     const fetchReadyToPack = useCallback(async () => {
         try {
@@ -547,7 +558,8 @@ export default function QuarantinePackingView() {
             padding: classic ? '8px 12px 10px 18px' : '10px 16px',
         }}>
             <div style={lvSubCaption(classic)}>
-                Lots on Hold — {g.lots.length} lot{g.lots.length === 1 ? '' : 's'}
+                Lots on Hold — {g.lot_count} lot{g.lot_count === 1 ? '' : 's'}
+                {g.packed_lot_count > 0 && ` · ${g.packed_lot_count} packed (history)`}
             </div>
             <div style={{
                 fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
@@ -684,7 +696,20 @@ export default function QuarantinePackingView() {
                                 )}
                             </td>
                             <td style={{ ...lotTd, textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
-                                {fmtQty(l.qty)} <span style={{ color: '#999', fontSize: 10 }}>{g.uom}</span>
+                                {/* A fully packed lot has nothing left on hand, so the
+                                    only honest number is what packing took. */}
+                                {l.packed && !l.qty ? (
+                                    <span title={l.last_packed_at
+                                        ? `Packed ${dayLabel(l.last_packed_at)} ${tzTime(l.last_packed_at)}`
+                                        : undefined}>
+                                        {fmtQty(l.qty_packed || 0)}{' '}
+                                        <span style={{ color: '#999', fontSize: 10 }}>{g.uom} packed</span>
+                                    </span>
+                                ) : (
+                                    <>
+                                        {fmtQty(l.qty)} <span style={{ color: '#999', fontSize: 10 }}>{g.uom}</span>
+                                    </>
+                                )}
                             </td>
                             <td style={{ ...lotTd, ...dim }}>{l.location_name || '—'}</td>
                             <td style={{ ...lotTd, ...dim }}>
@@ -751,6 +776,20 @@ export default function QuarantinePackingView() {
                     <option key={s.id} value={s.value.toUpperCase()}>{s.value}</option>
                 ))}
             </select>
+            <div style={lvSep(classic)} />
+            {/* Packed lots have left the hold area, so they are not part of the
+                queue — but they are still this MO's history, and hiding them made
+                a lot look deleted the moment it was packed. */}
+            <ToggleChip
+                classic={classic}
+                on={showPacked}
+                onClick={() => setShowPacked(v => !v)}
+                title={showPacked
+                    ? 'Hide lots already packed out of quarantine'
+                    : 'Also list lots already packed out of quarantine — read-only, no longer on hand'}
+            >
+                <i className="bi bi-box-seam" style={{ marginRight: 4 }} />Show packed
+            </ToggleChip>
             <div style={lvSep(classic)} />
             <button style={lvBtn(classic)} onClick={() => fetchGroups()} title="Refresh">
                 <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
@@ -826,7 +865,15 @@ export default function QuarantinePackingView() {
                                                 ? <span style={{ fontSize: 10, color: '#9a6a00' }} title="Shade still awaiting lab-dip approval">{g.labdip_variant_code}</span>
                                                 : <span style={{ color: '#999', fontStyle: 'italic', fontSize: 10 }}>Greige</span>}
                                     </td>
-                                    <td style={{ ...lvTd(classic), textAlign: 'right' }}>{g.lot_count}</td>
+                                    <td style={{ ...lvTd(classic), textAlign: 'right' }}>
+                                        {g.lot_count}
+                                        {g.packed_lot_count > 0 && (
+                                            <div style={{ fontSize: 10, color: '#888' }}
+                                                title={`${g.packed_lot_count} lot${g.packed_lot_count === 1 ? '' : 's'} already packed out of quarantine`}>
+                                                +{g.packed_lot_count} packed
+                                            </div>
+                                        )}
+                                    </td>
                                     <td style={{ ...lvTd(classic), textAlign: 'right', whiteSpace: 'nowrap' }}>
                                         {fmtQty(g.qty_total)} <span style={{ color: '#999', fontSize: 10 }}>{g.uom}</span>
                                     </td>
@@ -857,9 +904,14 @@ export default function QuarantinePackingView() {
                                                         {lotIds.length} lot{lotIds.length > 1 ? 's' : ''}
                                                     </span>
                                                 </>
-                                            ) : (
+                                            ) : g.lots.some(l => l.packed) ? (
                                                 <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>
                                                     <i className="bi bi-lock-fill" style={{ marginRight: 4 }} />All lots locked (packed)
+                                                </span>
+                                            ) : (
+                                                <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}
+                                                    title="Un-lotted stock carries no lot record to disposition.">
+                                                    Not lot-tracked
                                                 </span>
                                             )}
                                         </div>
@@ -883,7 +935,9 @@ export default function QuarantinePackingView() {
                                     icon="bi-shield-check"
                                     message={search || statusFilter
                                         ? 'No held stock matches this filter.'
-                                        : 'Nothing is on hold — no stock is sitting in a quarantine location.'}
+                                        : showPacked
+                                            ? 'Nothing is on hold, and nothing has been packed out of a quarantine location yet.'
+                                            : 'Nothing is on hold — no stock is sitting in a quarantine location. Turn on "Show packed" to see lots already packed out.'}
                                 />
                             </td>
                         </tr>
@@ -894,7 +948,10 @@ export default function QuarantinePackingView() {
     );
 
     const heldTotal = useMemo(() => groups.reduce((s, g) => s + g.qty_total, 0), [groups]);
-    const awaiting = useMemo(() => groups.filter(g => g.rollup_status !== 'OK').length, [groups]);
+    // PACKED groups have nothing left on the desk, so they are not awaiting anything.
+    const awaiting = useMemo(
+        () => groups.filter(g => g.rollup_status !== 'OK' && g.rollup_status !== 'PACKED').length,
+        [groups]);
 
     return (
         <ShellWindow classic={classic} fill="page" className="fade-in">

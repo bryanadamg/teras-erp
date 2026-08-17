@@ -25,7 +25,7 @@ from app.models.batch import Batch
 from app.models.item import Item
 from app.models.location import Location
 from app.models.manufacturing import ManufacturingOrder
-from app.models.packing import PackingOrder
+from app.models.packing import PackingOrder, PackingCompletion
 from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.color import Color
@@ -84,6 +84,10 @@ async def list_quarantine_statuses(
 async def list_quarantine_stock(
     search: Optional[str] = Query(None, description="Matches MO / lot / item / SO code"),
     status: Optional[str] = Query(None, description="Filter to groups whose rollup equals this (e.g. OK, MIXED, NONE)"),
+    include_packed: bool = Query(
+        False,
+        description="Also list lots already packed out of a quarantine location (read-only history, zero on hand)",
+    ),
     page: int = Query(1, ge=1),
     size: int = Query(25, ge=1, le=200),
     db: AsyncSession = Depends(get_async_db),
@@ -98,6 +102,12 @@ async def list_quarantine_stock(
 
     Pagination is over *groups*, applied after grouping, because an MO's lots
     must never be split across pages — the whole point of the row is its rollup.
+
+    The page is driven off live `StockBalance`, so a lot fully drawn by packing
+    leaves it entirely — its balance at the hold bin is zero. `include_packed`
+    adds those lots back as read-only history rows (qty on hand 0, `qty_packed`
+    set) without touching the held totals, which stay a picture of what is
+    physically still on the desk.
     """
     loc_ids = await quarantine_service.quarantine_location_ids(db)
     if not loc_ids:
@@ -116,13 +126,42 @@ async def list_quarantine_stock(
     )).all()
     truncated = len(rows) > MAX_LOT_ROWS
     rows = rows[:MAX_LOT_ROWS]
-    if not rows:
+
+    # Lots with nothing left on hand because packing drew them out of the hold
+    # area. Scoped by the *packing order's* source location rather than the lot's
+    # current balance — the lot may now be sitting anywhere (or be fully packed
+    # into cartons), so the order is the only durable record that it was held.
+    history: list = []
+    if include_packed:
+        on_hand_ids = {b.id for (_, b, _, _) in rows if b is not None}
+        hrows = (await db.execute(
+            select(
+                Batch, Item, Location,
+                func.sum(PackingCompletion.qty),
+                func.max(PackingCompletion.completed_at),
+            )
+            .join(PackingOrder, PackingOrder.id == PackingCompletion.packing_order_id)
+            .join(Batch, Batch.id == PackingCompletion.source_batch_id)
+            .join(Item, Item.id == Batch.item_id)
+            .join(Location, Location.id == PackingOrder.source_location_id)
+            .filter(PackingOrder.source_location_id.in_(loc_ids))
+            .group_by(Batch.id, Item.id, Location.id)
+            .order_by(func.max(PackingCompletion.completed_at).desc())
+            .limit(MAX_LOT_ROWS + 1)
+        )).all()
+        if len(hrows) > MAX_LOT_ROWS:
+            truncated = True
+            hrows = hrows[:MAX_LOT_ROWS]
+        history = [h for h in hrows if h[0].id not in on_hand_ids]
+
+    if not rows and not history:
         return QuarantineListResponse(items=[], total=0, page=page, size=size, truncated=False)
 
     # Lot -> MO origin, one query for the page (same chain as batch lineage).
     mo_so = aliased(SalesOrder)
     pr_so = aliased(SalesOrder)
     wo_ids = {b.source_wo_id for (_, b, _, _) in rows if b is not None and b.source_wo_id}
+    wo_ids |= {b.source_wo_id for (b, _, _, _, _) in history if b.source_wo_id}
     origin: dict = {}
     if wo_ids:
         for (wo_id, mo_id, mo_code, mo_status, mo_qty, pr_code,
@@ -156,12 +195,13 @@ async def list_quarantine_stock(
 
     # Lots already drawn by packing — their disposition is locked (frozen once
     # cartons exist against it), so the page renders them read-only.
-    packed_ids = await quarantine_service.packed_batch_ids(
+    packed_qty = await quarantine_service.packed_batch_qty(
         db, [b.id for (_, b, _, _) in rows if b is not None]
     )
 
     groups: dict[str, QuarantineGroupResponse] = {}
-    for bal, batch, item, loc in rows:
+
+    def _group(batch, item) -> QuarantineGroupResponse:
         info = origin.get(batch.source_wo_id) if batch is not None else None
         # An MO can produce more than one item (component MOs), and the same item
         # can arrive from different MOs — key on both so a row is always one
@@ -187,7 +227,10 @@ async def list_quarantine_stock(
                 rollup_status="NONE", status_counts={}, lots=[],
             )
             groups[key] = grp
+        return grp
 
+    for bal, batch, item, loc in rows:
+        grp = _group(batch, item)
         qty = float(bal.qty or 0)
         released = quarantine_service.is_pass(batch.quarantine_status) if batch is not None else False
         grp.qty_total += qty
@@ -201,6 +244,7 @@ async def list_quarantine_stock(
             batch_number=batch.batch_number if batch is not None else None,
             item_id=item.id, item_code=item.code, item_name=item.name, uom=item.uom,
             qty=qty,
+            qty_packed=packed_qty.get(batch.id) if batch is not None else None,
             location_id=loc.id, location_name=loc.name,
             variant_key=bal.variant_key or "",
             quality_status=batch.quality_status if batch is not None else None,
@@ -210,13 +254,42 @@ async def list_quarantine_stock(
             quarantine_status_by=batch.quarantine_status_by if batch is not None else None,
             quarantine_notes=batch.quarantine_notes if batch is not None else None,
             released=released,
-            packed=batch is not None and batch.id in packed_ids,
+            packed=batch is not None and batch.id in packed_qty,
             created_at=batch.created_at if batch is not None else None,
+        ))
+
+    # History rows deliberately touch neither the qty totals nor `lot_count`:
+    # those columns answer "what is still on the desk", and a packed lot is not.
+    # They land in `lots` and in `packed_lot_count` only.
+    for batch, item, loc, qty_packed, last_packed_at in history:
+        grp = _group(batch, item)
+        grp.packed_lot_count += 1
+        grp.lots.append(QuarantineLotResponse(
+            batch_id=batch.id, batch_number=batch.batch_number,
+            item_id=item.id, item_code=item.code, item_name=item.name, uom=item.uom,
+            qty=0.0,
+            qty_packed=float(qty_packed or 0),
+            last_packed_at=last_packed_at,
+            location_id=loc.id, location_name=loc.name,
+            variant_key="",
+            quality_status=batch.quality_status,
+            quarantine_status=batch.quarantine_status,
+            quarantine_status_id=batch.quarantine_status_id,
+            quarantine_status_at=batch.quarantine_status_at,
+            quarantine_status_by=batch.quarantine_status_by,
+            quarantine_notes=batch.quarantine_notes,
+            released=quarantine_service.is_pass(batch.quarantine_status),
+            packed=True,
+            created_at=batch.created_at,
         ))
 
     items = list(groups.values())
     for grp in items:
-        grp.rollup_status = _rollup([l.quarantine_status for l in grp.lots])
+        # Rollup over the lots still on hand only — a packed lot's status is
+        # history, and letting it vote would report a fully-packed MO as "OK, go
+        # pack it". A group with nothing left on hand rolls up as PACKED.
+        open_lots = [l for l in grp.lots if not l.packed or l.qty > 0]
+        grp.rollup_status = _rollup([l.quarantine_status for l in open_lots]) if open_lots else "PACKED"
         grp.lots.sort(key=lambda l: (l.batch_number or "~"))
 
     if search:
@@ -234,8 +307,9 @@ async def list_quarantine_stock(
         wanted = status.strip().upper()
         items = [g for g in items if g.rollup_status == wanted]
 
-    # Undispositioned first — the desk's job is the queue, not the archive.
-    order = {"NONE": 0, "MIXED": 1}
+    # Undispositioned first — the desk's job is the queue, not the archive — and
+    # fully-packed groups last, since they are the archive.
+    order = {"NONE": 0, "MIXED": 1, "PACKED": 3}
     items.sort(key=lambda g: (order.get(g.rollup_status, 2), g.mo_code or "~", g.item_code or ""))
 
     total = len(items)

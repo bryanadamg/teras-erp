@@ -14,7 +14,7 @@ Two concepts live here so the API router and the packing gate agree:
 import uuid
 from typing import Iterable, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.location import Location
@@ -99,24 +99,33 @@ async def resolve_status_value(db: AsyncSession, value_id) -> AttributeValue:
     return val
 
 
-async def packed_batch_ids(db: AsyncSession, batch_ids: Iterable) -> set:
-    """Of the given lots, those already consumed by a packing completion.
+async def packed_batch_qty(db: AsyncSession, batch_ids: Iterable) -> dict:
+    """Of the given lots, how much of each a packing completion has drawn.
 
     A packed lot's disposition is frozen (see `assert_not_packed`): the cartons
     that left it were minted on the strength of an OK, and a packing order with
     cartons cannot be deleted, so there is no path that un-packs it. Read via
     `PackingCompletion.source_batch_id` — the completion is the packing event
     itself, so it exists for un-lotted draws too and needs no genealogy join.
+
+    Rejected completions are summed in too: the reject drops the cartons out of
+    packed *progress*, but the bulk lot still left the hold area, so the lot is
+    just as frozen as a clean one.
     """
     ids = [b for b in batch_ids if b]
     if not ids:
-        return set()
+        return {}
     rows = (await db.execute(
-        select(PackingCompletion.source_batch_id)
+        select(PackingCompletion.source_batch_id, func.sum(PackingCompletion.qty))
         .filter(PackingCompletion.source_batch_id.in_(ids))
-        .distinct()
-    )).scalars().all()
-    return {r for r in rows if r}
+        .group_by(PackingCompletion.source_batch_id)
+    )).all()
+    return {bid: float(qty or 0) for bid, qty in rows if bid}
+
+
+async def packed_batch_ids(db: AsyncSession, batch_ids: Iterable) -> set:
+    """Of the given lots, those already consumed by a packing completion."""
+    return set((await packed_batch_qty(db, batch_ids)).keys())
 
 
 async def assert_not_packed(db: AsyncSession, batches: list[Batch]) -> None:
