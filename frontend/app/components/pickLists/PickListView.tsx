@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT, rowStateBg } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -445,6 +445,24 @@ export default function PickListView() {
                                 <td style={td}>{pl.delivery_note_number || '-'}</td>
                                 <td style={td}>{pl.dispatched_at ? tzDate(pl.dispatched_at) : '-'}</td>
                                 <td style={{ ...td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                                    <span style={{ marginRight: 2 }}>
+                                        <XPActionButton
+                                            classic
+                                            tone="primary"
+                                            icon="bi-upc-scan"
+                                            title={pl.status === 'DISPATCHED' ? 'View' : 'Pick'}
+                                            onClick={() => setEditing(pl)}
+                                        />
+                                    </span>
+                                    <span style={{ marginRight: 2 }}>
+                                        <XPActionButton
+                                            classic
+                                            tone="neutral"
+                                            icon="bi-card-list"
+                                            title="Kartu Picking"
+                                            onClick={() => setPrintCard(pl)}
+                                        />
+                                    </span>
                                     <MenuTriggerButton classic onClick={e => menuToggle(String(pl.id), e)} />
                                 </td>
                             </tr>
@@ -466,8 +484,6 @@ export default function PickListView() {
                     <FloatingMenu
                         pos={menuPos}
                         items={[
-                            { key: 'edit', label: pl.status === 'DISPATCHED' ? 'View' : 'Pick', icon: 'bi-upc-scan', onClick: () => { menuClose(); setEditing(pl); } },
-                            { key: 'card', label: 'Kartu Picking', icon: 'bi-card-list', onClick: () => { menuClose(); setPrintCard(pl); } },
                             { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !(canManage && pl.status !== 'DISPATCHED'), onClick: () => { menuClose(); deletePL(pl); } },
                         ]}
                     />
