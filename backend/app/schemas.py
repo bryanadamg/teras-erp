@@ -3251,35 +3251,6 @@ class QuarantineStatusUpdate(BaseModel):
     notes: str | None = None
 
 
-class ReadyToPackSoLine(BaseModel):
-    sales_order_line_id: UUID
-    sales_order_id: UUID
-    sales_order_code: str | None = None  # SalesOrder.po_number
-    qty_ordered: float
-    qty_outstanding: float  # ordered minus packed_available (so_fulfilment_service)
-
-
-class ReadyToPackSuggestion(BaseModel):
-    """One (item, quarantine location) group with released, unpacked stock.
-
-    Surfaced on the Quarantine Packing page once QC flips a lot to OK — a nudge
-    to create the packing order, not an auto-created one: which SO line(s) it
-    should serve, the qty, and the pack size are still a planner's call.
-    """
-    item_id: UUID
-    item_code: str | None = None
-    item_name: str | None = None
-    uom: str | None = None
-    location_id: UUID
-    location_name: str | None = None
-    qty_available: float
-    so_lines: list[ReadyToPackSoLine] = []
-    # Earliest-due outstanding line, pre-selected when the "Pack" button is used —
-    # still just a suggestion; the form lets the user pick a different line or none.
-    suggested_sales_order_id: UUID | None = None
-    suggested_sales_order_line_id: UUID | None = None
-
-
 # ---------------------------------------------------------------------------
 # Work-center dispatch queue (services/work_queue_service.py)
 # ---------------------------------------------------------------------------

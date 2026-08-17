@@ -108,6 +108,7 @@ type Group = {
     mo_status: string | null;
     mo_qty: number | null;
     production_run_code: string | null;
+    sales_order_id: string | null;
     sales_order_code: string | null;
     color_code: string | null;
     color_name: string | null;
@@ -129,27 +130,6 @@ type Group = {
 
 type StatusOption = { id: string; value: string; is_pass: boolean };
 
-type ReadyToPackSoLine = {
-    sales_order_line_id: string;
-    sales_order_id: string;
-    sales_order_code: string | null;
-    qty_ordered: number;
-    qty_outstanding: number;
-};
-
-type ReadyToPackSuggestion = {
-    item_id: string;
-    item_code: string | null;
-    item_name: string | null;
-    uom: string | null;
-    location_id: string;
-    location_name: string | null;
-    qty_available: number;
-    so_lines: ReadyToPackSoLine[];
-    suggested_sales_order_id: string | null;
-    suggested_sales_order_line_id: string | null;
-};
-
 // Rollup filter choices that are not attribute values.
 const DERIVED_FILTERS = [
     { key: 'NONE', label: 'No status yet' },
@@ -170,7 +150,6 @@ export default function QuarantinePackingView() {
 
     const [groups, setGroups] = useState<Group[]>([]);
     const [statuses, setStatuses] = useState<StatusOption[]>([]);
-    const [readyToPack, setReadyToPack] = useState<ReadyToPackSuggestion[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [truncated, setTruncated] = useState(false);
@@ -245,19 +224,8 @@ export default function QuarantinePackingView() {
         }
     }, [authFetch, page, search, statusFilter, showPacked]);
 
-    const fetchReadyToPack = useCallback(async () => {
-        try {
-            const res = await authFetch(`${API_BASE}/quarantine/ready-to-pack`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            setReadyToPack(await res.json());
-        } catch {
-            setReadyToPack([]);
-        }
-    }, [authFetch]);
-
     useEffect(() => { fetchStatuses(); }, [fetchStatuses]);
     useEffect(() => { fetchGroups(); }, [fetchGroups]);
-    useEffect(() => { fetchReadyToPack(); }, [fetchReadyToPack]);
 
     // Another QC user releasing a lot, or production landing more output in the
     // hold area, both arrive as a 'stock' live event — reload rather than leave a
@@ -270,31 +238,34 @@ export default function QuarantinePackingView() {
         const off = subscribeLiveEvents(kind => {
             if (kind !== 'stock') return;
             if (liveTimer.current) clearTimeout(liveTimer.current);
-            liveTimer.current = setTimeout(() => {
-                fetchGroups(true);
-                fetchReadyToPack();
-            }, 600);
+            liveTimer.current = setTimeout(() => fetchGroups(true), 600);
         });
         return () => {
             if (liveTimer.current) clearTimeout(liveTimer.current);
             off();
         };
-    }, [subscribeLiveEvents, fetchGroups, fetchReadyToPack]);
+    }, [subscribeLiveEvents, fetchGroups]);
 
-    // "Pack" hands the suggestion to the Packing page as a deep link — it opens
-    // the New Packing Order form pre-filled, not creates the order itself. Which
-    // SO line (if any) this serves is still the planner's call to confirm.
-    const packSuggestion = useCallback((s: ReadyToPackSuggestion) => {
+    // "Pack" hands this group's released-not-yet-packed stock to the Packing
+    // page as a deep link — it opens the New Packing Order form pre-filled, not
+    // creates the order itself. Scoped to the group (this MO's lots), not the
+    // (item, location) pair: two MOs can share both, and an order already open
+    // against one must never hide the other's own released stock.
+    const packGroup = useCallback((g: Group) => {
+        const sourceLot = g.lots.find(l => l.released && !l.packed && l.location_id) || g.lots.find(l => l.location_id);
+        if (!sourceLot?.location_id) {
+            showToast('No lot location to pack from', 'warning');
+            return;
+        }
         const params = new URLSearchParams({
             action: 'create_packing_order',
-            item_id: s.item_id,
-            source_location_id: s.location_id,
-            qty_target: String(s.qty_available),
+            item_id: g.item_id,
+            source_location_id: sourceLot.location_id,
+            qty_target: String(g.qty_released),
         });
-        if (s.suggested_sales_order_id) params.set('sales_order_id', s.suggested_sales_order_id);
-        if (s.suggested_sales_order_line_id) params.set('sales_order_line_id', s.suggested_sales_order_line_id);
+        if (g.sales_order_id) params.set('sales_order_id', g.sales_order_id);
         router.push(`/packing?${params.toString()}`);
-    }, [router]);
+    }, [router, showToast]);
 
     const setStatus = useCallback(async (batchIds: string[], statusValueId: string | null, label: string) => {
         const ids = batchIds.filter(Boolean);
@@ -484,7 +455,7 @@ export default function QuarantinePackingView() {
         );
     };
 
-    const COL_COUNT = 8;
+    const COL_COUNT = 9;
     const LOT_COL_COUNT = 7;   // 6 data columns + the select checkbox
 
     // ── Decided-day banding ───────────────────────────────────────────────────
@@ -818,7 +789,8 @@ export default function QuarantinePackingView() {
                         <th style={{ ...lvTh(classic), width: 120, textAlign: 'right' }}>Qty Held</th>
                         <th style={{ ...lvTh(classic), width: 120, textAlign: 'right' }}>Released</th>
                         <th style={{ ...lvTh(classic), width: 140 }}>Status</th>
-                        <th style={{ ...lvTh(classic), width: 320, borderRight: 'none' }}>Set for whole MO</th>
+                        <th style={{ ...lvTh(classic), width: 320 }}>Set for whole MO</th>
+                        <th style={{ ...lvTh(classic), width: 110, borderRight: 'none' }}>Pack</th>
                     </tr>
                 </thead>
                 <tbody ref={listBodyRef}>
@@ -891,7 +863,7 @@ export default function QuarantinePackingView() {
                                                 .map(([k, n]) => `${n} × ${k === 'NONE' ? 'no status' : k}`).join(', ')}
                                         />
                                     </td>
-                                    <td style={{ ...lvTd(classic), borderRight: 'none' }} onClick={e => e.stopPropagation()}>
+                                    <td style={lvTd(classic)} onClick={e => e.stopPropagation()}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             {lotIds.length ? (
                                                 <>
@@ -915,6 +887,21 @@ export default function QuarantinePackingView() {
                                                 </span>
                                             )}
                                         </div>
+                                    </td>
+                                    <td style={{ ...lvTd(classic), borderRight: 'none' }} onClick={e => e.stopPropagation()}>
+                                        <XPActionButton
+                                            classic={classic}
+                                            tone="success"
+                                            icon="bi-box2"
+                                            label="Pack"
+                                            title={
+                                                !canPack ? 'Needs the Manage Sales Orders permission'
+                                                    : g.qty_released <= 0 ? 'No released stock on this MO yet'
+                                                        : 'Open New Packing Order, pre-filled'
+                                            }
+                                            disabled={!canPack || g.qty_released <= 0}
+                                            onClick={() => packGroup(g)}
+                                        />
                                     </td>
                                 </tr>
                                 {open && (
@@ -962,58 +949,6 @@ export default function QuarantinePackingView() {
                 subtitle="Stock held in quarantine, grouped by MO. Only lots set to OK can be packed."
             />
             {toolbar}
-            {readyToPack.length > 0 && (
-                <ExpandedRowPanel classic={classic} style={{ padding: classic ? '6px 10px' : '8px 12px', flexShrink: 0 }}>
-                    <div style={{
-                        fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
-                        fontSize: classic ? 10 : 11, color: '#2d7a2d',
-                        fontVariant: 'all-small-caps', letterSpacing: '0.5px', marginBottom: 4, fontWeight: 'bold',
-                    }}>
-                        <i className="bi bi-check2-circle" style={{ marginRight: 5 }} />
-                        Ready to Pack — released stock not yet on a packing order
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {readyToPack.map(s => {
-                            const bestLine = s.so_lines.find(l => l.sales_order_line_id === s.suggested_sales_order_line_id);
-                            return (
-                                <div key={`${s.item_id}:${s.location_id}`} style={{
-                                    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-                                    padding: '4px 8px', background: '#fff',
-                                    border: `1px solid ${classic ? '#c9c2ae' : '#e2e8f0'}`,
-                                    fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: classic ? 10 : 11,
-                                }}>
-                                    <div style={{ minWidth: 160 }}>
-                                        <span style={{ fontWeight: 'bold' }}>{s.item_name || s.item_code}</span>
-                                        <span style={{ color: '#666', marginLeft: 6 }}>{s.item_code}</span>
-                                    </div>
-                                    <div style={{ color: '#666' }}>
-                                        <i className="bi bi-geo-alt" style={{ marginRight: 3 }} />{s.location_name}
-                                    </div>
-                                    <div style={{ fontWeight: 'bold', color: '#2d7a2d' }}>
-                                        {fmtQty(s.qty_available)} {s.uom} available
-                                    </div>
-                                    <div style={{ color: '#666' }}>
-                                        {s.so_lines.length > 0
-                                            ? `${s.so_lines.length} open SO line${s.so_lines.length > 1 ? 's' : ''} need it${bestLine ? ` — earliest ${bestLine.sales_order_code || ''}` : ''}`
-                                            : 'No open SO lines for this item — would pack to stock'}
-                                    </div>
-                                    <div style={{ marginLeft: 'auto' }}>
-                                        <XPActionButton
-                                            classic={classic}
-                                            tone="success"
-                                            icon="bi-box2"
-                                            label="Pack"
-                                            title={canPack ? 'Open New Packing Order, pre-filled' : 'Needs the Manage Sales Orders permission'}
-                                            disabled={!canPack}
-                                            onClick={() => packSuggestion(s)}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </ExpandedRowPanel>
-            )}
             {error && (
                 <div style={{
                     fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, fontSize: 11,

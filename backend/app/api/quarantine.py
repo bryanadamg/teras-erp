@@ -27,7 +27,7 @@ from app.models.location import Location
 from app.models.manufacturing import ManufacturingOrder
 from app.models.packing import PackingOrder, PackingCompletion
 from app.models.production_run import ProductionRun
-from app.models.sales import SalesOrder, SalesOrderLine
+from app.models.sales import SalesOrder
 from app.models.color import Color
 from app.models.stock_balance import StockBalance
 from app.models.work_order import WorkOrder
@@ -35,9 +35,8 @@ from app.api.auth import get_current_user, require_permission
 from app.schemas import (
     QuarantineGroupResponse, QuarantineListResponse, QuarantineLotResponse,
     QuarantineStatusOption, QuarantineStatusUpdate,
-    ReadyToPackSoLine, ReadyToPackSuggestion,
 )
-from app.services import audit_service, quarantine_service, so_fulfilment_service
+from app.services import audit_service, quarantine_service
 from app.core.ws_manager import manager
 
 router = APIRouter(prefix="/quarantine", tags=["quarantine"])
@@ -331,114 +330,6 @@ async def list_quarantine_stock(
     return QuarantineListResponse(
         items=items[start:start + size], total=total, page=page, size=size, truncated=truncated,
     )
-
-
-@router.get("/ready-to-pack", response_model=list[ReadyToPackSuggestion])
-async def list_ready_to_pack(
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('quarantine.view')),
-):
-    """Released, unpacked quarantine stock, matched against open SO demand.
-
-    A nudge for the packer, not an auto-created order: QC releasing a lot only
-    means the stock is usable, it says nothing about which order (if any) it
-    should serve — `PackingOrder.sales_order_id` stays a soft tag, so this only
-    ever *suggests* a line, never claims one. One suggestion per (item, quarantine
-    location) — that pair is exactly what a packing order's item + source
-    location need to be, so "Pack" can pre-fill both untouched.
-
-    Only lot-tracked stock is actionable here, same hole as `assert_lots_released`:
-    un-lotted stock has nothing to disposition, so it can't be "released" either.
-    """
-    loc_ids = await quarantine_service.quarantine_location_ids(db)
-    if not loc_ids:
-        return []
-
-    rows = (await db.execute(
-        select(StockBalance, Batch, Item, Location)
-        .join(Item, Item.id == StockBalance.item_id)
-        .join(Location, Location.id == StockBalance.location_id)
-        .join(Batch, cast(Batch.id, String) == StockBalance.batch_key)
-        .filter(StockBalance.location_id.in_(loc_ids), StockBalance.qty > 0)
-    )).all()
-
-    totals: dict[tuple, dict] = {}
-    for bal, batch, item, loc in rows:
-        if not quarantine_service.is_pass(batch.quarantine_status):
-            continue
-        key = (item.id, loc.id)
-        entry = totals.setdefault(key, {"qty": 0.0, "item": item, "location": loc})
-        entry["qty"] += float(bal.qty or 0)
-    if not totals:
-        return []
-
-    item_ids = {k[0] for k in totals}
-    loc_id_set = {k[1] for k in totals}
-
-    # Drop groups a planner already actioned — an open PackingOrder against the
-    # same item + source location means this suggestion has already been picked up.
-    existing = (await db.execute(
-        select(PackingOrder.item_id, PackingOrder.source_location_id)
-        .filter(
-            PackingOrder.status.in_(("PENDING", "IN_PROGRESS")),
-            PackingOrder.item_id.in_(item_ids),
-            PackingOrder.source_location_id.in_(loc_id_set),
-        )
-    )).all()
-    already_actioned = {(row[0], row[1]) for row in existing}
-
-    # Open SO lines for these items, batched — same "still needs fulfilment"
-    # statuses so_fulfilment_service.recompute_all scopes its own recompute to.
-    line_rows = (await db.execute(
-        select(SalesOrderLine)
-        .join(SalesOrder, SalesOrder.id == SalesOrderLine.sales_order_id)
-        .options(selectinload(SalesOrderLine.order))
-        .filter(
-            SalesOrderLine.item_id.in_(item_ids),
-            SalesOrder.status.in_(("PENDING", "READY", "PARTIAL")),
-        )
-    )).scalars().all()
-    fulfilment = await so_fulfilment_service.fulfilment_map(db, [l.sales_order_id for l in line_rows])
-
-    lines_by_item: dict = {}
-    for l in line_rows:
-        packed_available = fulfilment.get(str(l.id), {}).get("packed_available", 0.0)
-        outstanding = float(l.qty or 0) - packed_available
-        if outstanding <= so_fulfilment_service.EPS:
-            continue
-        lines_by_item.setdefault(l.item_id, []).append((l, outstanding))
-
-    suggestions: list[ReadyToPackSuggestion] = []
-    for (item_id, location_id), entry in totals.items():
-        if entry["qty"] <= 0 or (item_id, location_id) in already_actioned:
-            continue
-        item, loc = entry["item"], entry["location"]
-        candidates = sorted(
-            lines_by_item.get(item_id, []),
-            key=lambda pair: pair[0].due_date or datetime.max,
-        )
-        so_lines = [
-            ReadyToPackSoLine(
-                sales_order_line_id=l.id,
-                sales_order_id=l.sales_order_id,
-                sales_order_code=l.order.po_number if l.order else None,
-                qty_ordered=float(l.qty or 0),
-                qty_outstanding=outstanding,
-            )
-            for l, outstanding in candidates
-        ]
-        best = candidates[0][0] if candidates else None
-        suggestions.append(ReadyToPackSuggestion(
-            item_id=item.id, item_code=item.code, item_name=item.name, uom=item.uom,
-            location_id=loc.id, location_name=loc.name,
-            qty_available=entry["qty"],
-            so_lines=so_lines,
-            suggested_sales_order_id=best.sales_order_id if best else None,
-            suggested_sales_order_line_id=best.id if best else None,
-        ))
-
-    suggestions.sort(key=lambda s: (s.item_code or "", s.location_name or ""))
-    return suggestions
 
 
 @router.post("/status", response_model=list[QuarantineLotResponse])
