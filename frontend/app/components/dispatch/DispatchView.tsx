@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
-    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CODE_FONT, rowStateBg,
+    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg,
 } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -299,7 +299,7 @@ export default function DispatchView() {
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
                             <th style={xpTableHeader}>Status</th>
                             <th style={xpTableHeader}>Checked by</th>
-                            <th style={{ ...xpTableHeader, width: 40 }} />
+                            <th style={{ ...xpTableHeader, width: 96, textAlign: 'right' }} />
                         </tr>
                     </thead>
                     <tbody ref={listBodyRef}>
@@ -329,7 +329,27 @@ export default function DispatchView() {
                                                 ? `${shp.verified_by_name}${shp.verified_with_discrepancy ? ' (discrepancy)' : ''}`
                                                 : '-'}
                                         </td>
-                                        <td style={td} onClick={e => e.stopPropagation()}>
+                                        <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                                            {canVerify && shp.status === 'STAGED' && (
+                                                <span style={{ marginRight: 2 }}>
+                                                    <XPActionButton
+                                                        classic
+                                                        tone="success"
+                                                        icon="bi-check2-square"
+                                                        title="Verify Load"
+                                                        onClick={() => setVerifying(shp)}
+                                                    />
+                                                </span>
+                                            )}
+                                            <span style={{ marginRight: 2 }}>
+                                                <XPActionButton
+                                                    classic
+                                                    tone="neutral"
+                                                    icon="bi-printer"
+                                                    title="Print Surat Jalan"
+                                                    onClick={() => setPrintShp(shp)}
+                                                />
+                                            </span>
                                             <MenuTriggerButton classic onClick={e => menuToggle(String(shp.id), e)} />
                                         </td>
                                     </tr>
@@ -380,11 +400,10 @@ export default function DispatchView() {
                 <FloatingMenu
                     pos={menuPos}
                     items={[
-                        { key: 'print', label: 'Surat Jalan', icon: 'bi-printer', onClick: () => { menuClose(); setPrintShp(menuShipment); } },
+                        // Surat Jalan and Verify Load are promoted to the row's action
+                        // column — the two things a deck user reaches for every time.
                         ...(canManage && ['DRAFT', 'STAGED'].includes(menuShipment.status)
                             ? [{ key: 'edit', label: 'Edit', icon: 'bi-pencil', onClick: () => { menuClose(); openEdit(menuShipment); } }] : []),
-                        ...(canVerify && menuShipment.status === 'STAGED'
-                            ? [{ key: 'verify', label: 'Verify Load', icon: 'bi-check2-square', onClick: () => { menuClose(); setVerifying(menuShipment); } }] : []),
                         ...(canManage && menuShipment.status === 'VERIFIED'
                             ? [{ key: 'reopen', label: 'Reopen', icon: 'bi-arrow-counterclockwise', onClick: () => { menuClose(); doAction(menuShipment, 'reopen'); } }] : []),
                         ...(canDispatch && menuShipment.status === 'VERIFIED'
