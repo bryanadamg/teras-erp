@@ -231,39 +231,38 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
     >
       {/* ── Header ── */}
       <div style={classic ? {
-        background: 'linear-gradient(to bottom, #0058e6 0%, #003080 100%)',
+        background: '#0058e6',
         padding: '8px 10px',
         color: '#fff',
-        fontSize: 13,
-        fontWeight: 'bold',
         display: 'flex',
         alignItems: 'center',
-        gap: 7,
         flexShrink: 0,
         borderBottom: '2px solid #003080',
-        textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-        letterSpacing: '0.2px',
         userSelect: 'none',
-        fontFamily: xpFont,
         minHeight: 40,
       } : {
-        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+        background: '#2563eb',
         padding: '15px 16px',
         color: '#fff',
-        fontSize: 15,
-        fontWeight: 700,
         display: 'flex',
         alignItems: 'center',
-        gap: 9,
         flexShrink: 0,
         borderBottom: '1px solid #1d4ed8',
-        letterSpacing: '0.2px',
         userSelect: 'none',
-        fontFamily: modernFont,
         minHeight: 56,
       }}>
-        <i className="bi bi-building-fill" style={{ fontSize: 18 }} />
-        <span className="text-truncate" title={appName}>{appName}</span>
+        <span
+          className="text-truncate"
+          title={appName}
+          style={{
+            fontFamily: "'Segoe UI', Arial, sans-serif",
+            fontWeight: 800,
+            fontSize: classic ? 16 : 18,
+            letterSpacing: '-0.3px',
+          }}
+        >
+          {appName}
+        </span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -275,13 +274,8 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
             style={classic ? {
               width: '100%',
               padding: '6px 0',
-              background: hovered === 'scanner'
-                ? 'linear-gradient(to bottom, #5a9af4, #2a6ce4)'
-                : 'linear-gradient(to bottom, #4a8af4, #1a5cd4)',
-              borderTop: '1px solid #90c0ff',
-              borderLeft: '1px solid #90c0ff',
-              borderRight: '1px solid #003088',
-              borderBottom: '1px solid #003088',
+              background: hovered === 'scanner' ? '#2a6ce4' : '#1a5cd4',
+              border: '1px solid #003088',
               color: '#fff',
               fontFamily: xpFont,
               fontSize: 11,
