@@ -629,6 +629,21 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [soId, itemId, soLines, soLineId]);
 
+    // A native <select> can't render swatch chips, so this is the same identity
+    // (item, size, combo, colour/labdip) as LotChips, flattened to plain text —
+    // otherwise same-item lines that only differ by size/colour/combo are
+    // indistinguishable in the dropdown.
+    const soLineLabel = (l: any) => {
+        const parts = [l.item_name || l.item_code || l.item_id];
+        if (l.size_label) parts.push(l.size_label);
+        const combo = (l.variant_attributes || []).find((a: any) => a.system_role === 'combo');
+        if (combo) parts.push(combo.value);
+        if (l.color_code || l.color_name) parts.push([l.color_code, l.color_name].filter(Boolean).join(' '));
+        else if (l.labdip_variant_code) parts.push(`${l.labdip_variant_code} (pending)`);
+        parts.push(num(l.qty).toLocaleString());
+        return parts.join(' · ');
+    };
+
     const fgOptions = useMemo(
         () => (fgResults || []).map((i: any) => ({ value: String(i.id), label: i.name, subLabel: i.code })),
         [fgResults]
@@ -701,7 +716,7 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
                                 <select style={{ ...xpSelect, width: '100%' }} value={soLineId} onChange={e => applySoLine(e.target.value)}>
                                     <option value="">— select line —</option>
                                     {soLines.map((l: any) => (
-                                        <option key={l.id} value={l.id}>{l.item_name || l.item_code || l.item_id} · {num(l.qty).toLocaleString()}</option>
+                                        <option key={l.id} value={l.id}>{soLineLabel(l)}</option>
                                     ))}
                                 </select>
                             </div>

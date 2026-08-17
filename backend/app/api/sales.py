@@ -6,7 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from app.db.session import get_async_db
 from app.schemas import SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse
 from app.models.sales import SalesOrder, SalesOrderLine, sales_order_line_values
-from app.models.attribute import AttributeValue
+from app.models.attribute import Attribute, AttributeValue
+from app.models.bom import BOMSize
 from app.models.color import Color
 from app.models.production_run import ProductionRun
 from app.models.manufacturing import ManufacturingOrder
@@ -32,6 +33,7 @@ def _line_opts():
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.color),
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.labdip_item),
+        selectinload(SalesOrder.lines).selectinload(SalesOrderLine.bom_size).selectinload(BOMSize.size),
     )
 
 
@@ -68,6 +70,32 @@ def _populate_line(line: SalesOrderLine) -> None:
     # IN_PROGRESS/APPROVED/REJECTED). Shown until an approved color_id backfills.
     if line.labdip_item is not None:
         line.labdip_status = line.labdip_item.status
+    if line.bom_size is not None:
+        line.size_label = line.bom_size.size_name or line.bom_size.label
+
+
+async def _populate_variant_attrs(db: AsyncSession, orders: list) -> None:
+    """Attach variant_attributes (combo, and anything else riding attribute_values)
+    to every line, same shape as Batch.variant_attributes (see api/batches.py) so
+    a picker can label an SO line the same way it labels a lot. AttributeValue
+    doesn't carry its parent Attribute's name/system_role without a join, hence
+    one batched lookup for the whole page rather than a relationship walk.
+    """
+    value_ids = {v.id for so in orders for line in so.lines for v in line.attribute_values}
+    if not value_ids:
+        return
+    rows = (await db.execute(
+        select(AttributeValue.id, Attribute.name, Attribute.system_role, AttributeValue.value, AttributeValue.hex)
+        .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+        .filter(AttributeValue.id.in_(value_ids))
+    )).all()
+    by_id = {vid: {"name": name, "system_role": role, "value": value, "hex": hex_code}
+             for vid, name, role, value, hex_code in rows}
+    for so in orders:
+        for line in so.lines:
+            attrs = [by_id[v.id] for v in line.attribute_values if v.id in by_id]
+            if attrs:
+                line.variant_attributes = attrs
 
 @router.post("", response_model=SalesOrderResponse)
 async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales_order.create'))):
@@ -131,6 +159,7 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
     for line in so_refreshed.lines:
         _populate_line(line)
     await _populate_fulfilment(db, [so_refreshed])
+    await _populate_variant_attrs(db, [so_refreshed])
 
     await audit_service.log_activity(
         db,
@@ -174,6 +203,7 @@ async def get_sales_orders(
         for line in so.lines:
             _populate_line(line)
     await _populate_fulfilment(db, list(orders))
+    await _populate_variant_attrs(db, list(orders))
 
     return orders
 
@@ -193,6 +223,7 @@ async def get_sales_order(
     for line in so.lines:
         _populate_line(line)
     await _populate_fulfilment(db, [so])
+    await _populate_variant_attrs(db, [so])
     return so
 
 @router.put("/{so_id}", response_model=SalesOrderResponse)
@@ -308,6 +339,7 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
     for line in so_refreshed.lines:
         _populate_line(line)
     await _populate_fulfilment(db, [so_refreshed])
+    await _populate_variant_attrs(db, [so_refreshed])
 
     await audit_service.log_activity(
         db,
@@ -354,6 +386,7 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
     for line in so.lines:
         _populate_line(line)
     await _populate_fulfilment(db, [so])
+    await _populate_variant_attrs(db, [so])
 
     await audit_service.log_activity(
         db,

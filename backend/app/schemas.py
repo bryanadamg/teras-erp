@@ -1627,6 +1627,15 @@ class SalesOrderLineCreate(BaseModel):
     # Customer hasn't supplied the physical swatch yet. Display-only flag.
     no_color_swatch: bool = False
 
+class BatchVariantAttr(BaseModel):
+    """One variant attribute value of the MO that produced a lot (Combo, Colors, …) —
+    or, on a SalesOrderLineResponse, of the order line itself. Same shape either
+    way so a picker can label a lot and an SO line identically."""
+    name: str
+    value: str
+    hex: Optional[str] = None
+    system_role: Optional[str] = None   # 'combo' | 'color' | 'material' | ...
+
 class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
     attribute_value_ids: list[UUID] = []
@@ -1641,6 +1650,11 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     labdip_status: str | None = None
     item_name: str | None = None
     item_code: str | None = None
+    # This line's BOM size (label only — e.g. "M", or a free-mode label) and any
+    # other attribute values (combo, …), so a picker can tell same-item lines
+    # apart the same way it labels a lot (see BatchVariantAttr).
+    size_label: str | None = None
+    variant_attributes: list[BatchVariantAttr] | None = None
     # Derived fulfilment (so_fulfilment_service) — never stored on the line.
     # `packed_available` is what decides whether the order can ship.
     qty_made: float = 0
@@ -2543,13 +2557,6 @@ class LeftoverBeamCreate(BaseModel):
     beam_number: Optional[str] = None   # blank → auto-generate BM-YYYYMMDD-NNNN
     ends: Optional[int] = None
     notes: Optional[str] = None
-
-class BatchVariantAttr(BaseModel):
-    """One variant attribute value of the MO that produced a lot (Combo, Colors, …)."""
-    name: str
-    value: str
-    hex: Optional[str] = None
-    system_role: Optional[str] = None   # 'combo' | 'color' | 'material' | ...
 
 
 class BatchResponse(BaseModel):
