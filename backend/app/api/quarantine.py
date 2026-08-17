@@ -237,6 +237,26 @@ async def list_quarantine_stock(
         db, [b.id for (_, b, _, _) in rows if b is not None]
     )
 
+    # An open packing order plans to draw this (item, source location) — same
+    # correlation the old ready-to-pack suggestion used, now surfaced as a lock
+    # instead of a hidden suggestion: a released lot already spoken for reads as
+    # claimed until that order is cancelled/deleted, so nobody double-packs it
+    # from a second order. Order-level, not MO-level: a completion's lot picker
+    # draws from the location by item, not by which MO produced the lot.
+    claimed_by: dict = {}
+    on_hand_item_ids = {item.id for (_, _, item, _) in rows}
+    on_hand_loc_ids = {loc.id for (_, _, _, loc) in rows}
+    if on_hand_item_ids and on_hand_loc_ids:
+        for item_id, loc_id, code in (await db.execute(
+            select(PackingOrder.item_id, PackingOrder.source_location_id, PackingOrder.code)
+            .filter(
+                PackingOrder.status.in_(("PENDING", "IN_PROGRESS")),
+                PackingOrder.item_id.in_(on_hand_item_ids),
+                PackingOrder.source_location_id.in_(on_hand_loc_ids),
+            )
+        )).all():
+            claimed_by.setdefault((item_id, loc_id), code)
+
     # Combo/other variant attributes of the producing MO, resolved onto each
     # batch (setattr, same as the lot pickers) — the group row already carries
     # color/labdip from `origin`, but combo has no home there, and a lot's own
@@ -308,6 +328,7 @@ async def list_quarantine_stock(
             variant_attributes=getattr(batch, "variant_attributes", None) if batch is not None else None,
             color_code=grp.color_code, color_name=grp.color_name, color_hex=grp.color_hex,
             labdip_variant_code=grp.labdip_variant_code,
+            claimed_by_order_code=claimed_by.get((item.id, loc.id)) if released else None,
         ))
 
     # History rows deliberately touch neither the qty totals nor `lot_count`:

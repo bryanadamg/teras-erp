@@ -130,6 +130,9 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     OK: 'green', BULK_SAMPLE: 'blue', WAITING_APPROVAL: 'amber', MIXED: 'amber',
     // A quarantine lot already drawn by packing — terminal, its disposition is frozen.
     PACKED: 'green',
+    // A released quarantine lot already claimed by an open packing order — locked
+    // like PACKED, but reversible: cancelling/deleting that order frees it again.
+    CLAIMED: 'amber',
     // Work-queue readiness verdicts (services/work_queue_service.py). Derived, never
     // stored. Blue = the PIC may start it (RUNNING/STAGED/READY already blue above);
     // amber = waiting on something with a known answer; red = nothing to run on.

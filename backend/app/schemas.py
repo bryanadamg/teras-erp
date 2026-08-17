@@ -3218,6 +3218,12 @@ class QuarantineLotResponse(BaseModel):
     color_name: str | None = None
     color_hex: str | None = None
     labdip_variant_code: str | None = None
+    # Set (to the claiming order's code) when this lot is released, not yet
+    # packed, and an open PackingOrder already exists for its (item, location) —
+    # locks it in the UI the same as an actually-packed lot, until that order is
+    # cancelled/deleted, so QC doesn't double-release the same physical stock
+    # onto two different packing plans.
+    claimed_by_order_code: str | None = None
 
 class QuarantineGroupResponse(BaseModel):
     # "<mo_id|unassigned>:<item_id>" — an MO can output several items and an item

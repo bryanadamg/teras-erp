@@ -106,6 +106,10 @@ type Lot = {
     color_name: string | null;
     color_hex: string | null;
     labdip_variant_code: string | null;
+    // Set when this lot is released and an open packing order already claims
+    // its (item, location) — locked the same as a packed lot until that order
+    // is cancelled/deleted.
+    claimed_by_order_code: string | null;
 };
 
 type Group = {
@@ -256,22 +260,28 @@ export default function QuarantinePackingView() {
         };
     }, [subscribeLiveEvents, fetchGroups]);
 
-    // "Pack" hands this group's released-not-yet-packed stock to the Packing
-    // page as a deep link — it opens the New Packing Order form pre-filled, not
-    // creates the order itself. Scoped to the group (this MO's lots), not the
-    // (item, location) pair: two MOs can share both, and an order already open
-    // against one must never hide the other's own released stock.
+    // "Pack" hands this group's released-not-yet-packed-or-claimed stock to the
+    // Packing page as a deep link — it opens the New Packing Order form
+    // pre-filled, not creates the order itself. Scoped to the group (this MO's
+    // lots), not the (item, location) pair: two MOs can share both, and an
+    // order already open against one must never hide the other's own released
+    // stock. `qty_released` is the group's full released total — a portion of
+    // it may already be claimed by another open order, so the default target
+    // only offers what's actually still free, rather than re-offering stock a
+    // second order would double up on.
     const packGroup = useCallback((g: Group) => {
-        const sourceLot = g.lots.find(l => l.released && !l.packed && l.location_id) || g.lots.find(l => l.location_id);
+        const free = g.lots.filter(l => l.released && !l.packed && !l.claimed_by_order_code);
+        const sourceLot = free.find(l => l.location_id) || g.lots.find(l => l.location_id);
         if (!sourceLot?.location_id) {
             showToast('No lot location to pack from', 'warning');
             return;
         }
+        const qtyFree = free.reduce((s, l) => s + (l.qty || 0), 0);
         const params = new URLSearchParams({
             action: 'create_packing_order',
             item_id: g.item_id,
             source_location_id: sourceLot.location_id,
-            qty_target: String(g.qty_released),
+            qty_target: String(qtyFree),
         });
         if (g.sales_order_id) params.set('sales_order_id', g.sales_order_id);
         if (g.bom_size_id) params.set('bom_size_id', g.bom_size_id);
@@ -326,10 +336,12 @@ export default function QuarantinePackingView() {
     );
 
     // ── Lot selection ─────────────────────────────────────────────────────────
-    // Packed lots are locked and un-lotted rows have nothing to write a status
-    // to, so neither is ever selectable — the same filter the whole-MO apply uses.
+    // Packed lots are locked, a lot already claimed by an open packing order is
+    // locked the same way (until that order is cancelled/deleted), and un-lotted
+    // rows have nothing to write a status to — none of the three is ever
+    // selectable. Same filter the whole-MO apply uses.
     const selectableIds = (lots: Lot[]) =>
-        lots.filter(l => l.batch_id && !l.packed).map(l => l.batch_id) as string[];
+        lots.filter(l => l.batch_id && !l.packed && !l.claimed_by_order_code).map(l => l.batch_id) as string[];
 
     const setSelection = (ids: string[], on: boolean) => setSelectedLots(prev => {
         const next = new Set(prev);
@@ -639,22 +651,30 @@ export default function QuarantinePackingView() {
                     {sec.lots.map((l, i) => {
                         // Packed lots stay in the list (they are still this MO's history)
                         // but read as settled rather than actionable — dimmed, not dropped.
-                        const dim: React.CSSProperties = l.packed ? { opacity: 0.55 } : {};
-                        const selectable = !!l.batch_id && !l.packed;
+                        // A lot claimed by an open packing order reads the same way until
+                        // that order is cancelled/deleted, so nobody sets a fresh status on
+                        // stock another order already plans to draw.
+                        const locked = l.packed || !!l.claimed_by_order_code;
+                        const dim: React.CSSProperties = locked ? { opacity: 0.55 } : {};
+                        const selectable = !!l.batch_id && !locked;
                         const isChosen = selectable && selectedLots.has(l.batch_id as string);
                         return (
                         <tr
                             key={l.batch_id || `${sec.key}-nolot-${i}`}
-                            title={l.packed ? 'Already packed — this lot’s quarantine status is locked' : undefined}
-                            // No zebra. The only fills are the settled-packed tint and
+                            title={
+                                l.packed ? 'Already packed — this lot’s quarantine status is locked'
+                                    : l.claimed_by_order_code ? `Claimed by packing order ${l.claimed_by_order_code} — cancel or delete it to free this lot`
+                                        : undefined
+                            }
+                            // No zebra. The only fills are the settled/claimed tint and
                             // the checked highlight — both semantic, both via lvSubRow.
                             style={{
                                 ...lvSubRow(classic, i, {
-                                    fill: l.packed ? (classic ? '#f0efe9' : '#f6f7f9')
+                                    fill: locked ? (classic ? '#f0efe9' : '#f6f7f9')
                                         : isChosen ? (classic ? '#fffbe6' : '#fffdf2')
                                         : undefined,
                                 }),
-                                ...(l.packed ? { color: '#8a8a8a' } : {}),
+                                ...(locked ? { color: '#8a8a8a' } : {}),
                             }}
                         >
                             <td style={{ ...lotTd, textAlign: 'center' }}>
@@ -678,6 +698,10 @@ export default function QuarantinePackingView() {
                                     )}
                                     {l.packed && (
                                         <StatusChip status="PACKED" label="Packed" tint />
+                                    )}
+                                    {!l.packed && l.claimed_by_order_code && (
+                                        <StatusChip status="CLAIMED" label={l.claimed_by_order_code} tint
+                                            title={`Claimed by packing order ${l.claimed_by_order_code}`} />
                                     )}
                                     <div style={{ marginLeft: 'auto' }}><LotChips batch={l} rounded /></div>
                                 </div>
@@ -812,11 +836,17 @@ export default function QuarantinePackingView() {
                 <tbody ref={listBodyRef}>
                     {groups.map((g, i) => {
                         const open = expanded.has(g.key);
-                        // Packed lots are frozen, so the whole-MO apply targets only the
-                        // ones still open — including them would 409 the whole submission.
-                        const lotIds = g.lots.filter(l => l.batch_id && !l.packed)
+                        // Packed lots are frozen and a claimed lot is locked until its
+                        // order is cancelled/deleted, so the whole-MO apply targets only
+                        // what's still open — including either would 409 the submission.
+                        const lotIds = g.lots.filter(l => l.batch_id && !l.packed && !l.claimed_by_order_code)
                             .map(l => l.batch_id) as string[];
                         const allReleased = g.lot_count > 0 && g.qty_released >= g.qty_total - 1e-6;
+                        // What "Pack" would actually offer — released, unpacked, and not
+                        // already spoken for by another open order.
+                        const qtyFree = g.lots
+                            .filter(l => l.released && !l.packed && !l.claimed_by_order_code)
+                            .reduce((s, l) => s + (l.qty || 0), 0);
                         return (
                             <Fragment key={g.key}>
                                 <tr
@@ -892,9 +922,9 @@ export default function QuarantinePackingView() {
                                                         {lotIds.length} lot{lotIds.length > 1 ? 's' : ''}
                                                     </span>
                                                 </>
-                                            ) : g.lots.some(l => l.packed) ? (
+                                            ) : g.lots.some(l => l.packed || l.claimed_by_order_code) ? (
                                                 <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>
-                                                    <i className="bi bi-lock-fill" style={{ marginRight: 4 }} />All lots locked (packed)
+                                                    <i className="bi bi-lock-fill" style={{ marginRight: 4 }} />All lots locked (packed or claimed)
                                                 </span>
                                             ) : (
                                                 <span style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}
@@ -912,10 +942,12 @@ export default function QuarantinePackingView() {
                                             label="Pack"
                                             title={
                                                 !canPack ? 'Needs the Manage Sales Orders permission'
-                                                    : g.qty_released <= 0 ? 'No released stock on this MO yet'
+                                                    : qtyFree <= 0 ? (g.qty_released > 0
+                                                        ? 'All released stock on this MO is already claimed by an open packing order'
+                                                        : 'No released stock on this MO yet')
                                                         : 'Open New Packing Order, pre-filled'
                                             }
-                                            disabled={!canPack || g.qty_released <= 0}
+                                            disabled={!canPack || qtyFree <= 0}
                                             onClick={() => packGroup(g)}
                                         />
                                     </td>

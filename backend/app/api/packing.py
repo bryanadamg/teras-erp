@@ -409,6 +409,10 @@ async def create_packing_order(
     )
     try:
         await manager.broadcast({"type": "PACKING_UPDATE", "id": str(po.id)})
+        # A new open order claims this (item, source location) for Quarantine
+        # Packing's lock — same "changes what's packable" reasoning as a
+        # quarantine disposition, so it rides the same 'stock' WS kind.
+        await manager.broadcast({"type": "STOCK_UPDATE"})
     except Exception:
         pass
 
@@ -461,6 +465,13 @@ async def update_packing_order(
         db, user_id=current_user.id, action="UPDATE", entity_type="PackingOrder",
         entity_id=str(po.id), details=f"Updated packing order {po.code}",
     )
+    try:
+        await manager.broadcast({"type": "PACKING_UPDATE", "id": str(po.id)})
+        # Status/qty/location edits (cancelling included) change whether this
+        # order still claims its (item, source location) — see the create path.
+        await manager.broadcast({"type": "STOCK_UPDATE"})
+    except Exception:
+        pass
 
     po = await _load(db, po_id)
     units = await _packed_units_for(db, [po.id])
@@ -866,4 +877,12 @@ async def delete_packing_order(
         db, user_id=current_user.id, action="DELETE", entity_type="PackingOrder",
         entity_id=str(po_id), details=f"Deleted packing order {code}",
     )
+    try:
+        await manager.broadcast({"type": "PACKING_UPDATE", "id": str(po_id)})
+        # Frees this order's (item, source location) claim — the whole reason
+        # Quarantine Packing's lot lock exists is to reverse the moment this
+        # happens, so it needs to reach the same 'stock' WS kind that page reads.
+        await manager.broadcast({"type": "STOCK_UPDATE"})
+    except Exception:
+        pass
     return {"ok": True}
