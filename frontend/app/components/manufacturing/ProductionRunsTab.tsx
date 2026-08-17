@@ -73,10 +73,39 @@ export default function ProductionRunsTab({
     const togglePR = (prId: string) => {
         setExpandedPRs(prev => {
             const expanding = !prev[prId];
-            if (expanding) fetchPRMaterialRequirements(prId);
+            // Rows already pulled stay cached — collapsing and re-opening the same PR
+            // must not re-pay the round trip. The cache is dropped (and open panels
+            // silently re-pulled) whenever the PR list itself refreshes, so a cached
+            // panel can never show numbers older than the list around it.
+            if (expanding && !prMaterialReqs[prId] && !prMaterialReqsLoading[prId]) {
+                fetchPRMaterialRequirements(prId);
+            }
             return { ...prev, [prId]: expanding };
         });
     };
+
+    // Mirror of expandedPRs for the refresh effect below — reading it through a ref
+    // keeps expandedPRs out of that effect's deps, so toggling a row doesn't
+    // re-trigger a whole-page material refresh.
+    const expandedRef = useRef<Record<string, boolean>>({});
+    useEffect(() => { expandedRef.current = expandedPRs; }, [expandedPRs]);
+
+    // The PR list re-fetching (page load, WS live event, paging, search) means the
+    // cached requirement rows may be stale: drop them, and immediately re-pull the
+    // panels the user actually has open. The old rows stay on screen during that
+    // re-pull (the panel only shows its skeleton when it has nothing yet), so an
+    // open panel refreshes in place instead of flashing empty.
+    const prListSettled = useRef(false);
+    useEffect(() => {
+        if (!prListSettled.current) { prListSettled.current = true; return; }
+        const open = Object.keys(expandedRef.current).filter(id => expandedRef.current[id]);
+        setPrMaterialReqs(prev => {
+            const next: Record<string, any[]> = {};
+            for (const id of open) if (prev[id]) next[id] = prev[id];
+            return next;
+        });
+        for (const id of open) fetchPRMaterialRequirements(id);
+    }, [productionRuns]);
 
     // One batched call for the Materials column of every visible PR (replaces the
     // old per-row storm). Full material rows are still fetched lazily on expand/print.
@@ -345,7 +374,10 @@ export default function ProductionRunsTab({
                                             <td colSpan={9} className="p-0 border-0">
                                             <ExpandedRowPanel classic={classic}>
                                             <ExpandedRowPanelBody classic={classic}>
-                                                {isLoading ? (
+                                                {/* Only stand in for the table when there is nothing to show yet.
+                                                    A background re-pull (list refresh) keeps the current rows on
+                                                    screen and swaps them when the fresh ones land. */}
+                                                {isLoading && reqs.length === 0 ? (
                                                     <span style={{ fontSize: 11, color: '#666', fontFamily: classic ? xpFont : undefined }}>
                                                         Loading material requirements...
                                                     </span>
