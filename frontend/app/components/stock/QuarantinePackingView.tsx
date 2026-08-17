@@ -427,6 +427,7 @@ export default function QuarantinePackingView() {
                     options={options}
                     value={current ?? null}
                     disabled={off}
+                    flat
                     onChange={id => {
                         const s = statuses.find(x => x.id === id);
                         if (!s) return;
@@ -438,6 +439,7 @@ export default function QuarantinePackingView() {
                             onClick={() => onPick(null, 'No status')}
                             classic={classic}
                             disabled={off}
+                            flat
                             seg="last"
                             title="Clear the disposition — puts the lot back on hold"
                         >

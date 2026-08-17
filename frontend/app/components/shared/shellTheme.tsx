@@ -181,7 +181,7 @@ export const segAt = (i: number, len: number): ChipSeg =>
  * `value` takes an array for multi-select bars (the Calendar's status set); the
  * caller does the add/remove in `onChange`.
  */
-export function FilterChipBar({ classic, options, value, onChange, disabled, trailing, style }: {
+export function FilterChipBar({ classic, options, value, onChange, disabled, trailing, flat, style }: {
     classic: boolean;
     /** Plain strings, or `{ value, label, count, tone }` for a tally / coloured fill. */
     options: (string | FilterChipOption)[];
@@ -193,6 +193,8 @@ export function FilterChipBar({ classic, options, value, onChange, disabled, tra
     /** Extra segment(s) appended after the options, flush with the last one — an
      * "undo"/clear action that isn't itself a selectable value. */
     trailing?: React.ReactNode;
+    /** Flat idle face instead of the raised XP gradient — see `ToggleChip`. */
+    flat?: boolean;
     style?: React.CSSProperties;
 }) {
     const isOn = (v: string) => Array.isArray(value) ? value.includes(v) : value === v;
@@ -214,6 +216,7 @@ export function FilterChipBar({ classic, options, value, onChange, disabled, tra
                         seg={segAt(i, options.length)}
                         tone={o.tone}
                         title={o.title}
+                        flat={flat}
                     >
                         {o.label ?? o.value}
                         {o.count !== undefined && (

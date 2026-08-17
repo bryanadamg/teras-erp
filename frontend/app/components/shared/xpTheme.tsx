@@ -620,7 +620,7 @@ export type ChipSeg = 'first' | 'mid' | 'last' | 'only';
 // selected; modern is the bootstrap solid/outline pair. Use this instead of styling
 // a selected state per view, so "this one is selected" always looks the same.
 // Pass `seg` to make it a member of a flush segmented group (borders collapse).
-export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, title, seg, tone = 'blue', children }: {
+export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, title, seg, tone = 'blue', flat = false, children }: {
     on: boolean;
     onClick: () => void;
     classic: boolean;
@@ -629,14 +629,28 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
     title?: string;
     seg?: ChipSeg;
     tone?: ChipTone;
+    // Idle (unselected) classic face: a flat panel instead of the raised XP
+    // gradient. Segmented status bars (quarantine/sample/lab-dip) read as a flat
+    // data control rather than a strip of buttons; weekday/filter chips keep the
+    // raised default since those are genuinely toolbar buttons.
+    flat?: boolean;
     children: React.ReactNode;
 }) {
     const c = CHIP_TONES[tone];
-    // Hover is tracked in state, not CSS: the classic chip is inline-styled (no
-    // class to hang a :hover on) and the highlight has to know `on`/`tone` to
-    // pick between "tint the raised face" and "brighten the solid fill".
+    // Hover (and, in flat mode, press) are tracked in state, not CSS: the
+    // classic chip is inline-styled (no class to hang a :hover on) and the
+    // highlight has to know `on`/`tone` to pick between "tint the raised face"
+    // and "brighten the solid fill".
     const [hover, setHover] = React.useState(false);
+    const [pressed, setPressed] = React.useState(false);
     const lit = hover && !disabled;
+    const down = pressed && !disabled;
+    // Flat mode doesn't tint the face on hover — it brightens whatever colour
+    // is already there and lifts the button 1px, then settles back down on
+    // press. Same feedback the segmented status bars (quarantine/sample/lab-dip)
+    // used before they moved onto this shared chip.
+    const flatFilter = down ? 'brightness(0.96)' : lit ? 'brightness(1.08)' : 'none';
+    const flatLift = lit && !down ? 'translateY(-1px)' : 'translateY(0)';
     return (
         <button
             type="button"
@@ -644,8 +658,10 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
             onClick={onClick}
             title={title}
             onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-            onBlur={() => setHover(false)}
+            onMouseLeave={() => { setHover(false); setPressed(false); }}
+            onMouseDown={() => setPressed(true)}
+            onMouseUp={() => setPressed(false)}
+            onBlur={() => { setHover(false); setPressed(false); }}
             className={classic ? '' : `btn btn-sm ${on ? c.cls : 'btn-outline-secondary'}`}
             style={classic ? {
                 fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
@@ -653,17 +669,19 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
                 cursor: disabled ? 'default' : 'pointer',
                 border: '1px solid',
                 borderColor: on ? c.border
-                    : lit ? '#7f9db9 #4a7ab5 #4a7ab5 #7f9db9'
+                    : (!flat && lit) ? '#7f9db9 #4a7ab5 #4a7ab5 #7f9db9'
                     : '#dfdfdf #808080 #808080 #dfdfdf',
                 background: on ? c.bg
+                    : flat ? '#eceae0'
                     : lit ? 'linear-gradient(to bottom,#ffffff,#d6e6fb)'
                     : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
-                color: on ? '#fff' : lit ? '#00006e' : '#000',
+                color: on ? '#fff' : (!flat && lit) ? '#00006e' : '#000',
                 // Selected chips are already filled, so hover brightens the fill
                 // instead of tinting it — same feedback, tone-agnostic.
-                filter: lit && on ? 'brightness(1.18)' : 'none',
-                boxShadow: lit && !on ? 'inset 0 0 0 1px rgba(255,255,255,0.75)' : 'none',
-                transition: 'background 120ms ease, border-color 120ms ease, filter 120ms ease, box-shadow 120ms ease, color 120ms ease',
+                filter: flat ? flatFilter : (lit && on ? 'brightness(1.18)' : 'none'),
+                transform: flat ? flatLift : undefined,
+                boxShadow: (!flat && lit && !on) ? 'inset 0 0 0 1px rgba(255,255,255,0.75)' : 'none',
+                transition: 'background 120ms ease, border-color 120ms ease, filter 120ms ease, box-shadow 120ms ease, color 120ms ease, transform 120ms ease',
                 whiteSpace: 'nowrap',
                 // Segment members share one border line; the selected (or hovered)
                 // one sits on top so its darker edge isn't clipped by the neighbour
@@ -674,7 +692,8 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
                 minWidth, whiteSpace: 'nowrap',
                 // Bootstrap owns the modern hover colours; this only keeps the
                 // hovered segment's border above its neighbours and eases the swap.
-                transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease',
+                transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease, filter 120ms ease, transform 120ms ease',
+                ...(flat ? { filter: flatFilter, transform: flatLift } : {}),
                 ...(seg ? { position: 'relative', zIndex: lit ? 2 : on ? 1 : 0 } : {}),
             }}
         >

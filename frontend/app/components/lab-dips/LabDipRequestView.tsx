@@ -693,6 +693,7 @@ export default function LabDipRequestView({
                                                         <FilterChipBar
                                                             classic={classic}
                                                             disabled={locked}
+                                                            flat
                                                             value={status === 'IN_PROGRESS' ? 'progress' : status === 'APPROVED' ? 'approved' : status === 'REJECTED' ? 'rejected' : null}
                                                             options={[
                                                                 { value: 'progress', label: 'Progress', tone: 'amber' as ChipTone },
