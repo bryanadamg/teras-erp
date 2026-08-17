@@ -370,9 +370,20 @@ export default function QuarantinePackingView() {
                             </div>
                         </td>
                     </tr>
-                    {sec.lots.map((l, i) => (
-                        <tr key={l.batch_id || `${sec.key}-nolot-${i}`} style={lvRow(classic, i)}>
-                            <td style={lvTd(classic)}>
+                    {sec.lots.map((l, i) => {
+                        // Packed lots stay in the list (they are still this MO's history)
+                        // but read as settled rather than actionable — dimmed, not dropped.
+                        const dim: React.CSSProperties = l.packed ? { opacity: 0.55 } : {};
+                        return (
+                        <tr
+                            key={l.batch_id || `${sec.key}-nolot-${i}`}
+                            title={l.packed ? 'Already packed — this lot’s quarantine status is locked' : undefined}
+                            style={{
+                                ...lvRow(classic, i),
+                                ...(l.packed ? { background: classic ? '#f0efe9' : '#f6f7f9', color: '#8a8a8a' } : {}),
+                            }}
+                        >
+                            <td style={{ ...lvTd(classic), ...dim }}>
                                 {l.batch_number
                                     ? <CodeChip code={l.batch_number} classic={classic} />
                                     : <span style={{ color: '#999', fontStyle: 'italic' }}>No lot</span>}
@@ -383,16 +394,16 @@ export default function QuarantinePackingView() {
                                     <StatusChip status="PACKED" label="Packed" style={{ marginLeft: 6 }} tint />
                                 )}
                             </td>
-                            <td style={{ ...lvTd(classic), textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <td style={{ ...lvTd(classic), textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
                                 {fmtQty(l.qty)} <span style={{ color: '#999', fontSize: 10 }}>{g.uom}</span>
                             </td>
-                            <td style={lvTd(classic)}>{l.location_name || '—'}</td>
-                            <td style={lvTd(classic)}>
+                            <td style={{ ...lvTd(classic), ...dim }}>{l.location_name || '—'}</td>
+                            <td style={{ ...lvTd(classic), ...dim }}>
                                 {l.quarantine_status
                                     ? <StatusChip status={l.quarantine_status.replace(/\s+/g, '_')} label={l.quarantine_status} />
                                     : <StatusChip status="NONE" label="No status" tint />}
                             </td>
-                            <td style={{ ...lvTd(classic), fontSize: classic ? 10 : 11, color: '#666' }}>
+                            <td style={{ ...lvTd(classic), fontSize: classic ? 10 : 11, color: '#666', ...dim }}>
                                 {/* The band carries the day; the row only needs who and when. */}
                                 {l.quarantine_status_at
                                     ? `${l.quarantine_status_by || '—'} · ${tzTime(l.quarantine_status_at)}`
@@ -420,7 +431,8 @@ export default function QuarantinePackingView() {
                                 )}
                             </td>
                         </tr>
-                    ))}
+                        );
+                    })}
                 </tbody>
                 ))}
             </table>
