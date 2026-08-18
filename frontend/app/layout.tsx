@@ -14,12 +14,12 @@ import MainLayout from './components/shared/MainLayout';
 import SWRegister from './components/shared/SWRegister';
 
 export const metadata = {
-  title: 'Teras ERP',
+  title: 'Terras ERP',
   description: 'Next-generation modular manufacturing system',
   // iOS home-screen app: launches standalone (no Safari chrome), sets title + status bar
   appleWebApp: {
     capable: true,
-    title: 'Teras',
+    title: 'Terras',
     statusBarStyle: 'black-translucent' as const,
   },
 }

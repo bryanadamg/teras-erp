@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Teras ERP',
-    short_name: 'Teras',
+    name: 'Terras ERP',
+    short_name: 'Terras',
     description: 'Next-generation modular manufacturing system',
     start_url: '/',
     display: 'standalone',

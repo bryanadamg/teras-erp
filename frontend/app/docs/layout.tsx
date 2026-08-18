@@ -34,7 +34,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                     <span style={{ fontSize: 20, color: 'white' }}><i className="bi bi-journal-text" /></span>
                     <div>
                         <div style={{ color: 'white', fontWeight: 700, fontSize: 15, letterSpacing: 0.5 }}>
-                            Teras ERP — Help &amp; Documentation
+                            Terras ERP — Help &amp; Documentation
                         </div>
                         <div style={{ color: '#a0c2f5', fontSize: 11 }}>
                             Manufacturing &amp; Inventory Management System
@@ -122,7 +122,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                     {/* Divider + version */}
                     <div style={{ borderTop: '1px solid #9ab8d4', margin: '12px 0' }} />
                     <div style={{ padding: '0 14px', fontSize: 10, color: '#6a8ab0' }}>
-                        Teras ERP v2.0<br />
+                        Terras ERP v2.0<br />
                         Help &amp; Documentation
                     </div>
                 </div>

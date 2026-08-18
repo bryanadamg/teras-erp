@@ -3,11 +3,11 @@ import { DocPage } from '../docsContent';
 export const quickStartPage: DocPage = {
     slug: 'quick-start',
     title: 'Quick Start Guide',
-    subtitle: 'Get up and running with Teras ERP in minutes.',
+    subtitle: 'Get up and running with Terras ERP in minutes.',
     sections: [
         {
             heading: '1. Log In',
-            body: 'Navigate to the Teras ERP URL provided by your administrator. Enter your username and password on the Welcome Screen. After logging in you will land on the Dashboard, which shows live KPIs and the Smart Advisor summary.',
+            body: 'Navigate to the Terras ERP URL provided by your administrator. Enter your username and password on the Welcome Screen. After logging in you will land on the Dashboard, which shows live KPIs and the Smart Advisor summary.',
         },
         {
             heading: '2. Configure Administration Data',

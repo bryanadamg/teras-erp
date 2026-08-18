@@ -2,13 +2,13 @@ import { DocPage } from '../docsContent';
 
 export const overviewPage: DocPage = {
     slug: 'overview',
-    title: 'Teras ERP — System Overview',
+    title: 'Terras ERP — System Overview',
     subtitle: 'A complete manufacturing and inventory management system for factory operations.',
     badges: ['Inventory', 'Manufacturing', 'BOM', 'Dyeing', 'Sales', 'Purchase', 'Traceability', 'Reports'],
     sections: [
         {
-            heading: 'What is Teras ERP?',
-            body: 'Teras ERP is a full-stack Enterprise Resource Planning system purpose-built for textile manufacturing businesses. It connects every stage of your operation — from raw material procurement through multi-level production, dyeing, and lot-traced output to finished goods delivery — in a single, integrated platform.',
+            heading: 'What is Terras ERP?',
+            body: 'Terras ERP is a full-stack Enterprise Resource Planning system purpose-built for textile manufacturing businesses. It connects every stage of your operation — from raw material procurement through multi-level production, dyeing, and lot-traced output to finished goods delivery — in a single, integrated platform.',
         },
         {
             heading: 'Core Capabilities',

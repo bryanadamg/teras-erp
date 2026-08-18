@@ -390,7 +390,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         )}
         <div style={{ marginTop: 5, textAlign: 'center' }}>
           <small style={{ fontSize: 9, color: classic ? '#6070a0' : '#94a3b8', fontFamily: classic ? xpFont : modernFont }}>
-            {t('powered_by') || 'Powered by'} Teras ERP
+            {t('powered_by') || 'Powered by'} Terras ERP
           </small>
         </div>
       </div>

@@ -8,7 +8,7 @@ export const bomPage: DocPage = {
     sections: [
         {
             heading: 'What is a BOM?',
-            body: 'A Bill of Materials (BOM) defines the components and sub-assemblies required to manufacture a finished product. Teras ERP supports recursive BOMs — a component can itself have a BOM, enabling multi-level assembly trees of arbitrary depth. The designer renders the full tree structure with expand/collapse navigation.',
+            body: 'A Bill of Materials (BOM) defines the components and sub-assemblies required to manufacture a finished product. Terras ERP supports recursive BOMs — a component can itself have a BOM, enabling multi-level assembly trees of arbitrary depth. The designer renders the full tree structure with expand/collapse navigation.',
         },
         {
             heading: 'Component Line Types',

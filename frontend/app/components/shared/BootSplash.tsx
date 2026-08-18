@@ -74,7 +74,7 @@ export function useBootIndicator(active: boolean): boolean {
 }
 
 export default function BootSplash({ phase }: { phase: BootPhase }) {
-    const [appName, setAppName] = useState('Teras ERP');
+    const [appName, setAppName] = useState('Terras ERP');
 
     useEffect(() => {
         const saved = localStorage.getItem('app_name');

@@ -1,6 +1,6 @@
-# Teras ERP
+# Terras ERP
 
-**Teras ERP** is a high-performance, enterprise-grade Enterprise Resource Planning system built for textile manufacturing and high-volume inventory operations. The stack is **FastAPI + PostgreSQL** on the backend and **Next.js 14 + React 18** on the frontend, purpose-engineered for factory-floor speed and data integrity.
+**Terras ERP** is a high-performance, enterprise-grade Enterprise Resource Planning system built for textile manufacturing and high-volume inventory operations. The stack is **FastAPI + PostgreSQL** on the backend and **Next.js 14 + React 18** on the frontend, purpose-engineered for factory-floor speed and data integrity.
 
 ---
 
@@ -8,7 +8,7 @@
 
 ### Manufacturing & MES
 
-Teras ERP models production as a three-tier hierarchy — **Production Run → Manufacturing Order → Work Order**:
+Terras ERP models production as a three-tier hierarchy — **Production Run → Manufacturing Order → Work Order**:
 
 - **Production Runs (PR):** Top-level planning document. A run carries one or more BOM entries (one per item/colour/size variant), each with its own quantities. Creating a run generates the finished-goods Manufacturing Orders and **consolidates shared sub-assembly demand** across every variant into single component orders (see *Variant Consolidation* below).
 - **Manufacturing Orders (MO):** The production plan for one item/batch. MOs snapshot their BOM lines at creation time (`MOPlannedComponent`) so later BOM edits never disturb in-flight orders. MO-level attributes (e.g. colour) are editable, and completions are logged with actual materials consumed per event.
@@ -175,4 +175,4 @@ cd frontend && npx playwright test
 
 ## License
 
-MIT License — Copyright (c) 2026 Teras Systems.
+MIT License — Copyright (c) 2026 Terras Systems.

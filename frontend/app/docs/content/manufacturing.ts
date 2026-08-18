@@ -8,7 +8,7 @@ export const manufacturingPage: DocPage = {
     sections: [
         {
             heading: 'Three-Tier Production Model',
-            body: 'Every production campaign in Teras ERP follows a three-tier hierarchy — Production Run → Manufacturing Order → Work Order:',
+            body: 'Every production campaign in Terras ERP follows a three-tier hierarchy — Production Run → Manufacturing Order → Work Order:',
             steps: [
                 'Production Run (PR) — the top-level planning container. A run carries one or more BOM entries (one per item, colour, or size variant) and, on creation, generates the finished-goods Manufacturing Orders and consolidates shared sub-assembly demand across every entry. It provides a single material requirements view across the whole batch.',
                 'Manufacturing Order (MO) — the production plan for one finished good and quantity, linked to a BOM. It snapshots its BOM lines at creation time so later BOM edits do not disturb in-flight orders, carries status and target/actual timestamps, and is the level managers monitor.',

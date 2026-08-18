@@ -8,11 +8,11 @@ export const usersPage: DocPage = {
     sections: [
         {
             heading: 'Users',
-            body: 'Each person who accesses Teras ERP has a user account with a unique username and password. Administrators can create, edit, deactivate, and delete user accounts from the Users panel on Settings → Access Control. Deactivating a user prevents login without deleting their history.',
+            body: 'Each person who accesses Terras ERP has a user account with a unique username and password. Administrators can create, edit, deactivate, and delete user accounts from the Users panel on Settings → Access Control. Deactivating a user prevents login without deleting their history.',
         },
         {
             heading: 'Authentication',
-            body: 'Teras ERP uses OAuth2 with JWT tokens for authentication. On login, the server issues a signed access token that is stored in the browser\'s localStorage. The token is sent as a Bearer header on every API request. Tokens expire after a configurable period, requiring re-login.',
+            body: 'Terras ERP uses OAuth2 with JWT tokens for authentication. On login, the server issues a signed access token that is stored in the browser\'s localStorage. The token is sent as a Bearer header on every API request. Tokens expire after a configurable period, requiring re-login.',
         },
         {
             heading: 'Roles',

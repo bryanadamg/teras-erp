@@ -27,7 +27,7 @@ import { SkeletonBar } from './xpTheme';
 // reshuffles between the SSR pass and hydration.
 const NAV_WIDTHS = ['64%', '48%', '72%', '55%', '68%', '43%', '76%', '52%', '60%', '45%'];
 
-export default function BootShell({ appName = 'Teras ERP' }: { appName?: string }) {
+export default function BootShell({ appName = 'Terras ERP' }: { appName?: string }) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
 

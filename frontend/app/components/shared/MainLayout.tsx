@@ -23,7 +23,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const router = useRouter();
     const pathname = usePathname();
 
-    const [appName, setAppName] = useState('Teras ERP');
+    const [appName, setAppName] = useState('Terras ERP');
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
     const isMobile = useIsMobile();
