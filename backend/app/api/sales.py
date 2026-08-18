@@ -411,7 +411,13 @@ async def delete_sales_order(so_id: uuid.UUID, db: AsyncSession = Depends(get_as
     so = result.scalars().first()
     if not so:
         raise HTTPException(status_code=404, detail="SO not found")
-    
+
+    mo_count = (await db.execute(
+        select(func.count()).select_from(ManufacturingOrder).filter(ManufacturingOrder.sales_order_id == so_id)
+    )).scalar()
+    if mo_count:
+        raise HTTPException(status_code=400, detail=f"Cannot delete SO: {mo_count} manufacturing order(s) still reference it")
+
     await audit_service.log_activity(
         db,
         user_id=current_user.id,
