@@ -107,7 +107,7 @@ function ProductSuitePanel({ compact = false }: { compact?: boolean }) {
         <div style={{
             display: 'flex', flexWrap: 'nowrap', justifyContent: 'center',
             gap: compact ? 8 : 10, overflowX: 'auto', overflowY: 'hidden',
-            paddingTop: compact ? 20 : 26, paddingBottom: 2, maxWidth: '100%',
+            paddingTop: compact ? 34 : 40, paddingBottom: 6, maxWidth: '100%',
         }}>
             {SUITE_MODULES.map((m, i) => {
                 const distance = Math.min(...ACTIVE_INDICES.map(a => Math.abs(i - a)));
@@ -146,6 +146,7 @@ function ProductSuitePanel({ compact = false }: { compact?: boolean }) {
                                 borderRadius: 6,
                                 opacity: isHovered ? 1 : opacity,
                                 transform: `scale(${isHovered ? baseScale * 1.15 : baseScale})`,
+                                transformOrigin: 'center bottom',
                                 transition: 'transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease',
                                 background: m.active ? 'rgba(74,144,217,0.28)' : 'rgba(255,255,255,0.05)',
                                 border: m.active ? '2px solid #4a90d9' : '1px solid rgba(166,202,240,0.2)',
