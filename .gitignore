@@ -224,6 +224,7 @@ build/
 
 # Database
 postgres_data/
+snapshots/
 cloudflared/
 
 # Uploaded files

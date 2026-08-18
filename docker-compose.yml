@@ -18,6 +18,7 @@ services:
       - .env
     volumes:
       - ./static:/app/static
+      - ./snapshots:/app/snapshots
     networks:
       - erp_network
 
