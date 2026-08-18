@@ -104,13 +104,21 @@ async def create_sample_request(
     year = datetime.now().year
 
     async def _seed() -> int:
-        last = (await db.execute(
-            select(func.max(SampleRequest.code)).filter(SampleRequest.code.like(f"SMP-{year}-%"))
-        )).scalar()
-        try:
-            return int(last.rsplit("-", 1)[1]) if last else 0
-        except (ValueError, IndexError):
-            return 0
+        # func.max() on the code column is a STRING max — "SMP-2026-003" sorts
+        # above "SMP-2026-00144" because '3' > '1' at the first differing digit,
+        # so any code not zero-padded to the current width poisons the seed with
+        # a number far below the real max. Parse every candidate and take the
+        # numeric max in Python instead.
+        codes = (await db.execute(
+            select(SampleRequest.code).filter(SampleRequest.code.like(f"SMP-{year}-%"))
+        )).scalars().all()
+        best = 0
+        for c in codes:
+            try:
+                best = max(best, int(c.rsplit("-", 1)[1]))
+            except (ValueError, IndexError):
+                continue
+        return best
 
     async def _taken(code: str) -> bool:
         return (await db.execute(

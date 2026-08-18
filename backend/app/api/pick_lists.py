@@ -89,13 +89,18 @@ async def _next_code(db: AsyncSession) -> str:
     this table was packing_orders, so both are read or numbering would restart at 1
     and collide."""
     async def _seed() -> int:
-        last = (await db.execute(select(func.max(PickList.code)))).scalar()
-        if last and last[:3] in ("PL-", "PK-"):
-            try:
-                return int(last.split("-", 1)[1])
-            except (ValueError, IndexError):
-                return 0
-        return 0
+        # func.max() on the code column is a STRING max, so a code not zero-padded
+        # to the current width can outrank the real numeric max (e.g. "PL-003" >
+        # "PL-00144" lexicographically). Parse every candidate, take the numeric max.
+        codes = (await db.execute(select(PickList.code))).scalars().all()
+        best = 0
+        for c in codes:
+            if c and c[:3] in ("PL-", "PK-"):
+                try:
+                    best = max(best, int(c.split("-", 1)[1]))
+                except (ValueError, IndexError):
+                    continue
+        return best
 
     async def _taken(code: str) -> bool:
         return (await db.execute(

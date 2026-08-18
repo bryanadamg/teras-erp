@@ -137,13 +137,18 @@ async def _next_code(db: AsyncSession) -> str:
     and minted the same code. The range row serializes the allocation; the seed
     below only runs once, to continue from codes that predate it."""
     async def _seed() -> int:
-        last = (await db.execute(select(func.max(PackingOrder.code)))).scalar()
-        if last and last.startswith("PCK-"):
-            try:
-                return int(last.split("-", 1)[1])
-            except (ValueError, IndexError):
-                return 0
-        return 0
+        # func.max() on the code column is a STRING max, so a code not zero-padded
+        # to the current width can outrank the real numeric max (e.g. "PCK-003" >
+        # "PCK-00144" lexicographically). Parse every candidate, take the numeric max.
+        codes = (await db.execute(select(PackingOrder.code))).scalars().all()
+        best = 0
+        for c in codes:
+            if c and c.startswith("PCK-"):
+                try:
+                    best = max(best, int(c.split("-", 1)[1]))
+                except (ValueError, IndexError):
+                    continue
+        return best
 
     async def _taken(code: str) -> bool:
         return (await db.execute(
