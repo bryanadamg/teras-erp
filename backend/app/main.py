@@ -27,6 +27,9 @@ from app.db.base import Base
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, shipments, colors, combos, weaving, print_templates, production_reports, quarantine, work_queue
 from app.core.ws_manager import manager
 
+# Keep in sync with /VERSION, frontend/package.json "version", and CHANGELOG.md on release.
+APP_VERSION = "0.1.0"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Initialize Redis for WebSockets
@@ -39,6 +42,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Terras ERP",
+    version=APP_VERSION,
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -117,7 +121,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @api_router.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": APP_VERSION}
 
 @api_router.get("/health/ready")
 async def health_readiness():
