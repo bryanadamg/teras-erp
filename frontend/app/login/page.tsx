@@ -77,11 +77,16 @@ function StatusDot({ status }: { status: SystemStatus }) {
 // Ordered with the active pair (this system) in the middle, so unrelated
 // modules fall away toward both edges.
 const SUITE_MODULES = [
-    { key: 'hr', title: 'HR', icon: 'bi-person-badge-fill', active: false },
+    { key: 'cms', title: 'CMS', icon: 'bi-file-earmark-richtext-fill', active: false },
+    { key: 'pim', title: 'PIM', icon: 'bi-tags-fill', active: false },
+    { key: 'hris', title: 'HRIS', icon: 'bi-person-badge-fill', active: false },
     { key: 'accounting', title: 'Accounting', icon: 'bi-calculator-fill', active: false },
     { key: 'mrp', title: 'MRP', icon: 'bi-gear-wide-connected', active: true },
     { key: 'inventory', title: 'Inventory', icon: 'bi-boxes', active: true },
+    { key: 'scm', title: 'SCM', icon: 'bi-truck', active: false },
+    { key: 'wms', title: 'WMS', icon: 'bi-building', active: false },
     { key: 'crm', title: 'CRM', icon: 'bi-people-fill', active: false },
+    { key: 'psa', title: 'PSA', icon: 'bi-briefcase-fill', active: false },
 ];
 
 const ACTIVE_INDICES = SUITE_MODULES
@@ -89,20 +94,30 @@ const ACTIVE_INDICES = SUITE_MODULES
     .filter(i => i >= 0);
 
 function ProductSuitePanel({ compact = false }: { compact?: boolean }) {
-    const tileSize = compact ? 52 : 64;
-    const iconSize = compact ? 20 : 24;
+    const tileSize = compact ? 40 : 56;
+    const iconSize = compact ? 16 : 20;
     const [hovered, setHovered] = useState<string | null>(null);
+    const firstActiveRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        firstActiveRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }, []);
 
     return (
-        <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: compact ? 10 : 12 }}>
+        <div style={{
+            display: 'flex', flexWrap: 'nowrap', justifyContent: 'center',
+            gap: compact ? 8 : 10, overflowX: 'auto', overflowY: 'hidden',
+            paddingTop: compact ? 20 : 26, paddingBottom: 2, maxWidth: '100%',
+        }}>
             {SUITE_MODULES.map((m, i) => {
                 const distance = Math.min(...ACTIVE_INDICES.map(a => Math.abs(i - a)));
-                const opacity = m.active ? 1 : Math.max(0.25, 1 - distance * 0.35);
+                const opacity = m.active ? 1 : Math.max(0.2, 1 - distance * 0.2);
                 const isHovered = hovered === m.key;
-                const baseScale = m.active ? 1 : 1 - distance * 0.06;
+                const baseScale = m.active ? 1 : 1 - distance * 0.04;
                 return (
                     <div
                         key={m.key}
+                        ref={i === ACTIVE_INDICES[0] ? firstActiveRef : undefined}
                         onMouseEnter={() => setHovered(m.key)}
                         onMouseLeave={() => setHovered(null)}
                         style={{
