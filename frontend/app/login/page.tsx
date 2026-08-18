@@ -71,6 +71,60 @@ function StatusDot({ status }: { status: SystemStatus }) {
     );
 }
 
+// The rest of the Terras Systems suite doesn't exist yet — this is a
+// roadmap teaser, not a live module switcher. No visible labels by design;
+// `title` gives each tile an accessible/hover name without cluttering the UI.
+// Ordered with the active pair (this system) in the middle, so unrelated
+// modules fall away toward both edges.
+const SUITE_MODULES = [
+    { key: 'hr', title: 'HR', icon: 'bi-person-badge-fill', active: false },
+    { key: 'accounting', title: 'Accounting', icon: 'bi-calculator-fill', active: false },
+    { key: 'mrp', title: 'MRP', icon: 'bi-gear-wide-connected', active: true },
+    { key: 'inventory', title: 'Inventory', icon: 'bi-boxes', active: true },
+    { key: 'crm', title: 'CRM', icon: 'bi-people-fill', active: false },
+];
+
+const ACTIVE_INDICES = SUITE_MODULES
+    .map((m, i) => (m.active ? i : -1))
+    .filter(i => i >= 0);
+
+function ProductSuitePanel({ compact = false }: { compact?: boolean }) {
+    const tileSize = compact ? 52 : 64;
+    const iconSize = compact ? 20 : 24;
+    return (
+        <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: compact ? 10 : 12 }}>
+            {SUITE_MODULES.map((m, i) => {
+                const distance = Math.min(...ACTIVE_INDICES.map(a => Math.abs(i - a)));
+                const opacity = m.active ? 1 : Math.max(0.25, 1 - distance * 0.35);
+                return (
+                    <div
+                        key={m.key}
+                        title={m.title}
+                        style={{
+                            width: tileSize, height: tileSize, flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            borderRadius: 6,
+                            opacity,
+                            transform: m.active ? 'scale(1)' : `scale(${1 - distance * 0.06})`,
+                            background: m.active ? 'rgba(74,144,217,0.28)' : 'rgba(255,255,255,0.05)',
+                            border: m.active ? '2px solid #4a90d9' : '1px solid rgba(166,202,240,0.2)',
+                            boxShadow: m.active ? '0 0 8px rgba(74,144,217,0.6)' : 'none',
+                        }}
+                    >
+                        <i
+                            className={`bi ${m.icon}`}
+                            style={{
+                                fontSize: iconSize,
+                                color: m.active ? 'white' : '#5f7aa8',
+                            }}
+                        />
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 export default function LoginPage() {
     const { currentUser, login, loading, bootPhase } = useUser();
     const router = useRouter();
@@ -184,6 +238,11 @@ export default function LoginPage() {
                     <div style={{ fontSize: 11, color: '#a0c2f5', letterSpacing: 4, textTransform: 'uppercase' }}>
                         Manufacturing &amp; Inventory
                     </div>
+                </div>
+
+                {/* Mobile suite panel */}
+                <div style={{ padding: '0 28px 8px', display: 'flex', justifyContent: 'center' }}>
+                    <ProductSuitePanel compact />
                 </div>
 
                 {/* Mobile form */}
@@ -431,11 +490,12 @@ export default function LoginPage() {
             {/* Center */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-                {/* Left: instruction */}
+                {/* Left: product suite */}
                 <div style={{
                     flex: 1, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', gap: 8, padding: '0 4%',
+                    alignItems: 'center', gap: 16, padding: '0 4%',
                 }}>
+                    <ProductSuitePanel />
                     <div style={{
                         width: '60%', height: 1,
                         background: 'linear-gradient(to right, transparent, rgba(166,202,240,0.5), transparent)',
