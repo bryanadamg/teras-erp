@@ -125,35 +125,32 @@ export default function UserFormModal({
                 </div>
             )}
 
-            <div className="d-flex gap-3 mb-3">
-                <div style={{ flexShrink: 0 }}>
-                    <div style={classic ? { width: 48, height: 48, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center' } : { width: 52, height: 52, border: '1px solid #dee2e6', borderRadius: 6, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="mb-3">
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={classic ? { width: 48, height: 48, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } : { width: 52, height: 52, border: '1px solid #dee2e6', borderRadius: 6, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <PixelAvatar avatarId={avatarId} size={40} />
                     </div>
-                    <div style={{ marginTop: 4 }}>
-                        <AvatarPicker value={avatarId} onChange={setAvatarId} classic={classic} />
-                    </div>
+                    <AvatarPicker value={avatarId} onChange={setAvatarId} classic={classic} />
                 </div>
-                <div className="flex-grow-1">
-                    <div className="mb-2">
-                        <FieldLabel classic={classic}>Username</FieldLabel>
-                        <input
-                            style={classic ? xpInput({ width: '100%', fontFamily: CODE_FONT }) : { fontFamily: CODE_FONT }}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={username}
-                            onChange={e => setUsername(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <FieldLabel classic={classic}>Full Name</FieldLabel>
-                        <input
-                            style={classic ? xpInput({ width: '100%' }) : undefined}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={fullName}
-                            onChange={e => setFullName(e.target.value)}
-                        />
-                    </div>
-                </div>
+            </div>
+
+            <div className="mb-2">
+                <FieldLabel classic={classic}>Username</FieldLabel>
+                <input
+                    style={classic ? xpInput({ width: '100%', fontFamily: CODE_FONT }) : { fontFamily: CODE_FONT }}
+                    className={classic ? '' : 'form-control form-control-sm'}
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                />
+            </div>
+            <div className="mb-3">
+                <FieldLabel classic={classic}>Full Name</FieldLabel>
+                <input
+                    style={classic ? xpInput({ width: '100%' }) : undefined}
+                    className={classic ? '' : 'form-control form-control-sm'}
+                    value={fullName}
+                    onChange={e => setFullName(e.target.value)}
+                />
             </div>
 
             <div className="mb-3">
