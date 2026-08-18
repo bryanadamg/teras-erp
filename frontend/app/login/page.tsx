@@ -91,33 +91,64 @@ const ACTIVE_INDICES = SUITE_MODULES
 function ProductSuitePanel({ compact = false }: { compact?: boolean }) {
     const tileSize = compact ? 52 : 64;
     const iconSize = compact ? 20 : 24;
+    const [hovered, setHovered] = useState<string | null>(null);
+
     return (
         <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: compact ? 10 : 12 }}>
             {SUITE_MODULES.map((m, i) => {
                 const distance = Math.min(...ACTIVE_INDICES.map(a => Math.abs(i - a)));
                 const opacity = m.active ? 1 : Math.max(0.25, 1 - distance * 0.35);
+                const isHovered = hovered === m.key;
+                const baseScale = m.active ? 1 : 1 - distance * 0.06;
                 return (
                     <div
                         key={m.key}
-                        title={m.title}
+                        onMouseEnter={() => setHovered(m.key)}
+                        onMouseLeave={() => setHovered(null)}
                         style={{
-                            width: tileSize, height: tileSize, flexShrink: 0,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            borderRadius: 6,
-                            opacity,
-                            transform: m.active ? 'scale(1)' : `scale(${1 - distance * 0.06})`,
-                            background: m.active ? 'rgba(74,144,217,0.28)' : 'rgba(255,255,255,0.05)',
-                            border: m.active ? '2px solid #4a90d9' : '1px solid rgba(166,202,240,0.2)',
-                            boxShadow: m.active ? '0 0 8px rgba(74,144,217,0.6)' : 'none',
+                            position: 'relative', flexShrink: 0,
+                            zIndex: isHovered ? 5 : 1,
                         }}
                     >
-                        <i
-                            className={`bi ${m.icon}`}
+                        <div
                             style={{
-                                fontSize: iconSize,
-                                color: m.active ? 'white' : '#5f7aa8',
+                                position: 'absolute', bottom: '115%', left: '50%',
+                                transform: `translateX(-50%) translateY(${isHovered ? 0 : 4}px)`,
+                                opacity: isHovered ? 1 : 0,
+                                transition: 'opacity 0.15s ease, transform 0.15s ease',
+                                pointerEvents: 'none', whiteSpace: 'nowrap',
+                                fontSize: compact ? 10 : 11, color: 'white', fontWeight: 600,
+                                background: 'rgba(10,20,60,0.92)', border: '1px solid rgba(166,202,240,0.4)',
+                                borderRadius: 4, padding: '3px 8px',
                             }}
-                        />
+                        >
+                            {m.title}
+                        </div>
+                        <div
+                            style={{
+                                width: tileSize, height: tileSize,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                borderRadius: 6,
+                                opacity: isHovered ? 1 : opacity,
+                                transform: `scale(${isHovered ? baseScale * 1.15 : baseScale})`,
+                                transition: 'transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease',
+                                background: m.active ? 'rgba(74,144,217,0.28)' : 'rgba(255,255,255,0.05)',
+                                border: m.active ? '2px solid #4a90d9' : '1px solid rgba(166,202,240,0.2)',
+                                boxShadow: m.active
+                                    ? '0 0 8px rgba(74,144,217,0.6)'
+                                    : isHovered ? '0 0 8px rgba(166,202,240,0.4)' : 'none',
+                                cursor: 'default',
+                            }}
+                        >
+                            <i
+                                className={`bi ${m.icon}`}
+                                style={{
+                                    fontSize: iconSize,
+                                    color: m.active || isHovered ? 'white' : '#5f7aa8',
+                                    transition: 'color 0.15s ease',
+                                }}
+                            />
+                        </div>
                     </div>
                 );
             })}
