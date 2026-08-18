@@ -11,6 +11,7 @@ import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import PermissionBreakdown from './PermissionBreakdown';
 import RoleFormModal, { RoleFormPayload, RoleLike } from './RoleFormModal';
+import ScopeBreakdown from './ScopeBreakdown';
 import { API_BASE } from '../shared/apiBase';
 import { groupPermissionsBySection } from '../shared/permissionMatrix';
 
@@ -171,6 +172,11 @@ export default function SettingsRolesTab({
                                 const isExpanded = expandedRoles.has(role.id);
                                 const isFiltered = roleFilter === role.id;
                                 const sections = isAdminRole ? [] : groupedPermissions(role);
+                                const wcTypes = role.allowed_work_center_types || [];
+                                const catIds = role.allowed_categories || [];
+                                const locIds = role.allowed_locations || [];
+                                const scopeCount = wcTypes.length + catIds.length + locIds.length;
+                                const hasScope = scopeCount > 0;
                                 return (
                                     <Fragment key={role.id}>
                                     <tr style={classic
@@ -202,32 +208,21 @@ export default function SettingsRolesTab({
                                             )}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>
-                                            <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
-                                                {(role.allowed_work_center_types || []).map(t => (
-                                                    classic ? (
-                                                        <span key={`wc-${t}`} style={{ background: '#fff3d6', border: '1px solid #c8a04a', color: '#5e3000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>{t}</span>
-                                                    ) : (
-                                                        <span key={`wc-${t}`} className="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25" style={{ fontSize: '0.65rem' }}>{t}</span>
-                                                    )
-                                                ))}
-                                                {(role.allowed_categories || []).map(id => (
-                                                    classic ? (
-                                                        <span key={`cat-${id}`} style={{ background: '#e6f0ff', border: '1px solid #6a8fc8', color: '#0a2a5e', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>{categoryName.get(id) || id}</span>
-                                                    ) : (
-                                                        <span key={`cat-${id}`} className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style={{ fontSize: '0.65rem' }}>{categoryName.get(id) || id}</span>
-                                                    )
-                                                ))}
-                                                {(role.allowed_locations || []).map(id => (
-                                                    classic ? (
-                                                        <span key={`loc-${id}`} style={{ background: '#f0e6ff', border: '1px solid #8f6ac8', color: '#2a0a5e', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>{locationName.get(id) || id}</span>
-                                                    ) : (
-                                                        <span key={`loc-${id}`} className="badge bg-purple bg-opacity-10 border" style={{ fontSize: '0.65rem', color: '#5e2ac8', borderColor: 'rgba(94,42,200,.25)' }}>{locationName.get(id) || id}</span>
-                                                    )
-                                                ))}
-                                                {!(role.allowed_work_center_types?.length || role.allowed_categories?.length || role.allowed_locations?.length) && (
-                                                    <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: xpFont } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>Unrestricted</span>
-                                                )}
-                                            </div>
+                                            {hasScope ? (
+                                                <button
+                                                    onClick={() => toggleExpanded(role.id)}
+                                                    style={classic ? {
+                                                        background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                                                        fontFamily: xpFont, fontSize: '10px', color: '#00006e',
+                                                        display: 'flex', alignItems: 'center', gap: 4,
+                                                    } : { background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.8rem', color: '#0d6efd', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                >
+                                                    <i className={`bi ${isExpanded ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}`} style={{ fontSize: 8 }} />
+                                                    Restricted ({scopeCount})
+                                                </button>
+                                            ) : (
+                                                <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: xpFont } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>Unrestricted</span>
+                                            )}
                                         </td>
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'text-center'}>
                                             {count === 0 ? (
@@ -287,10 +282,22 @@ export default function SettingsRolesTab({
                                             )}
                                         </td>
                                     </tr>
-                                    {isExpanded && sections.length > 0 && (
+                                    {isExpanded && (sections.length > 0 || hasScope) && (
                                         <tr>
                                             <td colSpan={6} style={{ padding: 0, border: 'none' }}>
-                                                <PermissionBreakdown permissions={role.permissions} classic={classic} />
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: sections.length > 0 && hasScope ? 6 : 0 }}>
+                                                    {sections.length > 0 && (
+                                                        <PermissionBreakdown permissions={role.permissions} classic={classic} />
+                                                    )}
+                                                    {hasScope && (
+                                                        <ScopeBreakdown
+                                                            workCenterTypes={wcTypes}
+                                                            categories={catIds.map(id => categoryName.get(id) || id)}
+                                                            locations={locIds.map(id => locationName.get(id) || id)}
+                                                            classic={classic}
+                                                        />
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
