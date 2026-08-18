@@ -20,10 +20,28 @@
  * getBoundingClientRect but still reports clientHeight 100.
  */
 
+let zoomProbe: HTMLDivElement | null = null;
+
+/** Fixed-layout-width probe pinned to <html>, used to measure zoom directly
+ * instead of parsing getComputedStyle(...).zoom — older Chromium serializes
+ * that computed value as a percentage string ("80%") rather than a unitless
+ * number ("0.8"), which silently becomes NaN through Number() and disables
+ * the zoom correction everywhere (every floating menu drifts by the scale
+ * factor). The probe's screen-px width divided by its authored layout width
+ * is the zoom ratio by construction, independent of that serialization. */
+function getZoomProbe(): HTMLDivElement {
+    if (zoomProbe && zoomProbe.isConnected) return zoomProbe;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1000px;height:1px;visibility:hidden;pointer-events:none;';
+    document.documentElement.appendChild(el);
+    zoomProbe = el;
+    return el;
+}
+
 /** Effective root zoom, e.g. 0.8 at 80% scale. Always 1 during SSR. */
 export function uiZoom(): number {
     if (typeof document === 'undefined') return 1;
-    const z = Number(getComputedStyle(document.documentElement).zoom);
+    const z = getZoomProbe().getBoundingClientRect().width / 1000;
     return Number.isFinite(z) && z > 0 ? z : 1;
 }
 
