@@ -103,6 +103,28 @@ class DatabaseManager:
         safe_name = Path(filename).name  # strips all parent directory components
         return self._snapshots_dir / safe_name
 
+    async def _terminate_other_connections(self, url, env: dict) -> None:
+        """Force-close every other backend on this database before running DDL that needs
+        exclusive locks (schema drop, ALTER ... OWNER TO). Necessary because the very request
+        calling restore/wipe holds its own open auth session (get_current_user lazy-loads
+        role.permissions via the sync get_db dependency, which FastAPI keeps open for the
+        whole request) — without this, DDL on `permissions`/`role_permissions` deadlocks
+        against its own caller's transaction and hangs forever."""
+        cmd = [
+            "psql",
+            "-h", url.host or "localhost",
+            "-p", str(url.port or 5432),
+            "-U", url.username or "postgres",
+            "-d", url.database,
+            "-v", "ON_ERROR_STOP=1",
+            "-c", "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();",
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, env=env,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        await proc.communicate()
+
     async def restore_snapshot(self, filename: str) -> DatabaseResponse:
         """Restores the current database from a snapshot."""
         if not self._current_url:
@@ -123,6 +145,30 @@ class DatabaseManager:
                 env = os.environ.copy()
                 if url.password:
                     env["PGPASSWORD"] = url.password
+
+                await self._terminate_other_connections(url, env)
+
+                # pg_dump snapshots are taken without --clean, so restoring onto a
+                # non-empty schema (the normal case) fails almost every CREATE TABLE /
+                # COPY with "already exists" / "duplicate key" — psql swallows these
+                # (no ON_ERROR_STOP) and still exits 0, so the restore silently no-ops.
+                # Drop and recreate the schema first so the dump lands on a clean slate.
+                drop_cmd = [
+                    "psql",
+                    "-h", url.host or "localhost",
+                    "-p", str(url.port or 5432),
+                    "-U", url.username or "postgres",
+                    "-d", url.database,
+                    "-v", "ON_ERROR_STOP=1",
+                    "-c", "DROP SCHEMA public CASCADE; CREATE SCHEMA public;",
+                ]
+                drop_proc = await asyncio.create_subprocess_exec(
+                    *drop_cmd, env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                _, drop_stderr = await drop_proc.communicate()
+                if drop_proc.returncode != 0:
+                    raise Exception(f"schema reset before restore failed: {drop_stderr.decode()}")
 
                 cmd = [
                     "psql",
@@ -169,6 +215,8 @@ class DatabaseManager:
                 env = os.environ.copy()
                 if url.password:
                     env["PGPASSWORD"] = url.password
+
+                await self._terminate_other_connections(url, env)
 
                 drop_cmd = [
                     "psql",
@@ -287,17 +335,26 @@ class DatabaseManager:
         try:
             yield db
         finally:
-            db.close()
+            try:
+                db.close()
+            except Exception:
+                # Connection may have been force-terminated server-side (e.g. by
+                # restore_snapshot/wipe_and_reset's _terminate_other_connections) —
+                # nothing to clean up in that case.
+                pass
 
     async def get_async_session(self) -> AsyncGenerator[AsyncSession, None]:
         if not self._async_session_factory:
             raise RuntimeError("Async DatabaseManager not initialized.")
-        
+
         async with self._async_session_factory() as session:
             try:
                 yield session
             finally:
-                await session.close()
+                try:
+                    await session.close()
+                except Exception:
+                    pass
 
     @property
     def engine(self):
