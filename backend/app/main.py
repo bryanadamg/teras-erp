@@ -11,6 +11,7 @@ import os
 import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 import mimetypes
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +30,10 @@ from app.core.ws_manager import manager
 
 # Keep in sync with /VERSION, frontend/package.json "version", and CHANGELOG.md on release.
 APP_VERSION = "0.1.0"
+
+# Process start time, a proxy for "last deployed/updated" — deploy is git pull +
+# docker compose up --build, which always restarts this process.
+_STARTED_AT = datetime.now(timezone.utc)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -121,7 +126,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @api_router.get("/health")
 async def health():
-    return {"status": "ok", "version": APP_VERSION}
+    return {"status": "ok", "version": APP_VERSION, "started_at": _STARTED_AT.isoformat()}
 
 @api_router.get("/health/ready")
 async def health_readiness():

@@ -7,6 +7,70 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
 import BootSplash, { useBootIndicator } from '../components/shared/BootSplash';
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
+    .replace(/\/api$/, '') + '/api';
+
+type SystemStatus = 'checking' | 'ok' | 'degraded' | 'offline';
+
+function useSystemStatus() {
+    const [status, setStatus] = useState<SystemStatus>('checking');
+    const [version, setVersion] = useState<string | null>(null);
+    const [startedAt, setStartedAt] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const check = async () => {
+            try {
+                const [healthRes, readyRes] = await Promise.all([
+                    fetch(`${API_BASE}/health`),
+                    fetch(`${API_BASE}/health/ready`),
+                ]);
+                if (cancelled) return;
+                if (healthRes.ok) {
+                    const data = await healthRes.json();
+                    setVersion(data.version ?? null);
+                    setStartedAt(data.started_at ?? null);
+                }
+                setStatus(readyRes.ok ? 'ok' : 'degraded');
+            } catch {
+                if (!cancelled) setStatus('offline');
+            }
+        };
+
+        check();
+        const t = setInterval(check, 20000);
+        return () => { cancelled = true; clearInterval(t); };
+    }, []);
+
+    return { status, version, startedAt };
+}
+
+const STATUS_LABEL: Record<SystemStatus, string> = {
+    checking: 'Checking...',
+    ok: 'All systems operational',
+    degraded: 'Degraded',
+    offline: 'Cannot reach server',
+};
+const STATUS_COLOR: Record<SystemStatus, string> = {
+    checking: '#c0c8d8',
+    ok: '#5ad06a',
+    degraded: '#e8c870',
+    offline: '#ff6b5a',
+};
+
+function StatusDot({ status }: { status: SystemStatus }) {
+    return (
+        <span
+            style={{
+                display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+                background: STATUS_COLOR[status], marginRight: 6,
+                boxShadow: status === 'checking' ? 'none' : `0 0 4px ${STATUS_COLOR[status]}`,
+            }}
+        />
+    );
+}
+
 export default function LoginPage() {
     const { currentUser, login, loading, bootPhase } = useUser();
     const router = useRouter();
@@ -26,6 +90,13 @@ export default function LoginPage() {
 
     const passwordRef = useRef<HTMLInputElement>(null);
     const usernameRef = useRef<HTMLInputElement>(null);
+
+    const { status: systemStatus, version, startedAt } = useSystemStatus();
+    const lastUpdated = startedAt
+        ? new Date(startedAt).toLocaleString('en-US', {
+            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        })
+        : null;
 
     // Boot gate: hydration, plus the /users/me round-trip when a token is
     // already stored (without it, a returning user sees the login form flash
@@ -108,7 +179,7 @@ export default function LoginPage() {
                 {/* Mobile header */}
                 <div style={{ padding: '32px 28px 20px', textAlign: 'center' }}>
                     <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: 1, color: 'white', marginBottom: 4 }}>
-                        Teras ERP
+                        Terras ERP
                     </div>
                     <div style={{ fontSize: 11, color: '#a0c2f5', letterSpacing: 4, textTransform: 'uppercase' }}>
                         Manufacturing &amp; Inventory
@@ -284,6 +355,16 @@ export default function LoginPage() {
                             <i className="bi bi-journal-text" style={{ marginRight: 4 }} />View Documentation
                         </a>
                     </div>
+                    <div style={{ marginTop: 10, fontSize: 10, color: '#7f97c0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                        <StatusDot status={systemStatus} />
+                        {STATUS_LABEL[systemStatus]}
+                        {version && <span style={{ opacity: 0.6 }}>· v{version}</span>}
+                    </div>
+                    {lastUpdated && (
+                        <div style={{ marginTop: 2, fontSize: 10, color: '#7f97c0', opacity: 0.6 }}>
+                            Last updated {lastUpdated}
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -317,7 +398,7 @@ export default function LoginPage() {
                         fontSize: 'clamp(20px,calc(var(--app-vw) * 3.5 / 100),42px)', fontWeight: 600,
                         letterSpacing: 1, color: 'white',
                     }}>
-                        Teras ERP
+                        Terras ERP
                     </div>
                     <div style={{
                         fontSize: 'clamp(8px,calc(var(--app-vw) * 1.1 / 100),13px)', color: '#a0c2f5',
@@ -524,13 +605,24 @@ export default function LoginPage() {
                 </div>
             </div>
 
-            {/* Bottom stripe: clock only */}
+            {/* Bottom stripe: status/version + clock */}
             <div style={{
                 ...stripeBase,
                 background: 'linear-gradient(to top, rgba(0,0,60,0.7) 0%, transparent 100%)',
                 borderTop: '1px solid rgba(166,202,240,0.1)',
-                justifyContent: 'flex-end',
+                justifyContent: 'space-between',
             }}>
+                <div style={{
+                    fontSize: 'clamp(8px,calc(var(--app-vw) * 1 / 100),12px)', color: '#a8bee0',
+                    lineHeight: 1.6,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <StatusDot status={systemStatus} />
+                        {STATUS_LABEL[systemStatus]}
+                        {version && <span style={{ marginLeft: 8, opacity: 0.6 }}>v{version}</span>}
+                    </div>
+                    {lastUpdated && <div style={{ opacity: 0.6 }}>Last updated {lastUpdated}</div>}
+                </div>
                 <div style={{ textAlign: 'right', fontSize: 'clamp(8px,calc(var(--app-vw) * 1 / 100),12px)', color: '#a8bee0', lineHeight: 1.6 }}>
                     {formatTime(currentTime)}<br />
                     {formatDate(currentTime)}
