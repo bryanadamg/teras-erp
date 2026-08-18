@@ -296,9 +296,17 @@ export default function LabDipRequestView({
     const statusPhotoThumb = (url?: string | null, label = 'Photo') => {
         if (!url) return null;
         const full = `${STATIC_BASE}${url}`;
+        const filename = url.split('/').pop() || 'photo';
+        if (filename.toLowerCase().endsWith('.pdf')) {
+            return (
+                <i className="bi bi-file-earmark-pdf" title={`${label} — click to preview`}
+                    onClick={() => setPhotoPreview({ url: full, filename })}
+                    style={{ fontSize: 28, color: '#c0392b', cursor: 'pointer', display: 'block', margin: '0 auto', textAlign: 'center' as const }} />
+            );
+        }
         return (
             <img src={full} alt={label} title={`${label} — click to preview`}
-                onClick={() => setPhotoPreview({ url: full, filename: url.split('/').pop() || 'photo' })}
+                onClick={() => setPhotoPreview({ url: full, filename })}
                 style={{ maxHeight: 40, maxWidth: 64, border: classic ? '1px solid #a0988c' : '1px solid #dbe1e8', borderRadius: classic ? 0 : 3, cursor: 'pointer', display: 'block', margin: '0 auto' }} />
         );
     };
@@ -1120,7 +1128,11 @@ export default function LabDipRequestView({
                     }
                 >
                     <div style={{ textAlign: 'center' as const, padding: 6 }}>
-                        <img src={photoPreview.url} alt={photoPreview.filename} style={{ maxWidth: '100%', maxHeight: 'calc(var(--app-vh) * 70 / 100)' }} />
+                        {photoPreview.filename.toLowerCase().endsWith('.pdf') ? (
+                            <embed src={photoPreview.url} type="application/pdf" style={{ width: '100%', height: 'calc(var(--app-vh) * 70 / 100)', border: 'none' }} />
+                        ) : (
+                            <img src={photoPreview.url} alt={photoPreview.filename} style={{ maxWidth: '100%', maxHeight: 'calc(var(--app-vh) * 70 / 100)' }} />
+                        )}
                     </div>
                 </ModalWrapper>
             )}
