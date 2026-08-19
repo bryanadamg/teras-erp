@@ -1619,8 +1619,23 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                icon="bi-receipt-cutoff"
                title={t('sales_orders')}
                subtitle="Manage incoming customer orders"
-               right={classic ? (
-                   <div style={{ display: 'flex', gap: 4 }}>
+           />
+
+           {/* ── Secondary toolbar: search + status filters + count + actions ── */}
+           <div
+               style={classic ? xpToolbar() : undefined}
+               className={classic ? '' : 'px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white'}
+           >
+               <SearchField classic={classic} value={searchTerm} onChange={setSearchTerm} placeholder="Search PO#…" width={200} grow />
+               <SearchField classic={classic} value={customerSearch} onChange={setCustomerSearch} placeholder="Search Customer…" icon="bi-person" width={200} grow />
+               {classic && <div style={xpSep}></div>}
+               <FilterChipBar classic={classic} options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
+               {classic && <div style={xpSep}></div>}
+               <ToolbarCount classic={classic}>
+                   {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
+               </ToolbarCount>
+               {classic ? (
+                   <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
                        <button style={xpBtn()} onClick={() => setIsTablePrintOpen(true)}>
                            <i className="bi bi-printer" style={{ marginRight: 4 }}></i>Print Table
                        </button>
@@ -1634,7 +1649,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        )}
                    </div>
                ) : (
-                   <div className="d-flex gap-2">
+                   <div className="d-flex gap-2 ms-auto">
                        <button className="btn btn-sm btn-outline-secondary btn-print" onClick={() => setIsTablePrintOpen(true)}>
                            <i className="bi bi-printer me-1"></i>Print Table
                        </button>
@@ -1643,21 +1658,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        </button>}
                    </div>
                )}
-           />
-
-           {/* ── Secondary toolbar: search + status filters + count ── */}
-           <div
-               style={classic ? xpToolbar() : undefined}
-               className={classic ? '' : 'px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white'}
-           >
-               <SearchField classic={classic} value={searchTerm} onChange={setSearchTerm} placeholder="Search PO#…" width={200} grow />
-               <SearchField classic={classic} value={customerSearch} onChange={setCustomerSearch} placeholder="Search Customer…" icon="bi-person" width={200} grow />
-               {classic && <div style={xpSep}></div>}
-               <FilterChipBar classic={classic} options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
-               {classic && <div style={xpSep}></div>}
-               <ToolbarCount classic={classic}>
-                   {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
-               </ToolbarCount>
            </div>
 
            {/* ── Table ── */}
@@ -1681,13 +1681,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                <th style={classic ? { ...xpThCell, width: '72px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('date')} title="Sort">Date<SortMark sort={soSort} colKey="date" /></th>
                                <th style={classic ? { ...xpThCell, width: '180px' } : undefined}>Item</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Size</th>
-                               <th style={classic ? { ...xpThCell, width: '140px' } : undefined}>Qty</th>
+                               <th style={classic ? { ...xpThCell, width: '175px' } : undefined}>Qty</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Alt Unit</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
                                <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty. READY needs packed cartons in stock.">Fulfilment</th>
                                <th style={classic ? { ...xpThCell, width: '80px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('status')} title="Sort">Status<SortMark sort={soSort} colKey="status" /></th>
-                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '110px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
+                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '75px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody ref={listBodyRef}>
