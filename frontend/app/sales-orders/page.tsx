@@ -8,7 +8,7 @@ import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function SalesOrdersPage() {
-    const { items, attributes, salesOrders, partners, boms, productionRuns, refreshSalesOrders, authFetch } = useData();
+    const { items, attributes, salesOrders, partners, bomsLookup: boms, productionRuns, refreshSalesOrders, authFetch } = useData();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const router = useRouter();

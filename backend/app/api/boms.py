@@ -13,7 +13,7 @@ from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
 from app.models.production_run import PRBomEntrySize
-from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse, BOMCodeResolveRequest, BOMCodeResolveResponse, BOMItemLookupRequest, BOMItemLookupResponse, BOMItemLookupEntry
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMLookupResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse, BOMCodeResolveRequest, BOMCodeResolveResponse, BOMItemLookupRequest, BOMItemLookupResponse, BOMItemLookupEntry
 from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service, work_center_service
@@ -392,6 +392,31 @@ async def get_boms(skip: int = 0, limit: int | None = None, db: AsyncSession = D
         for bl in item.lines:
             bl.attribute_value_ids = [v.id for v in bl.attribute_values]
     return items_list
+
+@router.get("/boms/lookup", response_model=list[BOMLookupResponse])
+async def get_boms_lookup(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission(
+        "bom.view", "manufacturing_order.view", "production_run.view", "work_order.view",
+        "sales_order.view", "sales_order.create_pr",
+    )),
+):
+    """Slim BOM lookup: id/code/item/attrs/sizes only, no lines/operations.
+
+    For consumers that .find()/.filter() BOMs by (item_id, attribute_value_ids)
+    or need the size dropdown but never read routing/materials — e.g. the Sales
+    Order line form's BOM auto-match. Full /boms (with lines+operations) stays
+    the source for MRP sub-BOM chain-walking; don't repoint that here.
+    """
+    query = select(BOM).options(
+        selectinload(BOM.attribute_values),
+        selectinload(BOM.sizes).joinedload(BOMSize.size),
+    )
+    result = await db.execute(query.order_by(BOM.created_at.desc()))
+    rows = result.scalars().all()
+    for b in rows:
+        b.attribute_value_ids = [v.id for v in b.attribute_values]
+    return rows
 
 @router.get("/boms/summary", response_model=BOMSummaryPageResponse)
 async def get_boms_summary(

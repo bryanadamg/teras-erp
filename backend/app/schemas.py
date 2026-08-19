@@ -229,6 +229,22 @@ class BOMResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BOMLookupResponse(BaseModel):
+    """Slim BOM shape for consumers that .find()/.filter() by (item_id,
+    attribute_value_ids) or need the size dropdown — never routing/materials.
+    Mirrors the /items + /items/lookup split. See GET /boms/lookup."""
+    id: UUID
+    code: str
+    description: str | None
+    item_id: UUID
+    attribute_value_ids: list[UUID] = []
+    active: bool
+    size_mode: str = 'sized'
+    sizes: list[BOMSizeResponse] = []
+
+    class Config:
+        from_attributes = True
+
 class BOMSummaryResponse(BaseModel):
     """Lightweight BOM list payload for the BOM page. Identical to BOMResponse
     except `operations` (an array) is collapsed to `operation_count` — the list

@@ -70,6 +70,8 @@ interface DataContextType {
     uoms: any[];
     sizes: any[];
     boms: any[];
+    /** Slim BOM lookup (id/code/item/attrs/sizes, no lines/operations) — see /boms/lookup. */
+    bomsLookup: any[];
     manufacturingOrders: any[];
     productionRuns: any[];
     stockEntries: any[];
@@ -199,6 +201,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [uoms, setUoms] = useState([]);
     const [sizes, setSizes] = useState([]);
     const [boms, setBoms] = useState([]);
+    const [bomsLookup, setBomsLookup] = useState([]);
     const [manufacturingOrders, setManufacturingOrders] = useState<any[]>([]);
     const [productionRuns, setProductionRuns] = useState<any[]>([]);
     const [stockEntries, setStockEntries] = useState([]);
@@ -503,34 +506,46 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // Engineering
             // The BOM page self-manages its own paginated /boms/summary fetches
             // (search + pagination state live in bom/page.tsx). DataContext only
-            // fetches the full /boms payload for manufacturing/MES/sales routes
-            // that need the complete nested tree for WO/PR creation and printing.
-            // NOT work-orders: that page reads only workCenters/itemIndex and
-            // self-fetches its own flat WO list — boms/MO-tree/stock-balance below
-            // are all wasted work there. NOT samples: SampleRequestView never reads
-            // boms (only companyProfile/attributes) — every status/read toggle was
-            // needlessly re-pulling the full nested BOM tree.
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders')) {
+            // fetches the full /boms payload for manufacturing/MES routes that need
+            // the complete nested tree (lines+operations) for WO/PR creation and
+            // MRP sub-BOM chain-walking. NOT work-orders: that page reads only
+            // workCenters/itemIndex and self-fetches its own flat WO list —
+            // boms/MO-tree/stock-balance below are all wasted work there. NOT
+            // samples: SampleRequestView never reads boms (only companyProfile/
+            // attributes) — every status/read toggle was needlessly re-pulling the
+            // full nested BOM tree. NOT sales-orders: that page only .find()s a BOM
+            // by (item_id, attribute_value_ids) for the PR-generate button and the
+            // line form's size dropdown — see bomsLookup/`/boms/lookup` below,
+            // which skips lines+operations entirely for that.
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs')) {
                 requests.push(fetch(`${API_BASE}/boms`, { headers }));
                 requestTypes.push('boms');
             }
+            if (fetchTarget.includes('sales-orders')) {
+                requests.push(fetch(`${API_BASE}/boms/lookup`, { headers }));
+                requestTypes.push('boms-lookup');
+            }
 
             // MES (Manufacturing Orders + Production Runs)
+            // NOT sales-orders for the MO fetch: that page reads productionRuns (SO
+            // coverage check) but never manufacturingOrders — it only rode along
+            // because both fetches shared one `if` (see git blame abbd397). The full
+            // eager-loaded MO tree is expensive; don't pull it for an unused prop.
             const isDashboard = fetchTarget === 'dashboard' || fetchTarget === '';
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || isDashboard || fetchTarget.includes('reports')) {
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || isDashboard || fetchTarget.includes('reports')) {
                 const moSkip = (woPage - 1) * pageSize;
                 const moSlim = isDashboard ? '&slim=true' : '';
                 const moSearchParam = moSearch ? `&search=${encodeURIComponent(moSearch)}` : '';
                 requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moSlim}${moSearchParam}`, { headers }));
                 requestTypes.push(isDashboard ? 'manufacturing-orders-slim' : 'manufacturing-orders');
-                if (!isDashboard) {
-                    const prSkip = (prPage - 1) * pageSize;
-                    myPrGen = ++prGenRef.current;
-                    heldPrPending = true;
-                    setPrPending(n => n + 1);
-                    requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prFilterQuery}`, { headers }));
-                    requestTypes.push('production-runs');
-                }
+            }
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || fetchTarget.includes('reports')) {
+                const prSkip = (prPage - 1) * pageSize;
+                myPrGen = ++prGenRef.current;
+                heldPrPending = true;
+                setPrPending(n => n + 1);
+                requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prFilterQuery}`, { headers }));
+                requestTypes.push('production-runs');
             }
 
             // Inventory / Stock
@@ -642,6 +657,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'dashboard-summary': setDashboardSummary(data); break;
                     case 'kpi-history': setDashboardKpiHistory(data); break;
                     case 'boms': setBoms(data); break;
+                    case 'boms-lookup': setBomsLookup(data); break;
                     case 'manufacturing-orders': setManufacturingOrders(data.items); setWoTotal(data.total); break;
                     case 'manufacturing-orders-slim': setDashboardWorkOrders(data.items); break;
                     case 'production-runs':
@@ -1127,7 +1143,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }), [loadedOnce, prPending]);
 
     const value = React.useMemo(() => ({
-        items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
+        items, locations, attributes, categories, uoms, sizes, boms, bomsLookup, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, soStatusCounts, purchaseOrders, poStatusCounts, samples, samplesMeta, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         printTemplates, refreshPrintTemplates,
@@ -1138,7 +1154,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType, soSearch: soSearchInput, setSoSearch: handleSetSoSearch, soCustomerSearch: soCustomerSearchInput, setSoCustomerSearch: handleSetSoCustomerSearch, soStatusFilter, setSoStatusFilter: handleSetSoStatusFilter, poSearch: poSearchInput, setPoSearch: handleSetPoSearch, poStatusFilter, setPoStatusFilter: handleSetPoStatusFilter },
         fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
     }), [
-        items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
+        items, locations, attributes, categories, uoms, sizes, boms, bomsLookup, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, soStatusCounts, purchaseOrders, poStatusCounts, samples, samplesMeta, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         printTemplates, refreshPrintTemplates, wsStatus, loading, loadProgress,
