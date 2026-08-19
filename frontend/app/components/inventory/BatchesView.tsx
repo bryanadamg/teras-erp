@@ -813,19 +813,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
       {classic ? (
         <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          {/* ── Title bar (actions live here) ── */}
+          {/* ── Title bar ── */}
           <div style={xpTitleBar}>
             <span>Lot Management</span>
-            <span style={{ display: 'inline-flex', gap: 4 }}>
-              <button style={xpBtn()} onClick={() => setIsCreateOpen(true)}>
-                <i className="bi bi-plus" /> New Lot
-              </button>
-              <button style={xpBtn()} onClick={fetchBatches}>
-                <i className="bi bi-arrow-clockwise" /> Refresh
-              </button>
-            </span>
           </div>
-          {/* ── Filter/search bar ── */}
+          {/* ── Filter/search bar + actions ── */}
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
             <input
               style={{ ...xpInput, width: 240 }}
@@ -855,6 +847,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               value={statusFilter}
               onChange={v => setStatusFilter(v as '' | 'active' | 'depleted')}
             />
+            <span style={{ display: 'inline-flex', gap: 4, marginLeft: 'auto' }}>
+              <button style={xpBtn()} onClick={fetchBatches}>
+                <i className="bi bi-arrow-clockwise" /> Refresh
+              </button>
+              <button style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })} onClick={() => setIsCreateOpen(true)}>
+                <i className="bi bi-plus" /> New Lot
+              </button>
+            </span>
           </div>
 
           {/* ── Table ── */}
@@ -945,19 +945,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
         </div>
       ) : (
         <div className="card shadow-sm border-0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          {/* ── Title bar (actions live here) ── */}
+          {/* ── Title bar ── */}
           <div className="card-header d-flex align-items-center gap-2" style={{ flexShrink: 0 }}>
             <h5 className="mb-0 fw-bold">Lot Management</h5>
-            <div className="ms-auto d-flex gap-2">
-              <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-                <i className="bi bi-plus" /> New Lot
-              </button>
-              <button className="btn btn-sm btn-outline-secondary" title="Refresh" onClick={fetchBatches}>
-                <i className="bi bi-arrow-clockwise" />
-              </button>
-            </div>
           </div>
-          {/* ── Filter/search bar ── */}
+          {/* ── Filter/search bar + actions ── */}
           <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
             <input
               className="form-control form-control-sm"
@@ -986,6 +978,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               value={statusFilter}
               onChange={v => setStatusFilter(v as '' | 'active' | 'depleted')}
             />
+            <div className="ms-auto d-flex gap-2">
+              <button className="btn btn-sm btn-outline-secondary" title="Refresh" onClick={fetchBatches}>
+                <i className="bi bi-arrow-clockwise" />
+              </button>
+              <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
+                <i className="bi bi-plus" /> New Lot
+              </button>
+            </div>
           </div>
 
           {/* ── Table ── */}

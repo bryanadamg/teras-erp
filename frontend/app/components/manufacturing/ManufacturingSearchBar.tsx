@@ -4,7 +4,7 @@ import { SearchField, ToolbarCount } from '../shared/shellTheme';
 // Shared search bar for the PR / MO list tabs. The field itself is the app-wide
 // SearchField — this component only owns the strip it sits in and the result tally.
 export default function ManufacturingSearchBar({
-    value, onChange, placeholder, total, classic, filters, showCount,
+    value, onChange, placeholder, total, classic, filters, showCount, actions,
 }: {
     value: string;
     onChange: (v: string) => void;
@@ -15,6 +15,8 @@ export default function ManufacturingSearchBar({
     filters?: React.ReactNode;
     /** Force the result tally on when a filter (not the search box) narrows the list. */
     showCount?: boolean;
+    /** Rightmost action buttons (Create/Print/etc), pushed to the far edge. */
+    actions?: React.ReactNode;
 }) {
     return (
         <div className="no-print" style={{
@@ -29,6 +31,11 @@ export default function ManufacturingSearchBar({
                 <ToolbarCount classic={classic}>
                     {total} result{total === 1 ? '' : 's'}
                 </ToolbarCount>
+            )}
+            {actions && (
+                <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                    {actions}
+                </div>
             )}
         </div>
     );

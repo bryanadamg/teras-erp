@@ -589,59 +589,6 @@ export default function ManufacturingView({
                           </div>
                       </div>
 
-                      {/* Right: New Production Run + Create MO + Print */}
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                          {classic ? (
-                              <>
-                                  {canManage && (
-                                  <button
-                                      onClick={() => setIsPRModalOpen(true)}
-                                      style={{
-                                          fontFamily: xpFont, fontSize: '11px',
-                                          padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
-                                          background: 'linear-gradient(to bottom,#5a9ae0,#0058e6)',
-                                          border: '1px solid', borderColor: '#003080 #001840 #001840 #003080',
-                                          color: '#fff',
-                                      }}
-                                  >
-                                      <i className="bi bi-collection-play me-1"></i>New Production Run
-                                  </button>
-                                  )}
-                                  {canManage && (
-                                  <button
-                                      onClick={() => setIsCreateOpen(true)}
-                                      style={{
-                                          fontFamily: xpFont, fontSize: '11px',
-                                          padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
-                                          background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)',
-                                          border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
-                                          color: '#fff',
-                                      }}
-                                  >
-                                      <i className="bi bi-plus-lg me-1"></i>New MO
-                                  </button>
-                                  )}
-                                  <button
-                                      onClick={handlePrintList}
-                                      style={{
-                                          fontFamily: xpFont, fontSize: '11px',
-                                          padding: '2px 10px', cursor: 'pointer',
-                                          background: 'linear-gradient(to bottom,#fff,#d4d0c8)',
-                                          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                                          color: '#000',
-                                      }}
-                                  >
-                                      <i className="bi bi-printer me-1"></i>{t('print')}
-                                  </button>
-                              </>
-                          ) : (
-                              <>
-                                  {canManage && <button className="btn btn-primary btn-sm" onClick={() => setIsPRModalOpen(true)}><i className="bi bi-collection-play me-1"></i>New Production Run</button>}
-                                  {canManage && <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}><i className="bi bi-plus-lg me-1"></i>New MO</button>}
-                                  <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrintList}><i className="bi bi-printer me-1"></i>{t('print')}</button>
-                              </>
-                          )}
-                      </div>
                   </div>
 
                   {/* ── Tab bar ── */}
@@ -718,6 +665,8 @@ export default function ManufacturingView({
                               canManage={canManage}
                               companyProfile={companyProfile}
                               helpers={helpers}
+                              onNewProductionRun={() => setIsPRModalOpen(true)}
+                              onPrint={handlePrintList}
                           />
                       )}
 
@@ -749,6 +698,8 @@ export default function ManufacturingView({
                               canManage={canManage}
                               companyProfile={companyProfile}
                               helpers={helpers}
+                              onNewMO={() => setIsCreateOpen(true)}
+                              onPrint={handlePrintList}
                           />
                       )}
                   </div>

@@ -1255,23 +1255,6 @@ export default function InventoryView({
                     <div style={xpSep}></div>
                   </>
                 )}
-                {canManage && (
-                  <>
-                    <button
-                      style={xpBtn()}
-                      onClick={() => setIsImportOpen(true)}
-                    >
-                      <i className="bi bi-upload"></i> Import
-                    </button>
-                    <button
-                      data-testid="create-item-btn"
-                      style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
-                      onClick={openCreateModal}
-                    >
-                      <i className="bi bi-plus-lg"></i> {t('create')}
-                    </button>
-                  </>
-                )}
               </div>
             </div>
           ) : (
@@ -1294,16 +1277,6 @@ export default function InventoryView({
                           </div>
                       )}
                   </div>
-                  {canManage && (
-                  <div className="d-flex gap-2">
-                      <button className="btn btn-light btn-sm border" onClick={() => setIsImportOpen(true)}>
-                          <i className="bi bi-upload me-2"></i>Import
-                      </button>
-                      <button data-testid="create-item-btn" className="btn btn-primary btn-sm" onClick={openCreateModal}>
-                          <i className="bi bi-plus-lg me-2"></i>{t('create')}
-                      </button>
-                  </div>
-                  )}
               </div>
               {/* Filter Bar */}
               <div className="row g-2 align-items-center bg-light p-2 rounded border">
@@ -1326,6 +1299,16 @@ export default function InventoryView({
                       <button className="btn btn-sm btn-outline-secondary w-100" onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }} disabled={!categoryL1 && !categoryL2 && !categoryL3}>Clear</button>
                   </div>
                   </>
+                  )}
+                  {canManage && (
+                  <div className={forcedCategory ? 'col-md-7 d-flex justify-content-end gap-2' : 'col-md-3 d-flex justify-content-end gap-2'}>
+                      <button className="btn btn-light btn-sm border" onClick={() => setIsImportOpen(true)}>
+                          <i className="bi bi-upload me-2"></i>Import
+                      </button>
+                      <button data-testid="create-item-btn" className="btn btn-primary btn-sm" onClick={openCreateModal}>
+                          <i className="bi bi-plus-lg me-2"></i>{t('create')}
+                      </button>
+                  </div>
                   )}
               </div>
             </div>
@@ -1359,6 +1342,20 @@ export default function InventoryView({
               <div style={{ marginLeft: 'auto', fontFamily: xpFont, fontSize: '10px', color: '#555555' }}>
                 {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} on page
               </div>
+              {canManage && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button style={xpBtn()} onClick={() => setIsImportOpen(true)}>
+                    <i className="bi bi-upload"></i> Import
+                  </button>
+                  <button
+                    data-testid="create-item-btn"
+                    style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
+                    onClick={openCreateModal}
+                  >
+                    <i className="bi bi-plus-lg"></i> {t('create')}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

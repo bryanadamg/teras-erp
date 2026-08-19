@@ -100,6 +100,8 @@ export default function ProductionRunsTab({
     canManage,
     companyProfile,
     helpers,
+    onNewProductionRun,
+    onPrint,
 }: any) {
     const { showToast } = useToast();
     const router = useRouter();
@@ -251,14 +253,58 @@ export default function ProductionRunsTab({
                 />
             )}
 
-            {((productionRuns && productionRuns.length > 0) || prSearch || filtersActive) && (
-                <ManufacturingSearchBar
+            <ManufacturingSearchBar
                     value={prSearch}
                     onChange={setPrSearch}
                     placeholder="Search by code, style, or BOM..."
                     total={prTotal}
                     classic={classic}
                     showCount={filtersActive}
+                    actions={classic ? (
+                        <>
+                            {canManage && (
+                                <button
+                                    onClick={onNewProductionRun}
+                                    style={{
+                                        fontFamily: xpFont, fontSize: '11px',
+                                        padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
+                                        background: 'linear-gradient(to bottom,#5a9ae0,#0058e6)',
+                                        border: '1px solid', borderColor: '#003080 #001840 #001840 #003080',
+                                        color: '#fff',
+                                    }}
+                                >
+                                    <i className="bi bi-collection-play me-1"></i>New Production Run
+                                </button>
+                            )}
+                            {onPrint && (
+                                <button
+                                    onClick={onPrint}
+                                    style={{
+                                        fontFamily: xpFont, fontSize: '11px',
+                                        padding: '2px 10px', cursor: 'pointer',
+                                        background: 'linear-gradient(to bottom,#fff,#d4d0c8)',
+                                        border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                                        color: '#000',
+                                    }}
+                                >
+                                    <i className="bi bi-printer me-1"></i>Print
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            {canManage && (
+                                <button className="btn btn-primary btn-sm" onClick={onNewProductionRun}>
+                                    <i className="bi bi-collection-play me-1"></i>New Production Run
+                                </button>
+                            )}
+                            {onPrint && (
+                                <button className="btn btn-outline-primary btn-sm btn-print" onClick={onPrint}>
+                                    <i className="bi bi-printer me-1"></i>Print
+                                </button>
+                            )}
+                        </>
+                    )}
                     filters={
                         <>
                             <FilterChipBar
@@ -284,7 +330,6 @@ export default function ProductionRunsTab({
                         </>
                     }
                 />
-            )}
             {/* The table renders while loading too, so the skeleton sits under the
                 real header and inherits its columns instead of standing in for
                 the whole table. */}

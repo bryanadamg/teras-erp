@@ -41,6 +41,8 @@ export default function ManufacturingOrdersTab({
     canManage,
     companyProfile,
     helpers,
+    onNewMO,
+    onPrint,
 }: any) {
     const { showToast } = useToast();
     const { authFetch, fetchData, loading: dataLoading } = useData();
@@ -1069,9 +1071,60 @@ export default function ManufacturingOrdersTab({
               />
           )}
 
-            {viewMode === 'calendar' ? (
-                <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} onMOClick={openMOFromCalendar} endField="target_end_date" startField="target_start_date" showHolidays filterable showLoad /></div>
-            ) : (
+            {(() => {
+                const moActions = canManage || onPrint ? (
+                    classic ? (
+                        <>
+                            {canManage && (
+                                <button
+                                    onClick={onNewMO}
+                                    style={{
+                                        fontFamily: xpFont, fontSize: '11px',
+                                        padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
+                                        background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)',
+                                        border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
+                                        color: '#fff',
+                                    }}
+                                >
+                                    <i className="bi bi-plus-lg me-1"></i>New MO
+                                </button>
+                            )}
+                            {onPrint && (
+                                <button
+                                    onClick={onPrint}
+                                    style={{
+                                        fontFamily: xpFont, fontSize: '11px',
+                                        padding: '2px 10px', cursor: 'pointer',
+                                        background: 'linear-gradient(to bottom,#fff,#d4d0c8)',
+                                        border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                                        color: '#000',
+                                    }}
+                                >
+                                    <i className="bi bi-printer me-1"></i>Print
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            {canManage && <button className="btn btn-success btn-sm text-white" onClick={onNewMO}><i className="bi bi-plus-lg me-1"></i>New MO</button>}
+                            {onPrint && <button className="btn btn-outline-primary btn-sm btn-print" onClick={onPrint}><i className="bi bi-printer me-1"></i>Print</button>}
+                        </>
+                    )
+                ) : null;
+
+                return viewMode === 'calendar' ? (
+                    <>
+                        <div className="no-print" style={{
+                            padding: classic ? '5px 8px' : '8px 12px',
+                            borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                            background: classic ? '#ece9d8' : '#fff',
+                            display: 'flex', justifyContent: 'flex-end', gap: 6,
+                        }}>
+                            {moActions}
+                        </div>
+                        <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} onMOClick={openMOFromCalendar} endField="target_end_date" startField="target_start_date" showHolidays filterable showLoad /></div>
+                    </>
+                ) : (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <ManufacturingSearchBar
                         value={moCodeFilter}
@@ -1079,6 +1132,7 @@ export default function ManufacturingOrdersTab({
                         placeholder="Search by MO code, product, or BOM..."
                         total={totalItems}
                         classic={classic}
+                        actions={moActions}
                     />
                     <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                     <table style={{
@@ -1373,7 +1427,8 @@ export default function ManufacturingOrdersTab({
                     })()}
                     <Pager page={currentPage} total={totalItems} pageSize={pageSize} onPageChange={onPageChange} hideWhenEmpty />
                 </div>
-            )}
+                );
+            })()}
 
             {completionMO && (
                 <WOCompletionModal
