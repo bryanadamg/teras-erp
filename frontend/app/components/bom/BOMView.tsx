@@ -12,7 +12,7 @@ import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
-import { FilterChipBar } from '../shared/shellTheme';
+import { FilterChipBar, xpToolbar } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
     { value: 'root', label: 'Root BOMs' },
@@ -884,56 +884,61 @@ export default function BOMView({
                     style={classic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0, display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' } : undefined}
                     className={classic ? '' : 'card h-100 shadow-sm border-0'}
                 >
-                    {/* Toolbar */}
+                    {/* Title bar */}
                     {classic ? (
-                        <div style={{ background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', fontFamily: xpFont, fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span><i className="bi bi-diagram-3-fill" style={{ marginRight: '6px' }} />{t('active_boms')}</span>
-                                <input type="text" value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..."
-                                    style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
-                                <FilterChipBar
-                                    classic
-                                    options={BOM_SCOPE_FILTERS}
-                                    value={showRootOnly ? 'root' : 'all'}
-                                    onChange={v => setShowRootOnly?.(v === 'root')}
-                                />
-                                {canManage && selectedIds.size > 0 && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#fff' }}>{selectedIds.size} selected</span>
-                                        <button style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' }} onClick={handleBulkDelete}>
-                                            <i className="bi bi-trash" style={{ marginRight: '4px' }} />Delete Selected
-                                        </button>
-                                        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', textDecoration: 'underline', fontFamily: xpFont, fontSize: '11px', padding: 0 }} onClick={() => setSelectedIds(new Set())}>Clear</button>
-                                    </div>
-                                )}
-                            </div>
+                        <div style={{ background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', fontFamily: xpFont, fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080', display: 'flex', alignItems: 'center' }}>
+                            <span><i className="bi bi-diagram-3-fill" style={{ marginRight: '6px' }} />{t('active_boms')}</span>
+                        </div>
+                    ) : (
+                        <div className="card-header bg-white">
+                            <h5 className="card-title mb-0"><i className="bi bi-diagram-3-fill me-2" />{t('active_boms')}</h5>
+                        </div>
+                    )}
+
+                    {/* Toolbar: search + filter + selection + create */}
+                    {classic ? (
+                        <div style={xpToolbar()}>
+                            <input type="text" value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..."
+                                style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
+                            <FilterChipBar
+                                classic
+                                options={BOM_SCOPE_FILTERS}
+                                value={showRootOnly ? 'root' : 'all'}
+                                onChange={v => setShowRootOnly?.(v === 'root')}
+                            />
+                            {canManage && selectedIds.size > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#333' }}>{selectedIds.size} selected</span>
+                                    <button style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' }} onClick={handleBulkDelete}>
+                                        <i className="bi bi-trash" style={{ marginRight: '4px' }} />Delete Selected
+                                    </button>
+                                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003ea6', textDecoration: 'underline', fontFamily: xpFont, fontSize: '11px', padding: 0 }} onClick={() => setSelectedIds(new Set())}>Clear</button>
+                                </div>
+                            )}
                             {canManage && (
-                            <button data-testid="create-bom-btn" style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold', background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' }} onClick={() => setIsDesignerOpen(true)}>
+                            <button data-testid="create-bom-btn" style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto', background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' }} onClick={() => setIsDesignerOpen(true)}>
                                 <i className="bi bi-plus-lg" style={{ marginRight: '4px' }} />{t('create_recipe')}
                             </button>
                             )}
                         </div>
                     ) : (
-                        <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                            <div className="d-flex align-items-center gap-2">
-                                <h5 className="card-title mb-0"><i className="bi bi-diagram-3-fill me-2" />{t('active_boms')}</h5>
-                                <input type="text" className="form-control form-control-sm" style={{ width: '180px' }} value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..." />
-                                <FilterChipBar
-                                    classic={false}
-                                    options={BOM_SCOPE_FILTERS}
-                                    value={showRootOnly ? 'root' : 'all'}
-                                    onChange={v => setShowRootOnly?.(v === 'root')}
-                                />
-                                {canManage && selectedIds.size > 0 && (
-                                    <div className="d-flex align-items-center gap-2">
-                                        <span className="text-muted small">{selectedIds.size} selected</span>
-                                        <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}><i className="bi bi-trash me-1" />Delete Selected</button>
-                                        <button className="btn btn-sm btn-link text-secondary p-0" onClick={() => setSelectedIds(new Set())}>Clear</button>
-                                    </div>
-                                )}
-                            </div>
+                        <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
+                            <input type="text" className="form-control form-control-sm" style={{ width: '180px' }} value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..." />
+                            <FilterChipBar
+                                classic={false}
+                                options={BOM_SCOPE_FILTERS}
+                                value={showRootOnly ? 'root' : 'all'}
+                                onChange={v => setShowRootOnly?.(v === 'root')}
+                            />
+                            {canManage && selectedIds.size > 0 && (
+                                <div className="d-flex align-items-center gap-2">
+                                    <span className="text-muted small">{selectedIds.size} selected</span>
+                                    <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}><i className="bi bi-trash me-1" />Delete Selected</button>
+                                    <button className="btn btn-sm btn-link text-secondary p-0" onClick={() => setSelectedIds(new Set())}>Clear</button>
+                                </div>
+                            )}
                             {canManage && (
-                            <button data-testid="create-bom-btn" className="btn btn-sm btn-primary" onClick={() => setIsDesignerOpen(true)}>
+                            <button data-testid="create-bom-btn" className="btn btn-sm btn-primary ms-auto" onClick={() => setIsDesignerOpen(true)}>
                                 <i className="bi bi-plus-lg me-2" />{t('create_recipe')}
                             </button>
                             )}
