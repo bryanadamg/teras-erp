@@ -15,6 +15,12 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-19
+
+### Fixed
+- Sales Orders page no longer pulls the full eager-loaded Manufacturing Order tree on first load — it never read that data (leftover from a shared fetch condition)
+- Sales Orders page now resolves its BOM auto-match/size lookup via a new slim `GET /boms/lookup` (id/code/item/attributes/sizes only) instead of the full nested `/boms` payload (every BOM's materials + routing); full `/boms` still serves manufacturing/production-runs where the nested tree is needed for MRP
+
 ## [0.3.0] - 2026-08-19
 
 ### Added
