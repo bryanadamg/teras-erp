@@ -909,16 +909,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   );
   const STATUS_FILTERS = ['ALL', 'PENDING', 'READY', 'PARTIAL', 'SENT', 'DELIVERED'];
 
-  const filteredOrders = salesOrders.filter((so: any) => {
-      const matchPO = !searchTerm ||
-          so.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (so.customer_po_ref || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchCustomer = !customerSearch ||
-          so.customer_name.toLowerCase().includes(customerSearch.toLowerCase());
-      const matchStatus = statusFilter === 'ALL' || so.status === statusFilter;
-      return matchPO && matchCustomer && matchStatus;
-  });
-
+  // No client-side re-filter: the server already applies search+customer+status to
+  // the page it returned, and `searchTerm`/`customerSearch` here are the *live input
+  // echoes* (DataContext debounces the committed value it actually queries with).
+  // Re-filtering on the echo blanked the table for the length of the debounce while
+  // the Pager still reported the full server total.
   const soSortCols = useMemo(() => ({
       po:       (so: any) => so.po_number,
       customer: (so: any) => so.customer_name,
@@ -928,7 +923,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   // Filtering/pagination now happen server-side (DataContext fetches the
   // committed/debounced search+status+page); sorting stays client-side over
   // just the current page's ~50 rows.
-  const { sorted: sortedOrders, sort: soSort, toggle: toggleSOSort } = useSortable(filteredOrders, soSortCols);
+  const { sorted: sortedOrders, sort: soSort, toggle: toggleSOSort } = useSortable(salesOrders, soSortCols);
   const pageOrders = sortedOrders;
 
   // Skeleton sizing: measure one real row so the placeholders shown on the next
@@ -1913,7 +1908,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    );
                                });
                            })}
-                           {filteredOrders.length === 0 && (dataLoading.salesOrders ? (
+                           {pageOrders.length === 0 && (dataLoading.salesOrders ? (
                                <TableSkeleton rows={8} cols={skel.cols ?? 12} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                            ) : (
                                <tr>

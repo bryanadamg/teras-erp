@@ -338,6 +338,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return res;
     }, [logout]);
 
+    // Signature of every page/filter input that changes what fetchData ASKS FOR.
+    // The in-flight dedupe below keys on target + this, not on the target alone:
+    // one target pulls several domains (the `/sales-orders` batch also re-pulls
+    // items, BOMs, MOs and PRs), so its in-flight window is long enough that a
+    // second Pager click — or a search committing mid-load — would otherwise be
+    // handed back the *running* promise for the previous page and never dispatch.
+    // The page number advanced, the rows never changed.
+    // JSON rather than a join: search terms are free text, so any separator
+    // character could also appear inside a value and collapse two distinct windows.
+    const windowKey = JSON.stringify([
+        itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, pageSize,
+        itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter,
+        poSearch, poStatusFilter, categoryL1, categoryL2, categoryL3, auditType,
+    ]);
+
     const inFlightRef = useRef<Record<string, Promise<any>>>({});
     // Mirror itemIndex into a ref so fetchData can check "do we already have the
     // full item index?" without taking itemIndex as a dependency (which would
@@ -370,7 +385,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // Dedupe: if an identical fetch for this target is already running, reuse it.
         // Collapses the sidebar-click + destination-page-mount double fetch, and the
         // hover-prefetch + click sequence, into a single round-trip to the backend.
-        if (inFlightRef.current[fetchTarget]) return inFlightRef.current[fetchTarget];
+        // Keyed on target + windowKey so "identical" means the same *request*, not
+        // merely the same target — see the windowKey comment above.
+        const inFlightKey = `${fetchTarget} ${windowKey}`;
+        if (inFlightRef.current[inFlightKey]) return inFlightRef.current[inFlightKey];
 
         const run = async () => {
         // Set once the request list is known; drives the app-load bar's cleanup.
@@ -669,10 +687,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }
         };
 
-        const p = run().finally(() => { delete inFlightRef.current[fetchTarget]; });
-        inFlightRef.current[fetchTarget] = p;
+        const p = run().finally(() => { delete inFlightRef.current[inFlightKey]; });
+        inFlightRef.current[inFlightKey] = p;
         return p;
-    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, poQuery, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
+    }, [currentUser, windowKey, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, poQuery, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
 
     // Targeted refresh for the Manufacturing Orders page: re-pull ONLY the MO
     // (root-only) + PR lists. Used after WO/MO/PR mutations instead of the broad
