@@ -15,6 +15,24 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-19
+
+### Added
+- Server-side pagination for the remaining long lists: Sales Orders, Purchase Orders, dyeing and setting work-order tabs, Lab Dip Requests, Dye Recipes, Partners (customers/suppliers) and Stock On-Hand
+- `GET /partners/lookup` and `GET /stock/balance/paginated`, so pages that scan the whole set (purchase-order printing, material availability) keep getting every row while the list views take a page window
+- Print and CSV export on paginated lists now fetch every matching row rather than the page on screen
+
+### Changed
+- One page-window contract across the backend: `PageParams`/`PageWindow` in `core/pagination.py` replaces the `(page - 1) * size` arithmetic that was duplicated at 19 call sites; `skip`/`limit` stays accepted as a legacy alias
+- One page-window contract on the frontend: `usePaginatedFetch`/`usePageState`/`useDebouncedSearch` replace ~19 hand-rolled copies, and add the stale-response race guard nearly all of them were missing
+- Samples, Items, Manufacturing Orders, Production Runs, audit logs and the stock ledger now resolve their window through the shared dependency
+- Lab dip list sorting moved server-side (`COALESCE(updated_at, created_at) DESC, id DESC`) so page 1 shows the newest requests
+
+### Fixed
+- Paginated lists snap back into range when the set shrinks under the current offset — deleting the last rows on a page no longer leaves an empty table with the pager reading "Page 5 / 4"
+- Sales Orders no longer re-filters the server page against the un-debounced search box, which blanked the table for the length of each keystroke pause
+- Paging or searching during an in-flight load is no longer swallowed by the fetch de-duplicator, which keyed on the route alone and so returned the previous page's request
+
 ## [0.2.0] - 2026-08-19
 
 ### Added
