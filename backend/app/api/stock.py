@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, get_current_admin, category_scope_ok
@@ -696,8 +697,7 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
 async def get_stock_availability(
     location_id: Optional[str] = Query(None, description="Restrict to a single location"),
     search: Optional[str] = Query(None, description="Matches item code or name"),
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=500),
+    window: PageWindow = Depends(PageParams(default_size=50)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("booking_stock.view", "stock_on_hand.view", "production_run.view")),
 ):
@@ -724,8 +724,11 @@ async def get_stock_availability(
     # Shortfalls first (most actionable), then by item code.
     rows.sort(key=lambda r: (r.qty_net_free >= 0, r.item_code))
     total = len(rows)
-    start = (page - 1) * size
-    return PaginatedBookingStockResponse(items=rows[start:start + size], total=total, page=page, size=size)
+    # The page window is applied to an in-memory list here, not a select, so this
+    # slices by hand instead of window.apply(). Uncapped (size=0) pins offset to 0,
+    # so an open-ended slice is the whole set.
+    end = None if window.limit is None else window.offset + window.limit
+    return window.envelope(rows[window.offset:end], total)
 
 
 @router.post("/stock/balances/rebuild")

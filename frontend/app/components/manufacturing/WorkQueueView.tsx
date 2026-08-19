@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, xpToolbar } from '../shared/shellTheme';
 import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
 import {
@@ -153,23 +154,12 @@ export default function WorkQueueView() {
     const classic = uiStyle === 'classic';
     const { authFetch, workCenters, subscribeLiveEvents } = useData();
 
-    const [rows, setRows] = useState<QueueRow[]>([]);
-    const [total, setTotal] = useState(0);
-    const [counts, setCounts] = useState<Record<string, number>>({});
-    const [overdueCount, setOverdueCount] = useState(0);
-    const [undatedCount, setUndatedCount] = useState(0);
-    const [unreleasedCount, setUnreleasedCount] = useState(0);
-    const [materials, setMaterials] = useState<MaterialSummary[]>([]);
     const [showMaterials, setShowMaterials] = useState(false);
-    const [page, setPage] = useState(1);
     const [centerType, setCenterType] = useState('');
     const [verdict, setVerdict] = useState('');
     const [sort, setSort] = useState<'date' | 'readiness'>('date');
     const [overdueOnly, setOverdueOnly] = useState(false);
-    const [search, setSearch] = useState('');
     const [expanded, setExpanded] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [loaded, setLoaded] = useState(false);
 
     // Center-type tabs come from the work-center master, not a hardcoded list —
     // an install that renamed DYEING to CELUP still gets its own tab.
@@ -182,39 +172,39 @@ export default function WorkQueueView() {
         return Array.from(seen).sort();
     }, [workCenters]);
 
-    const fetchQueue = useCallback(async (
-        p = page, ct = centerType, v = verdict, q = search, s = sort, od = overdueOnly,
-    ) => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({ page: String(p), size: String(PAGE_SIZE), sort: s });
-            if (ct) params.set('center_type', ct);
-            if (v) params.set('verdict', v);
-            if (q) params.set('search', q);
-            if (od) params.set('overdue_only', 'true');
-            const res = await authFetch(`${API_BASE}/work-queue?${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setRows(data.items || []);
-                setTotal(data.total || 0);
-                setCounts(data.counts || {});
-                setOverdueCount(data.overdue_count || 0);
-                setUndatedCount(data.undated_count || 0);
-                setUnreleasedCount(data.unreleased_count || 0);
-                setMaterials(data.materials || []);
-            }
-        } finally {
-            setLoading(false);
-            setLoaded(true);
-        }
-    }, [page, centerType, verdict, search, sort, overdueOnly, authFetch]);
+    // Page window, the debounced search box, the loading flag and the stale-response
+    // race guard all come from the shared hook (context/usePaginatedList.ts). The queue
+    // is computed server-side, but the wire contract is a plain `{items,total,page,size}`
+    // list, so it retrofits directly; the per-queue extras (verdict counts, the material
+    // panel, the overdue/undated/unreleased tallies) ride back in `meta`.
+    const {
+        rows, total, meta, loading, page, setPage,
+        searchInput: search, setSearch: onSearch, refetch: fetchQueue,
+    } = usePaginatedFetch<QueueRow>({
+        endpoint: `${API_BASE}/work-queue`,
+        authFetch,
+        pageSize: PAGE_SIZE,
+        params: {
+            sort,
+            center_type: centerType,
+            verdict,
+            overdue_only: overdueOnly,
+        },
+    });
 
-    useEffect(() => { fetchQueue(1, '', '', '', 'date', false); }, []);
+    const counts: Record<string, number> = meta.counts || {};
+    const overdueCount: number = meta.overdue_count || 0;
+    const undatedCount: number = meta.undated_count || 0;
+    const unreleasedCount: number = meta.unreleased_count || 0;
+    const materials: MaterialSummary[] = meta.materials || [];
 
     // The whole point of the screen is that the PIC never refreshes it: an upstream
     // completion lands greige, the event arrives, the verdicts re-render. One flush
     // usually carries BOTH kinds (a completion books stock), so the reload is
     // coalesced — otherwise every logged bag costs two full queue rebuilds.
+    // `fetchQueue` is the hook's `refetch`: it re-runs the CURRENT page and filters,
+    // which is what the old default-argument `fetchQueue()` call did, and being stable
+    // it no longer re-subscribes on every filter change.
     const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => subscribeLiveEvents((kind: string) => {
         if (kind !== 'production' && kind !== 'stock') return;
@@ -223,35 +213,15 @@ export default function WorkQueueView() {
     }), [subscribeLiveEvents, fetchQueue]);
     useEffect(() => () => { if (liveTimer.current) clearTimeout(liveTimer.current); }, []);
 
-    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const onSearch = (term: string) => {
-        setSearch(term);
-        if (searchTimer.current) clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => { setPage(1); fetchQueue(1, centerType, verdict, term); }, 350);
-    };
-    useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
-
+    // No setPage(1) in any of these — the hook restarts at page 1 whenever a param
+    // changes, which is also what keeps the two from drifting out of step.
     const onCenterType = (v: string) => {
-        const next = v === centerType ? '' : v;
-        setCenterType(next); setPage(1); setExpanded(null);
-        fetchQueue(1, next, verdict, search, sort, overdueOnly);
+        setCenterType(v === centerType ? '' : v);
+        setExpanded(null);
     };
-    const onVerdict = (v: string) => {
-        const next = v === verdict ? '' : v;
-        setVerdict(next); setPage(1);
-        fetchQueue(1, centerType, next, search, sort, overdueOnly);
-    };
-    const onSort = (v: string) => {
-        const next = (v === 'readiness' ? 'readiness' : 'date') as 'date' | 'readiness';
-        setSort(next); setPage(1);
-        fetchQueue(1, centerType, verdict, search, next, overdueOnly);
-    };
-    const onOverdueOnly = () => {
-        const next = !overdueOnly;
-        setOverdueOnly(next); setPage(1);
-        fetchQueue(1, centerType, verdict, search, sort, next);
-    };
-    const onPage = (p: number) => { setPage(p); fetchQueue(p, centerType, verdict, search, sort, overdueOnly); };
+    const onVerdict = (v: string) => setVerdict(v === verdict ? '' : v);
+    const onSort = (v: string) => setSort(v === 'readiness' ? 'readiness' : 'date');
+    const onOverdueOnly = () => setOverdueOnly(v => !v);
 
     const startable = (counts.READY || 0) + (counts.STAGED || 0);
     const blocked = (counts.SHORT || 0) + (counts.WAITING_UPSTREAM || 0) + (counts.WAITING_PRIOR || 0);
@@ -514,7 +484,7 @@ export default function WorkQueueView() {
                     </thead>
                     <tbody>
                         {loading && rows.length === 0 && <TableSkeleton rows={8} cols={12} classic={classic} />}
-                        {!loading && rows.length === 0 && loaded && (
+                        {!loading && rows.length === 0 && (
                             <tr><td colSpan={12}>
                                 <XPEmptyState
                                     icon="bi-list-ol"
@@ -631,7 +601,7 @@ export default function WorkQueueView() {
                 </table>
             </div>
 
-            <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={onPage} />
+            <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
             <XPStatusBar right={`${centerType || 'All work centres'} · sorted by ${sort === 'date' ? 'schedule' : 'readiness'}`}>
                 {startable} startable · {counts.PARTIAL || 0} partial · {blocked} blocked · {overdueCount} overdue · {unreleasedCount} unreleased
             </XPStatusBar>

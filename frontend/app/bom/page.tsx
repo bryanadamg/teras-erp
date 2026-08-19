@@ -2,6 +2,7 @@
 
 import BOMView from '../components/bom/BOMView';
 import { useData } from '../context/DataContext';
+import { usePaginatedFetch } from '../context/usePaginatedList';
 import { useConfirm } from '../context/ConfirmContext';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -16,57 +17,29 @@ export default function BOMPage() {
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    // Self-managed paginated BOM list (decoupled from DataContext)
-    const [bomList, setBomList] = useState<any[]>([]);
-    const [bomTotal, setBomTotal] = useState(0);
-    const [bomPage, setBomPage] = useState(1);
-    const [bomSearch, setBomSearch] = useState('');
+    // Self-managed paginated BOM list (decoupled from DataContext). Page window,
+    // fetch, loading flag, the debounced search box and the stale-response race
+    // guard all come from the shared hook (context/usePaginatedList.ts).
     const [showRootOnly, setShowRootOnly] = useState(true);
-    const [bomLoading, setBomLoading] = useState(false);
 
-    const fetchBomList = useCallback(async (page = bomPage, search = bomSearch, rootOnly = showRootOnly) => {
-        setBomLoading(true);
-        try {
-            const skip = (page - 1) * BOM_PAGE_SIZE;
-            const params = new URLSearchParams({ skip: String(skip), limit: String(BOM_PAGE_SIZE) });
-            if (search) params.set('search', search);
-            if (rootOnly) params.set('root_only', 'true');
-            const res = await authFetch(`${API_BASE}/boms/summary?${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setBomList(data.items);
-                setBomTotal(data.total);
-            }
-        } finally {
-            setBomLoading(false);
-        }
-    }, [bomPage, bomSearch, showRootOnly, authFetch, API_BASE]);
-
-    // Initial load
-    useEffect(() => { fetchBomList(1, bomSearch, showRootOnly); }, []);
+    const {
+        rows: bomList, total: bomTotal, loading: bomLoading,
+        page: bomPage, setPage: setBomPage,
+        searchInput: bomSearch, setSearch: handleBomSearch,
+        refetch: fetchBomList,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/boms/summary`,
+        authFetch,
+        pageSize: BOM_PAGE_SIZE,
+        // false is dropped from the query string, which matches the endpoint default.
+        // Toggling it restarts at page 1 inside the hook — no setBomPage(1) needed.
+        params: { root_only: showRootOnly },
+    });
 
     // Live refresh: a BOM created/updated/deleted elsewhere (WS BOM_UPDATE) reloads
     // the current page in place. This page owns its own list, so DataContext can't
     // refresh it for us — subscribe and re-pull the same page/search/filter.
     useEffect(() => subscribeLiveEvents((kind) => { if (kind === 'bom') fetchBomList(); }), [subscribeLiveEvents, fetchBomList]);
-
-    // Page change → immediate fetch
-    useEffect(() => { fetchBomList(bomPage, bomSearch, showRootOnly); }, [bomPage]);
-
-    // Root-only toggle → reset to page 1 + fetch
-    useEffect(() => { setBomPage(1); fetchBomList(1, bomSearch, showRootOnly); }, [showRootOnly]);
-
-    // Search → debounce 350ms, reset to page 1
-    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const handleBomSearch = useCallback((term: string) => {
-        setBomSearch(term);
-        if (searchTimer.current) clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => {
-            setBomPage(1);
-            fetchBomList(1, term, showRootOnly);
-        }, 350);
-    }, [showRootOnly, fetchBomList]);
-    useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
 
     useEffect(() => {
         if (searchParams.get('action') === 'create_bom') {
@@ -104,9 +77,9 @@ export default function BOMPage() {
 
     // After mutations: refresh BOM list + DataContext (items/attributes may have changed)
     const afterMutation = useCallback(() => {
-        fetchBomList(bomPage, bomSearch, showRootOnly);
+        fetchBomList();
         fetchData();
-    }, [fetchBomList, fetchData, bomPage, bomSearch, showRootOnly]);
+    }, [fetchBomList, fetchData]);
 
     const handleCreateBOM = async (p: any) => {
         const res = await authFetch(`${API_BASE}/boms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });

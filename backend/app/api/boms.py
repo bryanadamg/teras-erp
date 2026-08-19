@@ -19,6 +19,7 @@ from app.api.auth import get_current_user, require_permission, require_any_permi
 from app.services import audit_service, work_center_service
 from app.models.attribute import AttributeValue
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 
 router = APIRouter()
 
@@ -394,10 +395,9 @@ async def get_boms(skip: int = 0, limit: int | None = None, db: AsyncSession = D
 
 @router.get("/boms/summary", response_model=BOMSummaryPageResponse)
 async def get_boms_summary(
-    skip: int = 0,
-    limit: int = 50,
     search: str = Query(""),
     root_only: bool = Query(False),
+    window: PageWindow = Depends(PageParams(default_size=50)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("bom.view", "manufacturing_order.view", "production_run.view", "work_order.view")),
 ):
@@ -440,11 +440,11 @@ async def get_boms_summary(
         query = query.join(Item, BOM.item_id == Item.id)
     if where:
         query = query.where(*where)
-    result = await db.execute(query.order_by(BOM.created_at.desc()).offset(skip).limit(limit))
+    result = await db.execute(window.apply(query.order_by(BOM.created_at.desc())))
     boms = result.unique().scalars().all()
 
     if not boms:
-        return {"items": [], "total": total}
+        return window.envelope([], total)
 
     bom_ids = [b.id for b in boms]
     line_ids = [l.id for b in boms for l in b.lines]
@@ -487,7 +487,7 @@ async def get_boms_summary(
         for bl in b.lines:
             bl.attribute_value_ids = line_attr_map.get(bl.id, [])
 
-    return {"items": boms, "total": total}
+    return window.envelope(boms, total)
 
 async def _load_bom_subtree(bom_id: str, db: AsyncSession, visited: set) -> any:
     if bom_id in visited:

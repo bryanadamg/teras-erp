@@ -21,6 +21,7 @@ from app.services import (
     numbering_service,
 )
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 
 router = APIRouter(prefix="/pick-lists", tags=["pick-lists"])
 
@@ -229,8 +230,7 @@ async def _unit_location(db: AsyncSession, pu: Batch):
 async def list_pick_lists(
     status: Optional[str] = None,
     sales_order_id: Optional[uuid.UUID] = None,
-    page: int = 1,
-    size: int = 100,
+    window: PageWindow = Depends(PageParams(default_size=100)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -244,13 +244,11 @@ async def list_pick_lists(
         count_query = count_query.filter(PickList.sales_order_id == sales_order_id)
 
     total = (await db.execute(count_query)).scalar() or 0
-    result = await db.execute(
-        query.order_by(PickList.created_at.desc()).offset((page - 1) * size).limit(size)
-    )
+    result = await db.execute(window.apply(query.order_by(PickList.created_at.desc())))
     orders = result.scalars().all()
     for pl in orders:
         _decorate(pl)
-    return PickListListResponse(items=orders, total=total, page=page, size=size)
+    return window.envelope(orders, total)
 
 
 @router.get("/pickable-orders", response_model=list[PickableOrderResponse])

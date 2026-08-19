@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
@@ -72,12 +73,19 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     const { hasPermission } = useUser();
     const canManage = hasPermission('sales.manage');
 
-    const [orders, setOrders] = useState<any[]>([]);
-    const [total, setTotal] = useState(0);
+    // Page window, fetch, `loading` (true from first paint, so the list shows the
+    // loader rather than "none yet") and the stale-response race guard all come from
+    // the shared hook (context/usePaginatedList.ts). This list carries no search box
+    // or filters; the footer's open/closed tallies are counted separately below.
+    const {
+        rows: orders, total, loading, page, setPage, refetch: reloadOrders,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/packing`,
+        authFetch,
+        pageSize: PO_PAGE_SIZE,
+    });
     const [openCount, setOpenCount] = useState(0);
     const [doneCount, setDoneCount] = useState(0);
-    // True from first paint so the list shows the loader, not "none yet".
-    const [loading, setLoading] = useState(true);
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
@@ -90,7 +98,6 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [printCard, setPrintCard] = useState<any | null>(null);
     const [printLabels, setPrintLabels] = useState<{ order: any; units: any[] } | null>(null);
-    const [page, setPage] = useState(1);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(180);
 
     const itemById = useMemo(() => {
@@ -112,14 +119,6 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
         return m;
     }, [locations]);
 
-    const loadPage = useCallback(async (p: number) => {
-        setLoading(true);
-        try {
-            const res = await authFetch(`${API_BASE}/packing?page=${p}&size=${PO_PAGE_SIZE}`);
-            if (res.ok) { const d = await res.json(); setOrders(d.items || []); setTotal(d.total || 0); }
-        } finally { setLoading(false); }
-    }, [authFetch]);
-
     const loadCounts = useCallback(async () => {
         const [pendRes, progRes, doneRes] = await Promise.all([
             authFetch(`${API_BASE}/packing?status=PENDING&page=1&size=1`),
@@ -133,11 +132,11 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     }, [authFetch]);
 
     const loadAll = useCallback(async () => {
-        await Promise.all([loadPage(page), loadCounts()]);
-    }, [loadPage, loadCounts, page]);
+        reloadOrders();
+        await loadCounts();
+    }, [reloadOrders, loadCounts]);
 
     useEffect(() => { loadCounts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => { loadPage(page); }, [page, loadPage]);
 
     // Deep-linked pre-fill from a Quarantine Packing "ready to pack" suggestion —
     // item/location/SO line are proposed, not committed; the form still opens for

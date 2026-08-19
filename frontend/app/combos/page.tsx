@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import ComboLibraryView from '../components/combos/ComboLibraryView';
 import { useData } from '../context/DataContext';
+import { usePaginatedFetch } from '../context/usePaginatedList';
 import { useToast } from '../components/shared/Toast';
 
 const PAGE_SIZE = 50;
@@ -13,34 +14,29 @@ export default function CombosPage() {
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    const [combos, setCombos] = useState<any[]>([]);
-    const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
-    // True from first paint so the list shows the loader, not "none found".
-    const [loading, setLoading] = useState(true);
 
-    const fetchCombos = useCallback(async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
-            if (search) params.set('search', search);
-            if (statusFilter !== 'ALL') params.set('status', statusFilter);
-            const res = await authFetch(`${API_BASE}/combos?${params.toString()}`);
-            if (res.ok) {
-                const data = await res.json();
-                setCombos(data.items ?? []);
-                setTotal(data.total ?? 0);
-            }
-        } catch { /* silent */ }
-        finally { setLoading(false); }
-    }, [authFetch, API_BASE, page, search, statusFilter]);
+    // Page window, fetch, loading flag and stale-response race guard all come from
+    // the shared hook (context/usePaginatedList.ts). ComboLibraryView debounces its
+    // search box itself, so `search` arrives already settled and rides in as a
+    // plain param rather than through the hook's own search box.
+    const {
+        rows: combos, total, loading, page, setPage, refetch: fetchCombos,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/combos`,
+        authFetch,
+        pageSize: PAGE_SIZE,
+        params: {
+            search,
+            status: statusFilter === 'ALL' ? '' : statusFilter,
+        },
+    });
 
-    useEffect(() => { fetchCombos(); }, [fetchCombos]);
-
-    const handleSearchChange = (s: string) => { setPage(1); setSearch(s); };
-    const handleStatusChange = (s: string) => { setPage(1); setStatusFilter(s); };
+    // No setPage(1) here any more — the hook restarts at page 1 whenever a param
+    // changes, which is also what keeps the two from drifting out of step.
+    const handleSearchChange = setSearch;
+    const handleStatusChange = setStatusFilter;
 
     const handleCreate = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/combos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

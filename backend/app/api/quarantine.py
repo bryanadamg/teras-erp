@@ -39,6 +39,7 @@ from app.schemas import (
     QuarantineStatusOption, QuarantineStatusUpdate,
 )
 from app.services import audit_service, quarantine_service
+from app.core.pagination import PageParams, PageWindow
 from app.core.ws_manager import manager
 
 router = APIRouter(prefix="/quarantine", tags=["quarantine"])
@@ -89,8 +90,7 @@ async def list_quarantine_stock(
         False,
         description="Also list lots already packed out of a quarantine location (read-only history, zero on hand)",
     ),
-    page: int = Query(1, ge=1),
-    size: int = Query(25, ge=1, le=200),
+    window: PageWindow = Depends(PageParams(default_size=25, max_size=200)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('quarantine.view')),
 ):
@@ -112,7 +112,7 @@ async def list_quarantine_stock(
     """
     loc_ids = await quarantine_service.quarantine_location_ids(db)
     if not loc_ids:
-        return QuarantineListResponse(items=[], total=0, page=page, size=size, truncated=False)
+        return window.envelope([], 0, truncated=False)
 
     # Balance rows -> lot + item + location in one pass. batch_key is text, so the
     # join casts Batch.id rather than the key (keeps the batches PK index usable).
@@ -170,7 +170,7 @@ async def list_quarantine_stock(
         history = [h for h in hrows if h[0].id not in on_hand_ids]
 
     if not rows and not history:
-        return QuarantineListResponse(items=[], total=0, page=page, size=size, truncated=False)
+        return window.envelope([], 0, truncated=False)
 
     # Lot -> MO origin, one query for the page (same chain as batch lineage).
     mo_so = aliased(SalesOrder)
@@ -390,10 +390,12 @@ async def list_quarantine_stock(
     items.sort(key=lambda g: (order.get(g.rollup_status, 2), g.mo_code or "~", g.item_code or ""))
 
     total = len(items)
-    start = (page - 1) * size
-    return QuarantineListResponse(
-        items=items[start:start + size], total=total, page=page, size=size, truncated=truncated,
-    )
+    # The window is applied to the in-memory group list rather than through
+    # `window.apply()`: grouping happens in Python (an MO's lots must never split
+    # across pages), so there is no SQL statement left to hang OFFSET/LIMIT on.
+    start = window.offset
+    page_items = items[start:] if window.uncapped else items[start:start + window.size]
+    return window.envelope(page_items, total, truncated=truncated)
 
 
 @router.post("/status", response_model=list[QuarantineLotResponse])

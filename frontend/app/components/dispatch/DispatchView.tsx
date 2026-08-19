@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
@@ -73,11 +74,6 @@ export default function DispatchView() {
     const [tab, setTab] = useState<DispatchTab>('deck');
     const [deck, setDeck] = useState<any[]>([]);
     const [deckLoading, setDeckLoading] = useState(true);
-    const [shipments, setShipments] = useState<any[]>([]);
-    const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(1);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [staging, setStaging] = useState<any[] | null>(null);   // pick lists chosen to stage
@@ -87,7 +83,6 @@ export default function DispatchView() {
     const [selected, setSelected] = useState<Record<string, boolean>>({});
 
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skel = useTableSkeletonMetrics('shipments', listBodyRef, shipments.length > 0);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(180);
 
     const customerAddr = (name: string) => (partners || []).find((p: any) => p.name === name)?.address || '';
@@ -100,31 +95,27 @@ export default function DispatchView() {
         } finally { setDeckLoading(false); }
     }, [authFetch]);
 
-    const loadShipments = useCallback(async (p: number) => {
-        setLoading(true);
-        try {
-            const qs = new URLSearchParams({ page: String(p), size: String(PAGE_SIZE) });
-            if (statusFilter) qs.set('status', statusFilter);
-            if (search.trim()) qs.set('search', search.trim());
-            const res = await authFetch(`${API_BASE}/shipments?${qs}`);
-            if (res.ok) { const d = await res.json(); setShipments(d.items || []); setTotal(d.total || 0); }
-        } finally { setLoading(false); }
-    }, [authFetch, statusFilter, search]);
+    // Page window, the debounced server-backed search box, the loading flag and the
+    // stale-response race guard all come from the shared hook
+    // (context/usePaginatedList.ts) — the status chip bar rides in as a param, and
+    // changing it restarts at page 1 on its own.
+    const {
+        rows: shipments, total, loading, page, setPage,
+        searchInput, setSearch: setSearchInput, refetch: loadShipments,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/shipments`,
+        authFetch,
+        pageSize: PAGE_SIZE,
+        params: { status: statusFilter },
+    });
+
+    const skel = useTableSkeletonMetrics('shipments', listBodyRef, shipments.length > 0);
 
     useEffect(() => { loadDeck(); }, [loadDeck]);
-    useEffect(() => { loadShipments(page); }, [loadShipments, page]);
-
-    // Search is server-backed, so it is debounced rather than fired per keystroke
-    // (same shape as DataContext's item search).
-    const [searchInput, setSearchInput] = useState('');
-    useEffect(() => {
-        const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 350);
-        return () => clearTimeout(t);
-    }, [searchInput]);
 
     const refreshAll = useCallback(async () => {
-        await Promise.all([loadDeck(), loadShipments(page)]);
-    }, [loadDeck, loadShipments, page]);
+        await Promise.all([loadDeck(), loadShipments()]);
+    }, [loadDeck, loadShipments]);
 
     const selectedDeck = useMemo(() => deck.filter(d => selected[String(d.id)]), [deck, selected]);
     // One Surat Jalan addresses one customer — the backend rejects a mixed set, so
@@ -163,7 +154,7 @@ export default function DispatchView() {
             return;
         }
         setVerifying(null);
-        await loadShipments(page);
+        loadShipments();
         showToast(`${shp.code} verified`, 'success');
     };
 
@@ -284,7 +275,7 @@ export default function DispatchView() {
                     classic
                     options={SHIPMENT_STATUS_FILTERS}
                     value={statusFilter}
-                    onChange={v => { setStatusFilter(v); setPage(1); }}
+                    onChange={setStatusFilter}
                 />
                 <ToolbarCount classic right>{total} shipment(s)</ToolbarCount>
             </div>

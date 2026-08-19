@@ -28,6 +28,7 @@ from app.services import (
     reject_service, quarantine_service, numbering_service,
 )
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 
 router = APIRouter(prefix="/packing", tags=["packing"])
 
@@ -300,8 +301,7 @@ async def list_packing_orders(
     status: Optional[str] = None,
     sales_order_id: Optional[uuid.UUID] = None,
     item_id: Optional[uuid.UUID] = None,
-    page: int = 1,
-    size: int = 100,
+    window: PageWindow = Depends(PageParams(default_size=100)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -318,14 +318,12 @@ async def list_packing_orders(
         count_query = count_query.filter(PackingOrder.item_id == item_id)
 
     total = (await db.execute(count_query)).scalar() or 0
-    result = await db.execute(
-        query.order_by(PackingOrder.created_at.desc()).offset((page - 1) * size).limit(size)
-    )
+    result = await db.execute(window.apply(query.order_by(PackingOrder.created_at.desc())))
     orders = list(result.scalars().all())
     units = await _packed_units_for(db, [o.id for o in orders])
     for po in orders:
         _decorate(po, units.get(str(po.id), []))
-    return PackingOrderListResponse(items=orders, total=total, page=page, size=size)
+    return window.envelope(orders, total)
 
 
 @router.get("/{po_id}", response_model=PackingOrderResponse)

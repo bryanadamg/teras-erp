@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
@@ -113,18 +114,37 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const classic = uiStyle === 'classic';
 
   const PAGE_SIZE = 50;
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  // True from first paint so the list shows the loader, not "none found".
-  const [loading, setLoading] = useState(true);
   const [itemFilter, setItemFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'depleted'>('active');
   const [locationFilter, setLocationFilter] = useState('');  // '' | 'wh:<id>' | 'loc:<id>'
-  const [searchInput, setSearchInput] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
 
   const locationTree = React.useMemo(() => buildLocationFilterTree(locations || []), [locations]);
+
+  // Expand the picked warehouse/zone/bin into its full descendant leaf set so a lot
+  // recorded at any depth below it still matches. Sent as one comma-joined value —
+  // the shared list hook serializes each filter as a single query param, and
+  // /batches/paginated accepts both that and the repeated-param form.
+  const locationIds = React.useMemo(
+    () => (locationFilter ? expandLocationFilterValue(locations || [], locationFilter).join(',') : ''),
+    [locations, locationFilter],
+  );
+
+  // Page window, debounced search box, fetch, loading flag and the stale-response
+  // race guard all come from the shared hook (context/usePaginatedList.ts).
+  const {
+    rows: batches, total, loading, page, setPage,
+    searchInput, setSearch, refetch: fetchBatches,
+  } = usePaginatedFetch<Batch>({
+    endpoint: `${apiBase}/batches/paginated`,
+    authFetch,
+    pageSize: PAGE_SIZE,
+    params: {
+      item_id: itemFilter,
+      status: statusFilter,
+      location_id: locationIds,
+    },
+    onError: () => showToast('Failed to load lots', 'danger'),
+  });
 
   // Create form
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -237,43 +257,6 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     // Fallback: plain lot sticker straight off the Batch (split leftovers etc.).
     setLotLabels([b]);
   };
-
-  // Debounce the search box 350ms before it drives a server fetch (matches item search).
-  useEffect(() => {
-    const id = setTimeout(() => setSearchTerm(searchInput), 350);
-    return () => clearTimeout(id);
-  }, [searchInput]);
-
-  useEffect(() => { setPage(1); }, [itemFilter, statusFilter, locationFilter, searchTerm]);
-
-  const fetchBatches = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
-      if (itemFilter) params.set('item_id', itemFilter);
-      if (statusFilter) params.set('status', statusFilter);
-      if (searchTerm) params.set('search', searchTerm);
-      if (locationFilter) {
-        // Expand the picked warehouse/zone/bin into its full descendant leaf set
-        // so a lot recorded at any depth below it still matches.
-        for (const id of expandLocationFilterValue(locations || [], locationFilter)) {
-          params.append('location_id', id);
-        }
-      }
-      const res = await authFetch(`${apiBase}/batches/paginated?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setBatches(data.items || []);
-        setTotal(data.total ?? 0);
-      }
-    } catch {
-      showToast('Failed to load lots', 'danger');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchBatches(); }, [itemFilter, statusFilter, locationFilter, searchTerm, page]);
 
   const handleCreate = async () => {
     if (!createItemId) { showToast('Select an item', 'warning'); return; }
@@ -823,7 +806,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               style={{ ...xpInput, width: 240 }}
               placeholder="Search lot, item, WO/MO/PR, SO..."
               value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
+              onChange={e => setSearch(e.target.value)}
             />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Item:</span>
             <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
@@ -952,7 +935,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               style={{ width: 260 }}
               placeholder="Search lot, item, WO/MO/PR, SO..."
               value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
+              onChange={e => setSearch(e.target.value)}
             />
             <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>

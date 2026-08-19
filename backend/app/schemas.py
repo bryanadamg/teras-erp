@@ -281,6 +281,8 @@ class BOMSummaryResponse(BaseModel):
 class BOMSummaryPageResponse(BaseModel):
     items: list[BOMSummaryResponse]
     total: int
+    page: int = 1
+    size: int = 50
 
 class BOMLineTreeResponse(BOMLineResponse):
     sub_bom: Optional["BOMTreeResponse"] = None

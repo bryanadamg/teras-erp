@@ -22,6 +22,7 @@ from app.api.auth import get_current_user, require_permission, require_any_permi
 from app.models.auth import User
 from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service, quarantine_service
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 from datetime import datetime, timezone
 import uuid
 
@@ -376,19 +377,32 @@ async def list_batches_paginated(
     item_id: uuid.UUID | None = Query(None),
     search: str | None = Query(None, description="Matches lot number, supplier lot, or item code/name"),
     status: str | None = Query(None, description="'active' (remaining > 0) or 'depleted' (0 remaining); None = all"),
-    location_id: list[uuid.UUID] | None = Query(None, description="Filter to lots with current stock at any of these leaf location ids (caller expands warehouse/zone → descendants)"),
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=500),
+    location_id: list[str] | None = Query(None, description="Filter to lots with current stock at any of these leaf location ids (caller expands warehouse/zone → descendants). Repeat the param or pass one comma-separated list."),
+    window: PageWindow = Depends(PageParams(default_size=50)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
 ):
-    """Server-paginated Lot Management list — mirrors the {items, total, page, size}
-    envelope used by other domains (Items, Stock Ledger, MO/PR) so the shared Pager
-    component can drive it."""
+    """Server-paginated Lot Management list — page window from core/pagination.py,
+    so the {items, total, page, size} envelope matches every other domain and the
+    shared Pager component can drive it."""
+    # location_id accepts both the repeated-param form and one comma-separated
+    # value: the shared frontend list hook serializes each filter as a single
+    # query param, so a multi-location filter arrives joined.
+    loc_ids: list[uuid.UUID] = []
+    for raw in (location_id or []):
+        for part in str(raw).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                loc_ids.append(uuid.UUID(part))
+            except ValueError:
+                raise HTTPException(status_code=422, detail=f"Invalid location id '{part}'")
+
     filters = []
     if item_id:
         filters.append(Batch.item_id == item_id)
-    if location_id:
+    if loc_ids:
         # Lots whose current stock sits at any of the given leaf locations.
         # Cast the (text) batch_key to UUID inside the subquery and compare against
         # Batch.id directly — casting Batch.id to text instead would defeat the PK
@@ -396,7 +410,7 @@ async def list_batches_paginated(
         # remaining value is a real lot uuid, so the cast never sees a bad value.
         loc_keys = (
             select(cast(StockBalance.batch_key, PG_UUID(as_uuid=True)))
-            .filter(StockBalance.location_id.in_(location_id), StockBalance.qty > 0, StockBalance.batch_key != "")
+            .filter(StockBalance.location_id.in_(loc_ids), StockBalance.qty > 0, StockBalance.batch_key != "")
             .group_by(StockBalance.batch_key)
         )
         filters.append(Batch.id.in_(loc_keys))
@@ -464,10 +478,10 @@ async def list_batches_paginated(
         query = query.filter(f)
 
     total = (await db.execute(count_query)).scalar() or 0
-    result = await db.execute(query.offset((page - 1) * size).limit(size))
+    result = await db.execute(window.apply(query))
     batches = result.scalars().all()
     batches = await _enrich_batches(db, batches)
-    return PaginatedBatchResponse(items=batches, total=total, page=page, size=size)
+    return window.envelope(batches, total)
 
 
 @router.get("/resolve", response_model=BatchResponse)

@@ -10,7 +10,7 @@ only thing standing between a mis-picked pallet and a customer.
 Flow: POST /shipments (stage) -> print Surat Jalan -> POST /{id}/verify (second
 person) -> POST /{id}/dispatch (goods issue).
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 import uuid
 
 from app.db.session import get_async_db
+from app.core.pagination import PageParams, PageWindow
 from app.schemas import (
     ShipmentCreate, ShipmentUpdate, ShipmentVerifyPayload,
     ShipmentResponse, ShipmentListResponse, StageablePickListResponse,
@@ -229,8 +230,7 @@ async def _resolve_members(
 async def list_shipments(
     status: Optional[str] = None,
     search: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=200),
+    window: PageWindow = Depends(PageParams(default_size=20, max_size=200)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission('shipment.view', 'sales.manage')),
 ):
@@ -251,9 +251,9 @@ async def list_shipments(
         count_q = count_q.filter(cond)
 
     total = (await db.execute(count_q)).scalar() or 0
-    query = query.order_by(Shipment.created_at.desc()).offset((page - 1) * size).limit(size)
+    query = window.apply(query.order_by(Shipment.created_at.desc()))
     rows = (await db.execute(query)).scalars().unique().all()
-    return {"items": [_decorate(s) for s in rows], "total": total, "page": page, "size": size}
+    return window.envelope([_decorate(s) for s in rows], total)
 
 
 @router.get("/stageable", response_model=list[StageablePickListResponse])

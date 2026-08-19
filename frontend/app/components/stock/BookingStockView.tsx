@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
+import { useState, useCallback, useMemo, useRef, Fragment } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -54,44 +55,19 @@ export default function BookingStockView() {
     }, []);
 
     const PAGE_SIZE = 50;
-    const [rows, setRows] = useState<Row[]>([]);
-    const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(1);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [searchInput, setSearchInput] = useState('');
-    const [search, setSearch] = useState('');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-    // Debounce the search box 350ms before it drives a server fetch (matches item search).
-    useEffect(() => {
-        const id = setTimeout(() => setSearch(searchInput), 350);
-        return () => clearTimeout(id);
-    }, [searchInput]);
-
-    useEffect(() => { setPage(1); }, [search]);
-
-    const fetchAvailability = useCallback(async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
-            if (search) params.set('search', search);
-            const res = await authFetch(`${API_BASE}/stock/availability?${params.toString()}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            setRows(data.items || []);
-            setTotal(data.total ?? 0);
-        } catch (e: any) {
-            setError(e.message || 'Failed to load booking stock');
-            setRows([]);
-            setTotal(0);
-        } finally {
-            setLoading(false);
-        }
-    }, [API_BASE, authFetch, page, search]);
-
-    useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
+    // Page window, the 350ms-debounced `?search=` box, loading flag and the
+    // stale-response race guard all come from the shared hook
+    // (context/usePaginatedList.ts). A search change restarts at page 1 inside the
+    // hook, so there is no separate page reset to keep in step here.
+    const {
+        rows, total, loading, error, page, setPage, searchInput, setSearch, refetch: fetchAvailability,
+    } = usePaginatedFetch<Row>({
+        endpoint: `${API_BASE}/stock/availability`,
+        authFetch,
+        pageSize: PAGE_SIZE,
+    });
 
     const getAttrValueName = useCallback((valId: string) => {
         for (const attr of attributes) {
@@ -235,7 +211,7 @@ export default function BookingStockView() {
                 </div>
 
                 <div style={classic ? xpToolbar : undefined} className={classic ? undefined : 'card-body py-2 d-flex flex-wrap align-items-center gap-2 border-bottom'}>
-                    <SearchField classic={classic} value={searchInput} onChange={setSearchInput} placeholder="Search item..." width={classic ? 200 : 240} />
+                    <SearchField classic={classic} value={searchInput} onChange={setSearch} placeholder="Search item..." width={classic ? 200 : 240} />
                     {classic && <div style={xpSep} />}
                     <button style={classic ? xpBtn() : undefined} className={classic ? undefined : 'btn btn-sm btn-outline-secondary'} onClick={fetchAvailability} title={classic ? 'Refresh' : undefined}>
                         <i className={classic ? 'bi bi-arrow-clockwise' : 'bi bi-arrow-clockwise me-1'} style={classic ? { marginRight: 4 } : undefined} />Refresh

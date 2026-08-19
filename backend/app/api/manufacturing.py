@@ -42,6 +42,7 @@ from app.api.work_orders import next_wo_code
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 import uuid
 
 router = APIRouter()
@@ -688,8 +689,6 @@ async def resolve_root_mos(db: AsyncSession, mo_ids: list[str]) -> dict[str, lis
 
 @router.get("/work-orders", response_model=WorkOrderFlatPageResponse)
 async def list_work_orders_flat(
-    skip: int = 0,
-    limit: int = 50,
     status: str = Query(""),
     work_center_id: str = Query(""),
     group_id: str = Query(""),
@@ -697,6 +696,7 @@ async def list_work_orders_flat(
     search: str = Query(""),
     component_item_id: str = Query(""),
     unprinted: bool = Query(False),
+    window: PageWindow = Depends(PageParams(default_size=50)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view")),
 ):
@@ -787,9 +787,8 @@ async def list_work_orders_flat(
             ),
         )
         .order_by(WorkOrderModel.created_at.desc(), WorkOrderModel.sequence)
-        .offset(skip)
-        .limit(limit)
     )
+    data_stmt = window.apply(data_stmt)
 
     wos = (await db.execute(data_stmt)).scalars().unique().all()
 
@@ -903,12 +902,7 @@ async def list_work_orders_flat(
             bom_line_item_ids=bom_line_item_ids,
         ))
 
-    return WorkOrderFlatPageResponse(
-        items=result,
-        total=total,
-        page=(skip // limit) + 1,
-        size=limit,
-    )
+    return window.envelope(result, total)
 
 
 @router.put("/manufacturing-orders/{mo_id}/status")

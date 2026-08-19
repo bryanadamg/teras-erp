@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, Fragment } fr
 import { useRouter } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
@@ -162,17 +163,9 @@ export default function QuarantinePackingView() {
     const canSetStatus = hasPermission('quarantine.set_status');
     const canPack = hasPermission('sales.manage');
 
-    const [groups, setGroups] = useState<Group[]>([]);
     const [statuses, setStatuses] = useState<StatusOption[]>([]);
-    const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(1);
-    const [truncated, setTruncated] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
     const [saving, setSaving] = useState<string | null>(null);
 
-    const [searchInput, setSearchInput] = useState('');
-    const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     // The page reads live stock, so a lot packed out of the hold area drops off
     // it entirely. Off by default — the desk's job is the queue, not the archive
@@ -182,19 +175,6 @@ export default function QuarantinePackingView() {
     // Checked lots, keyed by batch id (globally unique, so one flat set covers
     // every expanded group). Only ever holds *selectable* lots — see selectableIds.
     const [selectedLots, setSelectedLots] = useState<Set<string>>(new Set());
-
-    // Skeleton sizing: measure one real row so the placeholders shown on the next
-    // load are exactly as tall as the rows that replace them.
-    const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skel = useTableSkeletonMetrics(classic ? 'quarantine-classic' : 'quarantine', listBodyRef, groups.length > 0);
-
-    // Debounced 350ms before it drives a server fetch — same shape as item search.
-    useEffect(() => {
-        const id = setTimeout(() => setSearch(searchInput), 350);
-        return () => clearTimeout(id);
-    }, [searchInput]);
-
-    useEffect(() => { setPage(1); }, [search, statusFilter, showPacked]);
 
     const fetchStatuses = useCallback(async () => {
         try {
@@ -206,40 +186,43 @@ export default function QuarantinePackingView() {
         }
     }, [authFetch]);
 
+    // Page window, the debounced `?search=` box, the loading flag, the failure
+    // message behind the error banner and the stale-response race guard all come
+    // from the shared hook (context/usePaginatedList.ts); the two filters ride in
+    // as params, and changing either one restarts at page 1 on its own.
+    const {
+        rows: groups, total, meta, loading, error, page, setPage,
+        search, searchInput, setSearch: setSearchInput, refetch,
+    } = usePaginatedFetch<Group>({
+        endpoint: `${API_BASE}/quarantine`,
+        authFetch,
+        pageSize: PAGE_SIZE,
+        params: { status: statusFilter, include_packed: showPacked ? 'true' : '' },
+    });
+    const truncated = !!meta.truncated;
+
     /**
-     * `silent` refetches without touching `loading`.
+     * Silent reload: refetch without showing the skeleton.
      *
      * A disposition write re-reads the same page with one field changed, but a
      * loud refetch flips `loading` on, which appends the skeleton block under
      * the live rows and collapses it again a moment later — the table jumps
      * twice for a change of one chip. Skeletons are for a page that has nothing
-     * to show yet (first load, new filter, new page), not for a row edit.
+     * to show yet (first load, new filter, new page), not for a row edit. The
+     * shared hook owns `loading`, so the quiet mode is a flag over it rather
+     * than a second fetch path.
      */
-    const fetchGroups = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
-        setError('');
-        try {
-            const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
-            if (search) params.set('search', search);
-            if (statusFilter) params.set('status', statusFilter);
-            if (showPacked) params.set('include_packed', 'true');
-            const res = await authFetch(`${API_BASE}/quarantine?${params.toString()}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            setGroups(data.items || []);
-            setTotal(data.total ?? 0);
-            setTruncated(!!data.truncated);
-        } catch (e: any) {
-            setError(e?.message || 'Failed to load quarantine stock');
-            setGroups([]);
-            setTotal(0);
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    }, [authFetch, page, search, statusFilter, showPacked]);
+    const [quiet, setQuiet] = useState(false);
+    const silentRefetch = useCallback(() => { setQuiet(true); refetch(); }, [refetch]);
+    useEffect(() => { if (!loading) setQuiet(false); }, [loading]);
+    const showSkeleton = loading && !quiet;
+
+    // Skeleton sizing: measure one real row so the placeholders shown on the next
+    // load are exactly as tall as the rows that replace them.
+    const listBodyRef = useRef<HTMLTableSectionElement>(null);
+    const skel = useTableSkeletonMetrics(classic ? 'quarantine-classic' : 'quarantine', listBodyRef, groups.length > 0);
 
     useEffect(() => { fetchStatuses(); }, [fetchStatuses]);
-    useEffect(() => { fetchGroups(); }, [fetchGroups]);
 
     // Another QC user releasing a lot, or production landing more output in the
     // hold area, both arrive as a 'stock' live event — reload rather than leave a
@@ -252,13 +235,13 @@ export default function QuarantinePackingView() {
         const off = subscribeLiveEvents(kind => {
             if (kind !== 'stock') return;
             if (liveTimer.current) clearTimeout(liveTimer.current);
-            liveTimer.current = setTimeout(() => fetchGroups(true), 600);
+            liveTimer.current = setTimeout(() => silentRefetch(), 600);
         });
         return () => {
             if (liveTimer.current) clearTimeout(liveTimer.current);
             off();
         };
-    }, [subscribeLiveEvents, fetchGroups]);
+    }, [subscribeLiveEvents, silentRefetch]);
 
     // "Pack" hands this group's released-not-yet-packed-or-claimed stock to the
     // Packing page as a deep link — it opens the New Packing Order form
@@ -315,13 +298,13 @@ export default function QuarantinePackingView() {
                 ids.forEach(id => next.delete(id));
                 return next;
             });
-            await fetchGroups(true);
+            silentRefetch();
         } catch (e: any) {
             showToast(e?.message || 'Could not set the status', 'danger');
         } finally {
             setSaving(null);
         }
-    }, [authFetch, fetchGroups, showToast]);
+    }, [authFetch, silentRefetch, showToast]);
 
     // In-flight lot ids. `saving` is a joined key of exactly the lots being
     // written, so only their own controls grey out — disabling every bar on the
@@ -774,7 +757,7 @@ export default function QuarantinePackingView() {
                 <i className="bi bi-box-seam" style={{ marginRight: 4 }} />Show packed
             </ToggleChip>
             <div style={lvSep(classic)} />
-            <button style={lvBtn(classic)} onClick={() => fetchGroups()} title="Refresh">
+            <button style={lvBtn(classic)} onClick={() => refetch()} title="Refresh">
                 <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
             </button>
             {!canSetStatus && (
@@ -930,7 +913,7 @@ export default function QuarantinePackingView() {
                             </Fragment>
                         );
                     })}
-                    {loading && <TableSkeleton rows={7} cols={skel.cols ?? COL_COUNT} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
+                    {showSkeleton && <TableSkeleton rows={7} cols={skel.cols ?? COL_COUNT} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
                     {!loading && groups.length === 0 && (
                         <tr>
                             <td colSpan={COL_COUNT} style={{ padding: 0 }}>

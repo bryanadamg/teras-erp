@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
@@ -63,8 +64,18 @@ export default function PickListView() {
     // the register is the follow-up view rather than the entry point.
     const [tab, setTab] = useState<PLTab>('topick');
 
-    const [pickLists, setPickLists] = useState<any[]>([]);
-    const [plTotal, setPlTotal] = useState(0);
+    // Page window, fetch, loading flag and the stale-response race guard all come
+    // from the shared hook (context/usePaginatedList.ts). No filters on this list —
+    // the register shows every pick list, newest first.
+    const {
+        rows: pickLists, total: plTotal, loading, page: plPage, setPage: setPlPage,
+        refetch: reloadPickLists,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/pick-lists`,
+        authFetch,
+        pageSize: PL_PAGE_SIZE,
+    });
+
     const [openCount, setOpenCount] = useState(0);
     const [dispatchedCount, setDispatchedCount] = useState(0);
     // Only loaded once the release board is opened — `pickable-orders` scores
@@ -73,8 +84,6 @@ export default function PickListView() {
     const [pickableSOs, setPickableSOs] = useState<any[]>([]);
     const [pickableLoading, setPickableLoading] = useState(false);
     const [pickableLoaded, setPickableLoaded] = useState(false);
-    // True from first paint so the list shows the loader, not "none yet".
-    const [loading, setLoading] = useState(true);
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
@@ -84,7 +93,6 @@ export default function PickListView() {
     const [printCard, setPrintCard] = useState<any | null>(null);
     // One row open at a time, same as the packing order and WO lists.
     const [expandedId, setExpandedId] = useState<string | null>(null);
-    const [plPage, setPlPage] = useState(1);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
     const itemById = useMemo(() => {
@@ -100,14 +108,6 @@ export default function PickListView() {
         return m;
     }, [locations]);
 
-    const loadPickListPage = useCallback(async (page: number) => {
-        setLoading(true);
-        try {
-            const res = await authFetch(`${API_BASE}/pick-lists?page=${page}&size=${PL_PAGE_SIZE}`);
-            if (res.ok) { const d = await res.json(); setPickLists(d.items || []); setPlTotal(d.total || 0); }
-        } finally { setLoading(false); }
-    }, [authFetch]);
-
     // Cheap total-only lookups (size=1) for the status-bar counts.
     const loadCounts = useCallback(async () => {
         const [openRes, sRes] = await Promise.all([
@@ -120,15 +120,14 @@ export default function PickListView() {
         if (sRes.ok) { const d = await sRes.json(); setDispatchedCount(d.total || 0); }
     }, [authFetch]);
 
+    // Re-pull the current page and the status-bar counts after a mutation. The list
+    // fetch itself lives in the hook, so this is just its refetch plus the counts.
     const loadAll = useCallback(async () => {
-        setLoading(true);
-        try {
-            await Promise.all([loadPickListPage(plPage), loadCounts()]);
-        } finally { setLoading(false); }
-    }, [loadPickListPage, loadCounts, plPage]);
+        reloadPickLists();
+        await loadCounts();
+    }, [reloadPickLists, loadCounts]);
 
     useEffect(() => { loadCounts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => { loadPickListPage(plPage); }, [plPage, loadPickListPage]);
 
     // One readiness call instead of "every open SO" + "every draft": the server
     // scores each order's packed cartons against what it still owes, so the picker

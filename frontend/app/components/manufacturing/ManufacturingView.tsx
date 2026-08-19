@@ -6,6 +6,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useDebouncedCommit } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import ProductionRunModal from './ProductionRunModal';
@@ -116,21 +117,11 @@ export default function ManufacturingView({
       if (initialPRFilter) setPrSearch(initialPRFilter);
   }, [initialPRFilter]);
 
-  // Debounce MO search input → context (resets to page 1 + refetches matching page)
-  useEffect(() => {
-      const id = setTimeout(() => {
-          if (moCodeFilter !== moSearch) setMoSearch(moCodeFilter);
-      }, 350);
-      return () => clearTimeout(id);
-  }, [moCodeFilter]);
-
-  // Debounce PR search input → context
-  useEffect(() => {
-      const id = setTimeout(() => {
-          if (prSearch !== prSearchCtx) setPrSearchCtx(prSearch);
-      }, 350);
-      return () => clearTimeout(id);
-  }, [prSearch]);
+  // Debounce both search inputs → context, which resets to page 1 and refetches the
+  // matching page. The committed values live in DataContext (shared across pages),
+  // hence useDebouncedCommit rather than the self-owning useDebouncedSearch.
+  useDebouncedCommit(moCodeFilter, moSearch, setMoSearch);
+  useDebouncedCommit(prSearch, prSearchCtx, setPrSearchCtx);
 
   // prSearchCtx lives in DataContext, so it outlives this view — leaving the page
   // with a deep-link PR filter still applied (e.g. after clicking a PR badge from

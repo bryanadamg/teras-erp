@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from collections import Counter
 
+from app.core.pagination import PageParams, PageWindow
 from app.db.session import get_async_db
 from app.models.auth import User
 from app.api.auth import require_any_permission, wo_scope_ok
@@ -28,8 +29,11 @@ async def get_work_queue(
     overdue_only: bool = Query(False),
     include_unreleased: bool = Query(True, description="Include open orders that have no work order yet"),
     unreleased_only: bool = Query(False),
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=200),
+    # Paging is in-memory here: the queue is a computed, priority-ordered list with
+    # an allocation walk over the WHOLE set (see work_queue_service), so it cannot be
+    # sliced in SQL. `allow_uncapped=False` because every row carries its full
+    # material breakdown — there is no export path that could justify serving it whole.
+    window: PageWindow = Depends(PageParams(default_size=50, max_size=200, allow_uncapped=False)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view")),
 ):
@@ -61,9 +65,12 @@ async def get_work_queue(
             rows = [r for r in rows if r["verdict"] == verdict.upper()]
 
     total = len(rows)
-    start = (page - 1) * size
-    return WorkQueueResponse(
-        items=rows[start:start + size], total=total, page=page, size=size, counts=counts,
+    page_rows = (
+        rows[window.offset:] if window.uncapped
+        else rows[window.offset:window.offset + window.limit]
+    )
+    return window.envelope(
+        page_rows, total, counts=counts,
         overdue_count=overdue_count, undated_count=undated_count,
         unreleased_count=unreleased_count, sort=(sort or "date").lower(),
         materials=materials,
