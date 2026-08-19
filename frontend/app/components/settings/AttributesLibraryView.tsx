@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+import { ToolbarButton } from '../shared/shellTheme';
 
 // Attributes with a dedicated management home are hidden here so they are not
 // hand-edited in two places:
@@ -132,9 +133,7 @@ export default function AttributesLibraryView({
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
-                        <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
-                            <i className="bi bi-plus-lg" /> New Attribute
-                        </button>
+                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={openCreate}>New Attribute</ToolbarButton>
                     </>
                 )}
             </div>

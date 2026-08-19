@@ -13,6 +13,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { ToolbarButton } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -634,9 +635,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
-                        <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
-                            <i className="bi bi-plus-lg" /> New Recipe
-                        </button>
+                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={openCreate}>New Recipe</ToolbarButton>
                     </>
                 )}
             </div>

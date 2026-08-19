@@ -8,7 +8,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { SearchField, FilterChipBar } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
 
@@ -250,9 +250,7 @@ export default function ColorLibraryView({
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
-                        <button style={lvPrimaryBtn(classic)} onClick={openCreate} title="New Color">
-                            <i className="bi bi-plus-lg" />
-                        </button>
+                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={openCreate}>New Color</ToolbarButton>
                     </>
                 )}
             </div>

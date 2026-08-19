@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import TreeSelect, { buildLocationPickerTree, TreeSelectOption } from '../shared/TreeSelect';
-import { ShellWindow, ShellTitleBar, SearchField, ToolbarCount } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, SearchField, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -428,9 +428,9 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               {canManage && (
                   <>
                       <span style={lvSep(classic)} />
-                      <button style={lvPrimaryBtn(classic)} onClick={() => { setNewWorkCenter({ ...emptyWC }); setIsCreateWCOpen(true); }}>
-                          <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>New Work Center
-                      </button>
+                      <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={() => { setNewWorkCenter({ ...emptyWC }); setIsCreateWCOpen(true); }}>
+                          New Work Center
+                      </ToolbarButton>
                   </>
               )}
           </div>

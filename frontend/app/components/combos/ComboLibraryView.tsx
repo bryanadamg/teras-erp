@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
 
@@ -122,9 +122,7 @@ export default function ComboLibraryView({
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
-                        <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
-                            <i className="bi bi-plus-lg" /> New Combo
-                        </button>
+                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={openCreate}>New Combo</ToolbarButton>
                     </>
                 )}
             </div>

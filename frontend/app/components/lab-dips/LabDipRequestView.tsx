@@ -9,9 +9,9 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
-import { lvThead, lvPrimaryBtn } from '../shared/listViewTheme';
+import { lvThead } from '../shared/listViewTheme';
 import { STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -486,8 +486,6 @@ export default function LabDipRequestView({
     const displayCode = editing ? editing.code : nextCode;
 
 
-    const primaryToolbarBtn = lvPrimaryBtn(classic);
-
     return (
         <div style={classic
             ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
@@ -531,9 +529,7 @@ export default function LabDipRequestView({
                 {canManage && (
                     <>
                         <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
-                        <button style={primaryToolbarBtn} onClick={openCreate}>
-                            <i className="bi bi-plus-lg" /> New {requestNoun}
-                        </button>
+                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={openCreate}>New {requestNoun}</ToolbarButton>
                     </>
                 )}
             </div>

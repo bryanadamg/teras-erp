@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
+import { ToolbarButton } from '../shared/shellTheme';
 
 interface Props {
     values: any[];                 // AttributeValue rows of the Colors variant attribute
@@ -82,7 +83,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
-                        <button style={lvPrimaryBtn(classic)} onClick={openCreate}><i className="bi bi-plus-lg" /> New Color</button>
+                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={openCreate}>New Color</ToolbarButton>
                     </>
                 )}
             </div>
