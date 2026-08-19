@@ -16,21 +16,24 @@ import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as 
 import Pager from '../shared/Pager';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
 
-const PO_PAGE_SIZE = 50;
-
 export default function PurchaseOrderView({ items, itemResults, onSearchItems, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
-  const { itemIndex, loading: dataLoading } = useData();
+  // Search / status / page all live in DataContext, which owns the server fetch —
+  // `/purchase-orders` is paginated + filtered server-side, so `purchaseOrders`
+  // is ONE page, never the whole table.
+  const {
+      itemIndex, loading: dataLoading, poStatusCounts,
+      // aliased: `poTotal` is already this file's per-order money total helper
+      pagination: { poPage, setPoPage, poTotal: poRowTotal, pageSize: poPageSize },
+      filters: { poSearch: searchTerm, setPoSearch: setSearchTerm, poStatusFilter: statusFilter, setPoStatusFilter: setStatusFilter },
+  } = useData();
   const { formatDate: tzDate } = useTimezone();
   const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('purchase_order.create', 'purchase_order.edit', 'purchase_order.delete', 'purchase_order.close');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPOId, setEditingPOId] = useState<string | null>(null);
   const [printingPO, setPrintingPO] = useState<any>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [poPage, setPoPage] = useState(1);
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
   // Backend origin for static files (delivery-note attachments live at /static, not /api)
@@ -209,6 +212,10 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       setNewPO(prev => ({ ...prev, po_number: suggestPOCode(newConfig) }));
   };
 
+  // `purchaseOrders` is one server page, so this collision scan can propose a code
+  // that already exists further down the table. Uniqueness is owned by the server
+  // (POST /purchase-orders 400s with "PO Number already exists"), which handleSubmit
+  // surfaces as a toast, so the worst case is one rejected save — not a duplicate.
   const suggestPOCode = (config = codeConfig) => {
       let counter = 1;
       let code = buildCodeWithCounter(config, counter);
@@ -312,7 +319,19 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       }
 
       const res = await onCreatePO(payload);
-      if (res && res.ok) {
+      if (res && res.status === 400) {
+          // Paired with suggestPOCode's page-scoped scan: the server owns uniqueness,
+          // so a collision it rejects is recovered here by suffixing rather than left
+          // for the user to resolve by hand. Mirrors SalesOrderView's create branch.
+          let basePO = newPO.po_number;
+          const baseMatch = basePO.match(/^(.*)-(\d+)$/);
+          if (baseMatch) basePO = baseMatch[1];
+          let counter = 1;
+          let suggested = `${basePO}-${counter}`;
+          while (purchaseOrders.some((p: any) => p.po_number === suggested)) { counter++; suggested = `${basePO}-${counter}`; }
+          showToast(`PO# "${newPO.po_number}" already exists. Suggesting: ${suggested}`, 'warning');
+          setNewPO({ ...newPO, po_number: suggested });
+      } else if (res && res.ok) {
           closeModal();
           showToast('Purchase Order created', 'success');
       } else if (res) {
@@ -385,14 +404,6 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
 
   const STATUS_FILTERS = ['ALL', 'DRAFT', 'RECEIVING', 'RECEIVED'];
 
-  const filteredOrders = purchaseOrders.filter((po: any) => {
-      const matchSearch = !searchTerm ||
-          po.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          getSupplierName(po.supplier_id).toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = statusFilter === 'ALL' || po.status === statusFilter;
-      return matchSearch && matchStatus;
-  });
-
   const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
   // Value-weighted receiving progress — normalizes across lines of mismatched
@@ -424,9 +435,14 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       return maxDays > 0 ? maxDays : null;
   };
 
-  const statusCounts = useMemo(() => Object.fromEntries(
-      STATUS_FILTERS.map(s => [s, s === 'ALL' ? purchaseOrders.length : purchaseOrders.filter((p: any) => p.status === s).length])
-  ), [purchaseOrders]);
+  // Whole-table counts straight from the server's unfiltered GROUP BY — the chips
+  // must keep showing every PO in the system, not just the loaded page.
+  const statusCounts = useMemo(() => {
+      const allTime = Object.values(poStatusCounts).reduce((a: number, b: number) => a + b, 0);
+      return Object.fromEntries(
+          STATUS_FILTERS.map(s => [s, s === 'ALL' ? allTime : (poStatusCounts[s] || 0)])
+      );
+  }, [poStatusCounts]);
 
   const poSortCols = useMemo(() => ({
       po:       (po: any) => po.po_number,
@@ -437,12 +453,10 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       status:   (po: any) => po.status,
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [partners, purchaseOrders]);
-  const { sorted: sortedOrders, sort: poSort, toggle: togglePOSort } = useSortable(filteredOrders, poSortCols);
-
-  useEffect(() => { setPoPage(1); }, [searchTerm, statusFilter]);
-  const poPageCount = Math.max(1, Math.ceil(sortedOrders.length / PO_PAGE_SIZE));
-  const clampedPoPage = Math.min(poPage, poPageCount);
-  const pageOrders = sortedOrders.slice((clampedPoPage - 1) * PO_PAGE_SIZE, clampedPoPage * PO_PAGE_SIZE);
+  // Filtering/pagination now happen server-side (DataContext fetches the
+  // committed/debounced search + status + page); sorting stays client-side over
+  // just the current page's ~50 rows.
+  const { sorted: pageOrders, sort: poSort, toggle: togglePOSort } = useSortable(purchaseOrders, poSortCols);
 
   // Skeleton sizing: measure one real row so the placeholders shown on the next
   // load are exactly as tall as the rows that replace them.
@@ -835,7 +849,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                />
                {classic && <div style={xpSep}></div>}
                <ToolbarCount classic={classic}>
-                   {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
+                   {poRowTotal} order{poRowTotal !== 1 ? 's' : ''}
                </ToolbarCount>
                {canManage && (
                    <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" style={{ marginLeft: 'auto' }} onClick={() => setIsCreateOpen(true)}>
@@ -1069,7 +1083,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                )}
                                </>
                            ))}
-                           {filteredOrders.length === 0 && (dataLoading.purchaseOrders ? (
+                           {pageOrders.length === 0 && (dataLoading.purchaseOrders ? (
                                <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                            ) : (
                                <tr>
@@ -1122,7 +1136,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                );
            })()}
 
-           <Pager page={clampedPoPage} total={sortedOrders.length} pageSize={PO_PAGE_SIZE} onPageChange={setPoPage} hideWhenEmpty />
+           <Pager page={poPage} total={poRowTotal} pageSize={poPageSize} onPageChange={setPoPage} hideWhenEmpty />
 
            {/* ── Status bar ── */}
            {classic && (
@@ -1136,13 +1150,13 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                    fontSize: '10px',
                    color: '#333',
                }}>
-                   <span>{purchaseOrders.length} total</span>
+                   <span>{Object.values(poStatusCounts).reduce((a: number, b: number) => a + b, 0)} total</span>
                    <span>|</span>
-                   <span>{purchaseOrders.filter((p: any) => p.status === 'DRAFT').length} draft</span>
+                   <span>{poStatusCounts.DRAFT || 0} draft</span>
                    <span>|</span>
-                   <span>{purchaseOrders.filter((p: any) => p.status === 'RECEIVING').length} in progress</span>
+                   <span>{poStatusCounts.RECEIVING || 0} in progress</span>
                    <span>|</span>
-                   <span>{purchaseOrders.filter((p: any) => p.status === 'RECEIVED').length} received</span>
+                   <span>{poStatusCounts.RECEIVED || 0} received</span>
                </div>
            )}
        </div>

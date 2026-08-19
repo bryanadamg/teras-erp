@@ -29,7 +29,9 @@ def test_sales_order_crud(client, auth_headers):
 
     # 2. Get List
     res_list = client.get("/api/sales-orders", headers=auth_headers)
-    orders = res_list.json()
+    # Paginated envelope, not a bare list — iterating the response dict yields its
+    # key strings, so `o["id"]` raised TypeError.
+    orders = res_list.json()["items"]
     assert any(o["id"] == so["id"] for o in orders)
 
     # 3. Delete

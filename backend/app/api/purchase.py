@@ -1,21 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, func, or_, delete as sa_delete
 from sqlalchemy.orm import selectinload
 from pathlib import Path
 import shutil
 from app.db.session import get_async_db
-from app.schemas import PurchaseOrderCreate, PurchaseOrderResponse, GoodsReceiptCreate, GoodsReceiptResponse
+from app.schemas import PurchaseOrderCreate, PurchaseOrderResponse, PaginatedPurchaseOrderResponse, GoodsReceiptCreate, GoodsReceiptResponse
 from app.models.purchase import PurchaseOrder, PurchaseOrderLine, purchase_order_line_values
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.attribute import AttributeValue
 from app.models.item import Item
 from app.models.batch import Batch
+from app.models.partner import Partner
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
+from typing import Optional
 from datetime import datetime
 import uuid
 
@@ -378,18 +381,59 @@ async def upload_delivery_note(
     return final.scalars().first()
 
 
-@router.get("", response_model=list[PurchaseOrderResponse])
+@router.get("", response_model=PaginatedPurchaseOrderResponse)
 async def get_purchase_orders(
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    supplier: Optional[str] = None,
+    window: PageWindow = Depends(PageParams()),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission("purchase_order.view")),
 ):
-    result = await db.execute(
-        _po_query().order_by(PurchaseOrder.created_at.desc())
-    )
+    query = _po_query()
+    count_query = select(func.count(PurchaseOrder.id))
+
+    if status:
+        # comma-separated, same contract as /sales-orders — lets a caller scope to
+        # a few statuses instead of pulling every PO ever raised.
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        cond = PurchaseOrder.status.in_(statuses) if len(statuses) > 1 else PurchaseOrder.status == statuses[0]
+        query = query.filter(cond)
+        count_query = count_query.filter(cond)
+    if search:
+        # Mirrors the view's old client-side match: PO number OR supplier name.
+        # Done as an IN-subquery rather than a join so the eager-load options on
+        # `query` and the plain count on `count_query` take the identical filter.
+        like = f"%{search}%"
+        cond = or_(
+            PurchaseOrder.po_number.ilike(like),
+            PurchaseOrder.supplier_id.in_(select(Partner.id).filter(Partner.name.ilike(like))),
+        )
+        query = query.filter(cond)
+        count_query = count_query.filter(cond)
+    if supplier:
+        cond = PurchaseOrder.supplier_id.in_(select(Partner.id).filter(Partner.name.ilike(f"%{supplier}%")))
+        query = query.filter(cond)
+        count_query = count_query.filter(cond)
+
+    total = (await db.execute(count_query)).scalar() or 0
+
+    # `size=0` (or legacy `limit=0`) means "no cap" — for export/print callers that
+    # need every row matching the active filter, not just the page on screen.
+    result = await db.execute(window.apply(query.order_by(PurchaseOrder.created_at.desc())))
     pos = result.scalars().all()
     for po in pos:
         _populate_line_attrs(po)
-    return pos
+
+    # Unfiltered, all-time counts for the status-filter chips and the classic
+    # status bar ("X total / Y draft / Z received") — deliberately NOT scoped to
+    # the active filter or page, same meaning as before pagination existed.
+    status_rows = (await db.execute(
+        select(PurchaseOrder.status, func.count(PurchaseOrder.id)).group_by(PurchaseOrder.status)
+    )).all()
+    status_counts = {s: c for s, c in status_rows}
+
+    return window.envelope(pos, total, status_counts=status_counts)
 
 
 @router.patch("/{po_id}/close", response_model=PurchaseOrderResponse)

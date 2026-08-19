@@ -70,7 +70,9 @@ def test_purchase_order_crud(client, auth_headers):
         # 3. GET /api/purchase-orders — our PO should appear
         resp = client.get("/api/purchase-orders", headers=auth_headers)
         assert resp.status_code == 200, resp.text
-        po_numbers = [po["po_number"] for po in resp.json()]
+        # Paginated envelope, not a bare list — iterating the response dict yields
+        # its key strings, so `po["po_number"]` raised TypeError.
+        po_numbers = [po["po_number"] for po in resp.json()["items"]]
         assert po_number in po_numbers
 
         # 4. DELETE the purchase order

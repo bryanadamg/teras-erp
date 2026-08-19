@@ -80,6 +80,8 @@ interface DataContextType {
     /** All-time {status: count} — not scoped to the active list filter, for status-bar summaries. */
     soStatusCounts: Record<string, number>;
     purchaseOrders: any[];
+    /** All-time {status: count} — not scoped to the active list filter, for status-bar summaries. */
+    poStatusCounts: Record<string, number>;
     samples: any[];
     samplesMeta: SamplesMeta;
     auditLogs: any[];
@@ -123,6 +125,7 @@ interface DataContextType {
         auditPage: number; setAuditPage: (p: number) => void; auditTotal: number;
         reportPage: number; setReportPage: (p: number) => void; reportTotal: number;
         soPage: number; setSoPage: (p: number) => void; soTotal: number;
+        poPage: number; setPoPage: (p: number) => void; poTotal: number;
         moSearch: string; setMoSearch: (s: string) => void;
         prSearch: string; setPrSearch: (s: string) => void;
         /** '' = all, 'with' = has a Sales Order, 'without' = made to stock. */
@@ -142,6 +145,9 @@ interface DataContextType {
         soSearch: string; setSoSearch: (s: string) => void;
         soCustomerSearch: string; setSoCustomerSearch: (s: string) => void;
         soStatusFilter: string; setSoStatusFilter: (s: string) => void;
+        /** PO number / supplier name text filter, live-input echo. */
+        poSearch: string; setPoSearch: (s: string) => void;
+        poStatusFilter: string; setPoStatusFilter: (s: string) => void;
     };
 
     fetchData: (targetTab?: string) => Promise<void>;
@@ -202,6 +208,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [salesOrders, setSalesOrders] = useState([]);
     const [soStatusCounts, setSoStatusCounts] = useState<Record<string, number>>({});
     const [purchaseOrders, setPurchaseOrders] = useState([]);
+    const [poStatusCounts, setPoStatusCounts] = useState<Record<string, number>>({});
     const [samples, setSamples] = useState([]);
     const [samplesMeta, setSamplesMeta] = useState<SamplesMeta>({ total: 0, unread: 0, colorStats: {}, page: 1 });
     const [auditLogs, setAuditLogs] = useState([]);
@@ -225,6 +232,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const { page: auditPage, setPage: setAuditPage, total: auditTotal, setTotal: setAuditTotal } = usePageState();
     const { page: reportPage, setPage: setReportPage, total: reportTotal, setTotal: setReportTotal } = usePageState();
     const { page: soPage, setPage: setSoPage, total: soTotal, setTotal: setSoTotal } = usePageState();
+    const { page: poPage, setPage: setPoPage, total: poTotal, setTotal: setPoTotal } = usePageState();
     const [pageSize] = useState(50);
     // Debounced search boxes: same input-echoes/committed-value split, same
     // 350ms delay, same "commit resets to page 1" rule — see usePaginatedList.ts.
@@ -234,6 +242,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const { input: soSearchInput, committed: soSearch, setSearch: handleSetSoSearch } = useDebouncedSearch(setSoPage);
     const { input: soCustomerSearchInput, committed: soCustomerSearch, setSearch: handleSetSoCustomerSearch } = useDebouncedSearch(setSoPage);
     const [soStatusFilter, setSoStatusFilter] = useState('ALL');
+    const { input: poSearchInput, committed: poSearch, setSearch: handleSetPoSearch } = useDebouncedSearch(setPoPage);
+    const [poStatusFilter, setPoStatusFilter] = useState('ALL');
     const [prSoFilter, setPrSoFilter] = useState('');           // '' | 'with' | 'without'
     const [prProgressFilter, setPrProgressFilter] = useState(''); // '' | 'complete' | 'incomplete'
     const [categoryL1, setCategoryL1] = useState('');
@@ -297,6 +307,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const handleSetSoStatusFilter = useCallback((v: string) => {
         setSoStatusFilter(v); setSoPage(1);
     }, []);
+
+    const handleSetPoStatusFilter = useCallback((v: string) => {
+        setPoStatusFilter(v); setPoPage(1);
+    }, []);
+
+    // The /purchase-orders window + filter query, built in ONE place so the
+    // central fetchData and the targeted refreshPurchaseOrders can't drift into
+    // asking for different pages of the same list. Sends the canonical
+    // `page`/`size` (see backend core/pagination.py).
+    const poQuery = useCallback((page: number) => {
+        const p = new URLSearchParams();
+        if (poStatusFilter && poStatusFilter !== 'ALL') p.set('status', poStatusFilter);
+        if (poSearch) p.set('search', poSearch);
+        p.set('page', String(page));
+        p.set('size', String(pageSize));
+        return p.toString();
+    }, [poStatusFilter, poSearch, pageSize]);
 
     const authFetch = useCallback(async (url: string, options: any = {}) => {
         const token = localStorage.getItem('access_token');
@@ -521,7 +548,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
             // Procurement
             if (fetchTarget.includes('purchase-orders') || fetchTarget.includes('suppliers')) {
-                requests.push(fetch(`${API_BASE}/purchase-orders`, { headers }));
+                requests.push(fetch(`${API_BASE}/purchase-orders?${poQuery(poPage)}`, { headers }));
                 requestTypes.push('purchase-orders');
             }
 
@@ -595,7 +622,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'balance': setStockBalance(data); break;
                     case 'stock-ledger': setStockEntries(data.items || []); setReportTotal(data.total || 0); break;
                     case 'sales-orders': setSalesOrders(data.items || []); setSoTotal(data.total || 0); setSoStatusCounts(data.status_counts || {}); break;
-                    case 'purchase-orders': setPurchaseOrders(data); break;
+                    case 'purchase-orders': setPurchaseOrders(data.items || []); setPoTotal(data.total || 0); setPoStatusCounts(data.status_counts || {}); break;
                     case 'audit-logs': setAuditLogs(data.items); setAuditTotal(data.total); break;
                 }
             }
@@ -635,7 +662,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const p = run().finally(() => { delete inFlightRef.current[fetchTarget]; });
         inFlightRef.current[fetchTarget] = p;
         return p;
-    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, soPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
+    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, poQuery, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
 
     // Targeted refresh for the Manufacturing Orders page: re-pull ONLY the MO
     // (root-only) + PR lists. Used after WO/MO/PR mutations instead of the broad
@@ -665,19 +692,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Targeted refresh for the Purchase Orders page after a PO mutation. Goes
     // straight to /purchase-orders instead of the broad fetchData(): fetchData
     // dedupes by target, so a fire-and-forget fetchData() right after a save can
-    // attach to a still-in-flight pre-edit GET of the (heavy, unpaginated) PO list
-    // and re-render the list with stale data — the edit only appeared after a full
-    // page reload. A direct, awaited, no-store fetch bypasses the dedup and the
-    // HTTP cache, so the list always reflects the just-saved change.
+    // attach to a still-in-flight pre-edit GET of the PO list and re-render the
+    // list with stale data — the edit only appeared after a full page reload. A
+    // direct, awaited, no-store fetch bypasses the dedup and the HTTP cache, so
+    // the list always reflects the just-saved change. Window-aware: it must
+    // re-request the page the user is actually on, not page 1.
     const refreshPurchaseOrders = useCallback(async () => {
         if (!currentUser) return;
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            const res = await fetch(`${API_BASE}/purchase-orders`, { headers, cache: 'no-store' });
-            if (res.ok) { const d = await res.json(); setPurchaseOrders(d); }
+            const res = await fetch(`${API_BASE}/purchase-orders?${poQuery(poPage)}`, { headers, cache: 'no-store' });
+            if (res.ok) { const d = await res.json(); setPurchaseOrders(d.items || []); setPoTotal(d.total || 0); setPoStatusCounts(d.status_counts || {}); }
         } catch (e) { console.error('refreshPurchaseOrders error', e); }
-    }, [currentUser]);
+    }, [currentUser, poPage, poQuery]);
 
     // Targeted refresh for the Sales Orders page after a SO mutation — same
     // reasoning as refreshPurchaseOrders: goes straight to /sales-orders instead
@@ -844,7 +872,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const handleTabHover = (tab: string) => fetchData(tab);
 
-    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, soPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
+    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, poSearch, poStatusFilter, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
 
     // When the manufacturing PR filter is CLEARED (e.g. leaving /production-runs
     // after a deep-link PR-badge click narrowed the shared list to one PR), the
@@ -1072,25 +1100,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const value = React.useMemo(() => ({
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
-        stockEntries, stockBalance, workCenters, operations, salesOrders, soStatusCounts, purchaseOrders, samples, samplesMeta, auditLogs,
+        stockEntries, stockBalance, workCenters, operations, salesOrders, soStatusCounts, purchaseOrders, poStatusCounts, samples, samplesMeta, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         printTemplates, refreshPrintTemplates,
         wsStatus,
         loading,
         loadProgress,
-        pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, soPage, setSoPage, soTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, prSoFilter, setPrSoFilter: handleSetPrSoFilter, prProgressFilter, setPrProgressFilter: handleSetPrProgressFilter, pageSize },
-        filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType, soSearch: soSearchInput, setSoSearch: handleSetSoSearch, soCustomerSearch: soCustomerSearchInput, setSoCustomerSearch: handleSetSoCustomerSearch, soStatusFilter, setSoStatusFilter: handleSetSoStatusFilter },
+        pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, soPage, setSoPage, soTotal, poPage, setPoPage, poTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, prSoFilter, setPrSoFilter: handleSetPrSoFilter, prProgressFilter, setPrProgressFilter: handleSetPrProgressFilter, pageSize },
+        filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType, soSearch: soSearchInput, setSoSearch: handleSetSoSearch, soCustomerSearch: soCustomerSearchInput, setSoCustomerSearch: handleSetSoCustomerSearch, soStatusFilter, setSoStatusFilter: handleSetSoStatusFilter, poSearch: poSearchInput, setPoSearch: handleSetPoSearch, poStatusFilter, setPoStatusFilter: handleSetPoStatusFilter },
         fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
-        stockEntries, stockBalance, workCenters, operations, salesOrders, soStatusCounts, purchaseOrders, samples, samplesMeta, auditLogs,
+        stockEntries, stockBalance, workCenters, operations, salesOrders, soStatusCounts, purchaseOrders, poStatusCounts, samples, samplesMeta, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         printTemplates, refreshPrintTemplates, wsStatus, loading, loadProgress,
-        itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, soPage, soTotal, pageSize,
+        itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, soPage, soTotal, poPage, poTotal, pageSize,
         itemSearchInput, moSearch, prSearch, prSoFilter, prProgressFilter, categoryL1, categoryL2, categoryL3, auditType,
-        soSearchInput, soCustomerSearchInput, soStatusFilter, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
+        soSearchInput, soCustomerSearchInput, soStatusFilter, poSearchInput, poStatusFilter, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetPrSoFilter, handleSetPrProgressFilter, handleSetItemSearch,
-        handleSetSoSearch, handleSetSoCustomerSearch, handleSetSoStatusFilter, subscribeLiveEvents
+        handleSetSoSearch, handleSetSoCustomerSearch, handleSetSoStatusFilter, handleSetPoSearch, handleSetPoStatusFilter, subscribeLiveEvents
     ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

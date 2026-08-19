@@ -1606,6 +1606,14 @@ class PurchaseOrderResponse(PurchaseOrderCreate):
     class Config:
         from_attributes = True
 
+class PaginatedPurchaseOrderResponse(BaseModel):
+    items: list[PurchaseOrderResponse]
+    total: int
+    page: int = 1
+    size: int = 50
+    #: Unfiltered, all-time {status: count} for the list's chips + status bar.
+    status_counts: dict[str, int] = {}
+
 # --- Sales Schemas ---
 
 class SalesOrderLineCreate(BaseModel):

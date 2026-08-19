@@ -89,6 +89,14 @@ function buildSection(key: string, d: any, tzDate: (v: string | Date) => string)
     }
 
     case 'procurement': {
+      // Same caveat as 'sales' above: purchaseOrders is now one server page (see
+      // DataContext, `/purchase-orders` is paginated), not the whole table, so
+      // these tiles and the recent-PO list can undercount once the user has
+      // paged/filtered the Purchase Orders list elsewhere in the session.
+      // DataContext's poStatusCounts IS whole-table, but this view makes no
+      // backend calls of its own and the /sections/* route doesn't fetch the PO
+      // list, so it would read {} → 0 here — worse than an approximation. Left as
+      // a known approximation until this view gets a summary endpoint.
       const openPO   = purchaseOrders.filter((p) => p.status === 'DRAFT' || p.status === 'RECEIVING').length;
       const receiving = purchaseOrders.filter((p) => p.status === 'RECEIVING').length;
       const suppliers = partners.filter((p) => p.type === 'SUPPLIER' && p.active).length;
