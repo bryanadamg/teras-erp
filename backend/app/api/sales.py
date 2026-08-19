@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete as sa_delete, update as sa_update
+from sqlalchemy import select, func, or_, delete as sa_delete, update as sa_update
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_async_db
-from app.schemas import SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse
+from app.schemas import SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse, PaginatedSalesOrderResponse
 from app.models.sales import SalesOrder, SalesOrderLine, sales_order_line_values
 from app.models.attribute import Attribute, AttributeValue
 from app.models.bom import BOMSize
@@ -178,25 +178,45 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
 
     return so_refreshed
 
-@router.get("", response_model=list[SalesOrderResponse])
+@router.get("", response_model=PaginatedSalesOrderResponse)
 async def get_sales_orders(
     status: Optional[str] = None,
+    search: Optional[str] = None,
+    customer: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("sales_order.view", "sales_order.create_pr", "production_run.view", "production_run.create")),
 ):
-    query = (
-        select(SalesOrder)
-        .options(*_line_opts())
-    )
+    query = select(SalesOrder).options(*_line_opts())
+    count_query = select(func.count(SalesOrder.id))
+
     if status:
         # comma-separated so callers that only need packable orders (e.g. Packing's
         # SO picker) can scope to a few statuses instead of pulling every SO ever
         # placed, which otherwise fetches unbounded and grows with order history.
         statuses = [s.strip() for s in status.split(",") if s.strip()]
-        query = query.filter(SalesOrder.status.in_(statuses)) if len(statuses) > 1 else query.filter(SalesOrder.status == statuses[0])
-    result = await db.execute(
-        query.order_by(SalesOrder.created_at.desc())
-    )
+        cond = SalesOrder.status.in_(statuses) if len(statuses) > 1 else SalesOrder.status == statuses[0]
+        query = query.filter(cond)
+        count_query = count_query.filter(cond)
+    if search:
+        like = f"%{search}%"
+        cond = or_(SalesOrder.po_number.ilike(like), SalesOrder.customer_po_ref.ilike(like))
+        query = query.filter(cond)
+        count_query = count_query.filter(cond)
+    if customer:
+        cond = SalesOrder.customer_name.ilike(f"%{customer}%")
+        query = query.filter(cond)
+        count_query = count_query.filter(cond)
+
+    total = (await db.execute(count_query)).scalar() or 0
+
+    # limit=0 means "no cap" — used by the table-print export, which needs every
+    # row matching the active filter, not just the page on screen.
+    query = query.order_by(SalesOrder.created_at.desc()).offset(skip)
+    if limit:
+        query = query.limit(limit)
+    result = await db.execute(query)
     orders = result.scalars().all()
 
     for so in orders:
@@ -205,7 +225,15 @@ async def get_sales_orders(
     await _populate_fulfilment(db, list(orders))
     await _populate_variant_attrs(db, list(orders))
 
-    return orders
+    # Unfiltered, all-time counts for the status-bar summary ("X total / Y
+    # pending / Z delivered") — deliberately not scoped to the active filter,
+    # same meaning as before pagination existed.
+    status_rows = (await db.execute(
+        select(SalesOrder.status, func.count(SalesOrder.id)).group_by(SalesOrder.status)
+    )).all()
+    status_counts = {s: c for s, c in status_rows}
+
+    return {"items": orders, "total": total, "status_counts": status_counts}
 
 
 @router.get("/{so_id}", response_model=SalesOrderResponse)

@@ -18,7 +18,6 @@ import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, Tool
 import { useRouter } from 'next/navigation';
 import { lvThead } from '../shared/listViewTheme';
 
-const SO_PAGE_SIZE = 50;
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
 // resized — it is the floor the table refuses to squeeze past before scrolling.
 const SO_TABLE_MIN_WIDTH = 1342;
@@ -30,12 +29,14 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const [editingSOId, setEditingSOId] = useState<string | null>(null);
   const [printingSO, setPrintingSO] = useState<any>(null);
   const [isTablePrintOpen, setIsTablePrintOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [soPage, setSoPage] = useState(1);
+  const [printOrders, setPrintOrders] = useState<any[] | null>(null);
+  const [printLoading, setPrintLoading] = useState(false);
   const { uiStyle: currentStyle } = useTheme();
-  const { companyProfile, uoms, authFetch, itemIndex, loading: dataLoading } = useData();
+  const {
+      companyProfile, uoms, authFetch, itemIndex, loading: dataLoading, soStatusCounts,
+      pagination: { soPage, setSoPage, soTotal, pageSize: soPageSize },
+      filters: { soSearch: searchTerm, setSoSearch: setSearchTerm, soCustomerSearch: customerSearch, setSoCustomerSearch: setCustomerSearch, soStatusFilter: statusFilter, setSoStatusFilter: setStatusFilter },
+  } = useData();
   const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('sales_order.create', 'sales_order.edit', 'sales_order.delete', 'sales_order.close');
 
@@ -924,29 +925,45 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       date:     (so: any) => so.order_date,
       status:   (so: any) => so.status,
   }), []);
+  // Filtering/pagination now happen server-side (DataContext fetches the
+  // committed/debounced search+status+page); sorting stays client-side over
+  // just the current page's ~50 rows.
   const { sorted: sortedOrders, sort: soSort, toggle: toggleSOSort } = useSortable(filteredOrders, soSortCols);
-
-  // Client-side pagination by order (not raw table row — each SO expands into
-  // its own line rows via rowSpan, so the page window slices sortedOrders).
-  useEffect(() => { setSoPage(1); }, [searchTerm, customerSearch, statusFilter]);
-  const soPageCount = Math.max(1, Math.ceil(sortedOrders.length / SO_PAGE_SIZE));
-  const clampedSoPage = Math.min(soPage, soPageCount);
-  const pageOrders = sortedOrders.slice((clampedSoPage - 1) * SO_PAGE_SIZE, clampedSoPage * SO_PAGE_SIZE);
+  const pageOrders = sortedOrders;
 
   // Skeleton sizing: measure one real row so the placeholders shown on the next
   // load are exactly as tall as the rows that replace them.
   const listBodyRef = useRef<HTMLTableSectionElement>(null);
   const skel = useTableSkeletonMetrics('sales-orders', listBodyRef, pageOrders.length > 0);
 
-
+  // The list is now server-paginated, so "print table" needs a dedicated fetch
+  // of every order matching the active filter — not just the ~50 on screen.
+  const handleOpenTablePrint = async () => {
+      setPrintLoading(true);
+      try {
+          const params = new URLSearchParams();
+          if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter);
+          if (searchTerm) params.set('search', searchTerm);
+          if (customerSearch) params.set('customer', customerSearch);
+          params.set('limit', '0');
+          const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders?${params.toString()}`);
+          if (res.ok) {
+              const d = await res.json();
+              setPrintOrders(d.items || []);
+              setIsTablePrintOpen(true);
+          } else {
+              showToast('Failed to load orders for printing', 'danger');
+          }
+      } finally { setPrintLoading(false); }
+  };
 
   return (
     <>
        {/* Table Print Modal */}
        {isTablePrintOpen && (
            <SOTablePrintModal
-               salesOrders={filteredOrders}
-               onClose={() => setIsTablePrintOpen(false)}
+               salesOrders={printOrders || []}
+               onClose={() => { setIsTablePrintOpen(false); setPrintOrders(null); }}
                currentStyle={currentStyle}
                companyProfile={companyProfile}
                items={items}
@@ -1632,11 +1649,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                <FilterChipBar classic={classic} options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
                {classic && <div style={xpSep}></div>}
                <ToolbarCount classic={classic}>
-                   {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
+                   {soTotal} order{soTotal !== 1 ? 's' : ''}
                </ToolbarCount>
                <div style={classic ? { display: 'flex', gap: 4, marginLeft: 'auto' } : undefined} className={classic ? undefined : 'd-flex gap-2 ms-auto'}>
-                   <ToolbarButton classic={classic} tone="neutral" icon="bi-printer" printable onClick={() => setIsTablePrintOpen(true)}>
-                       Print Table
+                   <ToolbarButton classic={classic} tone="neutral" icon="bi-printer" printable disabled={printLoading} onClick={handleOpenTablePrint}>
+                       {printLoading ? 'Loading…' : 'Print Table'}
                    </ToolbarButton>
                    {canManage && (
                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={() => setIsCreateOpen(true)}>
@@ -1943,7 +1960,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                );
            })()}
 
-           <Pager page={clampedSoPage} total={sortedOrders.length} pageSize={SO_PAGE_SIZE} onPageChange={setSoPage} hideWhenEmpty />
+           <Pager page={soPage} total={soTotal} pageSize={soPageSize} onPageChange={setSoPage} hideWhenEmpty />
 
            {/* ── Status bar ── */}
            {classic && (
@@ -1957,11 +1974,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                    fontSize: '10px',
                    color: '#333',
                }}>
-                   <span>{salesOrders.length} total</span>
+                   <span>{Object.values(soStatusCounts).reduce((a: number, b: number) => a + b, 0)} total</span>
                    <span>|</span>
-                   <span>{salesOrders.filter((s: any) => s.status === 'PENDING').length} pending</span>
+                   <span>{soStatusCounts.PENDING || 0} pending</span>
                    <span>|</span>
-                   <span>{salesOrders.filter((s: any) => s.status === 'DELIVERED').length} delivered</span>
+                   <span>{soStatusCounts.DELIVERED || 0} delivered</span>
                </div>
            )}
        </ShellWindow>

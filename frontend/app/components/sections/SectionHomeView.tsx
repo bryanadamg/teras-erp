@@ -61,6 +61,12 @@ function buildSection(key: string, d: any, tzDate: (v: string | Date) => string)
 
   switch (key) {
     case 'sales': {
+      // salesOrders is now one server page (see DataContext, `/sales-orders` is
+      // paginated), not the whole table, so this can undercount once the user
+      // has paged/filtered the Sales Orders list elsewhere in the session.
+      // dashboardSummary.open_so_count is PENDING-only (not PENDING+PARTIAL), a
+      // different definition of "open" than this tile has always shown, so it
+      // isn't a drop-in replacement — left as a known approximation for now.
       const open  = salesOrders.filter((s) => s.status === 'PENDING' || s.status === 'PARTIAL').length;
       const ready = salesOrders.filter((s) => s.status === 'READY').length;
       const customers = partners.filter((p) => p.type === 'CUSTOMER' && p.active).length;

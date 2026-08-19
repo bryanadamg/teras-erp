@@ -563,7 +563,7 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
 
     useEffect(() => {
         (async () => {
-            const res = await authFetch(`${API_BASE}/sales-orders?status=PENDING,READY,PARTIAL`);
+            const res = await authFetch(`${API_BASE}/sales-orders?status=PENDING,READY,PARTIAL&limit=0`);
             if (res.ok) { const d = await res.json(); setSos(Array.isArray(d) ? d : (d.items || [])); }
         })();
     }, [authFetch]);

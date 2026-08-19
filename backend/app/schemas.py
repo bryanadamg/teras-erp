@@ -1693,6 +1693,11 @@ class SalesOrderResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PaginatedSalesOrderResponse(BaseModel):
+    items: list[SalesOrderResponse]
+    total: int
+    status_counts: dict[str, int] = {}
+
 # --- Sample Request Schemas ---
 
 class SampleColorCreate(BaseModel):
