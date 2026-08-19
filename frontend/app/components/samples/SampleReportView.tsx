@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
-import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, ToolbarButton } from '../shared/shellTheme';
 import {
     lvTh, lvThead, lvRow, lvBtn, lvInput, lvLabel, lvSep, LvSectionCaption, LV_XP_FONT, LV_MODERN_FONT,
 } from '../shared/listViewTheme';
@@ -234,14 +234,8 @@ export default function SampleReportView() {
                 <span style={inlineLabel}>
                     <b>{rows.length}</b> variant rows
                 </span>
-                <button type="button" onClick={load} style={lvBtn(classic)}
-                    className={classic ? '' : 'btn btn-sm btn-outline-secondary'} title="Reload">
-                    <i className="bi bi-arrow-clockwise" /> Refresh
-                </button>
-                <button type="button" onClick={exportCsv} disabled={!rows.length} style={lvBtn(classic)}
-                    className={classic ? '' : 'btn btn-sm btn-primary'} title="Download the variant table as CSV">
-                    <i className="bi bi-download" /> Export CSV
-                </button>
+                <ToolbarButton classic={classic} tone="neutral" icon="bi-arrow-clockwise" title="Reload" onClick={load}>Refresh</ToolbarButton>
+                <ToolbarButton classic={classic} tone="neutral" icon="bi-download" disabled={!rows.length} title="Download the variant table as CSV" onClick={exportCsv}>Export CSV</ToolbarButton>
             </div>
         </div>
     );

@@ -11,7 +11,7 @@ import Pager from '../shared/Pager';
 import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvPrimaryBtn } from '../shared/listViewTheme';
 import { STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -486,9 +486,7 @@ export default function LabDipRequestView({
     const displayCode = editing ? editing.code : nextCode;
 
 
-    const primaryToolbarBtn = classic
-        ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
-        : xpBtn(false, modernPrimaryBtn);
+    const primaryToolbarBtn = lvPrimaryBtn(classic);
 
     return (
         <div style={classic

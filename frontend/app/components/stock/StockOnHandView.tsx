@@ -3,7 +3,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -1264,9 +1264,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </button>
                         )}
                         {canEntry && (
-                            <button style={xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', marginLeft: 'auto' })} onClick={openNew} title="Add stock for an item (new manual entry)">
-                                <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Entry
-                            </button>
+                            <ToolbarButton classic tone="create" icon="bi-plus-lg" style={{ marginLeft: 'auto' }} title="Add stock for an item (new manual entry)" onClick={openNew}>
+                                New Entry
+                            </ToolbarButton>
                         )}
                     </div>
                     <div style={{ flex: 1, overflow: 'auto', background: '#ffffff', minHeight: 0 }}>
@@ -1392,9 +1392,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         )}
                         {canEntry && (
                             <div className="col-md-2 ms-auto">
-                                <button className="btn btn-success btn-sm w-100" onClick={openNew} title="Add stock for an item (new manual entry)">
-                                    <i className="bi bi-plus-lg me-1" />New Entry
-                                </button>
+                                <ToolbarButton classic={false} tone="create" icon="bi-plus-lg" style={{ width: '100%' }} title="Add stock for an item (new manual entry)" onClick={openNew}>
+                                    New Entry
+                                </ToolbarButton>
                             </div>
                         )}
                     </div>
