@@ -391,9 +391,14 @@ interface CodeConfigModalProps {
     onSave: (config: CodeConfig) => void;
     initialConfig?: CodeConfig;
     attributes: any[];
+    /** Every caller opens this from inside a Create/Edit panel — default to
+     * level 2 so it stacks above that panel regardless of DOM sibling order
+     * (ModalWrapper falls back to document order when two modeless modals
+     * share a z-index tier). */
+    level?: 1 | 2 | 3;
 }
 
-export default function CodeConfigModal({ isOpen, onClose, type, onSave, initialConfig, attributes }: CodeConfigModalProps) {
+export default function CodeConfigModal({ isOpen, onClose, type, onSave, initialConfig, attributes, level = 2 }: CodeConfigModalProps) {
   const [segments, setSegments] = useState<Segment[]>(() => getDefaultSegments(type));
   const [separator, setSeparator] = useState('-');
   const [activeGap, setActiveGap] = useState<number | null>(null);
@@ -683,7 +688,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
     };
 
     return (
-      <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} footer={footer} size="lg" variant="primary" modeless>
+      <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} footer={footer} size="lg" variant="primary" modeless level={level}>
         <div style={{ fontFamily: xpFont, fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
             {/* Separator row */}
@@ -783,7 +788,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
 
   // ─── Default (Modern) Mode ────────────────────────────────────────────────
   return (
-    <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} footer={footer} size="lg" variant="primary" modeless>
+    <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} footer={footer} size="lg" variant="primary" modeless level={level}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
           {/* Separator row */}
