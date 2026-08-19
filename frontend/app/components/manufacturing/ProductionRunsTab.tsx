@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
-import { FilterChipBar } from '../shared/shellTheme';
+import { FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
@@ -260,51 +260,16 @@ export default function ProductionRunsTab({
                     total={prTotal}
                     classic={classic}
                     showCount={filtersActive}
-                    actions={classic ? (
+                    actions={
                         <>
                             {canManage && (
-                                <button
-                                    onClick={onNewProductionRun}
-                                    style={{
-                                        fontFamily: xpFont, fontSize: '11px',
-                                        padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
-                                        background: 'linear-gradient(to bottom,#5a9ae0,#0058e6)',
-                                        border: '1px solid', borderColor: '#003080 #001840 #001840 #003080',
-                                        color: '#fff',
-                                    }}
-                                >
-                                    <i className="bi bi-collection-play me-1"></i>New Production Run
-                                </button>
+                                <ToolbarButton classic={classic} tone="launch" icon="bi-collection-play" onClick={onNewProductionRun}>New Production Run</ToolbarButton>
                             )}
                             {onPrint && (
-                                <button
-                                    onClick={onPrint}
-                                    style={{
-                                        fontFamily: xpFont, fontSize: '11px',
-                                        padding: '2px 10px', cursor: 'pointer',
-                                        background: 'linear-gradient(to bottom,#fff,#d4d0c8)',
-                                        border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                                        color: '#000',
-                                    }}
-                                >
-                                    <i className="bi bi-printer me-1"></i>Print
-                                </button>
+                                <ToolbarButton classic={classic} tone="neutral" icon="bi-printer" printable onClick={onPrint}>Print</ToolbarButton>
                             )}
                         </>
-                    ) : (
-                        <>
-                            {canManage && (
-                                <button className="btn btn-primary btn-sm" onClick={onNewProductionRun}>
-                                    <i className="bi bi-collection-play me-1"></i>New Production Run
-                                </button>
-                            )}
-                            {onPrint && (
-                                <button className="btn btn-outline-primary btn-sm btn-print" onClick={onPrint}>
-                                    <i className="bi bi-printer me-1"></i>Print
-                                </button>
-                            )}
-                        </>
-                    )}
+                    }
                     filters={
                         <>
                             <FilterChipBar

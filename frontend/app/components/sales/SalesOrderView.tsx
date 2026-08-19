@@ -14,7 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
-import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
 import { lvThead } from '../shared/listViewTheme';
 
@@ -1634,30 +1634,16 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                <ToolbarCount classic={classic}>
                    {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
                </ToolbarCount>
-               {classic ? (
-                   <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                       <button style={xpBtn()} onClick={() => setIsTablePrintOpen(true)}>
-                           <i className="bi bi-printer" style={{ marginRight: 4 }}></i>Print Table
-                       </button>
-                       {canManage && (
-                       <button
-                           style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
-                           onClick={() => setIsCreateOpen(true)}
-                       >
-                           <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
-                       </button>
-                       )}
-                   </div>
-               ) : (
-                   <div className="d-flex gap-2 ms-auto">
-                       <button className="btn btn-sm btn-outline-secondary btn-print" onClick={() => setIsTablePrintOpen(true)}>
-                           <i className="bi bi-printer me-1"></i>Print Table
-                       </button>
-                       {canManage && <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-                           <i className="bi bi-plus-lg me-2"></i>{t('create')}
-                       </button>}
-                   </div>
-               )}
+               <div style={classic ? { display: 'flex', gap: 4, marginLeft: 'auto' } : undefined} className={classic ? undefined : 'd-flex gap-2 ms-auto'}>
+                   <ToolbarButton classic={classic} tone="neutral" icon="bi-printer" printable onClick={() => setIsTablePrintOpen(true)}>
+                       Print Table
+                   </ToolbarButton>
+                   {canManage && (
+                       <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={() => setIsCreateOpen(true)}>
+                           {t('create')}
+                       </ToolbarButton>
+                   )}
+               </div>
            </div>
 
            {/* ── Table ── */}

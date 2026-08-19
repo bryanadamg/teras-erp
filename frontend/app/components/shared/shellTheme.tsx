@@ -151,6 +151,82 @@ export function ToolbarCount({ classic, children, right = false, style }: {
     );
 }
 
+// Toolbar-level labeled action buttons — "Create X" / "New X" / "Print" / "Import"
+// / "Refresh" — the buttons a list toolbar ends with. Every view that had one of
+// these hand-rolled its own copy of the same handful of gradients (a bold green
+// "create" CTA, a bold blue "launch" CTA for a distinct action like Production
+// Run, and a plain white/grey "neutral" for Print/Import/Refresh) once per
+// theme branch. Use this instead of inlining another one.
+export type ToolbarButtonTone = 'create' | 'launch' | 'neutral' | 'danger';
+
+const TOOLBAR_BTN_CLASSIC: Record<ToolbarButtonTone, React.CSSProperties> = {
+    create:  { background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' },
+    launch:  { background: 'linear-gradient(to bottom, #5a9ae0, #0058e6)', borderColor: '#003080 #001840 #001840 #003080', color: '#ffffff', fontWeight: 'bold' },
+    neutral: { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000' },
+    danger:  { background: 'linear-gradient(to bottom, #ff6060, #cc0000)', borderColor: '#800000 #4a0000 #4a0000 #800000', color: '#ffffff' },
+};
+
+const TOOLBAR_BTN_MODERN: Record<ToolbarButtonTone, string> = {
+    create: 'btn-success text-white',
+    launch: 'btn-primary',
+    neutral: 'btn-outline-secondary',
+    danger: 'btn-danger',
+};
+
+export function ToolbarButton({
+    classic, tone = 'neutral', icon, children, onClick, disabled = false, testId, printable = false, title, style,
+}: {
+    classic: boolean;
+    /** create = green CTA ("Add X"/"Create"/"New Lot"). launch = blue CTA for a
+     * second, distinct create-like action on the same toolbar (e.g. "New
+     * Production Run" next to a green "New MO"). neutral = Print/Import/Refresh. */
+    tone?: ToolbarButtonTone;
+    icon?: string; // bootstrap-icon suffix, e.g. 'bi-plus-lg'
+    children: React.ReactNode;
+    onClick: (e: React.MouseEvent) => void;
+    disabled?: boolean;
+    testId?: string;
+    /** Tags the modern button `btn-print` (picked up by the classic-theme CSS
+     * override) — pass for the Print action specifically. */
+    printable?: boolean;
+    title?: string;
+    style?: React.CSSProperties;
+}) {
+    if (classic) {
+        return (
+            <button
+                data-testid={testId}
+                onClick={onClick}
+                disabled={disabled}
+                title={title}
+                style={{
+                    fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
+                    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+                    border: '1px solid', borderRadius: 0,
+                    ...TOOLBAR_BTN_CLASSIC[tone],
+                    ...style,
+                }}
+            >
+                {icon && <i className={`bi ${icon}`} style={{ marginRight: 4 }}></i>}
+                {children}
+            </button>
+        );
+    }
+    return (
+        <button
+            data-testid={testId}
+            className={`btn btn-sm ${TOOLBAR_BTN_MODERN[tone]}${printable ? ' btn-print' : ''}`}
+            onClick={onClick}
+            disabled={disabled}
+            title={title}
+            style={style}
+        >
+            {icon && <i className={`bi ${icon} me-2`}></i>}
+            {children}
+        </button>
+    );
+}
+
 export type FilterChipOption = {
     value: string;
     label?: React.ReactNode;

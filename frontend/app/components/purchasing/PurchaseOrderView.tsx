@@ -12,7 +12,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
 
@@ -837,18 +837,11 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                <ToolbarCount classic={classic}>
                    {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
                </ToolbarCount>
-               {canManage && (classic ? (
-                   <button
-                       style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', marginLeft: 'auto' })}
-                       onClick={() => setIsCreateOpen(true)}
-                   >
-                       <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
-                   </button>
-               ) : (
-                   <button className="btn btn-sm btn-success text-white ms-auto" onClick={() => setIsCreateOpen(true)}>
-                       <i className="bi bi-plus-lg me-2"></i>{t('create')}
-                   </button>
-               ))}
+               {canManage && (
+                   <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" style={{ marginLeft: 'auto' }} onClick={() => setIsCreateOpen(true)}>
+                       {t('create')}
+                   </ToolbarButton>
+               )}
            </div>
 
            {/* ── Table ── */}

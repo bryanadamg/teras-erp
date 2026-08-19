@@ -10,7 +10,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -34,7 +34,6 @@ const xpTableHeader: React.CSSProperties = {
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
 // Title-bar "create" button — same style as SalesOrderView / PartnersView / SampleRequestView.
-const xpBtnCreate = xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' });
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
 // This view is classic-only chrome (ShellWindow classic), so the shared form
@@ -373,16 +372,14 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 title="Packing Orders"
             />
             <div style={xpToolbar()}>
-                <button style={xpBtn()} onClick={loadAll} title="Refresh">
-                    <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
-                </button>
+                <ToolbarButton classic tone="neutral" icon="bi-arrow-clockwise" onClick={loadAll}>Refresh</ToolbarButton>
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333' }}>
                     {total.toLocaleString()} order{total !== 1 ? 's' : ''}
                 </span>
                 {canManage && (
-                    <button style={xpBtnCreate} onClick={() => setCreating(true)} title="Order finished goods packed into cartons">
-                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
-                    </button>
+                    <ToolbarButton classic tone="create" icon="bi-plus-lg" title="Order finished goods packed into cartons" onClick={() => setCreating(true)}>
+                        New Packing Order
+                    </ToolbarButton>
                 )}
             </div>
             <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>

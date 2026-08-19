@@ -13,7 +13,7 @@ import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
 import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg, ToggleChip } from '../shared/xpTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
@@ -1371,12 +1371,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        )}
                    </ToolbarCount>
                    {canManage && (
-                       <button
-                           style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
-                           onClick={openCreateModal}
-                       >
-                           <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
-                       </button>
+                       <ToolbarButton classic tone="create" icon="bi-plus-lg" onClick={openCreateModal}>
+                           {t('create')}
+                       </ToolbarButton>
                    )}
                </div>
            ) : (
@@ -1436,9 +1433,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        )}
                    </span>
                    {canManage && (
-                       <button className="btn btn-sm btn-primary" onClick={openCreateModal}>
-                           <i className="bi bi-plus-lg me-2"></i>{t('create')}
-                       </button>
+                       <ToolbarButton classic={false} tone="create" icon="bi-plus-lg" onClick={openCreateModal}>
+                           {t('create')}
+                       </ToolbarButton>
                    )}
                </div>
            )}

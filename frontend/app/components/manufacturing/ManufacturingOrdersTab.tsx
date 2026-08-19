@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import CalendarView from '../shared/CalendarView';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
+import { ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
@@ -1073,43 +1074,14 @@ export default function ManufacturingOrdersTab({
 
             {(() => {
                 const moActions = canManage || onPrint ? (
-                    classic ? (
-                        <>
-                            {canManage && (
-                                <button
-                                    onClick={onNewMO}
-                                    style={{
-                                        fontFamily: xpFont, fontSize: '11px',
-                                        padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
-                                        background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)',
-                                        border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
-                                        color: '#fff',
-                                    }}
-                                >
-                                    <i className="bi bi-plus-lg me-1"></i>New MO
-                                </button>
-                            )}
-                            {onPrint && (
-                                <button
-                                    onClick={onPrint}
-                                    style={{
-                                        fontFamily: xpFont, fontSize: '11px',
-                                        padding: '2px 10px', cursor: 'pointer',
-                                        background: 'linear-gradient(to bottom,#fff,#d4d0c8)',
-                                        border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                                        color: '#000',
-                                    }}
-                                >
-                                    <i className="bi bi-printer me-1"></i>Print
-                                </button>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            {canManage && <button className="btn btn-success btn-sm text-white" onClick={onNewMO}><i className="bi bi-plus-lg me-1"></i>New MO</button>}
-                            {onPrint && <button className="btn btn-outline-primary btn-sm btn-print" onClick={onPrint}><i className="bi bi-printer me-1"></i>Print</button>}
-                        </>
-                    )
+                    <>
+                        {canManage && (
+                            <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={onNewMO}>New MO</ToolbarButton>
+                        )}
+                        {onPrint && (
+                            <ToolbarButton classic={classic} tone="neutral" icon="bi-printer" printable onClick={onPrint}>Print</ToolbarButton>
+                        )}
+                    </>
                 ) : null;
 
                 return viewMode === 'calendar' ? (

@@ -12,7 +12,7 @@ import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead } from '../shared/listViewTheme';
-import { FilterChipBar, xpToolbar } from '../shared/shellTheme';
+import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
     { value: 'root', label: 'Root BOMs' },
@@ -916,9 +916,9 @@ export default function BOMView({
                                 </div>
                             )}
                             {canManage && (
-                            <button data-testid="create-bom-btn" style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto', background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' }} onClick={() => setIsDesignerOpen(true)}>
-                                <i className="bi bi-plus-lg" style={{ marginRight: '4px' }} />{t('create_recipe')}
-                            </button>
+                                <ToolbarButton classic tone="create" icon="bi-plus-lg" testId="create-bom-btn" style={{ marginLeft: 'auto' }} onClick={() => setIsDesignerOpen(true)}>
+                                    {t('create_recipe')}
+                                </ToolbarButton>
                             )}
                         </div>
                     ) : (
@@ -938,9 +938,9 @@ export default function BOMView({
                                 </div>
                             )}
                             {canManage && (
-                            <button data-testid="create-bom-btn" className="btn btn-sm btn-primary ms-auto" onClick={() => setIsDesignerOpen(true)}>
-                                <i className="bi bi-plus-lg me-2" />{t('create_recipe')}
-                            </button>
+                                <ToolbarButton classic={false} tone="create" icon="bi-plus-lg" testId="create-bom-btn" style={{ marginLeft: 'auto' }} onClick={() => setIsDesignerOpen(true)}>
+                                    {t('create_recipe')}
+                                </ToolbarButton>
                             )}
                         </div>
                     )}

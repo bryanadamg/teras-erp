@@ -10,7 +10,7 @@ import { useUser } from '../../context/UserContext';
 import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
 
@@ -184,18 +184,11 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     <ToolbarCount classic={classic}>
                         {filteredPartners.length} {typeLabel}{filteredPartners.length !== 1 ? 's' : ''}
                     </ToolbarCount>
-                    {canManage && (classic ? (
-                        <button
-                            style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', marginLeft: 'auto' })}
-                            onClick={() => setIsCreateOpen(true)}
-                        >
-                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add {typeLabel}
-                        </button>
-                    ) : (
-                        <button className="btn btn-sm btn-primary ms-auto" onClick={() => setIsCreateOpen(true)}>
-                            <i className="bi bi-plus-lg me-2"></i>Add {typeLabel}
-                        </button>
-                    ))}
+                    {canManage && (
+                        <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" style={{ marginLeft: 'auto' }} onClick={() => setIsCreateOpen(true)}>
+                            Add {typeLabel}
+                        </ToolbarButton>
+                    )}
                 </div>
 
                 {/* ── Bulk action bar ── */}

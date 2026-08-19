@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
   { value: 'active', label: 'Active' },
@@ -848,12 +848,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               onChange={v => setStatusFilter(v as '' | 'active' | 'depleted')}
             />
             <span style={{ display: 'inline-flex', gap: 4, marginLeft: 'auto' }}>
-              <button style={xpBtn()} onClick={fetchBatches}>
-                <i className="bi bi-arrow-clockwise" /> Refresh
-              </button>
-              <button style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })} onClick={() => setIsCreateOpen(true)}>
-                <i className="bi bi-plus" /> New Lot
-              </button>
+              <ToolbarButton classic tone="neutral" icon="bi-arrow-clockwise" onClick={fetchBatches}>Refresh</ToolbarButton>
+              <ToolbarButton classic tone="create" icon="bi-plus" onClick={() => setIsCreateOpen(true)}>New Lot</ToolbarButton>
             </span>
           </div>
 
@@ -979,12 +975,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               onChange={v => setStatusFilter(v as '' | 'active' | 'depleted')}
             />
             <div className="ms-auto d-flex gap-2">
-              <button className="btn btn-sm btn-outline-secondary" title="Refresh" onClick={fetchBatches}>
-                <i className="bi bi-arrow-clockwise" />
-              </button>
-              <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-                <i className="bi bi-plus" /> New Lot
-              </button>
+              <ToolbarButton classic={false} tone="neutral" icon="bi-arrow-clockwise" onClick={fetchBatches}>Refresh</ToolbarButton>
+              <ToolbarButton classic={false} tone="create" icon="bi-plus" onClick={() => setIsCreateOpen(true)}>New Lot</ToolbarButton>
             </div>
           </div>
 
