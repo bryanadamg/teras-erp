@@ -1376,6 +1376,23 @@ class StockBalanceResponse(BaseModel):
     mo_code: str | None = None
     wo_code: str | None = None
 
+class PaginatedStockBalanceResponse(BaseModel):
+    """Envelope for GET /stock/balance/paginated — the Stock On-Hand grid.
+
+    The aggregate fields are computed over the WHOLE filtered set, not the page:
+    the footer summary they feed ("N rows / N negative / N rejected") would
+    otherwise silently report page-only numbers. `total_rows` is the unfiltered
+    balance-row count behind the footer's "Total: N SKUs".
+    """
+    items: list[StockBalanceResponse]
+    total: int
+    page: int = 1
+    size: int = 50
+    negative_count: int = 0
+    rejected_count: int = 0
+    rejected_qty: float = 0
+    total_rows: int = 0
+
 class UOMCreate(BaseModel):
     name: str
 
@@ -1509,6 +1526,11 @@ class PaginatedPartnerResponse(BaseModel):
     total: int
     page: int
     size: int
+    # Whole-directory counts scoped by `type` only (not search/active) — the classic
+    # status bar shows "N total / N active" for every partner of that type, not the
+    # current page. Declared here because response_model drops undeclared keys.
+    type_total: int = 0
+    type_active: int = 0
 
 # --- Purchase Order (Outgoing) Schemas ---
 
@@ -2219,6 +2241,24 @@ class LabDipRequestResponse(BaseModel):
     dips: list[LabDipLineResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
+class PaginatedLabDipRequestResponse(BaseModel):
+    """`{items, total, page, size}` envelope for GET /lab-dips.
+
+    The route used to return a bare list with a silent limit of 100, so the two lab
+    dip pages paginated client-side over only the first 100 rows — request #101 was
+    unreachable. `size` keeps the endpoint's historical default of 100.
+    """
+    items: list[LabDipRequestResponse] = []
+    total: int = 0
+    page: int = 1
+    size: int = 100
+    #: Variant-grain tallies over the whole filtered set (not the page) — the list
+    #: footer counts variants, which page-local sums would understate.
+    variant_counts: dict[str, int] = {}
+    #: Page that currently holds `?focus_id=` under the active filters (deep links);
+    #: None when no focus was asked for or the row does not match the filters.
+    focus_page: Optional[int] = None
+
 # --- Auth Schemas ---
 
 class PermissionBase(BaseModel):
@@ -2421,6 +2461,12 @@ class DyeRecipeResponse(BaseModel):
     wash_baths: list[DyeRecipeWashBathResponse] = []
     finishing_steps: list[DyeRecipeFinishingResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+class PaginatedDyeRecipeResponse(BaseModel):
+    items: list[DyeRecipeResponse] = []
+    total: int = 0
+    page: int = 1
+    size: int = 50
 
 class DyeingRunChemicalCreate(BaseModel):
     item_id: UUID

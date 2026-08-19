@@ -19,34 +19,34 @@ export default function YarnLabDipsPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     // Deep-link from Color Library's "From Lab Dip" cell: /lab-dips-yarn?open=<request_id>
-    // expands+scrolls to that request. Cleared from the URL once consumed.
-    const openRequestId = searchParams.get('open');
-    useEffect(() => { if (openRequestId) router.replace('/lab-dips-yarn'); }, [openRequestId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // expands+scrolls to that request. Cleared from the URL once consumed — but LATCHED
+    // in state first: the id is a fetch param for the view's server-paginated list (the
+    // server ranks it to find its page), so letting it flip back to null when the URL is
+    // rewritten would change the query and bounce the list back to page 1.
+    const rawOpen = searchParams.get('open');
+    const [openRequestId, setOpenRequestId] = useState<string | null>(null);
+    useEffect(() => {
+        if (!rawOpen) return;
+        setOpenRequestId(rawOpen);
+        router.replace('/lab-dips-yarn');
+    }, [rawOpen]); // eslint-disable-line react-hooks/exhaustive-deps
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    const [labDips, setLabDips] = useState<any[]>([]);
-    // True from first paint so the list shows the loader, not "none yet".
-    const [labDipsLoading, setLabDipsLoading] = useState(true);
     const [recipes, setRecipes] = useState<any[]>([]);
     const [colors, setColors] = useState<any[]>([]);
     // Yarn item picker: raw-material-scoped server-side typeahead.
     const { results: items, onSearch: handleItemSearch } = useRawMaterialSearch();
 
-    const fetchLabDips = useCallback(async () => {
-        try {
-            const res = await authFetch(`${API_BASE}/lab-dips?kind=YARN`);
-            if (res.ok) {
-                const data = await res.json();
-                setLabDips(Array.isArray(data) ? data : (data.items ?? []));
-            }
-        } catch { /* silent */ }
-        finally { setLabDipsLoading(false); }
-    }, [authFetch, API_BASE]);
-
+    // The request list itself is fetched by LabDipRequestView (kind=YARN): it is
+    // server-paginated and server-filtered, and the filter state that drives those params
+    // lives there. The view also refetches after each mutation below, so these handlers
+    // only own the call + the toast.
     const fetchRecipes = useCallback(async () => {
         try {
-            const res = await authFetch(`${API_BASE}/dye-recipes`);
+            // Picker feed, not a list — the approved-recipe select must offer every
+            // recipe, so take the uncapped set (`size=0`) rather than page 1.
+            const res = await authFetch(`${API_BASE}/dye-recipes?size=0`);
             if (res.ok) {
                 const data = await res.json();
                 setRecipes(Array.isArray(data) ? data : (data.items ?? []));
@@ -66,24 +66,23 @@ export default function YarnLabDipsPage() {
         } catch { /* silent */ }
     }, [authFetch, API_BASE]);
 
-    useEffect(() => { fetchLabDips(); fetchRecipes(); fetchColors(); }, [fetchLabDips, fetchRecipes, fetchColors]);
+    useEffect(() => { fetchRecipes(); fetchColors(); }, [fetchRecipes, fetchColors]);
 
     const handleCreate = async (payload: any) => {
         // kind is set once at create; it picks the sequence and is immutable afterwards.
         const res = await authFetch(`${API_BASE}/lab-dips`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, kind: 'YARN' }) });
-        if (res.ok) { fetchLabDips(); showToast('Yarn lab dip request created', 'success'); }
+        if (res.ok) showToast('Yarn lab dip request created', 'success');
         else showToast('Failed to create yarn lab dip request', 'danger');
     };
 
     const handleEdit = async (id: string, payload: any) => {
         const res = await authFetch(`${API_BASE}/lab-dips/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (res.ok) { fetchLabDips(); showToast('Yarn lab dip request updated', 'success'); }
+        if (res.ok) showToast('Yarn lab dip request updated', 'success');
         else showToast('Failed to update yarn lab dip request', 'danger');
     };
 
     const handleUpdateStatus = async (id: string, status: string) => {
-        const res = await authFetch(`${API_BASE}/lab-dips/${id}/status?status=${status}`, { method: 'PUT' });
-        if (res.ok) fetchLabDips();
+        await authFetch(`${API_BASE}/lab-dips/${id}/status?status=${status}`, { method: 'PUT' });
     };
 
     // Photo is a second call — see the FG lab dip page for why.
@@ -100,7 +99,6 @@ export default function YarnLabDipsPage() {
                 fd.append('file', extra.image);
                 await authFetch(`${API_BASE}/lab-dips/${reqId}/items/${itemId}/status-image`, { method: 'POST', body: fd });
             }
-            fetchLabDips();
             if (status === 'APPROVED') { fetchColors(); showToast('Variant approved · color added to library', 'success'); }
         } else {
             const err = await res.json().catch(() => null);
@@ -117,15 +115,13 @@ export default function YarnLabDipsPage() {
         });
         if (!ok) return;
         const res = await authFetch(`${API_BASE}/lab-dips/${id}`, { method: 'DELETE' });
-        if (res.ok) { fetchLabDips(); showToast('Yarn lab dip request deleted', 'success'); }
+        if (res.ok) showToast('Yarn lab dip request deleted', 'success');
         else showToast('Failed to delete yarn lab dip request', 'danger');
     };
 
     return (
         <LabDipRequestView
             kind="YARN"
-            labDips={labDips}
-            loading={labDipsLoading}
             openRequestId={openRequestId}
             customers={customers}
             items={items}

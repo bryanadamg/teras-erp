@@ -5,7 +5,10 @@ import { useData } from '../context/DataContext';
 import { useToast } from '../components/shared/Toast';
 
 export default function CustomersPage() {
-    const { partners, fetchData, authFetch } = useData();
+    // No `partners` here: PartnersView server-paginates its own /partners page.
+    // fetchData() still refreshes DataContext's /partners/lookup index so the
+    // customer dropdowns elsewhere see the change.
+    const { fetchData, authFetch } = useData();
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -58,7 +61,6 @@ export default function CustomersPage() {
 
     return (
             <PartnersView
-                partners={partners}
                 type="CUSTOMER"
                 onCreate={handleCreatePartner}
                 onUpdate={handleUpdatePartner}

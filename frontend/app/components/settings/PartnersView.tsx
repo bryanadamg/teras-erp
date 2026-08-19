@@ -9,10 +9,14 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
+
+const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+const API_BASE = envBase.replace(/\/api$/, '') + '/api';
 
 interface Partner {
     id: string;
@@ -27,7 +31,14 @@ interface Partner {
 }
 
 interface PartnersViewProps {
-    partners: Partner[];
+    /**
+     * Deliberately unused for the table: the list is server-paginated (see
+     * `usePaginatedFetch` below), so DataContext's shared `partners` array — which
+     * is now the unwindowed /partners/lookup index for dropdowns and name
+     * resolution — must not be sliced here. Kept optional so existing callers that
+     * still pass it keep compiling.
+     */
+    partners?: Partner[];
     type: 'CUSTOMER' | 'SUPPLIER';
     onCreate: (partner: any) => void;
     onUpdate: (id: string, partner: any) => void;
@@ -35,25 +46,43 @@ interface PartnersViewProps {
     onBulkDelete?: (ids: string[]) => void;
 }
 
-export default function PartnersView({ partners, type, onCreate, onUpdate, onDelete, onBulkDelete }: PartnersViewProps) {
+export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBulkDelete }: PartnersViewProps) {
     const { showToast } = useToast();
     const { t } = useLanguage();
-    const { loading: dataLoading } = useData();
+    const { authFetch } = useData();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
     const [newPartner, setNewPartner] = useState({ name: '', address: '', contact_person: '', phone: '', fax: '', email: '', type, active: true });
     const [deletingPartner, setDeletingPartner] = useState<Partner | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
     const { uiStyle: currentStyle } = useTheme();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-    const [page, setPage] = useState(1);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(140);
 
+    // Server-paginated + server-filtered: `rows` is ONE page of this partner type,
+    // never the whole directory. Search (name OR address) and the `type` scope are
+    // applied by the backend; the hook resets to page 1 whenever either changes.
+    const {
+        rows: pagedPartners, total, meta, loading,
+        page, setPage, search: searchTerm, searchInput, setSearch, refetch,
+    } = usePaginatedFetch<Partner>({
+        endpoint: `${API_BASE}/partners`,
+        authFetch,
+        pageSize: PARTNERS_PAGE_SIZE,
+        params: { type },
+        onError: m => showToast(m, 'danger'),
+    });
+
+    // A selection is page-scoped, so it can't survive a page or filter change.
     useEffect(() => {
         setSelectedIds(new Set());
-        setPage(1);
-    }, [searchTerm]);
+    }, [searchTerm, page]);
+
+    /** Reload the current page after a mutation the parent performed. */
+    const afterMutation = async (result: any) => {
+        await Promise.resolve(result);
+        refetch();
+    };
 
     const classic = currentStyle === 'classic';
     const typeLabel = type === 'CUSTOMER' ? 'Customer' : 'Supplier';
@@ -81,21 +110,12 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     const tdBase: React.CSSProperties = lvTd(true);
     const xpLabel: React.CSSProperties = lvLabel(true);
 
-    const filteredPartners = partners.filter(p =>
-        p.type === type &&
-        (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         (p.address || '').toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-    const pages = Math.max(1, Math.ceil(filteredPartners.length / PARTNERS_PAGE_SIZE));
-    const clampedPage = Math.min(page, pages);
-    const pagedPartners = filteredPartners.slice((clampedPage - 1) * PARTNERS_PAGE_SIZE, clampedPage * PARTNERS_PAGE_SIZE);
-
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics('partners', listBodyRef, pagedPartners.length > 0);
 
-    const allSelected = filteredPartners.length > 0 && selectedIds.size === filteredPartners.length;
+    const allSelected = pagedPartners.length > 0 && selectedIds.size === pagedPartners.length;
     const someSelected = selectedIds.size > 0;
 
     const toggleSelect = (id: string) => {
@@ -110,16 +130,17 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
         if (allSelected) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(filteredPartners.map(p => p.id)));
+            // Page-scoped: only the loaded rows exist client-side now.
+            setSelectedIds(new Set(pagedPartners.map(p => p.id)));
         }
     };
 
     const confirmBulkDelete = () => {
         const ids = Array.from(selectedIds);
         if (onBulkDelete) {
-            onBulkDelete(ids);
+            afterMutation(onBulkDelete(ids));
         } else {
-            ids.forEach(id => onDelete(id));
+            afterMutation(Promise.all(ids.map(id => onDelete(id))));
         }
         setSelectedIds(new Set());
         setShowBulkDeleteConfirm(false);
@@ -128,7 +149,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newPartner.name) return;
-        onCreate(newPartner);
+        afterMutation(onCreate(newPartner));
         setNewPartner({ name: '', address: '', contact_person: '', phone: '', fax: '', email: '', type, active: true });
         setIsCreateOpen(false);
     };
@@ -136,7 +157,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     const handleUpdateSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingPartner) return;
-        onUpdate(editingPartner.id, {
+        afterMutation(onUpdate(editingPartner.id, {
             name: editingPartner.name,
             address: editingPartner.address,
             contact_person: editingPartner.contact_person,
@@ -144,7 +165,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
             fax: editingPartner.fax,
             email: editingPartner.email,
             active: editingPartner.active
-        });
+        }));
         setEditingPartner(null);
     };
 
@@ -154,7 +175,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
 
     const confirmDelete = () => {
         if (!deletingPartner) return;
-        onDelete(deletingPartner.id);
+        afterMutation(onDelete(deletingPartner.id));
         setDeletingPartner(null);
     };
 
@@ -172,17 +193,19 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     style={classic ? xpToolbar() : undefined}
                     className={classic ? '' : 'px-3 py-2 border-bottom d-flex align-items-center gap-3 bg-white'}
                 >
+                    {/* `searchInput` is the live echo; the hook debounces the committed
+                        value it actually sends as `?search=`. No local timer here. */}
                     <SearchField
                         classic={classic}
-                        value={searchTerm}
-                        onChange={setSearchTerm}
+                        value={searchInput}
+                        onChange={setSearch}
                         placeholder={`Search ${typeLabel.toLowerCase()}s…`}
                         width={280}
                         grow
                     />
                     {classic && <div style={xpSep}></div>}
                     <ToolbarCount classic={classic}>
-                        {filteredPartners.length} {typeLabel}{filteredPartners.length !== 1 ? 's' : ''}
+                        {total} {typeLabel}{total !== 1 ? 's' : ''}
                     </ToolbarCount>
                     {canManage && (
                         <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" style={{ marginLeft: 'auto' }} onClick={() => setIsCreateOpen(true)}>
@@ -278,7 +301,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                         </td>
                                     </tr>
                                 ))}
-                                {filteredPartners.length === 0 && (dataLoading.partners ? (
+                                {pagedPartners.length === 0 && (loading ? (
                                     <TableSkeleton rows={8} cols={skel.cols ?? 5} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                                 ) : (
                                     <tr>
@@ -298,7 +321,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     </div>
                 </div>
 
-                <Pager page={clampedPage} total={filteredPartners.length} pageSize={PARTNERS_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+                <Pager page={page} total={total} pageSize={PARTNERS_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
 
                 {/* ── Status bar ── */}
                 {classic && (
@@ -312,9 +335,11 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                         fontSize: '10px',
                         color: '#333',
                     }}>
-                        <span>{partners.filter(p => p.type === type).length} total</span>
+                        {/* Whole-directory counts from the server (`type_total`/`type_active`,
+                            scoped by type only), NOT the loaded page or the search result. */}
+                        <span>{meta.type_total ?? total} total</span>
                         <span>|</span>
-                        <span>{partners.filter(p => p.type === type && p.active).length} active</span>
+                        <span>{meta.type_active ?? 0} active</span>
                     </div>
                 )}
 

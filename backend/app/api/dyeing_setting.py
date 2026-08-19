@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional
 from datetime import datetime, timezone
@@ -20,8 +20,9 @@ from app.models.routing import WorkCenter
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service
+from app.core.pagination import PageParams, PageWindow
 from app.schemas import (
-    DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse,
+    DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse, PaginatedDyeRecipeResponse,
     DyeRecipeWashBathCreate, DyeRecipeWashBathResponse,
     DyeRecipeFinishingCreate, DyeRecipeFinishingResponse,
     DyeingRunCreate, DyeingRunCompletePayload, DyeingRunResponse,
@@ -141,18 +142,39 @@ async def _get_next_run_number(db: AsyncSession, model, work_order_id) -> int:
 
 # ─── Dye Recipes ─────────────────────────────────────────────────────────────
 
-@router.get("/dye-recipes", response_model=list[DyeRecipeResponse])
+@router.get("/dye-recipes", response_model=PaginatedDyeRecipeResponse)
 async def list_dye_recipes(
     active_only: bool = Query(False),
+    search: str | None = Query(None, description="Matches recipe code or name"),
+    window: PageWindow = Depends(PageParams(default_size=50, max_size=500, allow_uncapped=True)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("dye_recipe.view", "dye_order.view", "lab_dip_request.view", "work_order.view")),
 ):
-    q = select(DyeRecipe).options(*_recipe_opts()).order_by(DyeRecipe.code)
+    """Server-paginated recipe list.
+
+    `size=0` returns the whole filtered set — that is the **lookup feed** the
+    recipe *pickers* and id→name resolvers use (Dyeing Orders' run rows, the Lab
+    Dip approved-recipe select). Those callers resolve a recipe by id out of the
+    array they hold, so capping them to a page would silently fail to find any
+    recipe that happens to be off page 1. Only the Dye Recipes list view takes a
+    real page window.
+    """
+    q = select(DyeRecipe).options(*_recipe_opts())
+    count_q = select(func.count(DyeRecipe.id))
+
     if active_only:
         q = q.filter(DyeRecipe.is_active == True)
-    result = await db.execute(q)
+        count_q = count_q.filter(DyeRecipe.is_active == True)
+    if search:
+        like = f"%{search}%"
+        cond = or_(DyeRecipe.code.ilike(like), DyeRecipe.name.ilike(like))
+        q = q.filter(cond)
+        count_q = count_q.filter(cond)
+
+    total = (await db.execute(count_q)).scalar_one()
+    result = await db.execute(window.apply(q.order_by(DyeRecipe.code)))
     recipes = result.scalars().all()
-    return [_serialize_recipe(r) for r in recipes]
+    return window.envelope([_serialize_recipe(r) for r in recipes], total)
 
 
 @router.post("/dye-recipes", response_model=DyeRecipeResponse)

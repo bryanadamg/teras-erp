@@ -29,10 +29,10 @@ def test_partner_crud(client, auth_headers):
     assert "id" in supplier
     supplier_id = supplier["id"]
 
-    # 3. List all partners — both should appear
+    # 3. List all partners — both should appear (paginated envelope: unwrap "items")
     resp = client.get("/api/partners", headers=auth_headers)
     assert resp.status_code == 200, resp.text
-    partners = resp.json()
+    partners = resp.json()["items"]
     names = [p["name"] for p in partners]
     assert "Test Customer PTEST" in names
     assert "Test Supplier PTEST" in names
@@ -40,10 +40,22 @@ def test_partner_crud(client, auth_headers):
     # 4. Filter by type=customer — customer appears, supplier does not
     resp = client.get("/api/partners?type=customer", headers=auth_headers)
     assert resp.status_code == 200, resp.text
-    filtered = resp.json()
+    filtered = resp.json()["items"]
     filtered_names = [p["name"] for p in filtered]
     assert "Test Customer PTEST" in filtered_names
     assert "Test Supplier PTEST" not in filtered_names
+
+    # 4b. Lookup returns every partner as a bare list (no window, no envelope)
+    resp = client.get("/api/partners/lookup", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    lookup = resp.json()
+    assert isinstance(lookup, list)
+    lookup_names = [p["name"] for p in lookup]
+    assert "Test Customer PTEST" in lookup_names
+    assert "Test Supplier PTEST" in lookup_names
+    # Print modals read these off the shared index — they must survive the slim payload.
+    for key in ("id", "name", "type", "active", "address", "contact_person", "phone", "fax", "email"):
+        assert key in lookup[0], key
 
     # 5. Delete both
     resp = client.delete(f"/api/partners/{customer_id}", headers=auth_headers)

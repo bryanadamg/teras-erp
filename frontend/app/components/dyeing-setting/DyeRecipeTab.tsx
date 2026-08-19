@@ -6,6 +6,7 @@ import DyeRecipePrintView from './DyeRecipePrintView';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -101,7 +102,8 @@ const emptyForm = (): RecipeForm => ({
 interface Props {
     items: any[];
     attributes: any[];
-    authFetch: Function;
+    /** Typed rather than bare `Function` so usePaginatedFetch accepts it. */
+    authFetch: (url: string, options?: any) => Promise<Response>;
     // Deep-link from Color Library "create recipe for this color" button: opens the
     // create panel pre-selected on this color. Cleared via onColorConsumed once opened.
     initialColorId?: string | null;
@@ -114,15 +116,32 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     const classic = uiStyle === 'classic';
     const { hasPermission, hasAnyPermission } = useUser();
     const canManage = hasAnyPermission('dye_recipe.create', 'dye_recipe.edit', 'dye_recipe.delete');
-    const [recipes, setRecipes] = useState<any[]>([]);
-    // True from first paint so the list shows the loader, not "none found".
-    const [loading, setLoading] = useState(true);
+    const { showToast } = useToast();
+    const { confirm } = useConfirm();
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
+
+    // Server-paginated: the endpoint used to return every recipe as a bare list and
+    // this view sliced it client-side, which stops scaling at a few hundred rows.
+    // `search` is the hook's own debounced box, sent as `?search=` (code or name).
+    const {
+        rows: recipes, total, loading, page, setPage,
+        searchInput: searchText, setSearch: setSearchText, refetch: loadRecipes,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/dye-recipes`,
+        authFetch,
+        pageSize: RECIPE_PAGE_SIZE,
+        onError: msg => showToast(`Failed to load recipes: ${msg}`, 'danger'),
+    });
+
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    // The selected recipe's row is retained, not looked up in the current page: the
+    // print modal reads it, and with a server window paging away from the row you
+    // picked would blank it mid-session.
+    const [selectedRow, setSelectedRow] = useState<any | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState<any | null>(null);
     const [form, setForm] = useState<RecipeForm>(emptyForm());
     const [saving, setSaving] = useState(false);
-    const [searchText, setSearchText] = useState('');
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const toggleExpand = (id: string) => setExpandedIds(prev => {
         const next = new Set(prev);
@@ -138,16 +157,11 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     const [codeConfig, setCodeConfig] = useState<CodeConfig | null>(null);
     const [allChemicalItems, setAllChemicalItems] = useState<any[]>([]);
     const [colors, setColors] = useState<any[]>([]);
-    const [page, setPage] = useState(1);
 
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics('dye-recipes', listBodyRef, recipes.length > 0);
-
-    const { showToast } = useToast();
-    const { confirm } = useConfirm();
-    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
     useEffect(() => {
         // Active colors for the recipe's shade picker (capped; future: server typeahead at 30k).
@@ -199,25 +213,6 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             .catch(() => {});
     }, [authFetch]);
 
-    const loadRecipes = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await authFetch(`${API_BASE}/dye-recipes`);
-            if (res.ok) {
-                const data = await res.json();
-                setRecipes(Array.isArray(data) ? data : (data.items || []));
-            }
-        } catch (e) {
-            // silently fail
-        } finally {
-            setLoading(false);
-        }
-    }, [authFetch]);
-
-    useEffect(() => {
-        loadRecipes();
-    }, [loadRecipes]);
-
     // Recipe code base = configurable prefix + selected color's code (Configure edits
     // prefix/separator). Counter is a 5-digit suffix, incremented per base.
     const recipeCodeBase = useCallback((colorCode: string): string => {
@@ -237,23 +232,34 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
         }
         const sep = codeConfig?.separator || '-';
         const base = recipeCodeBase(color.code || '');
-        const matchingCounters = recipes
-            .filter(r => {
-                if (!r.code) return false;
-                const m = r.code.match(/^(.+)[-_ ](\d{5})$/);
-                return m && m[1] === base;
-            })
-            .map(r => {
-                const m = (r.code || '').match(/(\d{5})$/);
-                return m ? parseInt(m[1], 10) : 0;
-            });
-        const counter = matchingCounters.length > 0 ? Math.max(...matchingCounters) + 1 : 1;
-        setForm(f => ({
-            ...f,
-            code: [base, String(counter).padStart(5, '0')].join(sep),
-            name: color.name || color.code || '',
-            color_standard: color.pantone_ref || color.code || '',
-        }));
+        let cancelled = false;
+        (async () => {
+            // The next counter has to be the max across EVERY recipe on this base, not
+            // just the rows on screen — the list is server-paginated now, so scanning
+            // the loaded page would hand out a duplicate code. `search=<base>` narrows
+            // it to the codes that can possibly match, `size=0` takes all of them.
+            let codes: string[] = [];
+            try {
+                const res = await authFetch(`${API_BASE}/dye-recipes?size=0&search=${encodeURIComponent(base)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    codes = ((data.items || []) as any[]).map(r => String(r.code || ''));
+                }
+            } catch { /* fall through: counter restarts at 1, save then 400s on dup code */ }
+            if (cancelled) return;
+            const matchingCounters = codes
+                .map(code => code.match(/^(.+)[-_ ](\d{5})$/))
+                .filter(m => !!m && m[1] === base)
+                .map(m => parseInt(m![2], 10) || 0);
+            const counter = matchingCounters.length > 0 ? Math.max(...matchingCounters) + 1 : 1;
+            setForm(f => ({
+                ...f,
+                code: [base, String(counter).padStart(5, '0')].join(sep),
+                name: color.name || color.code || '',
+                color_standard: color.pantone_ref || color.code || '',
+            }));
+        })();
+        return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.color_id, codeConfig, editingRecipe, colors]);
 
@@ -281,6 +287,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             setFinishingSteps([]);
             setForm({ ...emptyForm(), color_id: String(initialColorId) });
             setSelectedId(null);
+            setSelectedRow(null);
             setShowForm(true);
             onColorConsumed?.();
         })();
@@ -288,20 +295,11 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialColorId]);
 
-    const selectedRecipe = recipes.find(r => String(r.id) === String(selectedId)) || null;
-
-    const filteredRecipes = recipes.filter(r => {
-        const q = searchText.toLowerCase();
-        return (
-            (r.code || '').toLowerCase().includes(q) ||
-            (r.name || '').toLowerCase().includes(q)
-        );
-    });
-
-    useEffect(() => { setPage(1); }, [searchText]);
-    const recipePages = Math.max(1, Math.ceil(filteredRecipes.length / RECIPE_PAGE_SIZE));
-    const clampedPage = Math.min(page, recipePages);
-    const pagedRecipes = filteredRecipes.slice((clampedPage - 1) * RECIPE_PAGE_SIZE, clampedPage * RECIPE_PAGE_SIZE);
+    // Prefer the retained row; fall back to the page for a selection made before it
+    // was retained.
+    const selectedRecipe = selectedRow
+        ?? recipes.find((r: any) => String(r.id) === String(selectedId))
+        ?? null;
 
     const openCreate = () => {
         setEditingRecipe(null);
@@ -310,6 +308,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
         setFinishingSteps([]);
         setShowForm(true);
         setSelectedId(null);
+        setSelectedRow(null);
     };
 
     const openEdit = (recipe: any) => {
@@ -398,13 +397,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             }
             if (res.ok) {
                 const saved = await res.json();
-                await loadRecipes();
+                loadRecipes();
                 setShowForm(false);
                 setEditingRecipe(null);
                 setForm(emptyForm());
                 setWashBaths([]);
                 setFinishingSteps([]);
                 setSelectedId(String(saved.id || (editingRecipe ? editingRecipe.id : '')));
+                setSelectedRow(saved?.id ? saved : null);
                 showToast(editingRecipe ? 'Recipe updated.' : 'Recipe created.', 'success');
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -428,8 +428,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
         try {
             const res = await authFetch(`${API_BASE}/dye-recipes/${recipe.id}`, { method: 'DELETE' });
             if (res.ok) {
-                await loadRecipes();
+                loadRecipes();
                 setSelectedId(null);
+                setSelectedRow(null);
                 setShowForm(false);
                 showToast('Recipe deleted.', 'success');
             } else {
@@ -630,7 +631,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                     onChange={e => setSearchText(e.target.value)}
                 />
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
-                    {filteredRecipes.length.toLocaleString()} recipe{filteredRecipes.length !== 1 ? 's' : ''}
+                    {total.toLocaleString()} recipe{total !== 1 ? 's' : ''}
                 </span>
                 {canManage && (
                     <>
@@ -657,14 +658,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         </tr>
                     </thead>
                     <tbody ref={listBodyRef}>
-                        {filteredRecipes.length === 0 && (loading ? (
+                        {recipes.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
                             <tr><td colSpan={9} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 No recipes found.
                             </td></tr>
                         ))}
-                        {pagedRecipes.map((recipe, idx) => {
+                        {recipes.map((recipe: any, idx: number) => {
                             const rid = String(recipe.id);
                             const expanded = expandedIds.has(rid);
                             const lineCount = (recipe.lines || []).length;
@@ -718,18 +719,18 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                 </table>
             </div>
 
-            <Pager page={clampedPage} total={filteredRecipes.length} pageSize={RECIPE_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+            <Pager page={page} total={total} pageSize={RECIPE_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
 
             {/* ── Row ⋯ menu: Edit / Print / Delete ── */}
             {menuOpenId && (() => {
-                const recipe = recipes.find(r => String(r.id) === menuOpenId);
+                const recipe = recipes.find((r: any) => String(r.id) === menuOpenId);
                 if (!recipe) return null;
                 return (
                     <FloatingMenu
                         pos={menuPos}
                         items={[
                             { key: 'edit', label: 'Edit', icon: 'bi-pencil', hidden: !canManage, onClick: () => { menuClose(); openEdit(recipe); } },
-                            { key: 'print', label: 'Print Recipe Card', icon: 'bi-printer', onClick: () => { menuClose(); setSelectedId(String(recipe.id)); setShowPrint(true); } },
+                            { key: 'print', label: 'Print Recipe Card', icon: 'bi-printer', onClick: () => { menuClose(); setSelectedId(String(recipe.id)); setSelectedRow(recipe); setShowPrint(true); } },
                             { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !canManage, onClick: () => { menuClose(); handleDelete(recipe); } },
                         ]}
                     />

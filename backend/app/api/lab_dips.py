@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text, func, case, update as sa_update
+from sqlalchemy import select, text, func, case, or_, and_, update as sa_update
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
 from app.models.lab_dip import (
@@ -19,8 +19,10 @@ from app.models.manufacturing import ManufacturingOrder
 from app.models.sales import SalesOrderLine
 from app.schemas import (
     LabDipRequestCreate, LabDipRequestUpdate, LabDipRequestResponse, LabDipLineResponse,
+    PaginatedLabDipRequestResponse,
     LabDipDevelopmentReport, LabDipReportTotals, LabDipReportVariantRow, LabDipReportGroupRow,
 )
+from app.core.pagination import PageParams, PageWindow
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service
@@ -217,31 +219,153 @@ async def create_lab_dip_request(
     return _decorate(req)
 
 
-@router.get("/lab-dips", response_model=list[LabDipRequestResponse])
+def _labdip_conditions(
+    kind_v: str,
+    search: str | None,
+    status: str | None,
+    created_from: str | None,
+    created_to: str | None,
+) -> list:
+    """WHERE clauses shared by the page query, the total count and the focus rank.
+
+    Built once so all three see the same filtered set — a count computed over
+    different filters than the rows makes the pager disagree with the table.
+    `search` mirrors the view's old client-side matcher exactly: code, color
+    standard, customer article code.
+    """
+    conds = [LabDipRequest.kind == kind_v]
+    if search and search.strip():
+        like = f"%{search.strip().lower()}%"
+        conds.append(or_(
+            func.lower(LabDipRequest.code).like(like),
+            func.lower(LabDipRequest.color_standard).like(like),
+            func.lower(LabDipRequest.customer_article_code).like(like),
+        ))
+    if status and status != "ALL":
+        conds.append(LabDipRequest.status == status)
+    # The date inputs emit yyyy-mm-dd against a timestamp column, so the upper
+    # bound is exclusive-next-midnight to keep the range inclusive at both ends.
+    if created_from:
+        conds.append(LabDipRequest.created_at >= datetime.combine(date.fromisoformat(created_from), time.min))
+    if created_to:
+        conds.append(LabDipRequest.created_at < datetime.combine(date.fromisoformat(created_to) + timedelta(days=1), time.min))
+    return conds
+
+
+@router.get("/lab-dips", response_model=PaginatedLabDipRequestResponse)
 async def get_lab_dips(
-    skip: int = 0,
-    limit: int = 100,
     kind: str = "FG",
+    search: str | None = None,
+    status: str | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
+    focus_id: str | None = None,
+    window: PageWindow = Depends(PageParams(default_size=100)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("lab_dip_request.view", "yarn_lab_dip.view", "dye_recipe.view")),
 ):
+    """One page of lab dip requests from one numbering book.
+
+    Server-paginated + server-filtered: this used to return a bare list capped at
+    100 rows with no total, and the page then paginated client-side over just those
+    100 — request #101 was unreachable however far you clicked. Filters live here now
+    so the window is taken over the whole matching set, not over the first page.
+    """
     # Two separate books; a caller always gets one. Defaults to FG so existing
     # callers (and the finished-goods page) are unchanged.
     kind_v = "YARN" if kind.upper() == "YARN" else "FG"
-    result = await db.execute(
-        select(LabDipRequest)
-        .filter(LabDipRequest.kind == kind_v)
-        .options(
-            joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
-            joinedload(LabDipRequest.items).joinedload(LabDipItem.item),
-            joinedload(LabDipRequest.items).joinedload(LabDipItem.rejections),
-            joinedload(LabDipRequest.dips),
-        )
-        .order_by(LabDipRequest.created_at.desc())
-        .offset(skip)
-        .limit(limit)
+    conds = _labdip_conditions(kind_v, search, status, created_from, created_to)
+
+    total = await db.scalar(
+        select(func.count()).select_from(LabDipRequest).where(*conds)
+    ) or 0
+
+    # Last-touched first — updated_at is bumped by any item status change, so a
+    # freshly rejected/reopened request floats to the top. This is the order the
+    # view used to apply client-side; with a server window it has to be the server's
+    # order, or page 1 would hold the newest-*created* rows instead. `id` breaks ties
+    # so rows never jump between pages; legacy rows with no updated_at fall back to
+    # created_at rather than sorting as NULL.
+    sort_key = func.coalesce(LabDipRequest.updated_at, LabDipRequest.created_at)
+    order_cols = (sort_key.desc(), LabDipRequest.id.desc())
+
+    # ?focus_id= (the Color Library "From Lab Dip" deep link) has to reach a request
+    # that may sit on any page — so rank it under the active filters and report the
+    # page that holds it as `focus_page`.
+    #
+    # The rank goes through `window.at_offset()` (the shared "land on the page holding
+    # this row" primitive) but the RESULT IS NOT assigned to `window`, unlike
+    # get_samples: the frontend hook keeps its params (focus_id included) for the whole
+    # session, so a window that snapped on every request would pin the user to that one
+    # page forever. Reporting the page instead lets the client jump once and then page
+    # freely.
+    focus_page = None
+    if focus_id:
+        try:
+            focus_uuid = uuid_lib.UUID(str(focus_id))
+        except ValueError:
+            focus_uuid = None
+        if focus_uuid is not None:
+            target = (await db.execute(
+                select(sort_key, LabDipRequest.id).where(LabDipRequest.id == focus_uuid, *conds)
+            )).first()
+            if target:
+                rank = await db.scalar(
+                    select(func.count()).select_from(LabDipRequest).where(
+                        *conds,
+                        or_(
+                            sort_key > target[0],
+                            and_(sort_key == target[0], LabDipRequest.id > target[1]),
+                        ),
+                    )
+                ) or 0
+                focus_page = window.at_offset(rank).page
+
+    # Two-step (ids, then rows): the window has to slice REQUESTS, and the eager
+    # loads below fan each request out into many joined rows. Same shape as
+    # get_samples in api/samples.py.
+    id_rows = await db.execute(
+        window.apply(select(LabDipRequest.id).where(*conds).order_by(*order_cols))
     )
-    return [_decorate(r) for r in result.unique().scalars().all()]
+    ids = [r[0] for r in id_rows.all()]
+
+    reqs: list = []
+    if ids:
+        result = await db.execute(
+            select(LabDipRequest)
+            .where(LabDipRequest.id.in_(ids))
+            .options(
+                joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
+                joinedload(LabDipRequest.items).joinedload(LabDipItem.item),
+                joinedload(LabDipRequest.items).joinedload(LabDipItem.rejections),
+                joinedload(LabDipRequest.dips),
+            )
+        )
+        by_id = {r.id: r for r in result.unique().scalars().all()}
+        reqs = [by_id[i] for i in ids if i in by_id]
+
+    # Variant-grain tallies for the status bar. A request is a bag of per-color
+    # variants each approved/rejected on its own, so the footer counts variants —
+    # and it must count them over the whole FILTERED set, not the page, or the
+    # numbers would shrink as you page through. Declared on the response model
+    # (`variant_counts`), otherwise FastAPI drops the key silently.
+    variant_counts = {"total": 0, "PENDING": 0, "IN_PROGRESS": 0, "APPROVED": 0, "REJECTED": 0}
+    for st, n in (await db.execute(
+        select(LabDipItem.status, func.count())
+        .select_from(LabDipItem)
+        .join(LabDipRequest, LabDipRequest.id == LabDipItem.lab_dip_request_id)
+        .where(*conds)
+        .group_by(LabDipItem.status)
+    )).all():
+        variant_counts["total"] += n
+        key = st or "PENDING"
+        if key in variant_counts:
+            variant_counts[key] += n
+
+    return window.envelope(
+        [_decorate(r) for r in reqs], total,
+        variant_counts=variant_counts, focus_page=focus_page,
+    )
 
 
 @router.get("/lab-dips/pending-variants")

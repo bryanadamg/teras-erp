@@ -5,6 +5,8 @@ import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
+import { useData } from '../../context/DataContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
@@ -12,7 +14,7 @@ import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerB
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead } from '../shared/listViewTheme';
-import { STATIC_BASE } from '../shared/apiBase';
+import { API_BASE, STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -166,10 +168,20 @@ const emptyForm = () => ({
     legacyDips: [] as DipDraft[],
 });
 
+/**
+ * Shared by /lab-dips (FG) and /lab-dips-yarn (YARN) — `kind` selects the book.
+ *
+ * This view owns the list fetch (`GET /lab-dips`), not the pages: the list is
+ * server-paginated and server-filtered, and the search/status/created-date filter
+ * state that feeds those params lives here. Putting the hook in the two pages would
+ * have meant duplicating that state plus the whole params object twice and plumbing
+ * six callbacks back down. The pages keep the mutations (they differ in wording,
+ * item scope and the yarn `kind` on create) and this view refetches after each one.
+ */
 export default function LabDipRequestView({
-    labDips, customers, items, onSearchItems, recipes, attributes,
+    customers, items, onSearchItems, recipes, attributes,
     onCreate, onEdit, onUpdateStatus, onUpdateItemStatus, onDelete,
-    openRequestId, kind = 'FG', loading = false,
+    openRequestId, kind = 'FG',
 }: any) {
     useToast();
     const router = useRouter();
@@ -180,9 +192,8 @@ export default function LabDipRequestView({
     const canManage = hasAnyPermission('lab_dip_request.create', 'lab_dip_request.edit', 'lab_dip_request.delete');
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
-    // Created-date range (inclusive both ends), filtered client-side like search/status.
+    // Created-date range, inclusive at both ends — applied server-side now.
     const [createdFrom, setCreatedFrom] = useState('');
     const [createdTo, setCreatedTo] = useState('');
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -191,7 +202,41 @@ export default function LabDipRequestView({
     const [form, setForm] = useState(emptyForm());
     const [pendingItem, setPendingItem] = useState('');
     const [pendingColor, setPendingColor] = useState('');
-    const [page, setPage] = useState(1);
+
+    // ── The list: one server page, filtered + ordered server-side ───────────────
+    // Previously the page fetched /lab-dips with no window at all, took the endpoint's
+    // silent first 100 rows and paginated client-side over those — request #101 was
+    // unreachable however far you clicked. `searchTerm` is the hook's own debounced
+    // box (350ms), so no second debounce here; every other filter rides in as a param
+    // and any param change restarts at page 1 inside the hook.
+    const { authFetch } = useData();
+    const {
+        rows: labDips, total, meta, loading, page, setPage, refetch: refetchLabDips,
+        searchInput: searchTerm, setSearch: setSearchTerm,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/lab-dips`,
+        authFetch,
+        pageSize: LABDIP_PAGE_SIZE,
+        params: {
+            kind,
+            status: statusFilter === 'ALL' ? '' : statusFilter,
+            created_from: createdFrom,
+            created_to: createdTo,
+            // Deep link: the server ranks this request under the active filters and
+            // reports the page holding it as `focus_page` (see the effect below).
+            focus_id: openRequestId || '',
+        },
+    });
+
+    // Mutations stay on the pages (wording/scope differ per book); the list refresh is
+    // this view's job, so each handler is wrapped to refetch the current page after it
+    // settles rather than every page calling its own fetch.
+    const after = (fn: any) => async (...args: any[]) => { await fn?.(...args); refetchLabDips(); };
+    const doCreate = after(onCreate);
+    const doEdit = after(onEdit);
+    const doUpdateStatus = after(onUpdateStatus);
+    const doUpdateItemStatus = after(onUpdateItemStatus);
+    const doDelete = after(onDelete);
 
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
@@ -258,7 +303,7 @@ export default function LabDipRequestView({
     };
     const confirmApproval = () => {
         if (!approval || !approvalSet.trim()) return;
-        onUpdateItemStatus(approval.reqId, approval.itemId, 'APPROVED', {
+        doUpdateItemStatus(approval.reqId, approval.itemId, 'APPROVED', {
             set: approvalSet.trim(),
             notes: approvalNotes.trim() || undefined,
             variant_attribute_value_id: approvalVariantId || undefined,
@@ -282,7 +327,7 @@ export default function LabDipRequestView({
     };
     const confirmReject = () => {
         if (!reject) return;
-        onUpdateItemStatus(reject.reqId, reject.itemId, 'REJECTED', { reason: rejectReason, notes: rejectNotes.trim() || undefined, image: rejectImage });
+        doUpdateItemStatus(reject.reqId, reject.itemId, 'REJECTED', { reason: rejectReason, notes: rejectNotes.trim() || undefined, image: rejectImage });
         setReject(null);
     };
 
@@ -390,26 +435,15 @@ export default function LabDipRequestView({
             })),
             dips: form.legacyDips.filter(d => d.color_name.trim() !== ''),
         };
-        if (editing) onEdit(editing.id, payload); else onCreate(payload);
+        if (editing) doEdit(editing.id, payload); else doCreate(payload);
         setIsModalOpen(false);
         setEditing(null);
         setForm(emptyForm());
     };
 
-    const filtered = (labDips || []).filter((r: any) => {
-        const matchSearch = !searchTerm ||
-            r.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (r.color_standard && r.color_standard.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (r.customer_article_code && r.customer_article_code.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
-        // created_at is a UTC timestamp; compare its date part against the raw yyyy-mm-dd
-        // the date inputs emit. Both ends inclusive.
-        const createdDay = r.created_at ? String(r.created_at).slice(0, 10) : '';
-        const matchFrom = !createdFrom || (createdDay && createdDay >= createdFrom);
-        const matchTo = !createdTo || (createdDay && createdDay <= createdTo);
-        return matchSearch && matchStatus && matchFrom && matchTo;
-    });
-
+    // No client-side filtering: search / status / created-date range are all applied by
+    // the server (`_labdip_conditions` in api/lab_dips.py), so `labDips` is already the
+    // filtered set, windowed to one page.
     const hasActiveFilter = !!searchTerm || statusFilter !== 'ALL' || !!createdFrom || !!createdTo;
     const clearFilters = () => {
         setSearchTerm('');
@@ -420,19 +454,12 @@ export default function LabDipRequestView({
 
     // Footer tallies run at VARIANT grain, not request grain — a request is a bag of
     // per-color variants each approved/rejected on its own, so a request-level count
-    // hides the real progress. Counted over `filtered` so the numbers track the filters.
-    const variantStats = useMemo(() => {
-        const acc = { total: 0, PENDING: 0, IN_PROGRESS: 0, APPROVED: 0, REJECTED: 0 } as Record<string, number>;
-        for (const r of filtered) {
-            for (const it of (r.items || [])) {
-                acc.total++;
-                const st = it.status || 'PENDING';
-                if (st in acc) acc[st]++;
-            }
-        }
-        return acc;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filtered]);
+    // hides the real progress. Server-computed (`variant_counts`) over the whole
+    // filtered set: summing the loaded rows would only ever tally the current page.
+    const variantStats = useMemo(() => ({
+        total: 0, PENDING: 0, IN_PROGRESS: 0, APPROVED: 0, REJECTED: 0,
+        ...(meta?.variant_counts || {}),
+    } as Record<string, number>), [meta]);
 
     // Sortable columns for the request list. Default sort = most-recently-updated first,
     // so a freshly rejected/reopened request (its parent updated_at is bumped on any item
@@ -445,38 +472,45 @@ export default function LabDipRequestView({
         updated:  (r: any) => new Date(r.updated_at || r.created_at || 0).getTime(),
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [customers]);
-    const { sorted, sort, toggle: toggleSort } = useSortable(filtered, sortCols, { key: 'updated', dir: -1 });
+    // Sorting is page-local: it reorders the rows on screen, which is the same trade the
+    // other server-paginated lists make (see PurchaseOrderView). The server's own order
+    // is the default one — last-touched first — so page 1 is the same top of the list
+    // the unsorted view showed.
+    const { sorted, sort, toggle: toggleSort } = useSortable(labDips, sortCols, { key: 'updated', dir: -1 });
 
-    // Search/filter change → reset to page 1
-    React.useEffect(() => { setPage(1); }, [searchTerm, statusFilter, createdFrom, createdTo]);
-    const totalPages = Math.max(1, Math.ceil(sorted.length / LABDIP_PAGE_SIZE));
-    const clampedPage = Math.min(page, totalPages);
-    const paged = sorted.slice((clampedPage - 1) * LABDIP_PAGE_SIZE, clampedPage * LABDIP_PAGE_SIZE);
+    // No setPage(1) on a filter change: the hook restarts at page 1 whenever a param
+    // changes, and doing it here as well would fire a second fetch.
 
-    // Deep-link from Color Library "From Lab Dip" cell: jump to, expand, and
-    // scroll to the target request regardless of current filters/page.
+    // Deep link from the Color Library "From Lab Dip" cell. The target may sit on any
+    // page, so the server ranks it under the active filters and returns `focus_page`;
+    // this jumps there once (ref-guarded — after that the pager belongs to the user),
+    // expands the row, and scrolls to it when it actually arrives in `labDips`.
+    const focusJumpedRef = useRef<string | null>(null);
     React.useEffect(() => {
         if (!openRequestId) return;
-        const idx = sorted.findIndex((r: any) => String(r.id) === String(openRequestId));
-        if (idx === -1) return;
-        setStatusFilter('ALL');
-        setSearchTerm('');
-        setCreatedFrom('');
-        setCreatedTo('');
         setExpandedIds(prev => new Set(prev).add(openRequestId));
-        setPage(Math.floor(idx / LABDIP_PAGE_SIZE) + 1);
+        const target = meta?.focus_page;
+        if (!target || focusJumpedRef.current === openRequestId) return;
+        focusJumpedRef.current = openRequestId;
+        if (target !== page) setPage(target);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openRequestId, meta]);
+
+    React.useEffect(() => {
+        if (!openRequestId) return;
+        if (!labDips.some((r: any) => String(r.id) === String(openRequestId))) return;
         const t = setTimeout(() => {
             document.getElementById(`labdip-row-${openRequestId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 50);
         return () => clearTimeout(t);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openRequestId, labDips]);
 
     const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
     // Request code: real code when editing; else a best-effort preview of the next code.
     // The server mints from a monotonic DB sequence, so this max+1 estimate is a lower bound
-    // (it can trail the true value after the top request is deleted) — hence the "(on save)" note.
+    // (it can trail the true value after the top request is deleted, and it now scans only
+    // the loaded page) — hence the "(on save)" note. Nothing depends on it being right.
     // Parses the raw tail (not seqPart) — the yarn book's "Y" marker is not a number.
     const maxSeq = (labDips || []).reduce((m: number, r: any) => {
         const n = parseInt(rawSeq(r.code), 10);
@@ -525,7 +559,7 @@ export default function LabDipRequestView({
                 {hasActiveFilter && (
                     <button style={xpBtn(classic)} onClick={clearFilters} title="Clear all filters">Clear</button>
                 )}
-                <ToolbarCount classic={classic} right>{filtered.length} item{filtered.length !== 1 ? 's' : ''}</ToolbarCount>
+                <ToolbarCount classic={classic} right>{total} item{total !== 1 ? 's' : ''}</ToolbarCount>
                 {canManage && (
                     <>
                         <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
@@ -551,13 +585,13 @@ export default function LabDipRequestView({
                         </tr>
                     </thead>
                     <tbody ref={listBodyRef}>
-                        {filtered.length === 0 && (loading ? (
+                        {labDips.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={tdBase(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
                             <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 {hasActiveFilter ? 'No requests match the current filter.' : isYarn ? 'No yarn lab dip requests yet.' : 'No lab dip requests yet.'}</td></tr>
                         ))}
-                        {paged.map((r: any, idx: number) => {
+                        {sorted.map((r: any, idx: number) => {
                             const approved = (r.items || []).filter((it: any) => it.status === 'APPROVED').length;
                             const total = (r.items || []).length;
                             return (
@@ -644,7 +678,7 @@ export default function LabDipRequestView({
                                         // APPROVED/REJECTED are terminal (locked) — guarded here and on the server.
                                         const setItemStatus = (itemId: string, cur: string, next: string) => {
                                             if (cur === 'APPROVED' || cur === 'REJECTED') return;
-                                            onUpdateItemStatus(r.id, itemId, cur === next ? 'PENDING' : next);
+                                            doUpdateItemStatus(r.id, itemId, cur === next ? 'PENDING' : next);
                                         };
 
                                         const columns = [
@@ -730,7 +764,7 @@ export default function LabDipRequestView({
                                                             type="button"
                                                             title={`Reopen ${variantCode} for another round (keeps rejection history)`}
                                                             style={{ ...xpBtn(classic, { padding: classic ? '1px 5px' : '3px 7px', lineHeight: 1, color: classic ? '#a05a00' : '#b45309' }) }}
-                                                            onClick={() => onUpdateItemStatus(r.id, it.id, 'IN_PROGRESS')}
+                                                            onClick={() => doUpdateItemStatus(r.id, it.id, 'IN_PROGRESS')}
                                                         >
                                                             <i className="bi bi-arrow-repeat" style={{ fontSize: classic ? 10 : 12 }} />
                                                         </button>
@@ -766,7 +800,7 @@ export default function LabDipRequestView({
                                         const rightHeader = (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', flexWrap: 'wrap' as const, borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #dee2e6', background: '#fff' }}>
                                                 <span style={{ fontSize: classic ? 10 : 11, fontWeight: classic ? 'bold' : 600, color: classic ? '#111' : '#444' }}>Request Status:</span>
-                                                <select style={{ ...xpInput(classic), width: 140 }} value={r.status} disabled={!canManage} onChange={e => onUpdateStatus(r.id, e.target.value)}>
+                                                <select style={{ ...xpInput(classic), width: 140 }} value={r.status} disabled={!canManage} onChange={e => doUpdateStatus(r.id, e.target.value)}>
                                                     {REQUEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                                                 </select>
                                             </div>
@@ -798,14 +832,14 @@ export default function LabDipRequestView({
                     </tbody>
                 </table>
             </div>
-            <Pager page={clampedPage} total={filtered.length} pageSize={LABDIP_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+            <Pager page={page} total={total} pageSize={LABDIP_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
 
             {/* ── Status bar: variant-grain tallies over the filtered set ── */}
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' as const, fontFamily: xpFont, fontSize: 10, color: '#333', flexShrink: 0 }
                 : { background: '#f7f9fc', borderTop: '1px solid #dbe1ea', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, fontFamily: modernFont, fontSize: 12, color: '#64748b', flexShrink: 0 }}>
                 <span>
-                    {filtered.length} request{filtered.length !== 1 ? 's' : ''} · {variantStats.total} variant{variantStats.total !== 1 ? 's' : ''}
+                    {total} request{total !== 1 ? 's' : ''} · {variantStats.total} variant{variantStats.total !== 1 ? 's' : ''}
                 </span>
                 <span style={{ width: 1, height: 15, background: classic ? '#a0988c' : '#dbe1ea', margin: '0 2px' }} />
                 <StatusCountPill classic={classic} status="PENDING" count={variantStats.PENDING} title="Variants not yet started" />
@@ -817,14 +851,16 @@ export default function LabDipRequestView({
 
             {/* ── Row ⋯ menu: Edit / Delete ── */}
             {menuOpenId && (() => {
-                const r = filtered.find((x: any) => String(x.id) === menuOpenId);
+                // Row lookup in the loaded page is safe: the ⋯ menu is opened from a row
+                // that is on screen, and it closes on any list change.
+                const r = labDips.find((x: any) => String(x.id) === menuOpenId);
                 if (!r || !canManage) return null;
                 return (
                     <FloatingMenu
                         pos={menuPos}
                         items={[
                             { key: 'edit', label: 'Edit', icon: 'bi-pencil', onClick: () => { menuClose(); openEdit(r); } },
-                            { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => { menuClose(); onDelete(r.id); } },
+                            { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => { menuClose(); doDelete(r.id); } },
                         ]}
                     />
                 );

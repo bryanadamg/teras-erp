@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { SortMark, SortState, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -20,18 +21,18 @@ const MOVE_TITLE = 'Move — transfer this stock to another location';
 
 interface StockOnHandViewProps {
     locations: any[];
-    stockBalance: any[];
     attributes: any[];
     categories: any[];
     items?: any[];
     onSearchItems?: (term: string) => void;
+    /** DataContext-wide refresh, wired to the toolbar Refresh button alongside the
+     *  grid's own refetch. The grid rows come from /stock/balance/paginated, NOT from
+     *  DataContext's `stockBalance` (that array is the plant-wide lookup feed for
+     *  manufacturing material availability and must stay unpaginated). */
     onRefresh: () => void;
     authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
     apiBase: string;
-    loading?: boolean;
 }
-
-const UNCAT = '__uncat__';
 
 // Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
 // squeezing chip columns (Lot carries MO codes ~30 chars) into overlapping percentages.
@@ -41,7 +42,7 @@ const COL_W = {
 };
 const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
 
-export default function StockOnHandView({ locations, stockBalance, attributes, categories, items = [], onSearchItems, onRefresh, authFetch, apiBase, loading = false }: StockOnHandViewProps) {
+export default function StockOnHandView({ locations, attributes, categories, items = [], onSearchItems, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -50,7 +51,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const canRebuild = hasPermission('admin.access');
     const classic = uiStyle === 'classic';
 
-    const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
     const [selectedCat, setSelectedCat] = useState('');
@@ -58,7 +58,14 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     // shown by default (the table is the physical truth) but flagged, and hideable
     // for anyone reading the table as available stock.
     const [hideRejected, setHideRejected] = useState(false);
-    const [page, setPage] = useState(1);
+    // Sort is a server param (the grid only holds one page), so the column-header
+    // toggle drives this state instead of useSortable's in-memory comparator.
+    const [sort, setSort] = useState<SortState>(null);
+    const toggleSort = (key: string) => setSort(prev =>
+        prev?.key !== key ? { key, dir: 1 }
+        : prev.dir === 1 ? { key, dir: -1 }
+        : null
+    );
 
     // Transfer modal state
     const [transferTarget, setTransferTarget] = useState<any>(null);
@@ -110,7 +117,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         setRebuilding(true);
         try {
             const res = await authFetch(`${apiBase}/stock/balances/rebuild`, { method: 'POST' });
-            if (res.ok) { showToast('Stock balances rebuilt from ledger', 'success'); onRefresh(); }
+            if (res.ok) { showToast('Stock balances rebuilt from ledger', 'success'); reload(); }
             else { showToast(`Rebuild failed (HTTP ${res.status})`, 'danger'); }
         } catch { showToast('Rebuild failed — network error', 'danger'); }
         finally { setRebuilding(false); }
@@ -176,7 +183,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             }
             showToast('Transfer recorded', 'success');
             setTransferTarget(null);
-            onRefresh();
+            reload();
         } catch (err: any) {
             showToast(err.message, 'danger');
         } finally {
@@ -237,7 +244,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             showToast(body.message || `Moved ${lines.length} rows`, 'success');
             setBulkOpen(false);
             clearSelection();
-            onRefresh();
+            reload();
         } catch (err: any) {
             showToast(err.message, 'danger');
         } finally {
@@ -315,7 +322,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             }
             showToast('Stock adjusted', 'success');
             setAdjustTarget(null);
-            onRefresh();
+            reload();
         } catch (err: any) {
             showToast(err.message, 'danger');
         } finally {
@@ -372,7 +379,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             }
             showToast('Stock entry recorded', 'success');
             setNewOpen(false);
-            onRefresh();
+            reload();
         } catch (err: any) {
             showToast(err.message, 'danger');
         } finally {
@@ -461,7 +468,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         if (d) out.push({ n: d, label: d === 1 || d === -1 ? 'drum' : 'drums' });
         return out;
     };
-    const pkgTotal = (bal: any) => Math.abs(bal.qty_cones || 0) + Math.abs(bal.qty_boxes || 0) + Math.abs(bal.qty_drums || 0);
 
     // ── Category filter ───────────────────────────────────────────────────────
     const cats = categories || [];
@@ -490,65 +496,44 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
 
     const clearCats = () => setSelectedCat('');
 
-    const filtered = useMemo(() => {
-        const s = search.toLowerCase();
-        return (stockBalance || []).filter((bal: any) => {
-            if (locationFilter) {
-                if (bal.location_id !== locationFilter) {
-                    // Also match bins under a selected zone
-                    const childIds = new Set((childrenByWh[locationFilter] || []).map((c: any) => String(c.id)));
-                    if (!childIds.has(String(bal.location_id))) return false;
-                }
-            }
-            if (warehouseFilter) {
-                const wid = getWarehouseId(bal.location_id);
-                if (warehouseFilter === UNCAT) { if (wid) return false; }
-                else if (wid !== warehouseFilter) return false;
-            }
-            if (catMatchSet && !(bal.item_category_id && catMatchSet.has(bal.item_category_id))) return false;
-            if (hideRejected && bal.quality_status && bal.quality_status !== 'GOOD') return false;
-            if (!s) return true;
-            const name = (bal.item_name || '').toLowerCase();
-            const code = (bal.item_code || '').toLowerCase();
-            const itemCat = (bal.item_category_name || '').toLowerCase();
-            const loc = (bal.location_name || getLocationName(bal.location_id)).toLowerCase();
-            const wh = getWarehouseName(bal.location_id).toLowerCase();
-            const batch = bal.batch_key ? (bal.batch_number || bal.batch_key).toLowerCase() : '';
-            const vendorLot = (bal.vendor_lot || '').toLowerCase();
-            const notes = (bal.batch_notes || '').toLowerCase();
-            const mo = `${bal.mo_code || ''} ${bal.wo_code || ''}`.toLowerCase();
-            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s) || vendorLot.includes(s) || notes.includes(s) || mo.includes(s);
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, locMap, hideRejected]);
+    // ── Server-paginated rows ─────────────────────────────────────────────────
+    // The grid reads /stock/balance/paginated, NOT DataContext's `stockBalance`:
+    // that array is the plant-wide lookup feed manufacturing nets material
+    // availability from, so it must stay unpaginated (see the note on the endpoint).
+    // Filtering, sorting and the page window are all applied in SQL; the footer
+    // aggregates come back as envelope extras because they must describe the whole
+    // filtered set, not this page.
+    const categoryParam = useMemo(() => (catMatchSet ? Array.from(catMatchSet).join(',') : ''), [catMatchSet]);
+    const {
+        rows: pageRows, total, meta, loading, page, setPage,
+        searchInput: search, setSearch, refetch,
+    } = usePaginatedFetch<any>({
+        endpoint: `${apiBase}/stock/balance/paginated`,
+        authFetch,
+        pageSize: STOCK_PAGE_SIZE,
+        params: {
+            location_id: locationFilter,
+            warehouse_id: warehouseFilter,
+            category_id: categoryParam,
+            hide_rejected: hideRejected,
+            sort_by: sort?.key,
+            sort_dir: sort ? (sort.dir === 1 ? 'asc' : 'desc') : '',
+        },
+        onError: m => showToast(m, 'danger'),
+    });
+    // Post-mutation reload. The grid's own page is what the operator is looking at;
+    // DataContext's shared feed follows the STOCK_UPDATE broadcast the mutation
+    // endpoints emit, so it does not need a second full pull here.
+    const reload = () => refetch();
 
-    const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
-    const rejectedCount = filtered.filter((b: any) => b.quality_status && b.quality_status !== 'GOOD').length;
+    const negativeCount = Number(meta.negative_count || 0);
+    const rejectedCount = Number(meta.rejected_count || 0);
     // Rejected qty is physically present but unusable — call the number out so the
     // row total is never read as available stock.
-    const rejectedQty = filtered.reduce((s: number, b: any) => (
-        b.quality_status && b.quality_status !== 'GOOD' ? s + Number(b.qty || 0) : s
-    ), 0);
-
-    const sortCols = useMemo(() => ({
-        item:        (b: any) => b.item_name || b.item_code,
-        itemCategory: (b: any) => b.item_category_name || '',
-        location: (b: any) => b.location_name || getLocationName(b.location_id),
-        warehouse: (b: any) => getWarehouseName(b.location_id) || '',
-        batch:    (b: any) => b.batch_key ? (b.batch_number || b.batch_key) : null,
-        qty:      (b: any) => b.qty,
-        packaging: (b: any) => pkgTotal(b),
-        notes:    (b: any) => b.batch_notes || null,
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [locations, locMap]);
-    const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
-
-    // Client-side pagination — the fetch is still whole-table (DataContext), but
-    // only one page of rows hits the DOM at a time instead of the entire result.
-    useEffect(() => { setPage(1); }, [search, locationFilter, warehouseFilter, selectedCat, hideRejected]);
-    const pageCount = Math.max(1, Math.ceil(sortedRows.length / STOCK_PAGE_SIZE));
-    const clampedPage = Math.min(page, pageCount);
-    const pageRows = sortedRows.slice((clampedPage - 1) * STOCK_PAGE_SIZE, clampedPage * STOCK_PAGE_SIZE);
+    const rejectedQty = Number(meta.rejected_qty || 0);
+    // Unfiltered balance-row count ("Total: N SKUs"), served as an aggregate since the
+    // client no longer holds every row.
+    const totalRows = Number(meta.total_rows || 0);
 
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them. Classic and modern
@@ -1238,7 +1223,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <button
                     style={classic ? xpBtn() : undefined}
                     className={classic ? undefined : 'btn btn-outline-secondary btn-sm w-100'}
-                    onClick={onRefresh}
+                    onClick={() => { refetch(); onRefresh(); }}
                     title={classic ? 'Refresh' : undefined}
                 >
                     <i className={classic ? 'bi bi-arrow-clockwise' : 'bi bi-arrow-clockwise me-1'} style={classic ? { marginRight: 4 } : undefined} />Refresh
@@ -1272,7 +1257,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     {classic
                         ? <span><i className="bi bi-boxes" style={{ marginRight: 6 }} />{t('stock_on_hand') || 'Stock On-Hand'}</span>
                         : <h5 className="card-title mb-0"><i className="bi bi-boxes me-2" />{t('stock_on_hand') || 'Stock On-Hand'}</h5>}
-                    <span style={classic ? { fontSize: '10px', opacity: 0.85 } : undefined} className={classic ? undefined : 'badge bg-primary bg-opacity-25 text-primary-emphasis'}>{filtered.length} records</span>
+                    <span style={classic ? { fontSize: '10px', opacity: 0.85 } : undefined} className={classic ? undefined : 'badge bg-primary bg-opacity-25 text-primary-emphasis'}>{total} records</span>
                 </div>
                 {classic ? (
                     <div style={xpToolbar}>{toolbarControls}</div>
@@ -1303,7 +1288,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         </thead>
                         <tbody ref={listBodyRef}>
                             {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
-                            {filtered.length === 0 && (loading ? (
+                            {pageRows.length === 0 && (loading ? (
                                 <TableSkeleton rows={8} cols={skel.cols ?? 12} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : classic ? (
                                 <tr>
@@ -1325,28 +1310,28 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         padding: '2px 8px', display: 'flex', gap: 16,
                         fontFamily: xpFont, fontSize: '11px', color: '#333',
                     }}>
-                        <span><b>{filtered.length}</b> rows</span>
+                        <span><b>{total}</b> rows</span>
                         {negativeCount > 0 && <span style={{ color: '#c00000' }}><b>{negativeCount}</b> negative</span>}
                         {rejectedCount > 0 && (
                             <span style={{ color: '#7a1010' }} title="QC-rejected lots included in the rows above — physically present, not usable">
                                 <b>{rejectedCount}</b> rejected ({rejectedQty.toLocaleString('en-US', { maximumFractionDigits: 3 })})
                             </span>
                         )}
-                        <span style={{ marginLeft: 'auto', color: '#666' }}>Total: {(stockBalance || []).length} SKUs</span>
+                        <span style={{ marginLeft: 'auto', color: '#666' }}>Total: {totalRows} SKUs</span>
                     </div>
                 ) : (
                     <div className="card-footer text-muted d-flex gap-3 small" style={{ flexShrink: 0 }}>
-                        <span><b>{filtered.length}</b> rows match</span>
+                        <span><b>{total}</b> rows match</span>
                         {negativeCount > 0 && <span className="text-danger"><b>{negativeCount}</b> negative</span>}
                         {rejectedCount > 0 && (
                             <span className="text-danger" title="QC-rejected lots included in the rows above — physically present, not usable">
                                 <b>{rejectedCount}</b> rejected ({rejectedQty.toLocaleString('en-US', { maximumFractionDigits: 3 })})
                             </span>
                         )}
-                        <span className="ms-auto">Total: {(stockBalance || []).length} SKUs</span>
+                        <span className="ms-auto">Total: {totalRows} SKUs</span>
                     </div>
                 )}
-                <Pager page={clampedPage} total={sortedRows.length} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+                <Pager page={page} total={total} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
             </div>
             {transferModal}
             {bulkMoveModal}

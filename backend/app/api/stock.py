@@ -6,7 +6,7 @@ from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
-from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, get_current_admin, category_scope_ok
 from app.models.item import Item
@@ -440,6 +440,19 @@ async def transfer_stock_bulk(
     return {"status": "success", "message": f"Moved {len(payload.lines)} rows to {dest_code}", "moved": len(payload.lines)}
 
 
+# ── /stock/balance is the UNBOUNDED LOOKUP FEED — do NOT paginate it ──────────
+# DataContext loads this whole list once and every consumer treats it as a *lookup
+# table*, not a list: manufacturing material availability
+# (frontend/app/components/manufacturing/useManufacturingHelpers.ts filters and
+# iterates the full array), the desktop/mobile dashboards, the QR scanner view and
+# the section home cards. Slicing it to a page would not truncate a list — it would
+# silently return WRONG availability numbers for every item that fell off the page.
+# Same reasoning as GET /partners/lookup, which exists for exactly this: the
+# dropdowns and name resolution need every row, so the lookup feed stays whole
+# while the list view pages against the windowed route.
+#
+# The Stock On-Hand *grid* uses GET /stock/balance/paginated below (mirroring the
+# /items vs /items/lookup split). New list views go there; leave this one whole.
 @router.get("/stock/balance", response_model=list[StockBalanceResponse])
 async def get_stock_balance_api(
     item_ids: Optional[str] = None,
@@ -462,6 +475,228 @@ async def get_stock_balance_api(
             except ValueError:
                 continue
     return await stock_service.get_all_stock_balances(db, user=current_user, item_ids=ids)
+
+
+# Sort keys accepted by /stock/balance/paginated — they are the Stock On-Hand grid's
+# sortable column keys, kept 1:1 with the header cells so the client can pass its own
+# key straight through.
+_SOH_SORT_KEYS = ("item", "itemCategory", "location", "warehouse", "batch", "qty", "packaging", "notes")
+
+
+@router.get("/stock/balance/paginated", response_model=PaginatedStockBalanceResponse)
+async def get_stock_balance_paginated(
+    search: Optional[str] = Query(None, description="Matches item name/code, item category, location, warehouse, lot number, supplier lot, lot notes, MO/WO code"),
+    location_id: Optional[str] = Query(None, description="Location id — matches that location plus any bin directly under it"),
+    warehouse_id: Optional[str] = Query(None, description="Root-warehouse id above the row's location; '__uncat__' = location with no warehouse above it"),
+    category_id: Optional[str] = Query(None, description="Item category id, or comma-separated ids (a category plus its descendants)"),
+    hide_rejected: bool = Query(False, description="Drop rows whose lot is QC-flagged (quality_status != GOOD)"),
+    sort_by: Optional[str] = Query(None, description=" | ".join(_SOH_SORT_KEYS)),
+    sort_dir: str = Query("asc", description="asc | desc"),
+    window: PageWindow = Depends(PageParams(default_size=50)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission("stock_on_hand.view", "lot.view", "work_order.view", "booking_stock.view", "quarantine.view")),
+):
+    """Server-paginated stock-balance rows for the Stock On-Hand grid.
+
+    Same row shape as /stock/balance (see StockBalanceResponse) but filtered,
+    sorted and windowed in SQL instead of in the browser. The filters mirror the
+    grid's controls exactly; the aggregates in the envelope are computed over the
+    whole filtered set because the footer summary reads them.
+
+    This is the LIST endpoint. /stock/balance stays the unbounded lookup feed —
+    see the note above it.
+    """
+    from sqlalchemy import or_, and_, case, cast, String as SAString, nullslast
+    from sqlalchemy.orm import aliased, selectinload
+    from app.models.category import Category
+    from app.models.batch import Batch
+    from app.models.manufacturing import ManufacturingOrder
+    from app.services.stock_service import _bom_size_label
+
+    # Location + its parent + its grandparent: the hierarchy is warehouse > zone > bin,
+    # so the root warehouse of a row is the grandparent for a bin and the parent for a
+    # zone — exactly what the client's getWarehouseId/getWarehouseName walk up to.
+    LocL = aliased(Location)
+    LocP = aliased(Location)
+    LocG = aliased(Location)
+    wh_id_expr = func.coalesce(LocG.id, LocP.id)
+    wh_name_expr = func.coalesce(LocG.name, LocP.name)
+
+    # An all-zero balance row is not stock; get_all_stock_balances drops it in Python
+    # and this must drop the same rows or the two endpoints disagree on `total`.
+    nonzero = or_(
+        StockBalance.qty != 0,
+        func.coalesce(StockBalance.qty_cones, 0) != 0,
+        func.coalesce(StockBalance.qty_boxes, 0) != 0,
+        func.coalesce(StockBalance.qty_drums, 0) != 0,
+    )
+    # A lot is "rejected" only when it carries a non-GOOD QC flag; non-lotted rows and
+    # unflagged lots are GOOD (matches the service's quality_status default).
+    rejected_expr = and_(
+        StockBalance.batch_key != "",
+        Batch.quality_status.is_not(None),
+        Batch.quality_status != "GOOD",
+    )
+
+    conditions = [nonzero]
+    if location_id:
+        # The grid's location picker offers zones and bins; picking a zone also shows
+        # the bins under it (client: location_id === filter || parent is the filter).
+        conditions.append(or_(StockBalance.location_id == location_id, LocL.parent_id == location_id))
+    if warehouse_id:
+        if warehouse_id == "__uncat__":
+            conditions.append(wh_id_expr.is_(None))
+        else:
+            conditions.append(wh_id_expr == warehouse_id)
+    if category_id:
+        # Comma-separated descendant-inclusive id set, same contract as /stock — the
+        # client already owns the category tree and expands the selection.
+        cat_ids = [x for x in category_id.split(",") if x]
+        if cat_ids:
+            conditions.append(Item.category_id.in_(cat_ids))
+    if hide_rejected:
+        conditions.append(~rejected_expr)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        conditions.append(or_(
+            Item.name.ilike(term),
+            Item.code.ilike(term),
+            Category.name.ilike(term),
+            LocL.name.ilike(term),
+            wh_name_expr.ilike(term),
+            Batch.batch_number.ilike(term),
+            Batch.vendor_lot.ilike(term),
+            Batch.notes.ilike(term),
+            # The grid shows batch_number when it resolves and falls back to the raw
+            # key otherwise, so the key is only searchable on that fallback — matching
+            # it always would make bare uuids match on any hex letter/digit typed.
+            and_(StockBalance.batch_key != "", Batch.batch_number.is_(None), StockBalance.batch_key.ilike(term)),
+            ManufacturingOrder.code.ilike(term),
+            WorkOrder.code.ilike(term),
+        ))
+
+    def joined(stmt):
+        """The one join graph shared by the page query, the count and the aggregates,
+        so all three describe the exact same slice."""
+        return (
+            stmt.select_from(StockBalance)
+            .join(Item, Item.id == StockBalance.item_id)
+            .outerjoin(Category, Category.id == Item.category_id)
+            .outerjoin(LocL, LocL.id == StockBalance.location_id)
+            .outerjoin(LocP, LocP.id == LocL.parent_id)
+            .outerjoin(LocG, LocG.id == LocP.parent_id)
+            # batch_key is a plain string column, not a FK — cast the Batch PK to text
+            # rather than the key to uuid, which would blow up on any non-uuid value.
+            .outerjoin(Batch, cast(Batch.id, SAString) == StockBalance.batch_key)
+            .outerjoin(WorkOrder, WorkOrder.id == Batch.source_wo_id)
+            .outerjoin(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+            .where(*conditions)
+        )
+
+    # Count + every footer aggregate in one pass over the filtered set. Computing these
+    # from the page would report page-only numbers.
+    agg = (await db.execute(joined(select(
+        func.count(StockBalance.id),
+        func.coalesce(func.sum(case((StockBalance.qty < 0, 1), else_=0)), 0),
+        func.coalesce(func.sum(case((rejected_expr, 1), else_=0)), 0),
+        func.coalesce(func.sum(case((rejected_expr, StockBalance.qty), else_=0)), 0),
+    )))).first()
+    total = int(agg[0] or 0)
+    negative_count = int(agg[1] or 0)
+    rejected_count = int(agg[2] or 0)
+    rejected_qty = float(agg[3] or 0)
+
+    # Unfiltered row count — the footer's "Total: N SKUs", which used to be the length
+    # of the whole client-side array.
+    total_rows = int((await db.execute(select(func.count(StockBalance.id)).where(nonzero))).scalar() or 0)
+
+    # Lot label the grid sorts on: batch_number when resolvable, else the raw key,
+    # NULL for non-lotted rows (which the client's sorter parks last either way).
+    batch_label_expr = case(
+        (StockBalance.batch_key != "", func.coalesce(Batch.batch_number, StockBalance.batch_key)),
+        else_=None,
+    )
+    # Packaging sorts on the same total the grid shows: independent tallies, absolute.
+    pkg_expr = (
+        func.abs(func.coalesce(StockBalance.qty_cones, 0))
+        + func.abs(func.coalesce(StockBalance.qty_boxes, 0))
+        + func.abs(func.coalesce(StockBalance.qty_drums, 0))
+    )
+    sort_map = {
+        "item": Item.name,
+        "itemCategory": Category.name,
+        "location": LocL.name,
+        "warehouse": wh_name_expr,
+        "batch": batch_label_expr,
+        "qty": StockBalance.qty,
+        "packaging": pkg_expr,
+        "notes": Batch.notes,
+    }
+    sort_col = sort_map.get(sort_by or "")
+    descending = (sort_dir or "").lower().startswith("d")
+    if sort_col is not None:
+        order = [nullslast(sort_col.desc() if descending else sort_col.asc())]
+    else:
+        order = [Item.name.asc(), LocL.name.asc()]
+    # Deterministic tiebreak: without it OFFSET/LIMIT can repeat or skip rows between
+    # pages whenever the sort key ties.
+    order.append(StockBalance.id.asc())
+
+    rows = (await db.execute(
+        window.apply(
+            joined(select(
+                StockBalance,
+                Item.name, Item.code, Item.uom, Item.ends, Item.category_id, Category.name,
+                LocL.name,
+                Batch.batch_number, Batch.vendor_lot, Batch.quality_status, Batch.notes,
+                Batch.bom_size_snapshot,
+                ManufacturingOrder.id, ManufacturingOrder.code, WorkOrder.code,
+            ))
+            .options(selectinload(StockBalance.attribute_values))
+            .order_by(*order)
+        )
+    )).all()
+
+    items = []
+    for (bal, i_name, i_code, i_uom, i_ends, i_cat_id, cat_name, loc_name,
+         b_number, b_vendor_lot, b_quality, b_notes, b_snapshot,
+         mo_id, mo_code, wo_code) in rows:
+        lotted = bool(bal.batch_key)
+        notes = (b_notes or "").strip() if lotted else ""
+        items.append({
+            "item_id": bal.item_id,
+            "item_name": i_name or str(bal.item_id),
+            "item_code": i_code or str(bal.item_id),
+            "item_uom": i_uom or "",
+            "item_ends": i_ends,
+            "item_category_id": i_cat_id,
+            "item_category_name": cat_name,
+            "location_id": bal.location_id,
+            "location_name": loc_name or str(bal.location_id),
+            "attribute_value_ids": [v.id for v in bal.attribute_values],
+            "qty": float(bal.qty),
+            "qty_cones": int(bal.qty_cones or 0),
+            "qty_boxes": int(bal.qty_boxes or 0),
+            "qty_drums": int(bal.qty_drums or 0),
+            "batch_key": bal.batch_key,
+            "batch_number": b_number if lotted else None,
+            "vendor_lot": (b_vendor_lot or None) if lotted else None,
+            "size_label": _bom_size_label(b_snapshot) if lotted else None,
+            "batch_notes": notes or None,
+            "quality_status": b_quality if (lotted and b_quality and b_quality != "GOOD") else "GOOD",
+            "mo_id": mo_id if lotted else None,
+            "mo_code": mo_code if lotted else None,
+            "wo_code": wo_code if lotted else None,
+        })
+
+    return window.envelope(
+        items,
+        total,
+        negative_count=negative_count,
+        rejected_count=rejected_count,
+        rejected_qty=rejected_qty,
+        total_rows=total_rows,
+    )
 
 
 # The netting pass below walks every ONGOING MO plant-wide and is independent of

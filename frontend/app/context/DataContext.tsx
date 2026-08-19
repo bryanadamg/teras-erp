@@ -420,7 +420,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 // so a partial page hides machines instead of paging them.
                 requests.push(fetch(`${API_BASE}/work-centers?limit=2000`, { headers })); requestTypes.push('work-centers');
                 requests.push(fetch(`${API_BASE}/operations`, { headers })); requestTypes.push('operations');
-                requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
+                // /partners/lookup, not /partners: this feed is the name-resolution
+                // index (customer/supplier dropdowns, `.find(p => p.id === x)`, print
+                // modals, SectionHome counts), so it must be the WHOLE set. /partners
+                // is a page window and silently cut off at its 1000-row default. The
+                // paged list view (PartnersView) self-fetches /partners instead.
+                requests.push(fetch(`${API_BASE}/partners/lookup`, { headers })); requestTypes.push('partners');
                 requests.push(fetch(`${API_BASE}/settings/company`, { headers })); requestTypes.push('company-profile');
             }
 
@@ -552,9 +557,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requestTypes.push('purchase-orders');
             }
 
-            // Partners (Customers/Suppliers)
+            // Partners (Customers/Suppliers) — the unwindowed lookup index, same
+            // reason as the master-data fetch above. PartnersView drives its own
+            // paged /partners fetch; this refresh keeps the shared dropdowns and
+            // name lookups current after a create/edit/delete on those pages.
             if (fetchTarget.includes('customers') || fetchTarget.includes('suppliers') || fetchTarget.includes('samples')) {
-                requests.push(fetch(`${API_BASE}/partners`, { headers }));
+                requests.push(fetch(`${API_BASE}/partners/lookup`, { headers }));
                 requestTypes.push('partners');
             }
 
@@ -605,7 +613,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'sizes': setSizes(data); newMasterData.sizes = data; break;
                     case 'work-centers': setWorkCenters(data); newMasterData.workCenters = data; break;
                     case 'operations': setOperations(data); newMasterData.operations = data; break;
-                    case 'partners': setPartners(data.items || []); newMasterData.partners = data.items || []; break;
+                    // /partners/lookup returns a bare array (like /items/lookup), not
+                    // the `{items,total,...}` envelope /partners serves.
+                    case 'partners': setPartners(data || []); newMasterData.partners = data || []; break;
                     case 'company-profile': setCompanyProfile(data); newMasterData.companyProfile = data; break;
                     case 'print-templates': setPrintTemplates(data || []); newMasterData.printTemplates = data || []; break;
                     case 'items': setItems(data.items); setItemTotal(data.total); break;

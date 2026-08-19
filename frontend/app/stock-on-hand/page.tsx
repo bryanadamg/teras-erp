@@ -5,7 +5,10 @@ import { useData } from '../context/DataContext';
 import { useItemSearch } from '../components/shared/useEntitySearch';
 
 export default function StockOnHandPage() {
-    const { items, locations, stockBalance, attributes, categories, fetchData, authFetch, loading } = useData();
+    // No `stockBalance` here on purpose: the grid is server-paginated against
+    // /stock/balance/paginated. DataContext's `stockBalance` stays the unpaginated
+    // plant-wide lookup feed (manufacturing material availability, dashboards).
+    const { items, locations, attributes, categories, fetchData, authFetch } = useData();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -16,7 +19,6 @@ export default function StockOnHandPage() {
     return (
         <StockOnHandView
             locations={locations}
-            stockBalance={stockBalance}
             attributes={attributes}
             categories={categories}
             items={selectItems}
@@ -24,7 +26,6 @@ export default function StockOnHandPage() {
             onRefresh={fetchData}
             authFetch={authFetch}
             apiBase={API_BASE}
-            loading={loading.stockBalance}
         />
     );
 }

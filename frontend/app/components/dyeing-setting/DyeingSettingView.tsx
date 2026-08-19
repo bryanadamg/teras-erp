@@ -54,9 +54,13 @@ export default function DyeingSettingView() {
     useEffect(() => { if (recipeColorId) setActiveTab('recipes'); }, [recipeColorId]);
 
     // ── Fetch recipes ─────────────────────────────────────────────────────────
+    // Lookup feed, NOT a list: DyeingOrdersTab resolves each run's recipe_id out of
+    // this array (and offers it as a picker), so it must be the whole set. `size=0`
+    // is the uncapped contract on /dye-recipes — the paged window belongs to the
+    // Dye Recipes list view only.
     const fetchRecipes = useCallback(async () => {
         try {
-            const res = await authFetch('/api/dye-recipes');
+            const res = await authFetch('/api/dye-recipes?size=0');
             if (res.ok) {
                 const data = await res.json();
                 setRecipes(Array.isArray(data) ? data : (data.items ?? []));
