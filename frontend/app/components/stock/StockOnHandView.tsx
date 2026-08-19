@@ -653,226 +653,172 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             />
         );
 
-        if (classic) {
-            return (
-                <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
-                    title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
-                    style={{ background: selected[rk] ? (i % 2 === 0 ? '#e8f0fb' : '#dee9f7') : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' }}>
-                    <td style={{ padding: '4px 6px', textAlign: 'center', ...colDivider }}>{checkCell}</td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider }}>
-                        <div title={bal.item_name} style={{ fontSize: '11px', fontWeight: 'bold', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_name}</div>
-                        <CodeChip code={bal.item_code} classic tier={2} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }} />
-                        {(getComboLabel(bal) || bal.size_label) && (
-                            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 }}>
-                                {getComboLabel(bal) && (
-                                    <span style={{ fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }} title={`Combo: ${getComboLabel(bal)}`}>
-                                        {getComboLabel(bal)}
-                                    </span>
-                                )}
-                                {bal.size_label && (
-                                    <span style={{ fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }} title={`Size: ${bal.size_label}`}>
-                                        <i className="bi bi-rulers me-1" style={{ fontSize: 7 }}></i>{bal.size_label}
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140, ...colDivider }}>
-                        {bal.item_category_name ? (
-                            <span title={bal.item_category_name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>
-                                {bal.item_category_name}
-                            </span>
-                        ) : (
-                            <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>—</span>
-                        )}
-                    </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, maxWidth: '100%' }}>
-                            {getWarehouseName(bal.location_id) && (
-                                <span title={getWarehouseName(bal.location_id)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
-                                    {getWarehouseName(bal.location_id)}
-                                </span>
-                            )}
-                            <span title={bal.location_name || getLocationName(bal.location_id)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>
-                                {bal.location_name || getLocationName(bal.location_id)}
-                            </span>
-                        </div>
-                    </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider }}>
-                        {bal.batch_key ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', maxWidth: '100%' }}>
-                                <span title={batchLabel} style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }}>
-                                    {batchLabel}
-                                </span>
-                                {bal.vendor_lot && (
-                                    <span title={`Supplier lot: ${bal.vendor_lot}`} style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }}>
-                                        SUP {bal.vendor_lot}
-                                    </span>
-                                )}
-                                {bal.mo_code && (
-                                    <span title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`} style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#e4f0e4', border: '1px solid #8fbb8f', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#2a4a2a', whiteSpace: 'nowrap' }}>
-                                        MO {bal.mo_code}
-                                    </span>
-                                )}
-                                {qStatus && (
-                                    <span title="QC rejected — not usable stock, excluded from netting and consumption pickers" style={{ display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f8d7d7', border: '1px solid #a03030', padding: '0 5px', fontSize: '10px', fontWeight: 'bold', color: '#7a1010', whiteSpace: 'nowrap' }}>
-                                        <i className="bi bi-x-octagon-fill" style={{ marginRight: 3, fontSize: 9 }} />{qStatus}
-                                    </span>
-                                )}
-                            </div>
-                        ) : (
-                            <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>-</span>
-                        )}
-                    </td>
-                    <td style={{ padding: '4px 8px', ...colDivider }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                            {bal.attribute_value_ids?.length > 0 ? (
-                                bal.attribute_value_ids.map((vid: string) => (
-                                    <span key={vid} style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontFamily: xpFont, fontSize: '10px', color: '#333' }}>
-                                        {getAttrValueName(vid)}
-                                    </span>
-                                ))
-                            ) : (
-                                <span style={{ fontFamily: xpFont, fontSize: '10px', color: '#888', fontStyle: 'italic' }}>Standard</span>
-                            )}
-                        </div>
-                    </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: CODE_FONT, fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap', ...colDivider }}>
-                        {Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                    </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap', ...colDivider }}>
-                        {bal.item_uom || ''}
-                    </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap', ...colDivider }}>
-                        {pkgParts(bal).length === 0
-                            ? <span style={{ color: '#999' }}>-</span>
-                            : pkgParts(bal).map((p, idx) => (
-                                <span key={idx} style={{ color: p.n < 0 ? '#c00000' : '#5a3c00' }}>
-                                    {idx > 0 ? ' / ' : ''}{p.n} {p.label}
-                                </span>
-                            ))}
-                    </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#444', overflow: 'hidden', ...colDivider }}>
-                        {bal.batch_notes ? (
-                            <span title={bal.batch_notes} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {bal.batch_notes}
-                            </span>
-                        ) : (
-                            <span style={{ color: '#999' }}>-</span>
-                        )}
-                    </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider }}>
-                        {bal.item_ends != null ? bal.item_ends : ''}
-                    </td>
-                    <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                            {canEntry && (
-                                <XPActionButton classic tone="warning" icon="bi-sliders" title={ADJUST_TITLE} onClick={() => openAdjust(bal)} />
-                            )}
-                            {canEntry && bal.qty > 0 && (
-                                <XPActionButton classic tone="primary" icon="bi-arrow-left-right" title={MOVE_TITLE} onClick={() => openTransfer(bal)} />
-                            )}
-                        </div>
-                    </td>
-                </tr>
-            );
-        }
-
         return (
             <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
-                className={selected[rk] ? 'table-primary' : qStatus ? 'table-danger' : undefined}
-                title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}>
-                <td className="text-center" style={colDivider}>{checkCell}</td>
-                <td style={{ overflow: 'hidden', ...colDivider }}>
-                    <div title={bal.item_name} className="fw-medium text-truncate">{bal.item_name}</div>
-                    <CodeChip code={bal.item_code} classic={false} tier={2} className="text-truncate d-block" />
+                className={classic ? undefined : (selected[rk] ? 'table-primary' : qStatus ? 'table-danger' : undefined)}
+                title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
+                style={classic ? { background: selected[rk] ? (i % 2 === 0 ? '#e8f0fb' : '#dee9f7') : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' } : undefined}>
+                <td className={classic ? undefined : 'text-center'} style={classic ? { padding: '4px 6px', textAlign: 'center', ...colDivider } : colDivider}>{checkCell}</td>
+                <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
+                    <div title={bal.item_name}
+                        style={classic ? { fontSize: '11px', fontWeight: 'bold', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}
+                        className={classic ? undefined : 'fw-medium text-truncate'}>{bal.item_name}</div>
+                    <CodeChip code={bal.item_code} classic={classic} tier={2}
+                        style={classic ? { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}
+                        className={classic ? undefined : 'text-truncate d-block'} />
                     {(getComboLabel(bal) || bal.size_label) && (
-                        <div className="d-flex flex-wrap gap-1 mt-1">
+                        <div style={classic ? { display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 } : undefined} className={classic ? undefined : 'd-flex flex-wrap gap-1 mt-1'}>
                             {getComboLabel(bal) && (
-                                <span className="badge bg-primary bg-opacity-10 text-primary" style={{ fontSize: 9 }} title={`Combo: ${getComboLabel(bal)}`}>
+                                <span
+                                    style={classic ? { fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px' } : { fontSize: 9 }}
+                                    className={classic ? undefined : 'badge bg-primary bg-opacity-10 text-primary'}
+                                    title={`Combo: ${getComboLabel(bal)}`}>
                                     {getComboLabel(bal)}
                                 </span>
                             )}
                             {bal.size_label && (
-                                <span className="badge bg-success bg-opacity-10 text-success" style={{ fontSize: 9 }} title={`Size: ${bal.size_label}`}>
-                                    <i className="bi bi-rulers me-1" />{bal.size_label}
+                                <span
+                                    style={classic ? { fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px' } : { fontSize: 9 }}
+                                    className={classic ? undefined : 'badge bg-success bg-opacity-10 text-success'}
+                                    title={`Size: ${bal.size_label}`}>
+                                    <i className="bi bi-rulers me-1" style={classic ? { fontSize: 7 } : undefined}></i>{bal.size_label}
                                 </span>
                             )}
                         </div>
                     )}
                 </td>
-                <td style={{ maxWidth: 140, ...colDivider }}>
+                <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140, ...colDivider } : { maxWidth: 140, ...colDivider }}>
                     {bal.item_category_name ? (
-                        <span title={bal.item_category_name} className="badge bg-info-subtle text-info-emphasis" style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{bal.item_category_name}</span>
+                        <span title={bal.item_category_name}
+                            style={classic
+                                ? { display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }
+                                : { display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}
+                            className={classic ? undefined : 'badge bg-info-subtle text-info-emphasis'}>
+                            {bal.item_category_name}
+                        </span>
                     ) : (
-                        <span className="text-muted">—</span>
+                        <span style={classic ? { fontSize: '10px', color: '#999', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted'}>—</span>
                     )}
                 </td>
-                <td style={{ overflow: 'hidden', ...colDivider }}>
-                    <div className="d-flex flex-wrap gap-1" style={{ maxWidth: '100%' }}>
+                <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
+                    <div style={classic ? { display: 'flex', flexWrap: 'wrap', gap: 3, maxWidth: '100%' } : { maxWidth: '100%' }} className={classic ? undefined : 'd-flex flex-wrap gap-1'}>
                         {getWarehouseName(bal.location_id) && (
-                            <span className="badge bg-secondary-subtle text-secondary-emphasis text-truncate" style={{ maxWidth: '100%' }} title={getWarehouseName(bal.location_id)}>{getWarehouseName(bal.location_id)}</span>
+                            <span title={getWarehouseName(bal.location_id)}
+                                style={classic
+                                    ? { maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }
+                                    : { maxWidth: '100%' }}
+                                className={classic ? undefined : 'badge bg-secondary-subtle text-secondary-emphasis text-truncate'}>
+                                {getWarehouseName(bal.location_id)}
+                            </span>
                         )}
-                        <span className="badge bg-primary-subtle text-primary-emphasis text-truncate" style={{ maxWidth: '100%' }} title={bal.location_name || getLocationName(bal.location_id)}>{bal.location_name || getLocationName(bal.location_id)}</span>
+                        <span title={bal.location_name || getLocationName(bal.location_id)}
+                            style={classic
+                                ? { maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }
+                                : { maxWidth: '100%' }}
+                            className={classic ? undefined : 'badge bg-primary-subtle text-primary-emphasis text-truncate'}>
+                            {bal.location_name || getLocationName(bal.location_id)}
+                        </span>
                     </div>
                 </td>
-                <td style={{ overflow: 'hidden', ...colDivider }}>
+                <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     {bal.batch_key ? (
-                        <div className="d-flex flex-column gap-1 align-items-start" style={{ maxWidth: '100%' }}>
-                            <span className="badge bg-warning text-dark d-block text-truncate" style={{ maxWidth: '100%' }} title={batchLabel}>{batchLabel}</span>
+                        <div style={classic ? { display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', maxWidth: '100%' } : { maxWidth: '100%' }}
+                            className={classic ? undefined : 'd-flex flex-column gap-1 align-items-start'}>
+                            <span title={batchLabel}
+                                style={classic
+                                    ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }
+                                    : { maxWidth: '100%' }}
+                                className={classic ? undefined : 'badge bg-warning text-dark d-block text-truncate'}>
+                                {batchLabel}
+                            </span>
                             {bal.vendor_lot && (
-                                <span className="badge bg-secondary-subtle text-secondary-emphasis d-block text-truncate" style={{ fontFamily: CODE_FONT, maxWidth: '100%' }} title={`Supplier lot: ${bal.vendor_lot}`}>
+                                <span title={`Supplier lot: ${bal.vendor_lot}`}
+                                    style={classic
+                                        ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }
+                                        : { fontFamily: CODE_FONT, maxWidth: '100%' }}
+                                    className={classic ? undefined : 'badge bg-secondary-subtle text-secondary-emphasis d-block text-truncate'}>
                                     SUP {bal.vendor_lot}
                                 </span>
                             )}
                             {bal.mo_code && (
-                                <span className="badge bg-success-subtle text-success-emphasis d-block text-truncate" style={{ fontFamily: CODE_FONT, maxWidth: '100%' }} title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}>
+                                <span title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}
+                                    style={classic
+                                        ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#e4f0e4', border: '1px solid #8fbb8f', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#2a4a2a', whiteSpace: 'nowrap' }
+                                        : { fontFamily: CODE_FONT, maxWidth: '100%' }}
+                                    className={classic ? undefined : 'badge bg-success-subtle text-success-emphasis d-block text-truncate'}>
                                     MO {bal.mo_code}
                                 </span>
                             )}
                             {qStatus && (
-                                <span className="badge bg-danger d-block text-truncate" style={{ maxWidth: '100%' }} title="QC rejected — not usable stock, excluded from netting and consumption pickers">
-                                    <i className="bi bi-x-octagon-fill me-1" />{qStatus}
+                                <span title="QC rejected — not usable stock, excluded from netting and consumption pickers"
+                                    style={classic
+                                        ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f8d7d7', border: '1px solid #a03030', padding: '0 5px', fontSize: '10px', fontWeight: 'bold', color: '#7a1010', whiteSpace: 'nowrap' }
+                                        : { maxWidth: '100%' }}
+                                    className={classic ? undefined : 'badge bg-danger d-block text-truncate'}>
+                                    <i className={classic ? 'bi bi-x-octagon-fill' : 'bi bi-x-octagon-fill me-1'} style={classic ? { marginRight: 3, fontSize: 9 } : undefined} />{qStatus}
                                 </span>
                             )}
                         </div>
                     ) : (
-                        <span className="text-muted">-</span>
+                        <span style={classic ? { fontSize: '10px', color: '#999', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
                     )}
                 </td>
-                <td style={colDivider}>
-                    {bal.attribute_value_ids?.length > 0 ? (
-                        bal.attribute_value_ids.map((vid: string) => (
-                            <span key={vid} className="badge bg-info text-dark me-1">{getAttrValueName(vid)}</span>
-                        ))
-                    ) : (
-                        <span className="text-muted small">Standard</span>
-                    )}
+                <td style={classic ? { padding: '4px 8px', ...colDivider } : colDivider}>
+                    <div style={classic ? { display: 'flex', flexWrap: 'wrap', gap: 3 } : undefined}>
+                        {bal.attribute_value_ids?.length > 0 ? (
+                            bal.attribute_value_ids.map((vid: string) => (
+                                <span key={vid}
+                                    style={classic ? { background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontFamily: xpFont, fontSize: '10px', color: '#333' } : undefined}
+                                    className={classic ? undefined : 'badge bg-info text-dark me-1'}>
+                                    {getAttrValueName(vid)}
+                                </span>
+                            ))
+                        ) : (
+                            <span style={classic ? { fontFamily: xpFont, fontSize: '10px', color: '#888', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted small'}>Standard</span>
+                        )}
+                    </div>
                 </td>
-                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap', fontFamily: CODE_FONT, ...colDivider }}>{Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
-                <td className="text-muted small" style={{ whiteSpace: 'nowrap', ...colDivider }}>{bal.item_uom || ''}</td>
-                <td className="small" style={{ whiteSpace: 'nowrap', ...colDivider }}>
+                <td className={classic ? undefined : 'text-end fw-bold'}
+                    style={classic
+                        ? { padding: '4px 8px', textAlign: 'right', fontFamily: CODE_FONT, fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap', ...colDivider }
+                        : { color: qtyColor, whiteSpace: 'nowrap', fontFamily: CODE_FONT, ...colDivider }}>
+                    {Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                </td>
+                <td className={classic ? undefined : 'text-muted small'} style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
+                    {bal.item_uom || ''}
+                </td>
+                <td className={classic ? undefined : 'small'} style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
                     {pkgParts(bal).length === 0
-                        ? <span className="text-muted">-</span>
+                        ? <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
                         : pkgParts(bal).map((p, idx) => (
-                            <span key={idx} className={p.n < 0 ? 'text-danger' : ''}>
+                            <span key={idx}
+                                style={classic ? { color: p.n < 0 ? '#c00000' : '#5a3c00' } : undefined}
+                                className={classic ? undefined : (p.n < 0 ? 'text-danger' : '')}>
                                 {idx > 0 ? ' / ' : ''}{p.n} {p.label}
                             </span>
                         ))}
                 </td>
-                <td className="small" style={{ overflow: 'hidden', ...colDivider }}>
-                    {bal.batch_notes
-                        ? <span title={bal.batch_notes} className="d-block text-truncate">{bal.batch_notes}</span>
-                        : <span className="text-muted">-</span>}
+                <td className={classic ? undefined : 'small'} style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#444', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
+                    {bal.batch_notes ? (
+                        <span title={bal.batch_notes}
+                            style={classic ? { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}
+                            className={classic ? undefined : 'd-block text-truncate'}>
+                            {bal.batch_notes}
+                        </span>
+                    ) : (
+                        <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                    )}
                 </td>
-                <td className="text-end small" style={{ whiteSpace: 'nowrap', ...colDivider }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
-                <td>
-                    <div className="d-flex gap-1">
+                <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
+                    {bal.item_ends != null ? bal.item_ends : ''}
+                </td>
+                <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : undefined}>
+                    <div style={classic ? { display: 'flex', gap: 4 } : undefined} className={classic ? undefined : 'd-flex gap-1'}>
                         {canEntry && (
-                            <XPActionButton classic={false} tone="warning" icon="bi-sliders" title={ADJUST_TITLE} onClick={() => openAdjust(bal)} />
+                            <XPActionButton classic={classic} tone="warning" icon="bi-sliders" title={ADJUST_TITLE} onClick={() => openAdjust(bal)} />
                         )}
                         {canEntry && bal.qty > 0 && (
-                            <XPActionButton classic={false} tone="primary" icon="bi-arrow-left-right" title={MOVE_TITLE} onClick={() => openTransfer(bal)} />
+                            <XPActionButton classic={classic} tone="primary" icon="bi-arrow-left-right" title={MOVE_TITLE} onClick={() => openTransfer(bal)} />
                         )}
                     </div>
                 </td>
@@ -1209,100 +1155,171 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         </ModalWrapper>
     );
 
-    if (classic) {
-        return (
-            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-                <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                    <div style={xpTitleBar}>
-                        <span><i className="bi bi-boxes" style={{ marginRight: 6 }} />{t('stock_on_hand') || 'Stock On-Hand'}</span>
-                        <span style={{ fontSize: '10px', opacity: 0.85 }}>{filtered.length} records</span>
-                    </div>
-                    <div style={xpToolbar}>
-                        <SearchField classic value={search} onChange={setSearch} placeholder="Search item, location, lot, MO, notes..." width={220} />
+    // Bootstrap grid (col-md-*) vs the flat XP toolbar are genuinely different layout
+    // scaffolding, not duplicated content — wrap each control once here so the actual
+    // control props/handlers are defined a single time regardless of theme.
+    const col = (cls: string, node: React.ReactNode) => classic ? node : <div className={cls}>{node}</div>;
+
+    const toolbarControls = (
+        <>
+            {col('col-md-3',
+                <SearchField classic={classic} value={search} onChange={setSearch}
+                    placeholder={classic ? 'Search item, location, lot, MO, notes...' : 'Search item, location, category, lot, MO, notes...'}
+                    width={classic ? 220 : 400}
+                    {...(classic ? {} : { grow: true, style: { display: 'flex', width: '100%' } })}
+                />
+            )}
+            {classic && <div style={xpSep} />}
+            {col('col-md-3',
+                <TreeSelect
+                    options={catTreeOptions}
+                    value={selectedCat}
+                    onChange={setSelectedCat}
+                    allowEmpty
+                    emptyLabel="All Categories"
+                    {...(classic ? { style: { width: 180 } } : { size: 'sm' as const })}
+                />
+            )}
+            {(classic ? !!effectiveCat : true) && col('col-md-1',
+                <button
+                    style={classic ? xpBtn() : undefined}
+                    className={classic ? undefined : 'btn btn-outline-secondary btn-sm w-100'}
+                    onClick={clearCats}
+                    disabled={classic ? undefined : !effectiveCat}
+                    title="Clear category filter"
+                >Clear</button>
+            )}
+            {classic && <div style={xpSep} />}
+            {col('col-md-3',
+                <TreeSelect
+                    options={locFilterTreeOptions}
+                    value={locSelectValue}
+                    onChange={onLocSelect}
+                    allowEmpty
+                    emptyLabel="All Locations"
+                    {...(classic ? { style: { width: 200 } } : { size: 'sm' as const })}
+                />
+            )}
+            {classic && <div style={xpSep} />}
+            {classic ? (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    title="Hide QC-rejected lots — they are physically in stock but not usable">
+                    <input type="checkbox" checked={hideRejected} onChange={e => setHideRejected(e.target.checked)} style={{ margin: 0 }} />
+                    Hide rejected
+                </label>
+            ) : col('col-md-2 d-flex align-items-center',
+                <div className="form-check mb-0" title="Hide QC-rejected lots — they are physically in stock but not usable">
+                    <input className="form-check-input" type="checkbox" id="sohHideRejected" checked={hideRejected} onChange={e => setHideRejected(e.target.checked)} />
+                    <label className="form-check-label small" htmlFor="sohHideRejected">Hide rejected</label>
+                </div>
+            )}
+            {canEntry && selectedKeys.length > 0 && (
+                classic ? (
+                    <>
                         <div style={xpSep} />
-                        <TreeSelect
-                            options={catTreeOptions}
-                            value={selectedCat}
-                            onChange={setSelectedCat}
-                            allowEmpty
-                            emptyLabel="All Categories"
-                            style={{ width: 180 }}
-                        />
-                        {effectiveCat && <button style={xpBtn()} onClick={clearCats} title="Clear category filter">Clear</button>}
-                        <div style={xpSep} />
-                        <TreeSelect
-                            options={locFilterTreeOptions}
-                            value={locSelectValue}
-                            onChange={onLocSelect}
-                            allowEmpty
-                            emptyLabel="All Locations"
-                            style={{ width: 200 }}
-                        />
-                        <div style={xpSep} />
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                            title="Hide QC-rejected lots — they are physically in stock but not usable">
-                            <input type="checkbox" checked={hideRejected} onChange={e => setHideRejected(e.target.checked)} style={{ margin: 0 }} />
-                            Hide rejected
-                        </label>
-                        {canEntry && selectedKeys.length > 0 && (
-                            <>
-                                <div style={xpSep} />
-                                <button style={xpBtn({ background: 'linear-gradient(to bottom,#cfe3ff,#a9c9f0)', fontWeight: 'bold' })} onClick={openBulkMove}
-                                    title="Move every selected row to one destination in a single transaction">
-                                    <i className="bi bi-arrow-left-right" style={{ marginRight: 4 }} />Move {selectedKeys.length} selected
-                                </button>
-                                <button style={xpBtn()} onClick={clearSelection} title="Clear selection">Clear</button>
-                            </>
-                        )}
-                        <div style={xpSep} />
-                        <button style={xpBtn()} onClick={onRefresh} title="Refresh">
-                            <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
+                        <button style={xpBtn({ background: 'linear-gradient(to bottom,#cfe3ff,#a9c9f0)', fontWeight: 'bold' })} onClick={openBulkMove}
+                            title="Move every selected row to one destination in a single transaction">
+                            <i className="bi bi-arrow-left-right" style={{ marginRight: 4 }} />Move {selectedKeys.length} selected
                         </button>
-                        {canRebuild && (
-                            <button style={xpBtn()} onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
-                                <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
-                            </button>
-                        )}
-                        {canEntry && (
-                            <ToolbarButton classic tone="create" icon="bi-plus-lg" style={{ marginLeft: 'auto' }} title="Add stock for an item (new manual entry)" onClick={openNew}>
-                                New Entry
-                            </ToolbarButton>
-                        )}
+                        <button style={xpBtn()} onClick={clearSelection} title="Clear selection">Clear</button>
+                    </>
+                ) : col('col-md-3 d-flex gap-2', (
+                    <>
+                        <button className="btn btn-primary btn-sm flex-fill" onClick={openBulkMove}
+                            title="Move every selected row to one destination in a single transaction">
+                            <i className="bi bi-arrow-left-right me-1" />Move {selectedKeys.length} selected
+                        </button>
+                        <button className="btn btn-outline-secondary btn-sm" onClick={clearSelection} title="Clear selection">Clear</button>
+                    </>
+                ))
+            )}
+            {classic && <div style={xpSep} />}
+            {col('col-md-2',
+                <button
+                    style={classic ? xpBtn() : undefined}
+                    className={classic ? undefined : 'btn btn-outline-secondary btn-sm w-100'}
+                    onClick={onRefresh}
+                    title={classic ? 'Refresh' : undefined}
+                >
+                    <i className={classic ? 'bi bi-arrow-clockwise' : 'bi bi-arrow-clockwise me-1'} style={classic ? { marginRight: 4 } : undefined} />Refresh
+                </button>
+            )}
+            {canRebuild && col('col-md-2',
+                <button
+                    style={classic ? xpBtn() : undefined}
+                    className={classic ? undefined : 'btn btn-outline-secondary btn-sm w-100'}
+                    onClick={handleRebuild} disabled={rebuilding}
+                    title="Recompute stock balances from the ledger (use if balances look stale)"
+                >
+                    <i className={classic ? 'bi bi-arrow-repeat' : 'bi bi-arrow-repeat me-1'} style={classic ? { marginRight: 4 } : undefined} />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
+                </button>
+            )}
+            {canEntry && col('col-md-2 ms-auto',
+                <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" style={classic ? { marginLeft: 'auto' } : { width: '100%' }} title="Add stock for an item (new manual entry)" onClick={openNew}>
+                    New Entry
+                </ToolbarButton>
+            )}
+        </>
+    );
+
+    return (
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+            <div
+                style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                className={classic ? undefined : 'card shadow-sm border-0'}
+            >
+                <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center py-3'}>
+                    {classic
+                        ? <span><i className="bi bi-boxes" style={{ marginRight: 6 }} />{t('stock_on_hand') || 'Stock On-Hand'}</span>
+                        : <h5 className="card-title mb-0"><i className="bi bi-boxes me-2" />{t('stock_on_hand') || 'Stock On-Hand'}</h5>}
+                    <span style={classic ? { fontSize: '10px', opacity: 0.85 } : undefined} className={classic ? undefined : 'badge bg-primary bg-opacity-25 text-primary-emphasis'}>{filtered.length} records</span>
+                </div>
+                {classic ? (
+                    <div style={xpToolbar}>{toolbarControls}</div>
+                ) : (
+                    <div className="card-body pb-0" style={{ flexShrink: 0 }}>
+                        <div className="row g-2 mb-3">{toolbarControls}</div>
                     </div>
-                    <div style={{ flex: 1, overflow: 'auto', background: '#ffffff', minHeight: 0 }}>
-                        <table style={{ width: '100%', minWidth: TABLE_MIN_WIDTH, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                            <thead>
+                )}
+                <div style={classic ? { flex: 1, overflow: 'auto', background: '#ffffff', minHeight: 0 } : { flex: 1, overflow: 'auto', minHeight: 0 }} className={classic ? undefined : 'table-responsive'}>
+                    <table style={classic ? { width: '100%', minWidth: TABLE_MIN_WIDTH, borderCollapse: 'collapse', tableLayout: 'fixed' } : { tableLayout: 'fixed', minWidth: TABLE_MIN_WIDTH }} className={classic ? undefined : 'table table-hover table-sm mb-0'}>
+                        <thead className={classic ? undefined : 'table-light'}>
+                            <tr>
+                                <th className={classic ? undefined : 'text-center'} style={classic ? { ...xpTableHeader, width: COL_W.check, textAlign: 'center' } : { width: COL_W.check, ...colDivider }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
+                                    <input type="checkbox" style={{ margin: 0, cursor: 'pointer' }} checked={allPageSelected} disabled={!pageMovable.length} onChange={togglePageSelection} />
+                                </th>
+                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.item } : { cursor: 'pointer', width: COL_W.item, ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.category } : { cursor: 'pointer', width: COL_W.category, ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
+                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.location } : { cursor: 'pointer', width: COL_W.location, ...colDivider }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.lot } : { cursor: 'pointer', width: COL_W.lot, ...colDivider }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                <th style={classic ? { ...xpTableHeader, width: COL_W.attrs } : { width: COL_W.attrs, ...colDivider }}>{t('attributes') || 'Attributes'}</th>
+                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: COL_W.qty } : { cursor: 'pointer', width: COL_W.qty, ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                <th style={classic ? { ...xpTableHeader, width: COL_W.uom } : { width: COL_W.uom, ...colDivider }}>UOM</th>
+                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.packaging } : { cursor: 'pointer', width: COL_W.packaging, ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
+                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.notes } : { cursor: 'pointer', width: COL_W.notes, ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.ends } : { width: COL_W.ends, ...colDivider }}>Ends</th>
+                                <th style={classic ? { ...xpTableHeader, width: COL_W.actions, borderRight: 'none' } : { width: COL_W.actions }}></th>
+                            </tr>
+                        </thead>
+                        <tbody ref={listBodyRef}>
+                            {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
+                            {filtered.length === 0 && (loading ? (
+                                <TableSkeleton rows={8} cols={skel.cols ?? 12} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                            ) : classic ? (
                                 <tr>
-                                    <th style={{ ...xpTableHeader, width: COL_W.check, textAlign: 'center' }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
-                                        <input type="checkbox" style={{ margin: 0, cursor: 'pointer' }} checked={allPageSelected} disabled={!pageMovable.length} onChange={togglePageSelection} />
-                                    </th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.item }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.category }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.location }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.lot }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                    <th style={{ ...xpTableHeader, width: COL_W.attrs }}>{t('attributes') || 'Attributes'}</th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: COL_W.qty }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                    <th style={{ ...xpTableHeader, width: COL_W.uom }}>UOM</th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.packaging }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: COL_W.notes }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right', width: COL_W.ends }}>Ends</th>
-                                    <th style={{ ...xpTableHeader, width: COL_W.actions, borderRight: 'none' }}></th>
+                                    <td colSpan={12} style={{ textAlign: 'center', padding: '24px' }}>
+                                        <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody ref={listBodyRef}>
-                                {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
-                                {filtered.length === 0 && (loading ? (
-                                    <TableSkeleton rows={8} cols={skel.cols ?? 12} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                                ) : (
-                                    <tr>
-                                        <td colSpan={12} style={{ textAlign: 'center', padding: '24px' }}>
-                                            <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                            ) : (
+                                <tr>
+                                    <td colSpan={12} className="text-center text-muted py-4">No stock records found</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                {classic ? (
                     <div style={{
                         background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
                         padding: '2px 8px', display: 'flex', gap: 16,
@@ -1317,130 +1334,18 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         )}
                         <span style={{ marginLeft: 'auto', color: '#666' }}>Total: {(stockBalance || []).length} SKUs</span>
                     </div>
-                    <Pager page={clampedPage} total={sortedRows.length} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
-                </div>
-                {transferModal}
-                {bulkMoveModal}
-                {adjustModal}
-                {newEntryModal}
-            </div>
-        );
-    }
-
-    // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
-    return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-            <div className="card shadow-sm border-0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                <div className="card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center py-3">
-                    <h5 className="card-title mb-0"><i className="bi bi-boxes me-2" />{t('stock_on_hand') || 'Stock On-Hand'}</h5>
-                    <span className="badge bg-primary bg-opacity-25 text-primary-emphasis">{filtered.length} records</span>
-                </div>
-                <div className="card-body pb-0" style={{ flexShrink: 0 }}>
-                    <div className="row g-2 mb-3">
-                        <div className="col-md-3">
-                            <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search item, location, category, lot, MO, notes..." width={400} grow style={{ display: 'flex', width: '100%' }} />
-                        </div>
-                        <div className="col-md-3">
-                            <TreeSelect
-                                options={catTreeOptions}
-                                value={selectedCat}
-                                onChange={setSelectedCat}
-                                allowEmpty
-                                emptyLabel="All Categories"
-                                size="sm"
-                            />
-                        </div>
-                        <div className="col-md-1">
-                            <button className="btn btn-outline-secondary btn-sm w-100" onClick={clearCats} disabled={!effectiveCat} title="Clear category filter">Clear</button>
-                        </div>
-                        <div className="col-md-3">
-                            <TreeSelect
-                                options={locFilterTreeOptions}
-                                value={locSelectValue}
-                                onChange={onLocSelect}
-                                allowEmpty
-                                emptyLabel="All Locations"
-                                size="sm"
-                            />
-                        </div>
-                        <div className="col-md-2 d-flex align-items-center">
-                            <div className="form-check mb-0" title="Hide QC-rejected lots — they are physically in stock but not usable">
-                                <input className="form-check-input" type="checkbox" id="sohHideRejected" checked={hideRejected} onChange={e => setHideRejected(e.target.checked)} />
-                                <label className="form-check-label small" htmlFor="sohHideRejected">Hide rejected</label>
-                            </div>
-                        </div>
-                        {canEntry && selectedKeys.length > 0 && (
-                            <div className="col-md-3 d-flex gap-2">
-                                <button className="btn btn-primary btn-sm flex-fill" onClick={openBulkMove}
-                                    title="Move every selected row to one destination in a single transaction">
-                                    <i className="bi bi-arrow-left-right me-1" />Move {selectedKeys.length} selected
-                                </button>
-                                <button className="btn btn-outline-secondary btn-sm" onClick={clearSelection} title="Clear selection">Clear</button>
-                            </div>
+                ) : (
+                    <div className="card-footer text-muted d-flex gap-3 small" style={{ flexShrink: 0 }}>
+                        <span><b>{filtered.length}</b> rows match</span>
+                        {negativeCount > 0 && <span className="text-danger"><b>{negativeCount}</b> negative</span>}
+                        {rejectedCount > 0 && (
+                            <span className="text-danger" title="QC-rejected lots included in the rows above — physically present, not usable">
+                                <b>{rejectedCount}</b> rejected ({rejectedQty.toLocaleString('en-US', { maximumFractionDigits: 3 })})
+                            </span>
                         )}
-                        <div className="col-md-2">
-                            <button className="btn btn-outline-secondary btn-sm w-100" onClick={onRefresh}>
-                                <i className="bi bi-arrow-clockwise me-1" />Refresh
-                            </button>
-                        </div>
-                        {canRebuild && (
-                            <div className="col-md-2">
-                                <button className="btn btn-outline-secondary btn-sm w-100" onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
-                                    <i className="bi bi-arrow-repeat me-1" />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
-                                </button>
-                            </div>
-                        )}
-                        {canEntry && (
-                            <div className="col-md-2 ms-auto">
-                                <ToolbarButton classic={false} tone="create" icon="bi-plus-lg" style={{ width: '100%' }} title="Add stock for an item (new manual entry)" onClick={openNew}>
-                                    New Entry
-                                </ToolbarButton>
-                            </div>
-                        )}
+                        <span className="ms-auto">Total: {(stockBalance || []).length} SKUs</span>
                     </div>
-                </div>
-                <div className="table-responsive" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                    <table className="table table-hover table-sm mb-0" style={{ tableLayout: 'fixed', minWidth: TABLE_MIN_WIDTH }}>
-                        <thead className="table-light">
-                            <tr>
-                                <th className="text-center" style={{ width: COL_W.check, ...colDivider }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
-                                    <input type="checkbox" style={{ margin: 0, cursor: 'pointer' }} checked={allPageSelected} disabled={!pageMovable.length} onChange={togglePageSelection} />
-                                </th>
-                                <th style={{ cursor: 'pointer', width: COL_W.item, ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                <th style={{ cursor: 'pointer', width: COL_W.category, ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                <th style={{ cursor: 'pointer', width: COL_W.location, ...colDivider }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={{ cursor: 'pointer', width: COL_W.lot, ...colDivider }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                <th style={{ width: COL_W.attrs, ...colDivider }}>{t('attributes') || 'Attributes'}</th>
-                                <th className="text-end" style={{ cursor: 'pointer', width: COL_W.qty, ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                <th style={{ width: COL_W.uom, ...colDivider }}>UOM</th>
-                                <th style={{ cursor: 'pointer', width: COL_W.packaging, ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                <th style={{ cursor: 'pointer', width: COL_W.notes, ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                                <th className="text-end" style={{ width: COL_W.ends, ...colDivider }}>Ends</th>
-                                <th style={{ width: COL_W.actions }}></th>
-                            </tr>
-                        </thead>
-                        <tbody ref={listBodyRef}>
-                            {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
-                            {filtered.length === 0 && (loading ? (
-                                <TableSkeleton rows={8} cols={skel.cols ?? 12} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                            ) : (
-                                <tr>
-                                    <td colSpan={12} className="text-center text-muted py-4">No stock records found</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="card-footer text-muted d-flex gap-3 small" style={{ flexShrink: 0 }}>
-                    <span><b>{filtered.length}</b> rows match</span>
-                    {negativeCount > 0 && <span className="text-danger"><b>{negativeCount}</b> negative</span>}
-                    {rejectedCount > 0 && (
-                        <span className="text-danger" title="QC-rejected lots included in the rows above — physically present, not usable">
-                            <b>{rejectedCount}</b> rejected ({rejectedQty.toLocaleString('en-US', { maximumFractionDigits: 3 })})
-                        </span>
-                    )}
-                    <span className="ms-auto">Total: {(stockBalance || []).length} SKUs</span>
-                </div>
+                )}
                 <Pager page={clampedPage} total={sortedRows.length} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
             </div>
             {transferModal}

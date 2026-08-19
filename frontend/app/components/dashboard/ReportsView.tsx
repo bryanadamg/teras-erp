@@ -241,11 +241,158 @@ export default function ReportsView(_props: any) {
     // Column rules: every cell carries a right divider so the grid reads as a
     // ledger, not a list. The last cell drops it (the table border closes it).
     const xpCell: React.CSSProperties = { padding: '4px 8px', fontFamily: xpFont, borderRight: '1px solid #e0ddd3' };
-    const renderClassicRow = (e: any, i: number) => {
+
+    // ── XP "stat tile" for the summary strip ─────────────────────────────────
+    // Label and value sit on ONE line: the strip is a readout, not a dashboard,
+    // and a stacked tile ate a third of the ledger's vertical space.
+    const statTile = (label: string, value: string, color: string) => (
+        <div style={{
+            flex: 1, minWidth: 96, background: '#ffffff',
+            border: '1px solid', borderColor: '#808080 #ffffff #ffffff #808080',
+            padding: '1px 8px', fontFamily: xpFont,
+            display: 'flex', alignItems: 'baseline', gap: 6,
+        }}>
+            <span style={{ fontSize: 9, color: '#777', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+            <span style={{ fontSize: 12, fontWeight: 'bold', color, marginLeft: 'auto' }}>{value}</span>
+        </div>
+    );
+
+    // Direction filter + date presets — one definition, both themes render them
+    // through the shared segmented bars.
+    const directionOptions: FilterChipOption[] = [
+        { value: '', label: 'All' },
+        { value: 'in', label: 'In', tone: 'green' },
+        { value: 'out', label: 'Out', tone: 'red' },
+    ];
+    const presetActions = ([
+        ['today', 'Today'], ['7d', '7d'], ['30d', '30d'], ['month', 'Month'],
+    ] as const).map(([k, label]) => ({ key: k, label, onClick: () => applyPreset(k) }));
+
+    // Two stacked toolbar rows: line 1 = search + dropdowns, line 2 = date
+    // range + actions. Only the lower row draws the separator so the pair
+    // reads as one band (classic only — modern nests both rows inside the
+    // card-header instead).
+    const titleBar: React.CSSProperties = sharedXpTitleBar();
+    const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '4px 6px', gap: '5px', flexWrap: 'nowrap', overflowX: 'auto' });
+    const toolbarTop: React.CSSProperties = { ...toolbar, borderBottom: 'none', paddingBottom: 0 };
+    const th: React.CSSProperties = {
+        ...lvThead(true),
+        fontSize: '10px', fontWeight: 'bold', color: '#000', fontFamily: xpFont, padding: '3px 8px',
+        position: 'sticky', top: 0, textAlign: 'left', borderRight: '1px solid #b0a898',
+    };
+    const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
+
+    // ── Filter toolbar rows — shared content, per-branch wrapper/controls ────
+    const toolbarRow1 = classic ? (
+        <div style={toolbarTop} className="no-print">
+            <SearchField classic value={search} onChange={setSearch} placeholder="Search item or reference..." width={200} />
+            <div style={xpSep} />
+            <TreeSelect
+                options={locFilterTreeOptions}
+                value={locationFilter}
+                onChange={onFilter(setLocationFilter)}
+                allowEmpty
+                emptyLabel="All Locations"
+                style={{ width: 150 }}
+            />
+            <TreeSelect
+                options={catFilterTreeOptions}
+                value={categoryFilter}
+                onChange={onFilter(setCategoryFilter)}
+                allowEmpty
+                emptyLabel="All Categories"
+                style={{ width: 150 }}
+            />
+            <select style={xpSelect({ width: 150 })} value={refTypeFilter} onChange={e => onFilter(setRefTypeFilter)(e.target.value)}>
+                <option value="">All Sources</option>
+                {refTypes.map(rt => <option key={rt} value={rt}>{refMeta(rt).label}</option>)}
+            </select>
+            <FilterChipBar
+                classic
+                options={directionOptions}
+                value={direction}
+                onChange={v => onFilter(setDirection)(v as '' | 'in' | 'out')}
+            />
+            <div style={{ flex: 1 }} />
+        </div>
+    ) : (
+        <div className="row g-2 align-items-center">
+            <div className="col-md-4">
+                <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search item or reference..." width={320} grow style={{ display: 'flex', width: '100%' }} />
+            </div>
+            <div className="col-md-2">
+                <TreeSelect
+                    options={catFilterTreeOptions}
+                    value={categoryFilter}
+                    onChange={onFilter(setCategoryFilter)}
+                    allowEmpty
+                    emptyLabel="All Categories"
+                />
+            </div>
+            <div className="col-md-2">
+                <TreeSelect
+                    options={locFilterTreeOptions}
+                    value={locationFilter}
+                    onChange={onFilter(setLocationFilter)}
+                    allowEmpty
+                    emptyLabel="All Locations"
+                />
+            </div>
+            <div className="col-md-2">
+                <select className="form-select form-select-sm" value={refTypeFilter} onChange={e => onFilter(setRefTypeFilter)(e.target.value)}>
+                    <option value="">All Sources</option>
+                    {refTypes.map(rt => <option key={rt} value={rt}>{refMeta(rt).label}</option>)}
+                </select>
+            </div>
+            <div className="col-md-2">
+                <FilterChipBar
+                    classic={false}
+                    options={directionOptions}
+                    value={direction}
+                    onChange={v => onFilter(setDirection)(v as '' | 'in' | 'out')}
+                    style={{ width: '100%' }}
+                />
+            </div>
+        </div>
+    );
+
+    const toolbarRow2 = classic ? (
+        <div style={toolbar} className="no-print">
+            <span style={lbl}>{t('from')}:</span>
+            <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
+            <span style={lbl}>{t('to')}:</span>
+            <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
+            <SegmentedBar classic actions={presetActions} />
+            <div style={{ flex: 1 }} />
+            {hasFilters && <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
+            <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+            <button style={xpBtn({ padding: '1px 6px' })} onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
+        </div>
+    ) : (
+        <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
+            <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
+            <input type="date" className="form-control form-control-sm me-1" style={{ width: 150 }} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
+            <SegmentedBar classic={false} actions={presetActions} />
+            {hasFilters && <button className="btn btn-outline-secondary btn-sm py-0 ms-1" onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
+            <button className="btn btn-outline-secondary btn-sm py-0 ms-auto" onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+            <button className="btn btn-outline-primary btn-sm py-0" onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
+        </div>
+    );
+
+    // ── Summary strip — one stat list, per-branch tile rendering ─────────────
+    const stats = [
+        { label: 'Movements', value: total.toLocaleString(), color: '#1a3d7a', cls: 'text-primary' },
+        { label: 'In', value: `+${fmtQty(totalIn)}`, color: '#1a5e1a', cls: 'text-success' },
+        { label: 'Out', value: fmtQty(totalOut), color: '#c00000', cls: 'text-danger' },
+        { label: 'Net', value: `${net > 0 ? '+' : ''}${fmtQty(net)}`, color: net >= 0 ? '#1a5e1a' : '#c00000', cls: net >= 0 ? 'text-success' : 'text-danger' },
+    ];
+
+    // ── Row rendering — one function, per-cell ternaries ─────────────────────
+    const renderRow = (e: any, i: number) => {
         const rm = refMeta(e.reference_type);
         const up = e.qty_change >= 0;
         const pkg = pkgDelta(e);
-        return (
+        return classic ? (
             <tr key={e.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #e0ddd3' }}>
                 <td style={{ ...xpCell, whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: '11px', color: '#000' }}>{tzDate(e.created_at)}</div>
@@ -301,340 +448,151 @@ export default function ReportsView(_props: any) {
                     <span style={{ fontSize: '10px', color: '#999', marginLeft: 4 }} title={e.reference_id}>#{e.reference_label || shortRef(e.reference_id)}</span>
                 </td>
             </tr>
+        ) : (
+            <tr key={e.id}>
+                <td className="ps-4" style={{ whiteSpace: 'nowrap' }}>
+                    <div className="small">{tzDate(e.created_at)}</div>
+                    <div className="text-muted" style={{ fontSize: 11 }}>{tzTime(e.created_at)}</div>
+                </td>
+                <td>
+                    <div className="fw-medium">{getItemName(e)}</div>
+                    <CodeChip code={getItemCode(e)} classic={false} tier={2} style={{ display: 'block' }} />
+                    {e.attribute_value_ids?.length > 0 && (
+                        <div className="d-flex flex-wrap gap-1 mt-1">
+                            {e.attribute_value_ids.map((vid: string) => <span key={vid} className="badge text-bg-light border" style={{ fontSize: 9 }}>{getAttrName(vid)}</span>)}
+                        </div>
+                    )}
+                </td>
+                <td>
+                    {e.item_category_name
+                        ? <span title={e.item_category_name} className="badge bg-info-subtle text-info-emphasis d-inline-block text-truncate mw-100 align-bottom">{e.item_category_name}</span>
+                        : <span className="text-muted">-</span>}
+                </td>
+                <td>
+                    <div className="d-flex flex-wrap gap-1">
+                        {getWarehouseName(e) && (
+                            <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(e)}</span>
+                        )}
+                        <span className="badge bg-primary-subtle text-primary-emphasis">{getLocName(e)}</span>
+                    </div>
+                </td>
+                <td>{e.batch_number ? <span className="badge bg-warning text-dark">{e.batch_number}</span> : <span className="text-muted">-</span>}</td>
+                <td className="text-end" style={{ whiteSpace: 'nowrap' }}>
+                    <span className={`fw-bold ${up ? 'text-success' : 'text-danger'}`}>
+                        <i className={`bi ${up ? 'bi-caret-up-fill' : 'bi-caret-down-fill'} me-1`} style={{ fontSize: 10 }} />
+                        {up ? '+' : ''}{fmtQty(e.qty_change)}
+                        <span className="text-muted fw-normal small ms-1">{e.item_uom}</span>
+                    </span>
+                    {pkg.length > 0 && (
+                        <div className="text-muted" style={{ fontSize: 10 }}>
+                            {pkg.map((q, k) => <span key={k}>{k > 0 ? ', ' : ''}{q.n > 0 ? '+' : ''}{q.n} {q.label}</span>)}
+                        </div>
+                    )}
+                </td>
+                <td className="pe-4" style={{ whiteSpace: 'nowrap' }}>
+                    <span className={`badge ${rm.modern}`}>{rm.label}</span>
+                    <span className="ms-2 text-muted small" title={e.reference_id}>#{e.reference_label || shortRef(e.reference_id)}</span>
+                </td>
+            </tr>
         );
     };
 
-    // ── XP "stat tile" for the summary strip ─────────────────────────────────
-    // Label and value sit on ONE line: the strip is a readout, not a dashboard,
-    // and a stacked tile ate a third of the ledger's vertical space.
-    const statTile = (label: string, value: string, color: string) => (
-        <div style={{
-            flex: 1, minWidth: 96, background: '#ffffff',
-            border: '1px solid', borderColor: '#808080 #ffffff #ffffff #808080',
-            padding: '1px 8px', fontFamily: xpFont,
-            display: 'flex', alignItems: 'baseline', gap: 6,
-        }}>
-            <span style={{ fontSize: 9, color: '#777', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
-            <span style={{ fontSize: 12, fontWeight: 'bold', color, marginLeft: 'auto' }}>{value}</span>
+    // ── Table body — shared error/empty/rows ternary, per-branch chrome ──────
+    const tableBody = error ? (
+        classic
+            ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load ledger — ${error}`} />
+            : <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load ledger — {error}</div>
+    ) : !loading && rows.length === 0 ? (
+        classic ? (
+            <XPEmptyState icon="bi-journal-x" message={hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}>
+                {hasFilters && <button style={{ ...xpBtn(), marginTop: 10 }} onClick={clearFilters}>Clear filters</button>}
+            </XPEmptyState>
+        ) : (
+            <div className="text-center py-5 text-muted">
+                <i className="bi bi-journal-x d-block fs-2 mb-2 opacity-50" />
+                {hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}
+                {hasFilters && <div><button className="btn btn-sm btn-outline-secondary mt-3" onClick={clearFilters}>Clear filters</button></div>}
+            </div>
+        )
+    ) : (
+        <div className={classic ? undefined : 'table-responsive'} style={classic ? undefined : { flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <table className={classic ? undefined : 'table table-hover table-bordered align-middle mb-0'} style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined}>
+                <thead className={classic ? undefined : 'table-light'} style={classic ? undefined : { position: 'sticky', top: 0, zIndex: 1 }}>
+                    <tr>
+                        <th className={classic ? undefined : 'ps-4'} style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
+                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
+                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('category')}>Category<SortMark sort={sort} colKey="category" /></th>
+                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('location')}>{t('locations')}<SortMark sort={sort} colKey="location" /></th>
+                        <th style={classic ? th : undefined}>Lot</th>
+                        <th className={classic ? undefined : 'text-end'} style={classic ? { ...th, textAlign: 'right', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('qty')}>Movement<SortMark sort={sort} colKey="qty" /></th>
+                        <th className={classic ? undefined : 'pe-4'} style={classic ? { ...th, borderRight: 'none' } : undefined}>Source</th>
+                    </tr>
+                </thead>
+                {/* Skeleton lives inside the real table so the header stays
+                    put and the placeholder rows inherit its columns. */}
+                <tbody ref={listBodyRef}>
+                    {loading
+                        ? <TableSkeleton rows={10} cols={skel.cols ?? 7} classic={classic} tdStyle={classic ? xpCell : undefined} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                        : rows.map((e: any, i: number) => renderRow(e, i))}
+                </tbody>
+            </table>
         </div>
     );
 
-    // Direction filter + date presets — one definition, both themes render them
-    // through the shared segmented bars.
-    const directionOptions: FilterChipOption[] = [
-        { value: '', label: 'All' },
-        { value: 'in', label: 'In', tone: 'green' },
-        { value: 'out', label: 'Out', tone: 'red' },
-    ];
-    const presetActions = ([
-        ['today', 'Today'], ['7d', '7d'], ['30d', '30d'], ['month', 'Month'],
-    ] as const).map(([k, label]) => ({ key: k, label, onClick: () => applyPreset(k) }));
-
-    if (classic) {
-        const titleBar: React.CSSProperties = sharedXpTitleBar();
-        // Two stacked toolbar rows: line 1 = search + dropdowns, line 2 = date
-        // range + actions. Only the lower row draws the separator so the pair
-        // reads as one band.
-        const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '4px 6px', gap: '5px', flexWrap: 'nowrap', overflowX: 'auto' });
-        const toolbarTop: React.CSSProperties = { ...toolbar, borderBottom: 'none', paddingBottom: 0 };
-        const th: React.CSSProperties = {
-            ...lvThead(true),
-            fontSize: '10px', fontWeight: 'bold', color: '#000', fontFamily: xpFont, padding: '3px 8px',
-            position: 'sticky', top: 0, textAlign: 'left', borderRight: '1px solid #b0a898',
-        };
-        const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
-
-        return (
-            <>
-            <div className="fade-in print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-                <div style={sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })}>
+    return (
+        <>
+        <div className={classic ? 'fade-in print-container' : 'card fade-in border-0 shadow-sm print-container'} style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+            <div style={classic ? sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }) : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                {classic ? (
                     <div style={titleBar} className="no-print">
                         <span><i className="bi bi-journal-text" style={{ marginRight: 6 }} />{t('stock_ledger')}</span>
                         <span style={{ fontSize: '10px', opacity: 0.85 }}>{total.toLocaleString()} movements</span>
                     </div>
-
-                    {/* Filters — line 1: search + dropdowns */}
-                    <div style={toolbarTop} className="no-print">
-                        <SearchField classic value={search} onChange={setSearch} placeholder="Search item or reference..." width={200} />
-                        <div style={xpSep} />
-                        <TreeSelect
-                            options={locFilterTreeOptions}
-                            value={locationFilter}
-                            onChange={onFilter(setLocationFilter)}
-                            allowEmpty
-                            emptyLabel="All Locations"
-                            style={{ width: 150 }}
-                        />
-                        <TreeSelect
-                            options={catFilterTreeOptions}
-                            value={categoryFilter}
-                            onChange={onFilter(setCategoryFilter)}
-                            allowEmpty
-                            emptyLabel="All Categories"
-                            style={{ width: 150 }}
-                        />
-                        <select style={xpSelect({ width: 150 })} value={refTypeFilter} onChange={e => onFilter(setRefTypeFilter)(e.target.value)}>
-                            <option value="">All Sources</option>
-                            {refTypes.map(rt => <option key={rt} value={rt}>{refMeta(rt).label}</option>)}
-                        </select>
-                        <FilterChipBar
-                            classic
-                            options={directionOptions}
-                            value={direction}
-                            onChange={v => onFilter(setDirection)(v as '' | 'in' | 'out')}
-                        />
-                        <div style={{ flex: 1 }} />
-                    </div>
-
-                    {/* Filters — line 2: date range + actions */}
-                    <div style={toolbar} className="no-print">
-                        <span style={lbl}>{t('from')}:</span>
-                        <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
-                        <span style={lbl}>{t('to')}:</span>
-                        <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
-                        <SegmentedBar classic actions={presetActions} />
-                        <div style={{ flex: 1 }} />
-                        {hasFilters && <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
-                        <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
-                        <button style={xpBtn({ padding: '1px 6px' })} onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
-                    </div>
-
-                    {/* Summary strip */}
-                    <div style={{ display: 'flex', gap: 5, padding: '3px 6px', background: '#ece9d8', borderBottom: '1px solid #b0a898' }} className="no-print">
-                        {statTile('Movements', total.toLocaleString(), '#1a3d7a')}
-                        {statTile('In', `+${fmtQty(totalIn)}`, '#1a5e1a')}
-                        {statTile('Out', fmtQty(totalOut), '#c00000')}
-                        {statTile('Net', `${net > 0 ? '+' : ''}${fmtQty(net)}`, net >= 0 ? '#1a5e1a' : '#c00000')}
-                    </div>
-
-                    {/* Print header */}
-                    <div className="print-header d-none d-print-block" style={{ padding: '16px 12px 8px', borderBottom: '1px solid #b0a898' }}>
-                        <h2 style={{ fontFamily: xpFont, marginBottom: 4 }}>{t('stock_ledger')}</h2>
-                        <p style={{ fontFamily: xpFont, fontSize: '12px', color: '#444', margin: 0 }}>Period: {periodLabel}</p>
-                        <p style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', margin: 0 }}>
-                            {total} movements &nbsp;·&nbsp; In +{fmtQty(totalIn)} &nbsp;·&nbsp; Out {fmtQty(totalOut)} &nbsp;·&nbsp; Net {fmtQty(net)}
-                        </p>
-                    </div>
-
-                    {/* Table */}
-                    <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
-                        {error ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load ledger — ${error}`} />
-                        : !loading && rows.length === 0 ? (
-                            <XPEmptyState icon="bi-journal-x" message={hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}>
-                                {hasFilters && <button style={{ ...xpBtn(), marginTop: 10 }} onClick={clearFilters}>Clear filters</button>}
-                            </XPEmptyState>
-                        ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr>
-                                        <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
-                                        <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
-                                        <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('category')}>Category<SortMark sort={sort} colKey="category" /></th>
-                                        <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('location')}>{t('locations')}<SortMark sort={sort} colKey="location" /></th>
-                                        <th style={th}>Lot</th>
-                                        <th style={{ ...th, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggle('qty')}>Movement<SortMark sort={sort} colKey="qty" /></th>
-                                        <th style={{ ...th, borderRight: 'none' }}>Source</th>
-                                    </tr>
-                                </thead>
-                                {/* Skeleton lives inside the real table so the header stays
-                                    put and the placeholder rows inherit its columns. */}
-                                <tbody ref={listBodyRef}>
-                                    {loading
-                                        ? <TableSkeleton rows={10} cols={skel.cols ?? 7} classic tdStyle={xpCell} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                                        : rows.map((e: any, i: number) => renderClassicRow(e, i))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-
-                    <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} className="no-print" />
-                </div>
-            </div>
-            {printOpen && (
-                <StockLedgerPrintModal
-                    entries={printEntries}
-                    locations={locations}
-                    attributes={attributes}
-                    companyProfile={companyProfile}
-                    currentStyle={uiStyle}
-                    periodLabel={periodLabel}
-                    totals={{ total, totalIn, totalOut }}
-                    filtersSummary={filtersSummary}
-                    onClose={() => setPrintOpen(false)}
-                />
-            )}
-            </>
-        );
-    }
-
-    // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
-    return (
-        <>
-        <div className="card fade-in border-0 shadow-sm print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-            <div className="card-header bg-white border-bottom no-print py-3">
-                <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                    <div>
-                        <h5 className="card-title mb-0">{t('stock_ledger')}</h5>
-                        <small className="text-muted">Every stock movement, in and out</small>
-                    </div>
-                </div>
-                {/* Line 1: search + dropdowns */}
-                <div className="row g-2 align-items-center">
-                    <div className="col-md-4">
-                        <SearchField classic={false} value={search} onChange={setSearch} placeholder="Search item or reference..." width={320} grow style={{ display: 'flex', width: '100%' }} />
-                    </div>
-                    <div className="col-md-2">
-                        <TreeSelect
-                            options={catFilterTreeOptions}
-                            value={categoryFilter}
-                            onChange={onFilter(setCategoryFilter)}
-                            allowEmpty
-                            emptyLabel="All Categories"
-                        />
-                    </div>
-                    <div className="col-md-2">
-                        <TreeSelect
-                            options={locFilterTreeOptions}
-                            value={locationFilter}
-                            onChange={onFilter(setLocationFilter)}
-                            allowEmpty
-                            emptyLabel="All Locations"
-                        />
-                    </div>
-                    <div className="col-md-2">
-                        <select className="form-select form-select-sm" value={refTypeFilter} onChange={e => onFilter(setRefTypeFilter)(e.target.value)}>
-                            <option value="">All Sources</option>
-                            {refTypes.map(rt => <option key={rt} value={rt}>{refMeta(rt).label}</option>)}
-                        </select>
-                    </div>
-                    <div className="col-md-2">
-                        <FilterChipBar
-                            classic={false}
-                            options={directionOptions}
-                            value={direction}
-                            onChange={v => onFilter(setDirection)(v as '' | 'in' | 'out')}
-                            style={{ width: '100%' }}
-                        />
-                    </div>
-                </div>
-                {/* Line 2: date range + presets + actions */}
-                <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
-                    <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
-                    <input type="date" className="form-control form-control-sm me-1" style={{ width: 150 }} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
-                    <SegmentedBar classic={false} actions={presetActions} />
-                    {hasFilters && <button className="btn btn-outline-secondary btn-sm py-0 ms-1" onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
-                    <button className="btn btn-outline-secondary btn-sm py-0 ms-auto" onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
-                    <button className="btn btn-outline-primary btn-sm py-0" onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
-                </div>
-            </div>
-
-            {/* Summary strip */}
-            <div className="row g-0 border-bottom text-center no-print">
-                {[
-                    { label: 'Movements', value: total.toLocaleString(), cls: 'text-primary' },
-                    { label: 'In', value: `+${fmtQty(totalIn)}`, cls: 'text-success' },
-                    { label: 'Out', value: fmtQty(totalOut), cls: 'text-danger' },
-                    { label: 'Net', value: `${net > 0 ? '+' : ''}${fmtQty(net)}`, cls: net >= 0 ? 'text-success' : 'text-danger' },
-                ].map((s, i) => (
-                    <div key={s.label} className={`col py-1 d-flex align-items-baseline justify-content-center gap-2 ${i > 0 ? 'border-start' : ''}`}>
-                        <span className="text-muted text-uppercase" style={{ fontSize: 10, letterSpacing: '0.5px' }}>{s.label}</span>
-                        <span className={`fw-bold ${s.cls}`}>{s.value}</span>
-                    </div>
-                ))}
-            </div>
-
-            <div className="print-header d-none d-print-block p-4 border-bottom">
-                <h2 className="mb-1">{t('stock_ledger')}</h2>
-                <p className="text-muted mb-0">Period: {periodLabel}</p>
-                <p className="text-muted small mb-0">{total} movements · In +{fmtQty(totalIn)} · Out {fmtQty(totalOut)} · Net {fmtQty(net)}</p>
-            </div>
-
-            <div className="card-body p-0" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {error ? (
-                    <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load ledger — {error}</div>
-                ) : !loading && rows.length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                        <i className="bi bi-journal-x d-block fs-2 mb-2 opacity-50" />
-                        {hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}
-                        {hasFilters && <div><button className="btn btn-sm btn-outline-secondary mt-3" onClick={clearFilters}>Clear filters</button></div>}
-                    </div>
                 ) : (
-                    <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                        <table className="table table-hover table-bordered align-middle mb-0">
-                            <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                                <tr>
-                                    <th className="ps-4" style={{ cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
-                                    <th style={{ cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
-                                    <th style={{ cursor: 'pointer' }} onClick={() => toggle('category')}>Category<SortMark sort={sort} colKey="category" /></th>
-                                    <th style={{ cursor: 'pointer' }} onClick={() => toggle('location')}>{t('locations')}<SortMark sort={sort} colKey="location" /></th>
-                                    <th>Lot</th>
-                                    <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggle('qty')}>Movement<SortMark sort={sort} colKey="qty" /></th>
-                                    <th className="pe-4">Source</th>
-                                </tr>
-                            </thead>
-                            {/* Skeleton lives inside the real table so the header stays
-                                put and the placeholder rows inherit its columns. */}
-                            <tbody ref={listBodyRef}>
-                                {loading && <TableSkeleton rows={10} cols={skel.cols ?? 7} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
-                                {!loading && rows.map((e: any) => {
-                                    const rm = refMeta(e.reference_type);
-                                    const up = e.qty_change >= 0;
-                                    const pkg = pkgDelta(e);
-                                    return (
-                                        <tr key={e.id}>
-                                            <td className="ps-4" style={{ whiteSpace: 'nowrap' }}>
-                                                <div className="small">{tzDate(e.created_at)}</div>
-                                                <div className="text-muted" style={{ fontSize: 11 }}>{tzTime(e.created_at)}</div>
-                                            </td>
-                                            <td>
-                                                <div className="fw-medium">{getItemName(e)}</div>
-                                                <CodeChip code={getItemCode(e)} classic={false} tier={2} style={{ display: 'block' }} />
-                                                {e.attribute_value_ids?.length > 0 && (
-                                                    <div className="d-flex flex-wrap gap-1 mt-1">
-                                                        {e.attribute_value_ids.map((vid: string) => <span key={vid} className="badge text-bg-light border" style={{ fontSize: 9 }}>{getAttrName(vid)}</span>)}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td>
-                                                {e.item_category_name
-                                                    ? <span title={e.item_category_name} className="badge bg-info-subtle text-info-emphasis d-inline-block text-truncate mw-100 align-bottom">{e.item_category_name}</span>
-                                                    : <span className="text-muted">-</span>}
-                                            </td>
-                                            <td>
-                                                <div className="d-flex flex-wrap gap-1">
-                                                    {getWarehouseName(e) && (
-                                                        <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(e)}</span>
-                                                    )}
-                                                    <span className="badge bg-primary-subtle text-primary-emphasis">{getLocName(e)}</span>
-                                                </div>
-                                            </td>
-                                            <td>{e.batch_number ? <span className="badge bg-warning text-dark">{e.batch_number}</span> : <span className="text-muted">-</span>}</td>
-                                            <td className="text-end" style={{ whiteSpace: 'nowrap' }}>
-                                                <span className={`fw-bold ${up ? 'text-success' : 'text-danger'}`}>
-                                                    <i className={`bi ${up ? 'bi-caret-up-fill' : 'bi-caret-down-fill'} me-1`} style={{ fontSize: 10 }} />
-                                                    {up ? '+' : ''}{fmtQty(e.qty_change)}
-                                                    <span className="text-muted fw-normal small ms-1">{e.item_uom}</span>
-                                                </span>
-                                                {pkg.length > 0 && (
-                                                    <div className="text-muted" style={{ fontSize: 10 }}>
-                                                        {pkg.map((q, k) => <span key={k}>{k > 0 ? ', ' : ''}{q.n > 0 ? '+' : ''}{q.n} {q.label}</span>)}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="pe-4" style={{ whiteSpace: 'nowrap' }}>
-                                                <span className={`badge ${rm.modern}`}>{rm.label}</span>
-                                                <span className="ms-2 text-muted small" title={e.reference_id}>#{e.reference_label || shortRef(e.reference_id)}</span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                    <div className="card-header bg-white border-bottom no-print py-3">
+                        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div>
+                                <h5 className="card-title mb-0">{t('stock_ledger')}</h5>
+                                <small className="text-muted">Every stock movement, in and out</small>
+                            </div>
+                        </div>
+                        {toolbarRow1}
+                        {toolbarRow2}
                     </div>
                 )}
-            </div>
+                {classic && toolbarRow1}
+                {classic && toolbarRow2}
 
-            <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} className="px-4 no-print" />
+                {/* Summary strip */}
+                <div className={classic ? 'no-print' : 'row g-0 border-bottom text-center no-print'} style={classic ? { display: 'flex', gap: 5, padding: '3px 6px', background: '#ece9d8', borderBottom: '1px solid #b0a898' } : undefined}>
+                    {stats.map((s, i) => classic
+                        ? <div key={s.label}>{statTile(s.label, s.value, s.color)}</div>
+                        : (
+                            <div key={s.label} className={`col py-1 d-flex align-items-baseline justify-content-center gap-2 ${i > 0 ? 'border-start' : ''}`}>
+                                <span className="text-muted text-uppercase" style={{ fontSize: 10, letterSpacing: '0.5px' }}>{s.label}</span>
+                                <span className={`fw-bold ${s.cls}`}>{s.value}</span>
+                            </div>
+                        ))}
+                </div>
+
+                {/* Print header */}
+                <div className={classic ? 'print-header d-none d-print-block' : 'print-header d-none d-print-block p-4 border-bottom'} style={classic ? { padding: '16px 12px 8px', borderBottom: '1px solid #b0a898' } : undefined}>
+                    <h2 style={classic ? { fontFamily: xpFont, marginBottom: 4 } : undefined} className={classic ? undefined : 'mb-1'}>{t('stock_ledger')}</h2>
+                    <p style={classic ? { fontFamily: xpFont, fontSize: '12px', color: '#444', margin: 0 } : undefined} className={classic ? undefined : 'text-muted mb-0'}>Period: {periodLabel}</p>
+                    <p style={classic ? { fontFamily: xpFont, fontSize: '11px', color: '#666', margin: 0 } : undefined} className={classic ? undefined : 'text-muted small mb-0'}>
+                        {classic
+                            ? <>{total} movements &nbsp;·&nbsp; In +{fmtQty(totalIn)} &nbsp;·&nbsp; Out {fmtQty(totalOut)} &nbsp;·&nbsp; Net {fmtQty(net)}</>
+                            : <>{total} movements · In +{fmtQty(totalIn)} · Out {fmtQty(totalOut)} · Net {fmtQty(net)}</>}
+                    </p>
+                </div>
+
+                {/* Table */}
+                <div className={classic ? undefined : 'card-body p-0'} style={classic ? { flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 } : { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    {tableBody}
+                </div>
+
+                <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} className={classic ? 'no-print' : 'px-4 no-print'} />
+            </div>
         </div>
         {printOpen && (
             <StockLedgerPrintModal

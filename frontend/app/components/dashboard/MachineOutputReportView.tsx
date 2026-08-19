@@ -605,110 +605,204 @@ export default function MachineOutputReportView() {
         ];
     }, [totals, isPacking, isMachineLevel]);
 
-    // ── Classic (XP) ─────────────────────────────────────────────────────────
-    if (classic) {
-        const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '4px 6px', gap: '5px', flexWrap: 'nowrap', overflowX: 'auto' });
-        const toolbarTop: React.CSSProperties = { ...toolbar, borderBottom: 'none', paddingBottom: 0 };
-        const th: React.CSSProperties = {
-            ...lvThead(true),
-            fontSize: '10px', fontWeight: 'bold', color: '#000', fontFamily: xpFont, padding: '3px 8px',
-            position: 'sticky', top: 0, textAlign: 'left', borderRight: '1px solid #b0a898',
-        };
-        const td: React.CSSProperties = { padding: '4px 8px', fontFamily: xpFont, borderRight: '1px solid #e0ddd3', fontSize: 11 };
-        const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
-        const statTile = (label: string, value: string, color: string) => (
-            <div key={label} style={{
-                flex: 1, minWidth: 96, background: '#ffffff',
-                border: '1px solid', borderColor: '#808080 #ffffff #ffffff #808080',
-                padding: '1px 8px', fontFamily: xpFont,
-                display: 'flex', alignItems: 'baseline', gap: 6,
-            }}>
-                <span style={{ fontSize: 9, color: '#777', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
-                <span style={{ fontSize: 12, fontWeight: 'bold', color, marginLeft: 'auto' }}>{value}</span>
-            </div>
-        );
+    // ── Render — one tree, classic vs modern chosen per element ─────────────
+    const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '4px 6px', gap: '5px', flexWrap: 'nowrap', overflowX: 'auto' });
+    const toolbarTop: React.CSSProperties = { ...toolbar, borderBottom: 'none', paddingBottom: 0 };
+    const th: React.CSSProperties = {
+        ...lvThead(true),
+        fontSize: '10px', fontWeight: 'bold', color: '#000', fontFamily: xpFont, padding: '3px 8px',
+        position: 'sticky', top: 0, textAlign: 'left', borderRight: '1px solid #b0a898',
+    };
+    const td: React.CSSProperties = { padding: '4px 8px', fontFamily: xpFont, borderRight: '1px solid #e0ddd3', fontSize: 11 };
+    const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
 
-        return (
-            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-                <div style={sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })}>
-                    <div style={sharedXpTitleBar()}>
-                        <span><i className="bi bi-clipboard-data" style={{ marginRight: 6 }} />Production Output &amp; QC Reject</span>
-                        <span style={{ fontSize: '10px', opacity: 0.85 }}>{periodLabel}</span>
-                    </div>
+    return (
+        <div className={classic ? 'fade-in' : 'card fade-in border-0 shadow-sm'} style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+            <div style={classic
+                ? sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })
+                : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+            >
+                {classic ? (
+                    <>
+                        <div style={sharedXpTitleBar()}>
+                            <span><i className="bi bi-clipboard-data" style={{ marginRight: 6 }} />Production Output &amp; QC Reject</span>
+                            <span style={{ fontSize: '10px', opacity: 0.85 }}>{periodLabel}</span>
+                        </div>
 
-                    {/* Line 1: scope + mode */}
-                    <div style={toolbarTop}>
-                        <span style={lbl}>Work center:</span>
-                        <TreeSelect
-                            options={wcTreeOptions}
-                            value={scope}
-                            onChange={setScope}
-                            allowEmpty
-                            emptyLabel="All Work Centres"
-                            style={{ width: 200 }}
-                            disabled={isPacking}
-                        />
-                        <div style={xpSep} />
-                        <span style={lbl}>View:</span>
-                        <FilterChipBar classic options={modeTabs} value={mode} onChange={v => setMode(v as Mode)} />
-                        <div style={xpSep} />
-                        {isWoMode && (
+                        {/* Line 1: scope + mode */}
+                        <div style={toolbarTop}>
+                            <span style={lbl}>Work center:</span>
+                            <TreeSelect
+                                options={wcTreeOptions}
+                                value={scope}
+                                onChange={setScope}
+                                allowEmpty
+                                emptyLabel="All Work Centres"
+                                style={{ width: 200 }}
+                                disabled={isPacking}
+                            />
+                            <div style={xpSep} />
+                            <span style={lbl}>View:</span>
+                            <FilterChipBar classic options={modeTabs} value={mode} onChange={v => setMode(v as Mode)} />
+                            <div style={xpSep} />
+                            {isWoMode && (
+                                <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                                    <input type="checkbox" checked={completedOnly} onChange={e => setCompletedOnly(e.target.checked)} />
+                                    Completed WOs only
+                                </label>
+                            )}
+                            {isMachineLevel && (
+                                <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                                    <input type="checkbox" checked={hideIdle} onChange={e => setHideIdle(e.target.checked)} />
+                                    Hide machines with no output
+                                </label>
+                            )}
                             <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                                <input type="checkbox" checked={completedOnly} onChange={e => setCompletedOnly(e.target.checked)} />
-                                Completed WOs only
+                                <input type="checkbox" checked={rejectsOnly} onChange={e => setRejectsOnly(e.target.checked)} />
+                                With rejects only
                             </label>
-                        )}
-                        {isMachineLevel && (
-                            <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                                <input type="checkbox" checked={hideIdle} onChange={e => setHideIdle(e.target.checked)} />
-                                Hide machines with no output
-                            </label>
-                        )}
-                        <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                            <input type="checkbox" checked={rejectsOnly} onChange={e => setRejectsOnly(e.target.checked)} />
-                            With rejects only
-                        </label>
-                        <div style={{ flex: 1 }} />
-                    </div>
+                            <div style={{ flex: 1 }} />
+                        </div>
 
-                    {/* Line 2: date range + actions */}
-                    <div style={toolbar}>
-                        <span style={lbl}>{t('from')}:</span>
-                        <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => setStartDate(e.target.value)} />
-                        <span style={lbl}>{t('to')}:</span>
-                        <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => setEndDate(e.target.value)} />
-                        <SegmentedBar classic actions={presetActions} />
-                        <div style={{ flex: 1 }} />
-                        <span style={{ ...lbl, whiteSpace: 'nowrap' }}>{sorted.length} rows</span>
-                        <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
-                        {canExport && (
-                            <button style={xpBtn({ padding: '1px 6px' })} onClick={exportCsv} disabled={!sorted.length} title="Export CSV"><i className="bi bi-filetype-csv" /></button>
-                        )}
+                        {/* Line 2: date range + actions */}
+                        <div style={toolbar}>
+                            <span style={lbl}>{t('from')}:</span>
+                            <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => setStartDate(e.target.value)} />
+                            <span style={lbl}>{t('to')}:</span>
+                            <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => setEndDate(e.target.value)} />
+                            <SegmentedBar classic actions={presetActions} />
+                            <div style={{ flex: 1 }} />
+                            <span style={{ ...lbl, whiteSpace: 'nowrap' }}>{sorted.length} rows</span>
+                            <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+                            {canExport && (
+                                <button style={xpBtn({ padding: '1px 6px' })} onClick={exportCsv} disabled={!sorted.length} title="Export CSV"><i className="bi bi-filetype-csv" /></button>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <div className="card-header bg-white border-bottom py-3">
+                        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div>
+                                <h5 className="card-title mb-0">Production Output &amp; QC Reject</h5>
+                                <small className="text-muted">
+                                    {isPacking ? 'Packing output per order' : isWoMode ? 'Output per work order' : 'Work order output per machine'} · {periodLabel}
+                                </small>
+                            </div>
+                            <div className="d-flex gap-1">
+                                <button className="btn btn-outline-secondary btn-sm" onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+                                {canExport && (
+                                    <button className="btn btn-outline-primary btn-sm" onClick={exportCsv} disabled={!sorted.length}><i className="bi bi-filetype-csv me-1" />CSV</button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="row g-2 align-items-center">
+                            <div className="col-md-3">
+                                <TreeSelect
+                                    options={wcTreeOptions}
+                                    value={scope}
+                                    onChange={setScope}
+                                    allowEmpty
+                                    emptyLabel="All Work Centres"
+                                    size="sm"
+                                    disabled={isPacking}
+                                />
+                            </div>
+                            <div className="col-md-5">
+                                <FilterChipBar
+                                    classic={false}
+                                    options={modeTabs}
+                                    value={mode}
+                                    onChange={v => setMode(v as Mode)}
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div className="col-md-4 d-flex flex-wrap gap-3">
+                                {isWoMode && (
+                                    <div className="form-check form-switch">
+                                        <input className="form-check-input" type="checkbox" id="completedOnlySwitch" checked={completedOnly} onChange={e => setCompletedOnly(e.target.checked)} />
+                                        <label className="form-check-label small" htmlFor="completedOnlySwitch">Completed WOs only</label>
+                                    </div>
+                                )}
+                                {isMachineLevel && (
+                                    <div className="form-check form-switch">
+                                        <input className="form-check-input" type="checkbox" id="hideIdleSwitch" checked={hideIdle} onChange={e => setHideIdle(e.target.checked)} />
+                                        <label className="form-check-label small" htmlFor="hideIdleSwitch">Hide machines with no output</label>
+                                    </div>
+                                )}
+                                <div className="form-check form-switch">
+                                    <input className="form-check-input" type="checkbox" id="rejectsOnlySwitch" checked={rejectsOnly} onChange={e => setRejectsOnly(e.target.checked)} />
+                                    <label className="form-check-label small" htmlFor="rejectsOnlySwitch">With rejects only</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
+                            <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={startDate} onChange={e => setStartDate(e.target.value)} />
+                            <input type="date" className="form-control form-control-sm me-1" style={{ width: 150 }} value={endDate} onChange={e => setEndDate(e.target.value)} />
+                            <SegmentedBar classic={false} actions={presetActions} />
+                            <span className="text-muted small ms-auto">{sorted.length} rows</span>
+                        </div>
                     </div>
+                )}
 
-                    {/* Summary strip */}
-                    <div style={{ display: 'flex', gap: 5, padding: '3px 6px', background: '#ece9d8', borderBottom: '1px solid #b0a898' }}>
-                        {statTiles.map(s => statTile(s.label, s.value, s.color))}
-                    </div>
+                {/* Summary strip — one map, per-tile markup differs by theme */}
+                <div
+                    className={classic ? undefined : 'row g-0 border-bottom text-center'}
+                    style={classic ? { display: 'flex', gap: 5, padding: '3px 6px', background: '#ece9d8', borderBottom: '1px solid #b0a898' } : undefined}
+                >
+                    {statTiles.map((s, i) => classic ? (
+                        <div key={s.label} style={{
+                            flex: 1, minWidth: 96, background: '#ffffff',
+                            border: '1px solid', borderColor: '#808080 #ffffff #ffffff #808080',
+                            padding: '1px 8px', fontFamily: xpFont,
+                            display: 'flex', alignItems: 'baseline', gap: 6,
+                        }}>
+                            <span style={{ fontSize: 9, color: '#777', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</span>
+                            <span style={{ fontSize: 12, fontWeight: 'bold', color: s.color, marginLeft: 'auto' }}>{s.value}</span>
+                        </div>
+                    ) : (
+                        <div key={s.label} className={`col py-1 d-flex align-items-baseline justify-content-center gap-2 ${i > 0 ? 'border-start' : ''}`}>
+                            <span className="text-muted text-uppercase" style={{ fontSize: 10, letterSpacing: '0.5px' }}>{s.label}</span>
+                            <span className={`fw-bold ${s.cls}`}>{s.value}</span>
+                        </div>
+                    ))}
+                </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
-                        {/* +1 for the leading expander column the real table renders. */}
-                        {loading ? <TableBlockSkeleton cols={columns.length + 1} rows={14} classic />
-                        : error ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load report — ${error}`} />
-                        : sorted.length === 0 ? <XPEmptyState icon={emptyIcon} message={emptyMessage} />
-                        : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
+                <div
+                    className={classic ? undefined : 'card-body p-0'}
+                    style={classic
+                        ? { flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }
+                        : { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                >
+                    {/* +1 for the leading expander column the real table renders. */}
+                    {loading ? <TableBlockSkeleton cols={columns.length + 1} rows={14} classic={classic} />
+                    : error ? (
+                        classic
+                            ? <XPEmptyState icon="bi-exclamation-triangle" message={`Could not load report — ${error}`} />
+                            : <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load report — {error}</div>
+                    )
+                    : sorted.length === 0 ? (
+                        classic
+                            ? <XPEmptyState icon={emptyIcon} message={emptyMessage} />
+                            : <div className="text-center py-5 text-muted"><i className={`bi ${emptyIcon} d-block fs-2 mb-2 opacity-50`} />{emptyMessage}</div>
+                    )
+                    : (
+                        <div className={classic ? undefined : 'table-responsive'} style={classic ? undefined : { flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                            <table className={classic ? undefined : 'table table-hover align-middle mb-0'} style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined}>
+                                <thead className={classic ? undefined : 'table-light'} style={classic ? undefined : { position: 'sticky', top: 0, zIndex: 1 }}>
                                     <tr>
-                                        <th style={{ ...th, width: 22 }} />
+                                        <th style={classic ? { ...th, width: 22 } : { width: 28 }} />
                                         {columns.map((c, ci) => (
                                             <th
                                                 key={c.key}
-                                                style={{
+                                                className={!classic && c.align === 'right' ? 'text-end' : undefined}
+                                                style={classic ? {
                                                     ...th,
                                                     ...(c.align === 'right' ? { textAlign: 'right' } : {}),
                                                     ...(c.width ? { width: c.width } : {}),
                                                     ...(ci === columns.length - 1 ? { borderRight: 'none' } : {}),
+                                                    ...(c.sortKey ? { cursor: 'pointer' } : {}),
+                                                } : {
+                                                    ...(c.width ? { width: c.width + 10 } : {}),
                                                     ...(c.sortKey ? { cursor: 'pointer' } : {}),
                                                 }}
                                                 onClick={c.sortKey ? () => toggle(c.sortKey!) : undefined}
@@ -725,26 +819,40 @@ export default function MachineOutputReportView() {
                                         return (
                                             <React.Fragment key={key}>
                                             <tr
-                                                style={{ background: open ? rowStateBg('expanded', true) : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }}
+                                                style={classic
+                                                    ? { background: open ? rowStateBg('expanded', true) : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }
+                                                    : { background: open ? rowStateBg('expanded', false) : undefined, cursor: 'pointer' }}
                                                 onClick={() => setExpanded(open ? null : key)}
                                             >
-                                                <td style={{ ...td, textAlign: 'center', color: '#555' }}><i className={`bi bi-chevron-${open ? 'down' : 'right'}`} style={{ fontSize: 8 }} /></td>
+                                                <td
+                                                    className={classic ? undefined : 'text-center text-muted'}
+                                                    style={classic ? { ...td, textAlign: 'center', color: '#555' } : undefined}
+                                                >
+                                                    <i className={`bi bi-chevron-${open ? 'down' : 'right'}`} style={{ fontSize: classic ? 8 : 10 }} />
+                                                </td>
                                                 {columns.map((c, ci) => (
                                                     <td
                                                         key={c.key}
-                                                        style={{
+                                                        className={!classic && c.align === 'right' ? 'text-end' : undefined}
+                                                        style={classic ? {
                                                             ...td,
                                                             ...(c.align === 'right' ? { textAlign: 'right' } : {}),
                                                             ...(ci === columns.length - 1 ? { borderRight: 'none', whiteSpace: 'nowrap' } : {}),
-                                                        }}
+                                                        } : (ci === columns.length - 1 ? { whiteSpace: 'nowrap' } : undefined)}
                                                     >
-                                                        {c.render(r, true)}
+                                                        {c.render(r, classic)}
                                                     </td>
                                                 ))}
                                             </tr>
                                             {open && (
-                                                <tr style={{ background: '#ece9d8' }}>
-                                                    <td colSpan={columns.length + 1} style={{ padding: 6 }}>{detailPanel(r)}</td>
+                                                <tr style={classic ? { background: '#ece9d8' } : undefined}>
+                                                    <td
+                                                        colSpan={columns.length + 1}
+                                                        className={classic ? undefined : 'p-2 bg-body-tertiary'}
+                                                        style={classic ? { padding: 6 } : undefined}
+                                                    >
+                                                        {detailPanel(r)}
+                                                    </td>
                                                 </tr>
                                             )}
                                             </React.Fragment>
@@ -752,143 +860,9 @@ export default function MachineOutputReportView() {
                                     })}
                                 </tbody>
                             </table>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // ── Modern (Bootstrap) ───────────────────────────────────────────────────
-    return (
-        <div className="card fade-in border-0 shadow-sm" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-            <div className="card-header bg-white border-bottom py-3">
-                <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                    <div>
-                        <h5 className="card-title mb-0">Production Output &amp; QC Reject</h5>
-                        <small className="text-muted">
-                            {isPacking ? 'Packing output per order' : isWoMode ? 'Output per work order' : 'Work order output per machine'} · {periodLabel}
-                        </small>
-                    </div>
-                    <div className="d-flex gap-1">
-                        <button className="btn btn-outline-secondary btn-sm" onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
-                        {canExport && (
-                            <button className="btn btn-outline-primary btn-sm" onClick={exportCsv} disabled={!sorted.length}><i className="bi bi-filetype-csv me-1" />CSV</button>
-                        )}
-                    </div>
-                </div>
-                <div className="row g-2 align-items-center">
-                    <div className="col-md-3">
-                        <TreeSelect
-                            options={wcTreeOptions}
-                            value={scope}
-                            onChange={setScope}
-                            allowEmpty
-                            emptyLabel="All Work Centres"
-                            size="sm"
-                            disabled={isPacking}
-                        />
-                    </div>
-                    <div className="col-md-5">
-                        <FilterChipBar
-                            classic={false}
-                            options={modeTabs}
-                            value={mode}
-                            onChange={v => setMode(v as Mode)}
-                            style={{ width: '100%' }}
-                        />
-                    </div>
-                    <div className="col-md-4 d-flex flex-wrap gap-3">
-                        {isWoMode && (
-                            <div className="form-check form-switch">
-                                <input className="form-check-input" type="checkbox" id="completedOnlySwitch" checked={completedOnly} onChange={e => setCompletedOnly(e.target.checked)} />
-                                <label className="form-check-label small" htmlFor="completedOnlySwitch">Completed WOs only</label>
-                            </div>
-                        )}
-                        {isMachineLevel && (
-                            <div className="form-check form-switch">
-                                <input className="form-check-input" type="checkbox" id="hideIdleSwitch" checked={hideIdle} onChange={e => setHideIdle(e.target.checked)} />
-                                <label className="form-check-label small" htmlFor="hideIdleSwitch">Hide machines with no output</label>
-                            </div>
-                        )}
-                        <div className="form-check form-switch">
-                            <input className="form-check-input" type="checkbox" id="rejectsOnlySwitch" checked={rejectsOnly} onChange={e => setRejectsOnly(e.target.checked)} />
-                            <label className="form-check-label small" htmlFor="rejectsOnlySwitch">With rejects only</label>
                         </div>
-                    </div>
+                    )}
                 </div>
-                <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
-                    <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={startDate} onChange={e => setStartDate(e.target.value)} />
-                    <input type="date" className="form-control form-control-sm me-1" style={{ width: 150 }} value={endDate} onChange={e => setEndDate(e.target.value)} />
-                    <SegmentedBar classic={false} actions={presetActions} />
-                    <span className="text-muted small ms-auto">{sorted.length} rows</span>
-                </div>
-            </div>
-
-            <div className="row g-0 border-bottom text-center">
-                {statTiles.map((s, i) => (
-                    <div key={s.label} className={`col py-1 d-flex align-items-baseline justify-content-center gap-2 ${i > 0 ? 'border-start' : ''}`}>
-                        <span className="text-muted text-uppercase" style={{ fontSize: 10, letterSpacing: '0.5px' }}>{s.label}</span>
-                        <span className={`fw-bold ${s.cls}`}>{s.value}</span>
-                    </div>
-                ))}
-            </div>
-
-            <div className="card-body p-0" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {loading ? <TableBlockSkeleton cols={columns.length + 1} rows={14} />
-                : error ? <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load report — {error}</div>
-                : sorted.length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                        <i className={`bi ${emptyIcon} d-block fs-2 mb-2 opacity-50`} />{emptyMessage}
-                    </div>
-                ) : (
-                    <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                        <table className="table table-hover align-middle mb-0">
-                            <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                                <tr>
-                                    <th style={{ width: 28 }} />
-                                    {columns.map(c => (
-                                        <th
-                                            key={c.key}
-                                            className={c.align === 'right' ? 'text-end' : undefined}
-                                            style={{ ...(c.width ? { width: c.width + 10 } : {}), ...(c.sortKey ? { cursor: 'pointer' } : {}) }}
-                                            onClick={c.sortKey ? () => toggle(c.sortKey!) : undefined}
-                                        >
-                                            {c.label}{c.sortKey && <SortMark sort={sort} colKey={c.sortKey} />}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sorted.map((r: any) => {
-                                    const key = rowKey(r);
-                                    const open = expanded === key;
-                                    return (
-                                        <React.Fragment key={key}>
-                                        <tr style={{ background: open ? rowStateBg('expanded', false) : undefined, cursor: 'pointer' }} onClick={() => setExpanded(open ? null : key)}>
-                                            <td className="text-center text-muted"><i className={`bi bi-chevron-${open ? 'down' : 'right'}`} style={{ fontSize: 10 }} /></td>
-                                            {columns.map((c, ci) => (
-                                                <td
-                                                    key={c.key}
-                                                    className={c.align === 'right' ? 'text-end' : undefined}
-                                                    style={ci === columns.length - 1 ? { whiteSpace: 'nowrap' } : undefined}
-                                                >
-                                                    {c.render(r, false)}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                        {open && (
-                                            <tr>
-                                                <td colSpan={columns.length + 1} className="p-2 bg-body-tertiary">{detailPanel(r)}</td>
-                                            </tr>
-                                        )}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
             </div>
         </div>
     );

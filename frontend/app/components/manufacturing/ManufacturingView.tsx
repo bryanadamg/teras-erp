@@ -555,33 +555,27 @@ export default function ManufacturingView({
                               ].map(({ key, icon, label }) => {
                                   const isActive = viewMode === key;
                                   const handleClick = () => key === 'scanner' ? router.push('/scanner') : setViewMode(key);
-                                  if (classic) {
-                                      return (
-                                          <button
-                                              key={key}
-                                              onClick={handleClick}
-                                              style={{
-                                                  fontFamily: xpFont,
-                                                  fontSize: '11px',
-                                                  padding: '2px 8px',
-                                                  background: isActive
-                                                      ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
-                                                      : 'linear-gradient(to bottom,#d4d0c8 0%,#b8b4ac 100%)',
-                                                  border: '1px solid',
-                                                  borderColor: isActive
-                                                      ? '#808080 #dfdfdf #dfdfdf #808080'
-                                                      : '#dfdfdf #808080 #808080 #dfdfdf',
-                                                  color: '#000',
-                                                  cursor: 'pointer',
-                                                  fontWeight: isActive ? 'bold' : 'normal',
-                                              }}
-                                          >
-                                              <i className={`bi ${icon} me-1`}></i>{label}
-                                          </button>
-                                      );
-                                  }
                                   return (
-                                      <button key={key} className={`btn btn-sm btn-light border ${isActive ? 'active' : ''}`} onClick={handleClick}>
+                                      <button
+                                          key={key}
+                                          onClick={handleClick}
+                                          className={classic ? undefined : `btn btn-sm btn-light border ${isActive ? 'active' : ''}`}
+                                          style={classic ? {
+                                              fontFamily: xpFont,
+                                              fontSize: '11px',
+                                              padding: '2px 8px',
+                                              background: isActive
+                                                  ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
+                                                  : 'linear-gradient(to bottom,#d4d0c8 0%,#b8b4ac 100%)',
+                                              border: '1px solid',
+                                              borderColor: isActive
+                                                  ? '#808080 #dfdfdf #dfdfdf #808080'
+                                                  : '#dfdfdf #808080 #808080 #dfdfdf',
+                                              color: '#000',
+                                              cursor: 'pointer',
+                                              fontWeight: isActive ? 'bold' : 'normal',
+                                          } : undefined}
+                                      >
                                           <i className={`bi ${icon} me-1`}></i>{label}
                                       </button>
                                   );
@@ -603,30 +597,19 @@ export default function ManufacturingView({
                           { key: 'manufacturing-orders', label: 'Manufacturing Orders', icon: 'bi-list-task' },
                       ].map(({ key, label, icon }) => {
                           const isActive = activeTab === key;
-                          if (classic) {
-                              return (
-                                  <button
-                                      key={key}
-                                      onClick={() => setActiveTab(key as any)}
-                                      style={{
-                                          fontFamily: xpFont, fontSize: '11px',
-                                          padding: '3px 12px',
-                                          background: isActive ? '#ece9d8' : 'linear-gradient(to bottom,#d4d0c8,#b8b4ac)',
-                                          border: '1px solid #808080',
-                                          borderBottom: isActive ? '1px solid #ece9d8' : '1px solid #808080',
-                                          color: '#000', cursor: 'pointer',
-                                          fontWeight: isActive ? 'bold' : 'normal',
-                                          marginRight: 2, position: 'relative', top: 1,
-                                      }}
-                                  >
-                                      <i className={`bi ${icon} me-1`}></i>{label}
-                                  </button>
-                              );
-                          }
                           return (
                               <button key={key}
                                   onClick={() => setActiveTab(key as any)}
-                                  style={{
+                                  style={classic ? {
+                                      fontFamily: xpFont, fontSize: '11px',
+                                      padding: '3px 12px',
+                                      background: isActive ? '#ece9d8' : 'linear-gradient(to bottom,#d4d0c8,#b8b4ac)',
+                                      border: '1px solid #808080',
+                                      borderBottom: isActive ? '1px solid #ece9d8' : '1px solid #808080',
+                                      color: '#000', cursor: 'pointer',
+                                      fontWeight: isActive ? 'bold' : 'normal',
+                                      marginRight: 2, position: 'relative', top: 1,
+                                  } : {
                                       fontSize: '12px', padding: '4px 14px', cursor: 'pointer',
                                       background: isActive ? '#fff' : 'transparent',
                                       border: '1px solid',

@@ -100,185 +100,101 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
       borderBottom: '1px solid #c0bdb5',
   };
 
-  if (classic) {
-      return (
-          <div className="row g-3 fade-in">
-              {/* LEFT: Stock Entry Form */}
-              <div className="col-md-4">
-                  <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column' }}>
-                      <div style={xpTitleBar({ background: 'linear-gradient(to right, #6a3a8e 0%, #a06ac8 100%)', borderBottom: '1px solid #3d1a5e' })}>
-                          <span><i className="bi bi-box-seam" style={{ marginRight: 6 }}></i>{t('stock_adjustment')}</span>
-                      </div>
-                      <div style={{ padding: '8px', background: '#f5f4ef' }}>
-                          <form onSubmit={handleSubmit}>
-                              {/* Item section */}
-                              <div style={{ marginBottom: 8 }}>
-                                  <div style={xpSectionHead}><i className="bi bi-box2" style={{ marginRight: 4 }}></i>{t('item_inventory')}</div>
-                                  <label style={xpLabel}>Item</label>
-                                  <div style={{ marginBottom: 6 }}>
-                                      <SearchableSelect
-                                          options={itemOptions.map((item: any) => ({ value: item.code, label: item.name, subLabel: item.code }))}
-                                          onSearch={onSearchItems}
-                                          value={stockEntry.item_code}
-                                          onChange={(code: string) => setStockEntry({ ...stockEntry, item_code: code, attribute_value_ids: [] })}
-                                          required
-                                          placeholder={t('search') + '...'}
-                                          size="sm"
-                                      />
-                                  </div>
-                                  {boundAttrs.map((attr: any) => (
-                                      <div key={attr.id} style={{ marginBottom: 4 }}>
-                                          <label style={xpLabel}>{attr.name}</label>
-                                          <select
-                                              style={{ ...xpSelect, width: '100%' }}
-                                              value={stockEntry.attribute_value_ids.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
-                                              onChange={e => handleValueChange(e.target.value, attr.id)}
-                                          >
-                                              <option value="">Select {attr.name}...</option>
-                                              {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
-                                          </select>
-                                      </div>
-                                  ))}
-                              </div>
-                              {/* Transaction details */}
-                              <div style={{ marginBottom: 8 }}>
-                                  <div style={xpSectionHead}><i className="bi bi-arrow-left-right" style={{ marginRight: 4 }}></i>Transaction Details</div>
-                                  <label style={xpLabel}>{t('locations')}</label>
-                                  <div style={{ marginBottom: 6 }}>
-                                      <SearchableSelect
-                                          options={locations.map((loc: any) => ({ value: loc.code, label: loc.full_path || (loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name), subLabel: loc.code }))}
-                                          value={stockEntry.location_code}
-                                          onChange={(code: string) => setStockEntry({ ...stockEntry, location_code: code })}
-                                          required
-                                          placeholder={t('locations') + '...'}
-                                          size="sm"
-                                      />
-                                  </div>
-                                  <label style={xpLabel}>{t('qty')} <span style={{ color: '#666', fontWeight: 'normal' }}>(use negative to subtract)</span></label>
-                                  <input
-                                      type="number"
-                                      style={{ ...xpInput, width: '100%' }}
-                                      placeholder="0"
-                                      value={stockEntry.qty || ''}
-                                      onChange={e => setStockEntry({ ...stockEntry, qty: parseFloat(e.target.value) })}
-                                      required
-                                  />
-                              </div>
-                              <button
-                                  type="submit"
-                                  style={{ ...xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' }), width: '100%', padding: '4px 10px' }}
-                              >
-                                  <i className="bi bi-floppy" style={{ marginRight: 6 }}></i>{t('save')}
-                              </button>
-                          </form>
-                      </div>
-                  </div>
-              </div>
+  const balanceTable = (
+      <table style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined} className={classic ? undefined : 'table table-hover align-middle mb-0'}>
+          <thead className={classic ? undefined : 'table-light'}>
+              <tr>
+                  <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined} className={classic ? undefined : 'ps-4'}>{t('item_code')}</th>
+                  <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined}>{t('attributes')}</th>
+                  <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined}>{t('locations')}</th>
+                  <th style={classic ? { ...xpTableHeader, padding: '3px 8px', textAlign: 'right' } : undefined} className={classic ? undefined : 'text-end'}>{t('qty')}</th>
+                  <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined}>UOM</th>
+                  <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined}>Packaging</th>
+                  <th style={classic ? { ...xpTableHeader, padding: '3px 8px', textAlign: 'right' } : undefined} className={classic ? undefined : 'text-end'}>Ends</th>
+              </tr>
+          </thead>
+          <tbody>
+              {filteredBalance.map((bal: any, i: number) => (
+                  <tr key={i} style={classic ? { background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}>
+                      <td style={classic ? { padding: '4px 8px' } : undefined} className={classic ? undefined : 'ps-4'}>
+                          <div style={classic ? { fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#000' } : undefined} className={classic ? undefined : 'fw-bold text-dark'}>{getItemName(bal)}</div>
+                          {classic ? (
+                              <div style={{ fontFamily: xpFont, fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{getItemCode(bal)}</div>
+                          ) : (
+                              <CodeChip code={getItemCode(bal)} classic={false} tier={2} style={{ display: 'block' }} />
+                          )}
+                      </td>
+                      <td style={classic ? { padding: '4px 8px' } : undefined}>
+                          <div style={classic ? { display: 'flex', flexWrap: 'wrap', gap: 3 } : undefined} className={classic ? undefined : 'd-flex flex-wrap gap-1'}>
+                              {bal.attribute_value_ids && bal.attribute_value_ids.length > 0 ? (
+                                  bal.attribute_value_ids.map((vid: string) => (
+                                      <span key={vid} style={classic ? { background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontFamily: xpFont, fontSize: '10px', color: '#333' } : undefined} className={classic ? undefined : 'badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 small'}>{getAttributeValueName(vid)}</span>
+                                  ))
+                              ) : (
+                                  <span style={classic ? { fontFamily: xpFont, fontSize: '10px', color: '#888', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted small fst-italic'}>Standard</span>
+                              )}
+                          </div>
+                      </td>
+                      <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' } : undefined}>
+                          <div style={classic ? { display: 'flex', flexWrap: 'wrap', gap: 3 } : undefined} className={classic ? undefined : 'd-flex flex-wrap gap-1'}>
+                              {getWarehouseName(bal) && (
+                                  <span style={classic ? { background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' } : undefined} className={classic ? undefined : 'badge bg-secondary-subtle text-secondary-emphasis'}>{getWarehouseName(bal)}</span>
+                              )}
+                              <span style={classic ? { background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' } : undefined} className={classic ? undefined : 'badge bg-primary-subtle text-primary-emphasis'}>{getLocationName(bal)}</span>
+                          </div>
+                      </td>
+                      <td style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b', whiteSpace: 'nowrap' } : undefined} className={classic ? undefined : 'text-end'}>
+                          {classic ? bal.qty : (
+                              <span className={`fw-bold ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`} style={{ fontFamily: CODE_FONT }}>{bal.qty}</span>
+                          )}
+                      </td>
+                      <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' } : undefined} className={classic ? undefined : 'text-muted small'}>
+                          {getItemUom(bal) || ''}
+                      </td>
+                      <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }} className={classic ? undefined : 'small'}>
+                          {pkgParts(bal).length === 0
+                              ? <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                              : pkgParts(bal).map((p, idx) => (
+                                  <span key={idx} style={classic ? { color: p.n < 0 ? '#c00000' : '#5a3c00' } : undefined} className={classic ? undefined : (p.n < 0 ? 'text-danger' : '')}>
+                                      {idx > 0 ? ' / ' : ''}{p.n} {p.label}
+                                  </span>
+                              ))}
+                      </td>
+                      <td style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' } : undefined} className={classic ? undefined : 'text-end small'}>
+                          {getItemEnds(bal) != null ? getItemEnds(bal) : ''}
+                      </td>
+                  </tr>
+              ))}
+              {filteredBalance.length === 0 && (
+                  <tr><td colSpan={7} style={classic ? { textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-center py-5 text-muted fst-italic'}>Warehouse is empty</td></tr>
+              )}
+          </tbody>
+      </table>
+  );
 
-              {/* RIGHT: Stock Balance */}
-              <div className="col-md-8">
-                  <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column' }}>
-                      <div style={xpTitleBar()}>
-                          <span><i className="bi bi-table" style={{ marginRight: 6 }}></i>{t('stock_ledger')} (Live)</span>
-                          <span style={{ fontSize: '10px', opacity: 0.85 }}>{(stockBalance || []).length} records</span>
-                      </div>
-                      <div style={xpToolbar}>
-                          <SearchField classic value={balanceSearch} onChange={setBalanceSearch} placeholder="Search item or location..." width={240} grow />
-                          <div style={xpSep} />
-                          <ToolbarCount classic>{filteredBalance.length} row{filteredBalance.length === 1 ? '' : 's'}</ToolbarCount>
-                      </div>
-                      <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(var(--app-vh) - 200px)' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                              <thead>
-                                  <tr>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('item_code')}</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('attributes')}</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('locations')}</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px', textAlign: 'right' }}>{t('qty')}</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px' }}>UOM</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px' }}>Packaging</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px', textAlign: 'right' }}>Ends</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  {filteredBalance.map((bal: any, i: number) => (
-                                      <tr key={i} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
-                                          <td style={{ padding: '4px 8px' }}>
-                                              <div style={{ fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(bal)}</div>
-                                              <div style={{ fontFamily: xpFont, fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{getItemCode(bal)}</div>
-                                          </td>
-                                          <td style={{ padding: '4px 8px' }}>
-                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                                                  {bal.attribute_value_ids && bal.attribute_value_ids.length > 0 ? (
-                                                      bal.attribute_value_ids.map((vid: string) => (
-                                                          <span key={vid} style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontFamily: xpFont, fontSize: '10px', color: '#333' }}>{getAttributeValueName(vid)}</span>
-                                                      ))
-                                                  ) : (
-                                                      <span style={{ fontFamily: xpFont, fontSize: '10px', color: '#888', fontStyle: 'italic' }}>Standard</span>
-                                                  )}
-                                              </div>
-                                          </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
-                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                                                  {getWarehouseName(bal) && (
-                                                      <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>{getWarehouseName(bal)}</span>
-                                                  )}
-                                                  <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>{getLocationName(bal)}</span>
-                                              </div>
-                                          </td>
-                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b', whiteSpace: 'nowrap' }}>
-                                              {bal.qty}
-                                          </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
-                                              {getItemUom(bal) || ''}
-                                          </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap' }}>
-                                              {pkgParts(bal).length === 0
-                                                  ? <span style={{ color: '#999' }}>-</span>
-                                                  : pkgParts(bal).map((p, idx) => (
-                                                      <span key={idx} style={{ color: p.n < 0 ? '#c00000' : '#5a3c00' }}>
-                                                          {idx > 0 ? ' / ' : ''}{p.n} {p.label}
-                                                      </span>
-                                                  ))}
-                                          </td>
-                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
-                                              {getItemEnds(bal) != null ? getItemEnds(bal) : ''}
-                                          </td>
-                                      </tr>
-                                  ))}
-                                  {filteredBalance.length === 0 && (
-                                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>Warehouse is empty</td></tr>
-                                  )}
-                              </tbody>
-                          </table>
-                      </div>
-                      <div style={{
-                          background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
-                          padding: '2px 8px', display: 'flex', gap: 16,
-                          fontFamily: xpFont, fontSize: '11px', color: '#333',
-                      }}>
-                          <span><b>{(stockBalance || []).length}</b> Total SKUs</span>
-                          <span style={{ color: '#c00000' }}><b>{(stockBalance || []).filter((b: any) => b.qty < 0).length}</b> Negative</span>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-
-  // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
   return (
-      <div className="row g-4 fade-in">
+      <div className={classic ? 'row g-3 fade-in' : 'row g-4 fade-in'}>
+          {/* LEFT: Stock Entry Form */}
           <div className="col-md-4">
-              <div className="card h-100 shadow-sm border-0">
-                  <div className="card-header bg-primary bg-opacity-10 text-primary-emphasis py-3">
-                      <h5 className="card-title mb-0"><i className="bi bi-box-seam me-2"></i>{t('stock_adjustment')}</h5>
+              <div style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column' } : undefined} className={classic ? undefined : 'card h-100 shadow-sm border-0'}>
+                  <div style={classic ? xpTitleBar({ background: 'linear-gradient(to right, #6a3a8e 0%, #a06ac8 100%)', borderBottom: '1px solid #3d1a5e' }) : undefined} className={classic ? undefined : 'card-header bg-primary bg-opacity-10 text-primary-emphasis py-3'}>
+                      {classic ? (
+                          <span><i className="bi bi-box-seam" style={{ marginRight: 6 }}></i>{t('stock_adjustment')}</span>
+                      ) : (
+                          <h5 className="card-title mb-0"><i className="bi bi-box-seam me-2"></i>{t('stock_adjustment')}</h5>
+                      )}
                   </div>
-                  <div className="card-body">
+                  <div style={classic ? { padding: '8px', background: '#f5f4ef' } : undefined} className={classic ? undefined : 'card-body'}>
                       <form onSubmit={handleSubmit}>
-                          <div className="mb-4 p-3 bg-light rounded-3 border border-dashed">
-                              <label className="form-label text-muted text-uppercase small fw-bold mb-3">{t('item_inventory')}</label>
-                              <div className="mb-3">
+                          {/* Item section */}
+                          <div style={classic ? { marginBottom: 8 } : undefined} className={classic ? undefined : 'mb-4 p-3 bg-light rounded-3 border border-dashed'}>
+                              {classic ? (
+                                  <div style={xpSectionHead}><i className="bi bi-box2" style={{ marginRight: 4 }}></i>{t('item_inventory')}</div>
+                              ) : (
+                                  <label className="form-label text-muted text-uppercase small fw-bold mb-3">{t('item_inventory')}</label>
+                              )}
+                              {classic && <label style={xpLabel}>Item</label>}
+                              <div style={classic ? { marginBottom: 6 } : undefined} className={classic ? undefined : 'mb-3'}>
                                   <SearchableSelect
                                       options={itemOptions.map((item: any) => ({ value: item.code, label: item.name, subLabel: item.code }))}
                                       onSearch={onSearchItems}
@@ -286,13 +202,15 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                       onChange={(code: string) => setStockEntry({ ...stockEntry, item_code: code, attribute_value_ids: [] })}
                                       required
                                       placeholder={t('search') + '...'}
+                                      size={classic ? 'sm' : undefined}
                                   />
                               </div>
                               {boundAttrs.map((attr: any) => (
-                                  <div key={attr.id} className="mb-2">
-                                      <label className="form-label small mb-1 text-muted">{attr.name}</label>
+                                  <div key={attr.id} style={classic ? { marginBottom: 4 } : undefined} className={classic ? undefined : 'mb-2'}>
+                                      <label style={classic ? xpLabel : undefined} className={classic ? undefined : 'form-label small mb-1 text-muted'}>{attr.name}</label>
                                       <select
-                                          className="form-select form-select-sm shadow-sm"
+                                          style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                          className={classic ? undefined : 'form-select form-select-sm shadow-sm'}
                                           value={stockEntry.attribute_value_ids.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
                                           onChange={e => handleValueChange(e.target.value, attr.id)}
                                       >
@@ -302,95 +220,105 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                   </div>
                               ))}
                           </div>
-                          <div className="mb-4">
-                              <label className="form-label text-muted text-uppercase small fw-bold">Transaction Details</label>
-                              <div className="row g-2">
-                                  <div className="col-8">
-                                      <SearchableSelect
-                                          options={locations.map((loc: any) => ({ value: loc.code, label: loc.full_path || (loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name), subLabel: loc.code }))}
-                                          value={stockEntry.location_code}
-                                          onChange={(code: string) => setStockEntry({ ...stockEntry, location_code: code })}
+                          {/* Transaction details */}
+                          <div style={classic ? { marginBottom: 8 } : undefined} className={classic ? undefined : 'mb-4'}>
+                              {classic ? (
+                                  <div style={xpSectionHead}><i className="bi bi-arrow-left-right" style={{ marginRight: 4 }}></i>Transaction Details</div>
+                              ) : (
+                                  <label className="form-label text-muted text-uppercase small fw-bold">Transaction Details</label>
+                              )}
+                              {classic ? (
+                                  <>
+                                      <label style={xpLabel}>{t('locations')}</label>
+                                      <div style={{ marginBottom: 6 }}>
+                                          <SearchableSelect
+                                              options={locations.map((loc: any) => ({ value: loc.code, label: loc.full_path || (loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name), subLabel: loc.code }))}
+                                              value={stockEntry.location_code}
+                                              onChange={(code: string) => setStockEntry({ ...stockEntry, location_code: code })}
+                                              required
+                                              placeholder={t('locations') + '...'}
+                                              size="sm"
+                                          />
+                                      </div>
+                                      <label style={xpLabel}>{t('qty')} <span style={{ color: '#666', fontWeight: 'normal' }}>(use negative to subtract)</span></label>
+                                      <input
+                                          type="number"
+                                          style={{ ...xpInput, width: '100%' }}
+                                          placeholder="0"
+                                          value={stockEntry.qty || ''}
+                                          onChange={e => setStockEntry({ ...stockEntry, qty: parseFloat(e.target.value) })}
                                           required
-                                          placeholder={t('locations') + '...'}
                                       />
+                                  </>
+                              ) : (
+                                  <div className="row g-2">
+                                      <div className="col-8">
+                                          <SearchableSelect
+                                              options={locations.map((loc: any) => ({ value: loc.code, label: loc.full_path || (loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name), subLabel: loc.code }))}
+                                              value={stockEntry.location_code}
+                                              onChange={(code: string) => setStockEntry({ ...stockEntry, location_code: code })}
+                                              required
+                                              placeholder={t('locations') + '...'}
+                                          />
+                                      </div>
+                                      <div className="col-4">
+                                          <input type="number" className="form-control" placeholder={t('qty')} value={stockEntry.qty} onChange={e => setStockEntry({ ...stockEntry, qty: parseFloat(e.target.value) })} required />
+                                      </div>
                                   </div>
-                                  <div className="col-4">
-                                      <input type="number" className="form-control" placeholder={t('qty')} value={stockEntry.qty} onChange={e => setStockEntry({ ...stockEntry, qty: parseFloat(e.target.value) })} required />
-                                  </div>
-                              </div>
+                              )}
                           </div>
-                          <button type="submit" className="btn btn-primary w-100 py-2 fw-bold shadow-sm">{t('save')}</button>
+                          <button
+                              type="submit"
+                              style={classic ? { ...xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' }), width: '100%', padding: '4px 10px' } : undefined}
+                              className={classic ? undefined : 'btn btn-primary w-100 py-2 fw-bold shadow-sm'}
+                          >
+                              {classic ? (<><i className="bi bi-floppy" style={{ marginRight: 6 }}></i>{t('save')}</>) : t('save')}
+                          </button>
                       </form>
                   </div>
               </div>
           </div>
+
+          {/* RIGHT: Stock Balance */}
           <div className="col-md-8">
-              <div className="card h-100 shadow-sm border-0">
-                  <div className="card-header bg-white py-3 border-bottom-0 d-flex justify-content-between align-items-center">
-                      <h5 className="card-title mb-0">{t('stock_ledger')} (Live)</h5>
-                      <SearchField classic={false} value={balanceSearch} onChange={setBalanceSearch} placeholder="Search..." width={220} />
+              <div style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column' } : undefined} className={classic ? undefined : 'card h-100 shadow-sm border-0'}>
+                  <div style={classic ? xpTitleBar() : undefined} className={classic ? undefined : 'card-header bg-white py-3 border-bottom-0 d-flex justify-content-between align-items-center'}>
+                      {classic ? (
+                          <span><i className="bi bi-table" style={{ marginRight: 6 }}></i>{t('stock_ledger')} (Live)</span>
+                      ) : (
+                          <h5 className="card-title mb-0">{t('stock_ledger')} (Live)</h5>
+                      )}
+                      {classic && <span style={{ fontSize: '10px', opacity: 0.85 }}>{(stockBalance || []).length} records</span>}
+                      {!classic && <SearchField classic={false} value={balanceSearch} onChange={setBalanceSearch} placeholder="Search..." width={220} />}
                   </div>
-                  <div className="card-body p-0">
-                      <div className="table-responsive">
-                          <table className="table table-hover align-middle mb-0">
-                              <thead className="table-light">
-                                  <tr>
-                                      <th className="ps-4">{t('item_code')}</th>
-                                      <th>{t('attributes')}</th>
-                                      <th>{t('locations')}</th>
-                                      <th className="text-end">{t('qty')}</th>
-                                      <th>UOM</th>
-                                      <th>Packaging</th>
-                                      <th className="text-end">Ends</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  {filteredBalance.map((bal: any, idx: number) => (
-                                      <tr key={idx}>
-                                          <td className="ps-4">
-                                              <div className="fw-bold text-dark">{getItemName(bal)}</div>
-                                              <CodeChip code={getItemCode(bal)} classic={false} tier={2} style={{ display: 'block' }} />
-                                          </td>
-                                          <td>
-                                              <div className="d-flex flex-wrap gap-1">
-                                                  {bal.attribute_value_ids && bal.attribute_value_ids.length > 0 ? (
-                                                      bal.attribute_value_ids.map((vid: string) => (
-                                                          <span key={vid} className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 small">{getAttributeValueName(vid)}</span>
-                                                      ))
-                                                  ) : (
-                                                      <span className="text-muted small fst-italic">Standard</span>
-                                                  )}
-                                              </div>
-                                          </td>
-                                          <td>
-                                              <div className="d-flex flex-wrap gap-1">
-                                                  {getWarehouseName(bal) && (
-                                                      <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(bal)}</span>
-                                                  )}
-                                                  <span className="badge bg-primary-subtle text-primary-emphasis">{getLocationName(bal)}</span>
-                                              </div>
-                                          </td>
-                                          <td className="text-end">
-                                              <span className={`fw-bold ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`} style={{ fontFamily: CODE_FONT }}>{bal.qty}</span>
-                                          </td>
-                                          <td className="text-muted small">{getItemUom(bal) || ''}</td>
-                                          <td className="small" style={{ whiteSpace: 'nowrap' }}>
-                                              {pkgParts(bal).length === 0
-                                                  ? <span className="text-muted">-</span>
-                                                  : pkgParts(bal).map((p, idx) => (
-                                                      <span key={idx} className={p.n < 0 ? 'text-danger' : ''}>
-                                                          {idx > 0 ? ' / ' : ''}{p.n} {p.label}
-                                                      </span>
-                                                  ))}
-                                          </td>
-                                          <td className="text-end small">{getItemEnds(bal) != null ? getItemEnds(bal) : ''}</td>
-                                      </tr>
-                                  ))}
-                                  {filteredBalance.length === 0 && <tr><td colSpan={7} className="text-center py-5 text-muted fst-italic">Warehouse is empty</td></tr>}
-                              </tbody>
-                          </table>
+                  {classic && (
+                      <div style={xpToolbar}>
+                          <SearchField classic value={balanceSearch} onChange={setBalanceSearch} placeholder="Search item or location..." width={240} grow />
+                          <div style={xpSep} />
+                          <ToolbarCount classic>{filteredBalance.length} row{filteredBalance.length === 1 ? '' : 's'}</ToolbarCount>
                       </div>
-                  </div>
+                  )}
+                  {classic ? (
+                      <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(var(--app-vh) - 200px)' }}>
+                          {balanceTable}
+                      </div>
+                  ) : (
+                      <div className="card-body p-0">
+                          <div className="table-responsive">
+                              {balanceTable}
+                          </div>
+                      </div>
+                  )}
+                  {classic && (
+                      <div style={{
+                          background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
+                          padding: '2px 8px', display: 'flex', gap: 16,
+                          fontFamily: xpFont, fontSize: '11px', color: '#333',
+                      }}>
+                          <span><b>{(stockBalance || []).length}</b> Total SKUs</span>
+                          <span style={{ color: '#c00000' }}><b>{(stockBalance || []).filter((b: any) => b.qty < 0).length}</b> Negative</span>
+                      </div>
+                  )}
               </div>
           </div>
       </div>

@@ -193,308 +193,103 @@ export default function LocationsView({
   const q = searchTerm.toLowerCase();
   const matches = (l: any) => l.code.toLowerCase().includes(q) || l.name.toLowerCase().includes(q);
 
-  // =========================================================
-  // CLASSIC (XP)
-  // =========================================================
-  if (classic) {
-    const storeRow = (loc: any) => {
-      const active = selectedStore === loc.id;
-      const over = dragOverId === loc.id;
-      const renaming = renamingId === loc.id;
-      const cnt = zoneCount(loc.id);
-      const isSystem = !!loc.system_code;
-      return (
-        <div
-          key={loc.id}
-          onClick={() => !renaming && setSelectedStore(loc.id)}
-          onMouseEnter={() => setHoveredStore(loc.id)}
-          onMouseLeave={() => setHoveredStore(null)}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' }}
-        >
-          <i className={`bi ${cnt > 0 ? 'bi-building-fill' : 'bi-building'}`} style={{ color: active ? '#fff' : '#caa55a' }} />
-          {renaming ? (
-            <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
-          ) : (
-            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
-          )}
-          {isSystem && <i className="bi bi-lock-fill" title="System store" style={{ color: active ? '#cde' : '#888', fontSize: 9 }} />}
-          {(loc.is_quarantine || (canManage && hoveredStore === loc.id)) && (
-            <i
-              className={`bi ${loc.is_quarantine ? 'bi-shield-fill-exclamation' : 'bi-shield'}`}
-              title={quarantineTitle(loc)}
-              onClick={(e) => { e.stopPropagation(); if (canManage) toggleQuarantine(loc); }}
-              style={{ color: loc.is_quarantine ? (active ? '#ffd479' : '#b8860b') : (active ? '#cde' : '#999'), fontSize: 11, cursor: canManage ? 'pointer' : 'default' }}
-            />
-          )}
-          <span style={{ fontSize: 10, color: active ? '#dde' : '#777' }}>{cnt}</span>
-          {canManage && !renaming && !isSystem && hoveredStore === loc.id && (
-            <>
-              <i className="bi bi-pencil" title="Rename" onClick={(e) => { e.stopPropagation(); startRename(loc); }} style={{ color: active ? '#fff' : '#333', fontSize: 11 }} />
-              <i className="bi bi-trash" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(loc.id); }} style={{ color: active ? '#fff' : '#c00000', fontSize: 11 }} />
-            </>
-          )}
-        </div>
-      );
-    };
-
-    const zoneRow = (loc: any) => {
-      const active = selectedZone === loc.id;
-      const over = dragOverId === loc.id;
-      const renaming = renamingId === loc.id;
-      const cnt = binCount(loc.id);
-      return (
-        <div
-          key={loc.id}
-          onClick={() => !renaming && setSelectedZone(active ? null : loc.id)}
-          onMouseEnter={() => setHoveredZone(loc.id)}
-          onMouseLeave={() => setHoveredZone(null)}
-          onDragOver={(e) => onZoneDragOver(e, loc.id)}
-          onDragLeave={() => onZoneDragLeave(loc.id)}
-          onDrop={(e) => onZoneDrop(e, loc.id)}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' }}
-        >
-          <i className={`bi ${cnt > 0 ? 'bi-folder-fill' : 'bi-folder'}`} style={{ color: active ? '#fff' : '#c8a030' }} />
-          {renaming ? (
-            <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
-          ) : (
-            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
-          )}
-          <span style={{ fontSize: 10, color: active ? '#dde' : '#777' }}>{cnt}</span>
-          {canManage && !renaming && hoveredZone === loc.id && (
-            <>
-              <i className="bi bi-pencil" title="Rename" onClick={(e) => { e.stopPropagation(); startRename(loc); }} style={{ color: active ? '#fff' : '#333', fontSize: 11 }} />
-              <i className="bi bi-trash" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(loc.id); }} style={{ color: active ? '#fff' : '#c00000', fontSize: 11 }} />
-            </>
-          )}
-        </div>
-      );
-    };
-
-    const binRow = (loc: any, i: number) => {
-      const renaming = renamingId === loc.id;
-      return (
-        <tr
-          key={loc.id}
-          draggable={!renaming}
-          onDragStart={(e) => onDragStart(e, loc)}
-          onDragEnd={onDragEnd}
-          onMouseEnter={() => setHoveredBin(loc.id)}
-          onMouseLeave={() => setHoveredBin(null)}
-          style={{ ...lvRow(true, i), background: draggingId === loc.id ? '#fff7d6' : hoveredBin === loc.id ? '#f0f6ff' : lvRow(true, i).background, cursor: 'grab' }}
-        >
-          <td style={{ ...lvTd(true), width: 24, textAlign: 'center' }}><i className="bi bi-grip-vertical" style={{ color: '#aaa' }} /></td>
-          <td style={{ ...lvTd(true), width: 150, fontWeight: 'bold', color: '#00008b' }}>{loc.code}</td>
-          <td style={lvTd(true)}>
-            {renaming ? (
-              <input autoFocus style={{ ...xpInput, width: '100%' }} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
-            ) : (
-              <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
-            )}
-          </td>
-          <td style={{ ...lvTd(true), borderRight: 'none', width: 60, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-            {canManage && (
-              <span style={{ display: 'inline-flex', gap: 4 }}>
-                <XPActionButton classic icon="bi-pencil" title="Rename" onClick={() => startRename(loc)} />
-                <XPActionButton classic tone="danger" icon="bi-trash" title="Delete" onClick={() => handleDelete(loc.id)} />
-              </span>
-            )}
-          </td>
-        </tr>
-      );
-    };
-
-    const renderZonePanel = () => {
-      if (selectedStore === ALL) {
-        return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>Select a store to manage zones.</div>;
-      }
-      const zones = zonesOf(selectedStore).filter(matches);
-      if (zones.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>No zones{q ? ' match' : ' yet — add one above'}.</div>;
-      return zones.map(zoneRow);
-    };
-
-    const bins = selectedZone ? binsOf(selectedZone).filter(matches) : [];
-    const renderBinPanel = () => {
-      if (!selectedZone) {
-        return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>Select a zone to manage bins.</div>;
-      }
-      if (bins.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>No bins{q ? ' match' : ' yet — add one above'}.</div>;
-      return (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ ...lvThead(true), position: 'sticky', top: 0 }}>
-            <tr>
-              <th style={{ ...lvTh(true), width: 24 }}></th>
-              <th style={{ ...lvTh(true), width: 150 }}>Code</th>
-              <th style={lvTh(true)}>Name</th>
-              <th style={{ ...lvTh(true), width: 60, borderRight: 'none' }}></th>
-            </tr>
-          </thead>
-          <tbody>{bins.map(binRow)}</tbody>
-        </table>
-      );
-    };
-
-    return (
-      <ShellWindow classic fill="page" className="fade-in">
-        <ShellTitleBar classic icon="bi-geo-alt-fill" title={t('locations')} />
-        <div className="locations-panes" style={{ flex: 1, minHeight: 0 }}>
-
-              {/* LEFT: stores */}
-              <div className="loc-pane" style={{ width: 210, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: xpFont, fontSize: 11, fontWeight: 'bold' }}>Stores</span>
-                  {canManage && <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>}
-                </div>
-                {addingStore && (
-                  <form onSubmit={handleAddStore} style={{ padding: '6px', borderBottom: '1px solid #d8d4c8', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <input style={xpInput} placeholder="Code (e.g. RAW2)" value={newStore.code} onChange={(e) => setNewStore({ ...newStore, code: e.target.value })} required />
-                    <input style={xpInput} placeholder="Name (e.g. Raw Material 2)" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} required />
-                    <button type="submit" disabled={savingStore} style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingStore ? 0.6 : 1 })}>{savingStore ? '...' : 'Add store'}</button>
-                  </form>
-                )}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
-                  <div onClick={() => setSelectedStore(ALL)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: selectedStore === ALL ? '#fff' : '#000', background: selectedStore === ALL ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent' }}>
-                    <i className="bi bi-collection" style={{ color: selectedStore === ALL ? '#fff' : '#888' }} /><span style={{ flex: 1 }}>All stores</span><span style={{ fontSize: 10, color: selectedStore === ALL ? '#dde' : '#777' }}>{stores.length}</span>
-                  </div>
-                  <div style={{ height: 1, background: '#d8d4c8', margin: '2px 6px' }} />
-                  {stores.map(storeRow)}
-                  {stores.length === 0 && <div style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: 11, color: '#888' }}>No stores yet</div>}
-                </div>
-                <div style={{ background: 'linear-gradient(to bottom,#e8e6df,#d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: xpFont, fontSize: 11, color: '#333' }}>
-                  <b>{stores.length}</b> stores · <b>{all.length}</b> total
-                </div>
-              </div>
-
-              {/* MIDDLE: zones */}
-              <div className="loc-pane" style={{ width: 200, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: '#003080' }}>
-                    {selectedStoreObj ? selectedStoreObj.name : 'Zones'}
-                  </span>
-                  {canManage && selectedStoreObj && (
-                    <button style={xpBtn({ padding: '1px 6px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })} onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
-                  )}
-                </div>
-                {canManage && selectedStoreObj && showZoneForm && (
-                  <form onSubmit={handleAddZone} style={{ display: 'flex', gap: 4, padding: '4px 6px', background: '#eef3fb', borderBottom: '1px solid #b0c4de' }}>
-                    <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} placeholder="Zone name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} required />
-                    <button type="submit" disabled={savingZone} style={xpBtn({ padding: '1px 6px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingZone ? 0.6 : 1 })}>{savingZone ? '...' : 'Add'}</button>
-                  </form>
-                )}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>{renderZonePanel()}</div>
-              </div>
-
-              {/* RIGHT: bins */}
-              <div className="loc-pane" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={xpToolbar}>
-                  <span style={{ fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', color: '#003080' }}>
-                    {selectedZoneObj ? selectedZoneObj.name : 'Bins'}
-                  </span>
-                  <div style={{ flex: 1 }} />
-                  <SearchField classic value={searchTerm} onChange={setSearchTerm} placeholder="Search..." width={160} />
-                  {canManage && selectedZoneObj && (
-                    <button style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })} onClick={() => setShowBinForm(v => !v)}>
-                      <i className="bi bi-plus-lg" style={{ marginRight: 3 }} />Add bin
-                    </button>
-                  )}
-                </div>
-                {canManage && selectedZoneObj && showBinForm && (
-                  <form onSubmit={handleAddBin} style={{ display: 'flex', alignItems: 'flex-end', gap: 8, padding: '6px 8px', background: '#eef3fb', borderBottom: '1px solid #b0c4de' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <label style={xpLabel}>Bin / shelf name (e.g. A1, A2, B1)</label>
-                      <input autoFocus style={{ ...xpInput, width: '100%' }} placeholder="A1" value={newBinName} onChange={(e) => setNewBinName(e.target.value)} required />
-                    </div>
-                    <span style={{ fontFamily: xpFont, fontSize: 10, color: '#666' }}>code: {selectedZoneObj.code}-{newBinName || '…'}</span>
-                    <button type="submit" disabled={savingBin} style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingBin ? 0.6 : 1 })}>{savingBin ? '...' : 'Save'}</button>
-                    <button type="button" onClick={() => setShowBinForm(false)} style={xpBtn()}><i className="bi bi-x-lg" /></button>
-                  </form>
-                )}
-                <div style={{ flex: 1, overflowY: 'auto' }}>{renderBinPanel()}</div>
-              </div>
-
-        </div>
-      </ShellWindow>
-    );
-  }
-
-  // =========================================================
-  // MODERN (Bootstrap)
-  // =========================================================
-  const mStoreItem = (loc: any) => {
+  // ---------- row renderers (shared tree, per-element classic/modern styling) ----------
+  const storeRow = (loc: any) => {
     const active = selectedStore === loc.id;
+    const over = dragOverId === loc.id;
     const renaming = renamingId === loc.id;
     const cnt = zoneCount(loc.id);
     const isSystem = !!loc.system_code;
+    const Tag: any = classic ? 'div' : 'button';
     return (
-      <button
+      <Tag
         key={loc.id}
-        type="button"
+        type={classic ? undefined : 'button'}
         onClick={() => !renaming && setSelectedStore(loc.id)}
         onMouseEnter={() => setHoveredStore(loc.id)}
         onMouseLeave={() => setHoveredStore(null)}
-        className={`list-group-item list-group-item-action d-flex align-items-center gap-2 ${active ? 'active' : ''}`}
+        className={classic ? undefined : `list-group-item list-group-item-action d-flex align-items-center gap-2 ${active ? 'active' : ''}`}
+        style={classic ? { display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' } : undefined}
       >
         <i className={`bi ${cnt > 0 ? 'bi-building-fill' : 'bi-building'}`} style={{ color: active ? '#fff' : '#caa55a' }} />
         {renaming ? (
-          <input autoFocus className="form-control form-control-sm" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
+          <input autoFocus className={classic ? undefined : 'form-control form-control-sm'} style={classic ? { ...xpInput, flex: 1, minWidth: 0 } : undefined} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
         ) : (
-          <span className="flex-grow-1 text-truncate text-start">{loc.name}</span>
+          <span className={classic ? undefined : 'flex-grow-1 text-truncate text-start'} style={classic ? { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}>{loc.name}</span>
         )}
-        {isSystem && <i className="bi bi-lock-fill" title="System store" style={{ color: active ? '#cde' : '#888', fontSize: 10 }} />}
+        {isSystem && <i className="bi bi-lock-fill" title="System store" style={{ color: active ? '#cde' : '#888', fontSize: classic ? 9 : 10 }} />}
         {(loc.is_quarantine || (canManage && hoveredStore === loc.id)) && (
           <i
             className={`bi ${loc.is_quarantine ? 'bi-shield-fill-exclamation' : 'bi-shield'}`}
             title={quarantineTitle(loc)}
             onClick={(e) => { e.stopPropagation(); if (canManage) toggleQuarantine(loc); }}
-            style={{ color: loc.is_quarantine ? (active ? '#ffd479' : '#b8860b') : undefined, cursor: canManage ? 'pointer' : 'default' }}
+            style={{ color: loc.is_quarantine ? (active ? '#ffd479' : '#b8860b') : (classic ? (active ? '#cde' : '#999') : undefined), fontSize: classic ? 11 : undefined, cursor: canManage ? 'pointer' : 'default' }}
           />
         )}
-        <span className={`badge rounded-pill ${active ? 'bg-light text-dark' : 'bg-secondary'}`}>{cnt}</span>
+        <span className={classic ? undefined : `badge rounded-pill ${active ? 'bg-light text-dark' : 'bg-secondary'}`} style={classic ? { fontSize: 10, color: active ? '#dde' : '#777' } : undefined}>{cnt}</span>
         {canManage && !renaming && !isSystem && hoveredStore === loc.id && (
-          <span className="d-flex gap-2" onClick={e => e.stopPropagation()}>
-            <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ cursor: 'pointer' }} />
-            <i className="bi bi-trash text-danger" title="Delete" onClick={() => handleDelete(loc.id)} style={{ cursor: 'pointer' }} />
-          </span>
+          classic ? (
+            <>
+              <i className="bi bi-pencil" title="Rename" onClick={(e) => { e.stopPropagation(); startRename(loc); }} style={{ color: active ? '#fff' : '#333', fontSize: 11 }} />
+              <i className="bi bi-trash" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(loc.id); }} style={{ color: active ? '#fff' : '#c00000', fontSize: 11 }} />
+            </>
+          ) : (
+            <span className="d-flex gap-2" onClick={(e) => e.stopPropagation()}>
+              <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ cursor: 'pointer' }} />
+              <i className="bi bi-trash text-danger" title="Delete" onClick={() => handleDelete(loc.id)} style={{ cursor: 'pointer' }} />
+            </span>
+          )
         )}
-      </button>
+      </Tag>
     );
   };
 
-  const mZoneItem = (loc: any) => {
+  const zoneRow = (loc: any) => {
     const active = selectedZone === loc.id;
     const over = dragOverId === loc.id;
     const renaming = renamingId === loc.id;
     const cnt = binCount(loc.id);
+    const Tag: any = classic ? 'div' : 'button';
     return (
-      <button
+      <Tag
         key={loc.id}
-        type="button"
+        type={classic ? undefined : 'button'}
         onClick={() => !renaming && setSelectedZone(active ? null : loc.id)}
         onMouseEnter={() => setHoveredZone(loc.id)}
         onMouseLeave={() => setHoveredZone(null)}
-        onDragOver={(e) => onZoneDragOver(e, loc.id)}
+        onDragOver={(e: React.DragEvent) => onZoneDragOver(e, loc.id)}
         onDragLeave={() => onZoneDragLeave(loc.id)}
-        onDrop={(e) => onZoneDrop(e, loc.id)}
-        className={`list-group-item list-group-item-action d-flex align-items-center gap-2 ${active ? 'active' : ''}`}
-        style={over ? { background: '#fff3cd', border: '1px dashed #b8860b' } : undefined}
+        onDrop={(e: React.DragEvent) => onZoneDrop(e, loc.id)}
+        className={classic ? undefined : `list-group-item list-group-item-action d-flex align-items-center gap-2 ${active ? 'active' : ''}`}
+        style={classic
+          ? { display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, color: active ? '#fff' : '#000', background: over ? '#ffe9a8' : active ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent', border: over ? '1px dashed #b8860b' : '1px solid transparent' }
+          : (over ? { background: '#fff3cd', border: '1px dashed #b8860b' } : undefined)}
       >
         <i className={`bi ${cnt > 0 ? 'bi-folder-fill' : 'bi-folder'}`} style={{ color: active ? '#fff' : '#c8a030' }} />
         {renaming ? (
-          <input autoFocus className="form-control form-control-sm" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
+          <input autoFocus className={classic ? undefined : 'form-control form-control-sm'} style={classic ? { ...xpInput, flex: 1, minWidth: 0 } : undefined} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
         ) : (
-          <span className="flex-grow-1 text-truncate text-start">{loc.name}</span>
+          <span className={classic ? undefined : 'flex-grow-1 text-truncate text-start'} style={classic ? { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}>{loc.name}</span>
         )}
-        <span className={`badge rounded-pill ${active ? 'bg-light text-dark' : 'bg-secondary'}`}>{cnt}</span>
+        <span className={classic ? undefined : `badge rounded-pill ${active ? 'bg-light text-dark' : 'bg-secondary'}`} style={classic ? { fontSize: 10, color: active ? '#dde' : '#777' } : undefined}>{cnt}</span>
         {canManage && !renaming && hoveredZone === loc.id && (
-          <span className="d-flex gap-2" onClick={e => e.stopPropagation()}>
-            <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ cursor: 'pointer' }} />
-            <i className="bi bi-trash text-danger" title="Delete" onClick={() => handleDelete(loc.id)} style={{ cursor: 'pointer' }} />
-          </span>
+          classic ? (
+            <>
+              <i className="bi bi-pencil" title="Rename" onClick={(e) => { e.stopPropagation(); startRename(loc); }} style={{ color: active ? '#fff' : '#333', fontSize: 11 }} />
+              <i className="bi bi-trash" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(loc.id); }} style={{ color: active ? '#fff' : '#c00000', fontSize: 11 }} />
+            </>
+          ) : (
+            <span className="d-flex gap-2" onClick={(e) => e.stopPropagation()}>
+              <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ cursor: 'pointer' }} />
+              <i className="bi bi-trash text-danger" title="Delete" onClick={() => handleDelete(loc.id)} style={{ cursor: 'pointer' }} />
+            </span>
+          )
         )}
-      </button>
+      </Tag>
     );
   };
 
-  const mBinRow = (loc: any, i: number) => {
+  const binRow = (loc: any, i: number) => {
     const renaming = renamingId === loc.id;
     return (
       <tr
@@ -502,119 +297,232 @@ export default function LocationsView({
         draggable={!renaming}
         onDragStart={(e) => onDragStart(e, loc)}
         onDragEnd={onDragEnd}
-        style={{ ...lvRow(false, i), cursor: 'grab', background: draggingId === loc.id ? '#fff7d6' : lvRow(false, i).background }}
+        onMouseEnter={classic ? () => setHoveredBin(loc.id) : undefined}
+        onMouseLeave={classic ? () => setHoveredBin(null) : undefined}
+        style={{
+          ...lvRow(classic, i),
+          cursor: 'grab',
+          background: draggingId === loc.id
+            ? '#fff7d6'
+            : (classic && hoveredBin === loc.id)
+              ? '#f0f6ff'
+              : lvRow(classic, i).background,
+        }}
       >
-        <td style={{ ...lvTd(false), width: 24, textAlign: 'center' }}><i className="bi bi-grip-vertical text-muted" /></td>
-        <td style={{ ...lvTd(false), width: 150 }}><CodeChip code={loc.code} classic={false} tone="accent" /></td>
-        <td style={lvTd(false)}>
+        <td style={{ ...lvTd(classic), width: 24, textAlign: 'center' }}>
+          <i className={`bi bi-grip-vertical${classic ? '' : ' text-muted'}`} style={classic ? { color: '#aaa' } : undefined} />
+        </td>
+        <td style={{ ...lvTd(classic), width: 150, ...(classic ? { fontWeight: 'bold', color: '#00008b' } : {}) }}>
+          {classic ? loc.code : <CodeChip code={loc.code} classic={false} tone="accent" />}
+        </td>
+        <td style={lvTd(classic)}>
           {renaming ? (
-            <input autoFocus className="form-control form-control-sm" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
+            <input autoFocus className={classic ? undefined : 'form-control form-control-sm'} style={classic ? { ...xpInput, width: '100%' } : undefined} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
           ) : (
-            <span className="text-truncate d-block">{loc.name}</span>
+            <span className={classic ? undefined : 'text-truncate d-block'} style={classic ? { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}>{loc.name}</span>
           )}
         </td>
-        <td style={{ ...lvTd(false), width: 70, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-          {canManage && <i className="bi bi-pencil text-muted" title="Rename" style={{ cursor: 'pointer' }} onClick={() => startRename(loc)} />}
-          {canManage && <button className="btn btn-sm btn-link text-danger p-0 px-1" onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" /></button>}
+        <td style={{ ...lvTd(classic), width: classic ? 60 : 70, textAlign: 'right', ...(classic ? { borderRight: 'none' } : {}) }} onClick={(e) => e.stopPropagation()}>
+          {canManage && (
+            classic ? (
+              <span style={{ display: 'inline-flex', gap: 4 }}>
+                <XPActionButton classic icon="bi-pencil" title="Rename" onClick={() => startRename(loc)} />
+                <XPActionButton classic tone="danger" icon="bi-trash" title="Delete" onClick={() => handleDelete(loc.id)} />
+              </span>
+            ) : (
+              <>
+                <i className="bi bi-pencil text-muted" title="Rename" style={{ cursor: 'pointer' }} onClick={() => startRename(loc)} />
+                <button className="btn btn-sm btn-link text-danger p-0 px-1" onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" /></button>
+              </>
+            )
+          )}
         </td>
       </tr>
     );
   };
 
+  const renderZonePanel = () => {
+    if (selectedStore === ALL) {
+      return classic
+        ? <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>Select a store to manage zones.</div>
+        : <div className="px-3 py-4 text-muted small text-center">Select a store.</div>;
+    }
+    const zones = zonesOf(selectedStore).filter(matches);
+    if (zones.length === 0) {
+      return classic
+        ? <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>No zones{q ? ' match' : ' yet — add one above'}.</div>
+        : <div className="px-3 py-4 text-muted small text-center">No zones yet.</div>;
+    }
+    return zones.map(zoneRow);
+  };
+
+  const bins = selectedZone ? binsOf(selectedZone).filter(matches) : [];
+
+  const renderBinPanel = () => {
+    if (!selectedZone) {
+      return classic
+        ? <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>Select a zone to manage bins.</div>
+        : <div className="text-center text-muted py-4 small">Select a zone to manage bins.</div>;
+    }
+    if (bins.length === 0) {
+      return classic
+        ? <div style={{ textAlign: 'center', padding: 24, fontFamily: xpFont, fontSize: 11, color: '#888' }}>No bins{q ? ' match' : ' yet — add one above'}.</div>
+        : <div className="text-center text-muted py-4 small">No bins{q ? ' match' : ' yet — add one above.'}.</div>;
+    }
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead style={classic ? { ...lvThead(true), position: 'sticky', top: 0 } : { position: 'sticky', top: 0 }}>
+          <tr>
+            <th style={{ ...lvTh(classic), width: 24 }}></th>
+            <th style={{ ...lvTh(classic), width: 150 }}>Code</th>
+            <th style={lvTh(classic)}>Name</th>
+            <th style={{ ...lvTh(classic), width: classic ? 60 : 70, ...(classic ? { borderRight: 'none' } : {}) }}></th>
+          </tr>
+        </thead>
+        <tbody>{bins.map(binRow)}</tbody>
+      </table>
+    );
+  };
+
   return (
-    <ShellWindow classic={false} fill="page" className="fade-in">
-      <ShellTitleBar classic={false} icon="bi-geo-alt-fill" title={t('locations')} />
-        <div className="locations-panes" style={{ flex: 1, minHeight: 0 }}>
+    <ShellWindow classic={classic} fill="page" className="fade-in">
+      <ShellTitleBar classic={classic} icon="bi-geo-alt-fill" title={t('locations')} />
+      <div className="locations-panes" style={{ flex: 1, minHeight: 0 }}>
 
-              {/* LEFT: stores */}
-              <div className="loc-pane border-end d-flex flex-column" style={{ width: 220, flexShrink: 0 }}>
-                <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-                  <span className="text-muted text-uppercase small fw-bold">Stores</span>
-                  {canManage && <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>}
-                </div>
-                {addingStore && (
-                  <form onSubmit={handleAddStore} className="p-2 border-bottom d-flex flex-column gap-2">
-                    <input className="form-control form-control-sm" placeholder="Code (e.g. RAW2)" value={newStore.code} onChange={(e) => setNewStore({ ...newStore, code: e.target.value })} required />
-                    <input className="form-control form-control-sm" placeholder="Name" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} required />
-                    <button type="submit" className="btn btn-sm btn-success" disabled={savingStore}>{savingStore ? '...' : 'Add store'}</button>
-                  </form>
-                )}
-                <div className="list-group list-group-flush flex-grow-1 overflow-auto">
-                  <button type="button" onClick={() => setSelectedStore(ALL)} className={`list-group-item list-group-item-action d-flex align-items-center gap-2 fw-bold ${selectedStore === ALL ? 'active' : ''}`}>
-                    <i className="bi bi-collection" /><span className="flex-grow-1 text-start">All stores</span><span className={`badge rounded-pill ${selectedStore === ALL ? 'bg-light text-dark' : 'bg-secondary'}`}>{stores.length}</span>
-                  </button>
-                  {stores.map(mStoreItem)}
-                  {stores.length === 0 && <div className="px-3 py-2 text-muted small">No stores yet</div>}
-                </div>
-                <div className="px-3 py-2 border-top text-muted small"><b>{stores.length}</b> stores · <b>{all.length}</b> total</div>
+        {/* LEFT: stores */}
+        <div
+          className={classic ? 'loc-pane' : 'loc-pane border-end d-flex flex-column'}
+          style={classic
+            ? { width: 210, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }
+            : { width: 220, flexShrink: 0 }}
+        >
+          <div className={classic ? undefined : 'd-flex justify-content-between align-items-center px-3 py-2 border-bottom'} style={classic ? { ...xpToolbar, justifyContent: 'space-between' } : undefined}>
+            <span className={classic ? undefined : 'text-muted text-uppercase small fw-bold'} style={classic ? { fontFamily: xpFont, fontSize: 11, fontWeight: 'bold' } : undefined}>Stores</span>
+            {canManage && (
+              classic
+                ? <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>
+                : <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>
+            )}
+          </div>
+          {addingStore && (
+            classic ? (
+              <form onSubmit={handleAddStore} style={{ padding: '6px', borderBottom: '1px solid #d8d4c8', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <input style={xpInput} placeholder="Code (e.g. RAW2)" value={newStore.code} onChange={(e) => setNewStore({ ...newStore, code: e.target.value })} required />
+                <input style={xpInput} placeholder="Name (e.g. Raw Material 2)" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} required />
+                <button type="submit" disabled={savingStore} style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingStore ? 0.6 : 1 })}>{savingStore ? '...' : 'Add store'}</button>
+              </form>
+            ) : (
+              <form onSubmit={handleAddStore} className="p-2 border-bottom d-flex flex-column gap-2">
+                <input className="form-control form-control-sm" placeholder="Code (e.g. RAW2)" value={newStore.code} onChange={(e) => setNewStore({ ...newStore, code: e.target.value })} required />
+                <input className="form-control form-control-sm" placeholder="Name" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} required />
+                <button type="submit" className="btn btn-sm btn-success" disabled={savingStore}>{savingStore ? '...' : 'Add store'}</button>
+              </form>
+            )
+          )}
+          <div className={classic ? undefined : 'list-group list-group-flush flex-grow-1 overflow-auto'} style={classic ? { flex: 1, overflowY: 'auto', padding: '2px 0' } : undefined}>
+            {classic ? (
+              <div onClick={() => setSelectedStore(ALL)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', cursor: 'pointer', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: selectedStore === ALL ? '#fff' : '#000', background: selectedStore === ALL ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent' }}>
+                <i className="bi bi-collection" style={{ color: selectedStore === ALL ? '#fff' : '#888' }} /><span style={{ flex: 1 }}>All stores</span><span style={{ fontSize: 10, color: selectedStore === ALL ? '#dde' : '#777' }}>{stores.length}</span>
               </div>
-
-              {/* MIDDLE: zones */}
-              <div className="loc-pane border-end d-flex flex-column" style={{ width: 200, flexShrink: 0 }}>
-                <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-                  <span className="text-muted text-uppercase small fw-bold">{selectedStoreObj ? selectedStoreObj.name : 'Zones'}</span>
-                  {canManage && selectedStoreObj && (
-                    <button className="btn btn-sm btn-outline-success py-0" onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
-                  )}
-                </div>
-                {canManage && selectedStoreObj && showZoneForm && (
-                  <form onSubmit={handleAddZone} className="d-flex gap-1 p-2 border-bottom">
-                    <input autoFocus className="form-control form-control-sm" placeholder="Zone name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} required />
-                    <button type="submit" className="btn btn-sm btn-success" disabled={savingZone}>{savingZone ? '...' : 'Add'}</button>
-                  </form>
-                )}
-                <div className="list-group list-group-flush flex-grow-1 overflow-auto">
-                  {selectedStore === ALL
-                    ? <div className="px-3 py-4 text-muted small text-center">Select a store.</div>
-                    : zonesOf(selectedStore).filter(matches).length === 0
-                      ? <div className="px-3 py-4 text-muted small text-center">No zones yet.</div>
-                      : zonesOf(selectedStore).filter(matches).map(mZoneItem)
-                  }
-                </div>
-              </div>
-
-              {/* RIGHT: bins */}
-              <div className="loc-pane flex-grow-1 d-flex flex-column" style={{ minWidth: 0 }}>
-                <div className="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
-                  <h6 className="mb-0 text-primary">{selectedZoneObj ? selectedZoneObj.name : 'Bins'}</h6>
-                  <div className="flex-grow-1" />
-                  <SearchField classic={false} value={searchTerm} onChange={setSearchTerm} placeholder="Search..." width={200} />
-                  {canManage && selectedZoneObj && <button className="btn btn-sm btn-success text-nowrap" onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg me-1" />Add bin</button>}
-                </div>
-                {canManage && selectedZoneObj && showBinForm && (
-                  <form onSubmit={handleAddBin} className="d-flex align-items-end gap-2 px-3 py-2 border-bottom" style={{ background: '#eef3fb' }}>
-                    <div className="flex-grow-1">
-                      <label className="form-label small mb-1">Bin / shelf name (e.g. A1)</label>
-                      <input autoFocus className="form-control form-control-sm" placeholder="A1" value={newBinName} onChange={(e) => setNewBinName(e.target.value)} required />
-                    </div>
-                    <span className="text-muted small text-nowrap pb-1">code: {selectedZoneObj.code}-{newBinName || '…'}</span>
-                    <button type="submit" className="btn btn-sm btn-success" disabled={savingBin}>{savingBin ? '...' : 'Save'}</button>
-                    <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowBinForm(false)}><i className="bi bi-x-lg" /></button>
-                  </form>
-                )}
-                <div className="flex-grow-1 overflow-auto">
-                  {(() => {
-                    if (!selectedZone) return <div className="text-center text-muted py-4 small">Select a zone to manage bins.</div>;
-                    const mBins = binsOf(selectedZone).filter(matches);
-                    if (mBins.length === 0) return <div className="text-center text-muted py-4 small">No bins{q ? ' match' : ' yet — add one above.'}.</div>;
-                    return (
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead style={{ position: 'sticky', top: 0 }}>
-                          <tr>
-                            <th style={{ ...lvTh(false), width: 24 }}></th>
-                            <th style={{ ...lvTh(false), width: 150 }}>Code</th>
-                            <th style={lvTh(false)}>Name</th>
-                            <th style={{ ...lvTh(false), width: 70 }}></th>
-                          </tr>
-                        </thead>
-                        <tbody>{mBins.map(mBinRow)}</tbody>
-                      </table>
-                    );
-                  })()}
-                </div>
-              </div>
-
+            ) : (
+              <button type="button" onClick={() => setSelectedStore(ALL)} className={`list-group-item list-group-item-action d-flex align-items-center gap-2 fw-bold ${selectedStore === ALL ? 'active' : ''}`}>
+                <i className="bi bi-collection" /><span className="flex-grow-1 text-start">All stores</span><span className={`badge rounded-pill ${selectedStore === ALL ? 'bg-light text-dark' : 'bg-secondary'}`}>{stores.length}</span>
+              </button>
+            )}
+            {classic && <div style={{ height: 1, background: '#d8d4c8', margin: '2px 6px' }} />}
+            {stores.map(storeRow)}
+            {stores.length === 0 && (
+              classic
+                ? <div style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: 11, color: '#888' }}>No stores yet</div>
+                : <div className="px-3 py-2 text-muted small">No stores yet</div>
+            )}
+          </div>
+          <div className={classic ? undefined : 'px-3 py-2 border-top text-muted small'} style={classic ? { background: 'linear-gradient(to bottom,#e8e6df,#d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: xpFont, fontSize: 11, color: '#333' } : undefined}>
+            <b>{stores.length}</b> stores · <b>{all.length}</b> total
+          </div>
         </div>
+
+        {/* MIDDLE: zones */}
+        <div
+          className={classic ? 'loc-pane' : 'loc-pane border-end d-flex flex-column'}
+          style={classic
+            ? { width: 200, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }
+            : { width: 200, flexShrink: 0 }}
+        >
+          <div className={classic ? undefined : 'd-flex justify-content-between align-items-center px-3 py-2 border-bottom'} style={classic ? { ...xpToolbar, justifyContent: 'space-between' } : undefined}>
+            <span className={classic ? undefined : 'text-muted text-uppercase small fw-bold'} style={classic ? { fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: '#003080' } : undefined}>
+              {selectedStoreObj ? selectedStoreObj.name : 'Zones'}
+            </span>
+            {canManage && selectedStoreObj && (
+              classic
+                ? <button style={xpBtn({ padding: '1px 6px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })} onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
+                : <button className="btn btn-sm btn-outline-success py-0" onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
+            )}
+          </div>
+          {canManage && selectedStoreObj && showZoneForm && (
+            classic ? (
+              <form onSubmit={handleAddZone} style={{ display: 'flex', gap: 4, padding: '4px 6px', background: '#eef3fb', borderBottom: '1px solid #b0c4de' }}>
+                <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} placeholder="Zone name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} required />
+                <button type="submit" disabled={savingZone} style={xpBtn({ padding: '1px 6px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingZone ? 0.6 : 1 })}>{savingZone ? '...' : 'Add'}</button>
+              </form>
+            ) : (
+              <form onSubmit={handleAddZone} className="d-flex gap-1 p-2 border-bottom">
+                <input autoFocus className="form-control form-control-sm" placeholder="Zone name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} required />
+                <button type="submit" className="btn btn-sm btn-success" disabled={savingZone}>{savingZone ? '...' : 'Add'}</button>
+              </form>
+            )
+          )}
+          <div className={classic ? undefined : 'list-group list-group-flush flex-grow-1 overflow-auto'} style={classic ? { flex: 1, overflowY: 'auto', padding: '2px 0' } : undefined}>
+            {renderZonePanel()}
+          </div>
+        </div>
+
+        {/* RIGHT: bins */}
+        <div
+          className={classic ? 'loc-pane' : 'loc-pane flex-grow-1 d-flex flex-column'}
+          style={classic ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' } : { minWidth: 0 }}
+        >
+          <div className={classic ? undefined : 'd-flex align-items-center gap-2 px-3 py-2 border-bottom'} style={classic ? xpToolbar : undefined}>
+            {classic
+              ? <span style={{ fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', color: '#003080' }}>{selectedZoneObj ? selectedZoneObj.name : 'Bins'}</span>
+              : <h6 className="mb-0 text-primary">{selectedZoneObj ? selectedZoneObj.name : 'Bins'}</h6>}
+            <div className={classic ? undefined : 'flex-grow-1'} style={classic ? { flex: 1 } : undefined} />
+            <SearchField classic={classic} value={searchTerm} onChange={setSearchTerm} placeholder="Search..." width={classic ? 160 : 200} />
+            {canManage && selectedZoneObj && (
+              classic
+                ? <button style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })} onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg" style={{ marginRight: 3 }} />Add bin</button>
+                : <button className="btn btn-sm btn-success text-nowrap" onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg me-1" />Add bin</button>
+            )}
+          </div>
+          {canManage && selectedZoneObj && showBinForm && (
+            classic ? (
+              <form onSubmit={handleAddBin} style={{ display: 'flex', alignItems: 'flex-end', gap: 8, padding: '6px 8px', background: '#eef3fb', borderBottom: '1px solid #b0c4de' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={xpLabel}>Bin / shelf name (e.g. A1, A2, B1)</label>
+                  <input autoFocus style={{ ...xpInput, width: '100%' }} placeholder="A1" value={newBinName} onChange={(e) => setNewBinName(e.target.value)} required />
+                </div>
+                <span style={{ fontFamily: xpFont, fontSize: 10, color: '#666' }}>code: {selectedZoneObj.code}-{newBinName || '…'}</span>
+                <button type="submit" disabled={savingBin} style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingBin ? 0.6 : 1 })}>{savingBin ? '...' : 'Save'}</button>
+                <button type="button" onClick={() => setShowBinForm(false)} style={xpBtn()}><i className="bi bi-x-lg" /></button>
+              </form>
+            ) : (
+              <form onSubmit={handleAddBin} className="d-flex align-items-end gap-2 px-3 py-2 border-bottom" style={{ background: '#eef3fb' }}>
+                <div className="flex-grow-1">
+                  <label className="form-label small mb-1">Bin / shelf name (e.g. A1)</label>
+                  <input autoFocus className="form-control form-control-sm" placeholder="A1" value={newBinName} onChange={(e) => setNewBinName(e.target.value)} required />
+                </div>
+                <span className="text-muted small text-nowrap pb-1">code: {selectedZoneObj.code}-{newBinName || '…'}</span>
+                <button type="submit" className="btn btn-sm btn-success" disabled={savingBin}>{savingBin ? '...' : 'Save'}</button>
+                <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowBinForm(false)}><i className="bi bi-x-lg" /></button>
+              </form>
+            )
+          )}
+          <div className={classic ? undefined : 'flex-grow-1 overflow-auto'} style={classic ? { flex: 1, overflowY: 'auto' } : undefined}>
+            {renderBinPanel()}
+          </div>
+        </div>
+
+      </div>
     </ShellWindow>
   );
 }

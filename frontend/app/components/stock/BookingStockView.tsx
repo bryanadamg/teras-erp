@@ -208,217 +208,164 @@ export default function BookingStockView() {
         </ExpandedRowPanel>
     );
 
-    // ════════════════════════════ CLASSIC ════════════════════════════════════
-    if (classic) {
-        const xpBevel: React.CSSProperties = sharedXpBevel();
-        const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
-        const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
-        const xpTableHeader: React.CSSProperties = {
-            ...lvThead(true),
-            borderRight: '1px solid #b0aa9c',
-            fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
-            padding: '3px 8px', position: 'sticky', top: 0, whiteSpace: 'nowrap', userSelect: 'none',
-        };
-        const xpSep: React.CSSProperties = { width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0 };
+    const xpBevel: React.CSSProperties = sharedXpBevel();
+    const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
+    const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
+    const xpTableHeader: React.CSSProperties = {
+        ...lvThead(true),
+        borderRight: '1px solid #b0aa9c',
+        fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
+        padding: '3px 8px', position: 'sticky', top: 0, whiteSpace: 'nowrap', userSelect: 'none',
+    };
+    const xpSep: React.CSSProperties = { width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0 };
 
-        const colLine: React.CSSProperties = { borderRight: '1px solid #d8d4c8' };
-        const numCell: React.CSSProperties = { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap', ...colLine };
-
-        return (
-            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 }}>
-                <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    <div style={xpTitleBar}>
-                        <span><i className="bi bi-bookmark-check" style={{ marginRight: 6 }} />{t('booking_stock') || 'Booking Stock'}</span>
-                        <span style={{ fontSize: '10px', opacity: 0.85 }}>{total} items</span>
-                    </div>
-
-                    <div style={xpToolbar}>
-                        <SearchField classic value={searchInput} onChange={setSearchInput} placeholder="Search item..." width={200} />
-                        <div style={xpSep} />
-                        <button style={xpBtn()} onClick={fetchAvailability} title="Refresh">
-                            <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
-                        </button>
-                        {/* Legend */}
-                        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, fontFamily: xpFont, fontSize: '10px', color: '#555' }}>
-                            <span><i className="bi bi-square-fill" style={{ color: HEALTH.short.color, marginRight: 3 }} />Shortfall</span>
-                            <span><i className="bi bi-square-fill" style={{ color: HEALTH.tight.color, marginRight: 3 }} />Tight</span>
-                            <span><i className="bi bi-square-fill" style={{ color: HEALTH.ok.color, marginRight: 3 }} />OK</span>
-                        </span>
-                    </div>
-
-                    <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(var(--app-vh) - 200px)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr>
-                                    {COLS.map(c => (
-                                        <th key={c.key}
-                                            style={{ ...xpTableHeader, textAlign: c.align || 'left', cursor: 'pointer' }}
-                                            onClick={() => toggle(c.key)} title="Sort">
-                                            {c.label}<SortMark sort={sort} colKey={c.key} />
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody ref={listBodyRef}>
-                                {sorted.map((r, i) => {
-                                    const k = rowKey(r);
-                                    const isOpen = expanded.has(k);
-                                    const variant = variantLabel(r.attribute_value_ids);
-                                    const h = healthOf(r.qty_net_free);
-                                    const zebra = i % 2 === 0 ? '#ffffff' : '#f5f3ee';
-                                    return (
-                                        <Fragment key={k}>
-                                            <tr onClick={() => toggleRow(k)} title="Click for MO breakdown"
-                                                style={{ background: isOpen ? rowStateBg('expanded', true) : (h === HEALTH.short ? h.tint : zebra), borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }}>
-                                                <td style={{ padding: '4px 8px 4px 5px', fontFamily: xpFont, borderLeft: `3px solid ${h.color}` }}>
-                                                    <i className={`bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}`} style={{ fontSize: 8, marginRight: 5, color: '#888' }} />
-                                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{r.item_name}</span>
-                                                    <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', marginLeft: 18 }}>{r.item_code}</div>
-                                                </td>
-                                                <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
-                                                    <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }} title="Netting is plant-wide, not per-location">
-                                                        Plant-wide
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px' }}>
-                                                    {variant
-                                                        ? <span style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 5px', color: '#1a3d7a' }}>{variant}</span>
-                                                        : <span style={{ color: '#999', fontStyle: 'italic' }}>Standard</span>}
-                                                </td>
-                                                <td style={{ ...numCell, color: '#00008b' }}>{fmtQty(r.qty_on_hand)}</td>
-                                                <td style={{ ...numCell, color: r.qty_incoming ? '#1a5e2a' : '#bbb' }}>
-                                                    {r.qty_incoming ? `+${fmtQty(r.qty_incoming)}` : '—'}
-                                                </td>
-                                                <td style={{ ...numCell, color: '#7a3a00' }}>{fmtQty(r.qty_required)}</td>
-                                                <td style={{ ...numCell, fontWeight: 'bold', color: h.color }}>
-                                                    {fmtQty(r.qty_net_free)}
-                                                    <span style={{ fontWeight: 'normal', fontSize: 9, color: '#999', marginLeft: 4 }}>{r.uom}</span>
-                                                </td>
-                                            </tr>
-                                            {isOpen && (
-                                                <tr>
-                                                    <td colSpan={COLS.length} style={{ padding: 0 }}>
-                                                        {renderDetail(r)}
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </Fragment>
-                                    );
-                                })}
-                                {!loading && sorted.length === 0 && (
-                                    <tr>
-                                        <td colSpan={COLS.length} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                                            No components are currently demanded by ongoing MOs.
-                                        </td>
-                                    </tr>
-                                )}
-                                {loading && <TableSkeleton rows={8} cols={skel.cols ?? COLS.length} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div style={{
-                        background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
-                        padding: '2px 8px', display: 'flex', gap: 16, alignItems: 'center',
-                        fontFamily: xpFont, fontSize: '11px', color: '#333',
-                    }}>
-                        {shortfallCount > 0 && <span style={{ color: HEALTH.short.color }}><b>{shortfallCount}</b> shortfall</span>}
-                        {tightCount > 0 && <span style={{ color: HEALTH.tight.color }}><b>{tightCount}</b> tight</span>}
-                        {error && <span style={{ color: '#c00000' }}>· {error}</span>}
-                        <span style={{ marginLeft: 'auto', color: '#666' }}>Net Free = On Hand + Incoming − Required</span>
-                    </div>
-                    <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
-                </div>
-            </div>
-        );
-    }
-
-    // ════════════════════════════ MODERN ═════════════════════════════════════
+    const colLine: React.CSSProperties = { borderRight: '1px solid #d8d4c8' };
+    const numCell: React.CSSProperties = { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap', ...colLine };
     const numCellM: React.CSSProperties = { whiteSpace: 'nowrap' };
+
     return (
-        <div className="fade-in p-2">
-            <div className="card shadow-sm">
-                <div className="card-header d-flex align-items-center justify-content-between py-2">
-                    <span className="fw-semibold"><i className="bi bi-bookmark-check me-2" />{t('booking_stock') || 'Booking Stock'}</span>
-                    <span className="badge bg-primary bg-opacity-25 text-primary-emphasis">{total} items</span>
+        <div className={classic ? 'fade-in' : 'fade-in p-2'} style={classic ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 } : undefined}>
+            <div style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 } : undefined} className={classic ? undefined : 'card shadow-sm'}>
+                <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header d-flex align-items-center justify-content-between py-2'}>
+                    <span className={classic ? undefined : 'fw-semibold'}>
+                        <i className={classic ? 'bi bi-bookmark-check' : 'bi bi-bookmark-check me-2'} style={classic ? { marginRight: 6 } : undefined} />
+                        {t('booking_stock') || 'Booking Stock'}
+                    </span>
+                    <span style={classic ? { fontSize: '10px', opacity: 0.85 } : undefined} className={classic ? undefined : 'badge bg-primary bg-opacity-25 text-primary-emphasis'}>{total} items</span>
                 </div>
 
-                <div className="card-body py-2 d-flex flex-wrap align-items-center gap-2 border-bottom">
-                    <SearchField classic={false} value={searchInput} onChange={setSearchInput} placeholder="Search item..." width={240} />
-                    <button className="btn btn-sm btn-outline-secondary" onClick={fetchAvailability}>
-                        <i className="bi bi-arrow-clockwise me-1" />Refresh
+                <div style={classic ? xpToolbar : undefined} className={classic ? undefined : 'card-body py-2 d-flex flex-wrap align-items-center gap-2 border-bottom'}>
+                    <SearchField classic={classic} value={searchInput} onChange={setSearchInput} placeholder="Search item..." width={classic ? 200 : 240} />
+                    {classic && <div style={xpSep} />}
+                    <button style={classic ? xpBtn() : undefined} className={classic ? undefined : 'btn btn-sm btn-outline-secondary'} onClick={fetchAvailability} title={classic ? 'Refresh' : undefined}>
+                        <i className={classic ? 'bi bi-arrow-clockwise' : 'bi bi-arrow-clockwise me-1'} style={classic ? { marginRight: 4 } : undefined} />Refresh
                     </button>
-                    <span className="ms-auto small text-muted d-flex gap-3">
-                        <span><i className="bi bi-square-fill me-1" style={{ color: HEALTH.short.color }} />Shortfall</span>
-                        <span><i className="bi bi-square-fill me-1" style={{ color: HEALTH.tight.color }} />Tight</span>
-                        <span><i className="bi bi-square-fill me-1" style={{ color: HEALTH.ok.color }} />OK</span>
+                    {/* Legend */}
+                    <span style={classic ? { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, fontFamily: xpFont, fontSize: '10px', color: '#555' } : undefined} className={classic ? undefined : 'ms-auto small text-muted d-flex gap-3'}>
+                        <span><i className={classic ? 'bi bi-square-fill' : 'bi bi-square-fill me-1'} style={{ color: HEALTH.short.color, ...(classic ? { marginRight: 3 } : {}) }} />Shortfall</span>
+                        <span><i className={classic ? 'bi bi-square-fill' : 'bi bi-square-fill me-1'} style={{ color: HEALTH.tight.color, ...(classic ? { marginRight: 3 } : {}) }} />Tight</span>
+                        <span><i className={classic ? 'bi bi-square-fill' : 'bi bi-square-fill me-1'} style={{ color: HEALTH.ok.color, ...(classic ? { marginRight: 3 } : {}) }} />OK</span>
                     </span>
                 </div>
 
-                {error && <div className="alert alert-danger py-2 m-2 mb-0">{error}</div>}
+                {!classic && error && <div className="alert alert-danger py-2 m-2 mb-0">{error}</div>}
 
-                <div className="table-responsive">
-                    <table className="table table-sm table-hover align-middle mb-0">
-                        <thead className="table-light">
+                <div style={classic ? { flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(var(--app-vh) - 200px)' } : undefined} className={classic ? undefined : 'table-responsive'}>
+                    <table style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined} className={classic ? undefined : 'table table-sm table-hover align-middle mb-0'}>
+                        <thead className={classic ? undefined : 'table-light'}>
                             <tr>
                                 {COLS.map(c => (
-                                    <th key={c.key} role="button" className={`user-select-none ${c.align === 'right' ? 'text-end' : ''}`} onClick={() => toggle(c.key)}>
+                                    <th key={c.key} role={classic ? undefined : 'button'}
+                                        style={classic ? { ...xpTableHeader, textAlign: c.align || 'left', cursor: 'pointer' } : undefined}
+                                        className={classic ? undefined : `user-select-none ${c.align === 'right' ? 'text-end' : ''}`}
+                                        onClick={() => toggle(c.key)} title={classic ? 'Sort' : undefined}>
                                         {c.label}<SortMark sort={sort} colKey={c.key} />
                                     </th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody>
-                            {sorted.map((r) => {
+                        <tbody ref={classic ? listBodyRef : undefined}>
+                            {sorted.map((r, i) => {
                                 const k = rowKey(r);
                                 const isOpen = expanded.has(k);
                                 const variant = variantLabel(r.attribute_value_ids);
                                 const h = healthOf(r.qty_net_free);
+                                const zebra = i % 2 === 0 ? '#ffffff' : '#f5f3ee';
                                 return (
                                     <Fragment key={k}>
-                                        <tr onClick={() => toggleRow(k)} style={{ cursor: 'pointer' }} className={h === HEALTH.short ? 'table-danger' : undefined}>
-                                            <td style={{ borderLeft: `3px solid ${h.color}` }}>
-                                                <i className={`bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'} me-1 text-muted small`} />
-                                                <span className="fw-medium">{r.item_name}</span>
-                                                <CodeChip code={r.item_code} classic={false} tier={2} className="ms-2" />
+                                        <tr onClick={() => toggleRow(k)} title={classic ? 'Click for MO breakdown' : undefined}
+                                            style={classic
+                                                ? { background: isOpen ? rowStateBg('expanded', true) : (h === HEALTH.short ? h.tint : zebra), borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }
+                                                : { cursor: 'pointer' }}
+                                            className={classic ? undefined : (h === HEALTH.short ? 'table-danger' : undefined)}>
+                                            <td style={classic ? { padding: '4px 8px 4px 5px', fontFamily: xpFont, borderLeft: `3px solid ${h.color}` } : { borderLeft: `3px solid ${h.color}` }}>
+                                                <i className={classic ? `bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}` : `bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'} me-1 text-muted small`}
+                                                    style={classic ? { fontSize: 8, marginRight: 5, color: '#888' } : undefined} />
+                                                {classic ? (
+                                                    <>
+                                                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{r.item_name}</span>
+                                                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', marginLeft: 18 }}>{r.item_code}</div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="fw-medium">{r.item_name}</span>
+                                                        <CodeChip code={r.item_code} classic={false} tier={2} className="ms-2" />
+                                                    </>
+                                                )}
                                             </td>
-                                            <td><span className="badge bg-secondary-subtle text-secondary-emphasis" title="Netting is plant-wide, not per-location">Plant-wide</span></td>
-                                            <td className="small">{variant
-                                                ? <span className="badge bg-info-subtle text-info-emphasis">{variant}</span>
-                                                : <span className="text-muted">Standard</span>}</td>
-                                            <td className="text-end" style={{ ...numCellM, color: '#00008b' }}>{fmtQty(r.qty_on_hand)}</td>
-                                            <td className="text-end" style={{ ...numCellM, color: r.qty_incoming ? '#1a5e2a' : '#bbb' }}>
+                                            <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' } : undefined}>
+                                                {classic ? (
+                                                    <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }} title="Netting is plant-wide, not per-location">
+                                                        Plant-wide
+                                                    </span>
+                                                ) : (
+                                                    <span className="badge bg-secondary-subtle text-secondary-emphasis" title="Netting is plant-wide, not per-location">Plant-wide</span>
+                                                )}
+                                            </td>
+                                            <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px' } : undefined} className={classic ? undefined : 'small'}>
+                                                {variant
+                                                    ? (classic
+                                                        ? <span style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 5px', color: '#1a3d7a' }}>{variant}</span>
+                                                        : <span className="badge bg-info-subtle text-info-emphasis">{variant}</span>)
+                                                    : (classic
+                                                        ? <span style={{ color: '#999', fontStyle: 'italic' }}>Standard</span>
+                                                        : <span className="text-muted">Standard</span>)}
+                                            </td>
+                                            <td style={{ ...(classic ? numCell : numCellM), color: '#00008b' }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_on_hand)}</td>
+                                            <td style={{ ...(classic ? numCell : numCellM), color: r.qty_incoming ? '#1a5e2a' : '#bbb' }} className={classic ? undefined : 'text-end'}>
                                                 {r.qty_incoming ? `+${fmtQty(r.qty_incoming)}` : '—'}
                                             </td>
-                                            <td className="text-end" style={{ ...numCellM, color: '#7a3a00' }}>{fmtQty(r.qty_required)}</td>
-                                            <td className="text-end fw-bold" style={{ ...numCellM, color: h.color }}>
-                                                {fmtQty(r.qty_net_free)} <small className="text-muted fw-normal">{r.uom}</small>
+                                            <td style={{ ...(classic ? numCell : numCellM), color: '#7a3a00' }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_required)}</td>
+                                            <td style={{ ...(classic ? numCell : numCellM), fontWeight: 'bold', color: h.color }} className={classic ? undefined : 'text-end fw-bold'}>
+                                                {fmtQty(r.qty_net_free)}
+                                                {classic
+                                                    ? <span style={{ fontWeight: 'normal', fontSize: 9, color: '#999', marginLeft: 4 }}>{r.uom}</span>
+                                                    : <> <small className="text-muted fw-normal">{r.uom}</small></>}
                                             </td>
                                         </tr>
                                         {isOpen && (
-                                            <tr><td colSpan={COLS.length} className="p-0">{renderDetail(r)}</td></tr>
+                                            <tr>
+                                                <td colSpan={COLS.length} style={classic ? { padding: 0 } : undefined} className={classic ? undefined : 'p-0'}>
+                                                    {renderDetail(r)}
+                                                </td>
+                                            </tr>
                                         )}
                                     </Fragment>
                                 );
                             })}
                             {!loading && sorted.length === 0 && (
-                                <tr><td colSpan={COLS.length} className="text-center text-muted py-4">No components are currently demanded by ongoing MOs.</td></tr>
+                                <tr>
+                                    <td colSpan={COLS.length} style={classic ? { textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-center text-muted py-4'}>
+                                        No components are currently demanded by ongoing MOs.
+                                    </td>
+                                </tr>
                             )}
                             {loading && (
-                                <tr><td colSpan={COLS.length} className="text-center text-muted py-4">Loading...</td></tr>
+                                classic
+                                    ? <TableSkeleton rows={8} cols={skel.cols ?? COLS.length} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                                    : <tr><td colSpan={COLS.length} className="text-center text-muted py-4">Loading...</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
 
-                <div className="card-footer d-flex gap-3 small text-muted align-items-center">
-                    {shortfallCount > 0 && <span className="text-danger"><b>{shortfallCount}</b> shortfall</span>}
+                <div style={classic ? {
+                    background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
+                    padding: '2px 8px', display: 'flex', gap: 16, alignItems: 'center',
+                    fontFamily: xpFont, fontSize: '11px', color: '#333',
+                } : undefined} className={classic ? undefined : 'card-footer d-flex gap-3 small text-muted align-items-center'}>
+                    {shortfallCount > 0 && <span style={classic ? { color: HEALTH.short.color } : undefined} className={classic ? undefined : 'text-danger'}><b>{shortfallCount}</b> shortfall</span>}
                     {tightCount > 0 && <span style={{ color: HEALTH.tight.color }}><b>{tightCount}</b> tight</span>}
-                    <span className="ms-auto">Net Free = On Hand + Incoming − Required</span>
+                    {classic && error && <span style={{ color: '#c00000' }}>· {error}</span>}
+                    <span style={classic ? { marginLeft: 'auto', color: '#666' } : undefined} className={classic ? undefined : 'ms-auto'}>Net Free = On Hand + Incoming − Required</span>
                 </div>
-                <div className="card-footer pt-0">
+                {classic ? (
                     <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
-                </div>
+                ) : (
+                    <div className="card-footer pt-0">
+                        <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+                    </div>
+                )}
             </div>
         </div>
     );

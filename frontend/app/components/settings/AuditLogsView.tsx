@@ -140,12 +140,41 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
       width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
   };
 
-  if (classic) {
-      return (
-          <ShellWindow classic fill="page" className="fade-in">
-              <ShellTitleBar classic icon="bi-shield-check" title="System Audit Logs" />
+  const entityFilterOptions = (
+      <>
+          <option value="">All Entities</option>
+          <option value="Item">Items</option>
+          <option value="BOM">BOMs</option>
+          <option value="WorkOrder">Work Orders</option>
+          <option value="SalesOrder">Sales Orders</option>
+          <option value="SampleRequest">Samples</option>
+          <option value="StockEntry">Stock</option>
+      </>
+  );
 
-              {/* Filters toolbar */}
+  return (
+      <ShellWindow classic={classic} fill="page" className="fade-in">
+          <ShellTitleBar
+              classic={classic}
+              icon="bi-shield-check"
+              title="System Audit Logs"
+              subtitle={classic ? undefined : 'Track all user activities and system changes. Click rows to see technical details.'}
+              right={classic ? undefined : (
+                  <div className="d-flex align-items-center gap-2">
+                      <div className="input-group input-group-sm" style={{ width: '180px' }}>
+                          <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
+                          <select className="form-select" value={filterType} onChange={e => onFilterChange(e.target.value)}>
+                              {entityFilterOptions}
+                          </select>
+                      </div>
+                      <button className="btn btn-outline-secondary btn-sm" onClick={handleRefresh} disabled={refreshing} title="Refresh">
+                          <i className="bi bi-arrow-clockwise me-1" />{refreshing ? 'Refreshing…' : 'Refresh'}
+                      </button>
+                  </div>
+              )}
+          />
+
+          {classic && (
               <div style={xpToolbar}>
                   <button style={xpBtn()} onClick={handleRefresh} disabled={refreshing} title="Refresh">
                       <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />{refreshing ? 'Refreshing…' : 'Refresh'}
@@ -154,103 +183,46 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                   <i className="bi bi-funnel" style={{ fontSize: '11px', color: '#666' }}></i>
                   <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#444' }}>Entity:</span>
                   <select style={{ ...xpSelect, width: 150 }} value={filterType} onChange={e => onFilterChange(e.target.value)}>
-                      <option value="">All Entities</option>
-                      <option value="Item">Items</option>
-                      <option value="BOM">BOMs</option>
-                      <option value="WorkOrder">Work Orders</option>
-                      <option value="SalesOrder">Sales Orders</option>
-                      <option value="SampleRequest">Samples</option>
-                      <option value="StockEntry">Stock</option>
+                      {entityFilterOptions}
                   </select>
                   <div style={xpSep} />
                   <span style={{ marginLeft: 'auto', fontFamily: xpFont, fontSize: '11px', color: '#444' }}>
                       <b>{totalItems}</b> total entries · click a row to expand diff
                   </span>
               </div>
+          )}
 
-              {/* Table */}
-              <div style={{ flex: 1, minHeight: 0, background: '#ffffff', overflowY: 'auto', overflowX: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                      <thead style={{ ...lvThead(true), position: 'sticky', top: 0, zIndex: 1 }}>
-                          <tr>
-                              <th style={{ ...lvTh(true), width: 140 }}>Timestamp</th>
-                              <th style={{ ...lvTh(true), width: 110 }}>User</th>
-                              <th style={{ ...lvTh(true), width: 140 }}>Action</th>
-                              <th style={{ ...lvTh(true), width: 160 }}>Entity</th>
-                              <th style={{ ...lvTh(true), borderRight: 'none' }}>Details</th>
-                          </tr>
-                      </thead>
-                      <tbody ref={listBodyRef}>
-                          {auditLogs.map((log: any, i: number) => (
-                              <React.Fragment key={log.id}>
-                                  <AuditLogRow log={log} classic={true} rowIndex={i} userName={userNameById[log.user_id]} />
-                              </React.Fragment>
-                          ))}
-                          {auditLogs.length === 0 && (dataLoading.auditLogs ? (
-                              <TableSkeleton rows={8} cols={skel.cols ?? 5} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                          ) : (
-                              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                                  No activity logs found
-                              </td></tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
-
-              <Pager page={currentPage} total={totalItems} pageSize={pageSize} onPageChange={onPageChange} />
-          </ShellWindow>
-      );
-  }
-
-  // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
-  return (
-      <ShellWindow classic={false} fill="page" className="fade-in">
-          <ShellTitleBar
-              classic={false}
-              icon="bi-shield-check"
-              title="System Audit Logs"
-              subtitle="Track all user activities and system changes. Click rows to see technical details."
-              right={
-                  <div className="d-flex align-items-center gap-2">
-                      <div className="input-group input-group-sm" style={{ width: '180px' }}>
-                          <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
-                          <select className="form-select" value={filterType} onChange={e => onFilterChange(e.target.value)}>
-                              <option value="">All Entities</option>
-                              <option value="Item">Items</option>
-                              <option value="BOM">BOMs</option>
-                              <option value="WorkOrder">Work Orders</option>
-                              <option value="SalesOrder">Sales Orders</option>
-                              <option value="SampleRequest">Samples</option>
-                              <option value="StockEntry">Stock</option>
-                          </select>
-                      </div>
-                      <button className="btn btn-outline-secondary btn-sm" onClick={handleRefresh} disabled={refreshing} title="Refresh">
-                          <i className="bi bi-arrow-clockwise me-1" />{refreshing ? 'Refreshing…' : 'Refresh'}
-                      </button>
-                  </div>
-              }
-          />
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-              <table className="table table-hover align-middle mb-0 small" style={{ tableLayout: 'fixed' }}>
-                  <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+          <div style={{ flex: 1, minHeight: 0, background: classic ? '#ffffff' : undefined, overflowY: 'auto', overflowX: 'hidden' }}>
+              <table
+                  className={classic ? undefined : 'table table-hover align-middle mb-0 small'}
+                  style={classic ? { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' } : { tableLayout: 'fixed' }}
+              >
+                  <thead style={classic ? { ...lvThead(true), position: 'sticky', top: 0, zIndex: 1 } : { position: 'sticky', top: 0, zIndex: 1 }}>
                       <tr>
-                          <th style={{ ...lvTh(false), width: 140 }} className="ps-4">Timestamp</th>
-                          <th style={{ ...lvTh(false), width: 110 }}>User</th>
-                          <th style={{ ...lvTh(false), width: 140 }}>Action</th>
-                          <th style={{ ...lvTh(false), width: 160 }}>Entity</th>
-                          <th style={lvTh(false)}>Details</th>
+                          <th style={{ ...lvTh(classic), width: 140 }} className={classic ? undefined : 'ps-4'}>Timestamp</th>
+                          <th style={{ ...lvTh(classic), width: 110 }}>User</th>
+                          <th style={{ ...lvTh(classic), width: 140 }}>Action</th>
+                          <th style={{ ...lvTh(classic), width: 160 }}>Entity</th>
+                          <th style={classic ? { ...lvTh(classic), borderRight: 'none' } : lvTh(classic)}>Details</th>
                       </tr>
                   </thead>
                   <tbody ref={listBodyRef}>
                       {auditLogs.map((log: any, i: number) => (
-                          <AuditLogRow key={log.id} log={log} classic={false} rowIndex={i} userName={userNameById[log.user_id]} />
+                          <AuditLogRow key={log.id} log={log} classic={classic} rowIndex={i} userName={userNameById[log.user_id]} />
                       ))}
-                      {auditLogs.length === 0 && (dataLoading.auditLogs
-                          ? <TableSkeleton rows={8} cols={skel.cols ?? 5} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                          : <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>)}
+                      {auditLogs.length === 0 && (dataLoading.auditLogs ? (
+                          <TableSkeleton rows={8} cols={skel.cols ?? 5} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                      ) : classic ? (
+                          <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                              No activity logs found
+                          </td></tr>
+                      ) : (
+                          <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>
+                      ))}
                   </tbody>
               </table>
           </div>
+
           <Pager page={currentPage} total={totalItems} pageSize={pageSize} onPageChange={onPageChange} />
       </ShellWindow>
   );

@@ -198,24 +198,32 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
   if (!meta) return null;
 
   const go = (tab: string) => router.push(`/${tab}`);
+  const toneCls = (tone: Tone) =>
+    tone === 'crit' ? 'text-danger' : tone === 'warn' ? 'text-warning' : tone === 'ok' ? 'text-success' : 'text-primary';
 
-  // ── Classic (Windows XP) ────────────────────────────────────────────────────
-  if (classic) {
-    return (
-      <div className="fade-in" style={{ fontFamily: xpFont, fontSize: 11, background: '#ece9d8', padding: 4 }}>
-        {/* title bar */}
-        <div style={{
+  return (
+    <div className="fade-in" style={classic ? { fontFamily: xpFont, fontSize: 11, background: '#ece9d8', padding: 4 } : undefined}>
+      {/* title bar */}
+      <div
+        className={classic ? undefined : 'd-flex align-items-center gap-2 mb-3'}
+        style={classic ? {
           background: ACCENT_GRAD[meta.accent], color: '#fff', fontWeight: 'bold', fontSize: 12,
           padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
           textShadow: '1px 1px 1px rgba(0,0,0,0.4)', border: '1px solid #003080',
-        }}>
-          <i className={`bi ${meta.icon}`} aria-hidden="true" /> {navLabel(t, meta)}
-        </div>
+        } : undefined}
+      >
+        <i className={`bi ${meta.icon}${classic ? '' : ' fs-4 text-primary'}`} aria-hidden="true" />
+        {classic ? ` ${navLabel(t, meta)}` : <h4 className="fw-bold mb-0">{navLabel(t, meta)}</h4>}
+      </div>
 
-        {/* KPI strip */}
-        {section.kpis.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${section.kpis.length},1fr)`, gap: 4, marginBottom: 6 }}>
-            {section.kpis.map((k, i) => (
+      {/* KPI strip */}
+      {section.kpis.length > 0 && (
+        <div
+          className={classic ? undefined : 'row g-3 mb-4'}
+          style={classic ? { display: 'grid', gridTemplateColumns: `repeat(${section.kpis.length},1fr)`, gap: 4, marginBottom: 6 } : undefined}
+        >
+          {section.kpis.map((k, i) => (
+            classic ? (
               <div key={i}
                 onClick={k.tab ? () => go(k.tab!) : undefined}
                 style={{
@@ -230,12 +238,26 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
                   {k.label}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            ) : (
+              <div key={i} className="col-6 col-md-3">
+                <div className={`card h-100 border-0 shadow-sm ${k.tab ? 'kpi-clickable' : ''}`}
+                  onClick={k.tab ? () => go(k.tab!) : undefined}
+                  role={k.tab ? 'button' : undefined}
+                  style={k.tab ? { cursor: 'pointer' } : undefined}>
+                  <div className="card-body p-3">
+                    <div className="text-uppercase fw-bold text-muted mb-1" style={{ fontSize: '0.7rem' }}>{k.label}</div>
+                    <h3 className={`fw-bold mb-0 ${toneCls(k.tone)}`}>{k.value}</h3>
+                  </div>
+                </div>
+              </div>
+            )
+          ))}
+        </div>
+      )}
 
-        {/* list panel */}
-        {section.list && (
+      {/* list panel */}
+      {section.list && (
+        classic ? (
           <div style={{ border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#fff', marginBottom: 6 }}>
             <div style={{ ...lvThead(true), padding: '3px 8px', fontWeight: 'bold', fontSize: 11 }}>
               {section.list.title}
@@ -261,81 +283,47 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
               </tbody>
             </table>
           </div>
-        )}
+        ) : (
+          <div className="card border-0 shadow-sm mb-4">
+            <div className="card-header bg-white"><h6 className="mb-0">{section.list.title}</h6></div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0 small">
+                  <thead className="table-light"><tr>{section.list.cols.map((c, i) => <th key={i} className="px-3">{c}</th>)}</tr></thead>
+                  <tbody>
+                    {section.list.rows.length === 0 && (
+                      <tr><td colSpan={section.list.cols.length} className="text-center py-4 text-muted">No records</td></tr>
+                    )}
+                    {section.list.rows.map((r, i) => (
+                      <tr key={i}>
+                        {r.code !== '' && <td className="px-3"><CodeChip code={r.code} classic={false} /></td>}
+                        <td className="px-3">{r.primary}</td>
+                        {r.status !== undefined && <td className="px-3"><StatusChip status={r.status} /></td>}
+                        {r.right !== undefined && <td className="px-3 text-end">{r.right}</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      )}
 
-        {/* quick links */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {links.map((l) => (
-            <button key={l.tab} onClick={() => go(l.tab)} style={{
+      {/* quick links */}
+      <div
+        className={classic ? undefined : 'd-flex flex-wrap gap-2'}
+        style={classic ? { display: 'flex', flexWrap: 'wrap', gap: 4 } : undefined}
+      >
+        {links.map((l) => (
+          <button key={l.tab}
+            className={classic ? undefined : 'btn btn-outline-primary btn-sm d-flex align-items-center gap-2'}
+            onClick={() => go(l.tab)}
+            style={classic ? {
               border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8',
               padding: '5px 10px', fontFamily: xpFont, fontSize: 11, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 5, color: '#00309c',
-            }}>
-              <i className={`bi ${l.icon}`} aria-hidden="true" /> {l.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Modern ────────────────────────────────────────────────────────────────
-  const toneCls = (tone: Tone) =>
-    tone === 'crit' ? 'text-danger' : tone === 'warn' ? 'text-warning' : tone === 'ok' ? 'text-success' : 'text-primary';
-  return (
-    <div className="fade-in">
-      <div className="d-flex align-items-center gap-2 mb-3">
-        <i className={`bi ${meta.icon} fs-4 text-primary`} aria-hidden="true" />
-        <h4 className="fw-bold mb-0">{navLabel(t, meta)}</h4>
-      </div>
-
-      {section.kpis.length > 0 && (
-        <div className="row g-3 mb-4">
-          {section.kpis.map((k, i) => (
-            <div key={i} className="col-6 col-md-3">
-              <div className={`card h-100 border-0 shadow-sm ${k.tab ? 'kpi-clickable' : ''}`}
-                onClick={k.tab ? () => go(k.tab!) : undefined}
-                role={k.tab ? 'button' : undefined}
-                style={k.tab ? { cursor: 'pointer' } : undefined}>
-                <div className="card-body p-3">
-                  <div className="text-uppercase fw-bold text-muted mb-1" style={{ fontSize: '0.7rem' }}>{k.label}</div>
-                  <h3 className={`fw-bold mb-0 ${toneCls(k.tone)}`}>{k.value}</h3>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {section.list && (
-        <div className="card border-0 shadow-sm mb-4">
-          <div className="card-header bg-white"><h6 className="mb-0">{section.list.title}</h6></div>
-          <div className="card-body p-0">
-            <div className="table-responsive">
-              <table className="table table-hover align-middle mb-0 small">
-                <thead className="table-light"><tr>{section.list.cols.map((c, i) => <th key={i} className="px-3">{c}</th>)}</tr></thead>
-                <tbody>
-                  {section.list.rows.length === 0 && (
-                    <tr><td colSpan={section.list.cols.length} className="text-center py-4 text-muted">No records</td></tr>
-                  )}
-                  {section.list.rows.map((r, i) => (
-                    <tr key={i}>
-                      {r.code !== '' && <td className="px-3"><CodeChip code={r.code} classic={false} /></td>}
-                      <td className="px-3">{r.primary}</td>
-                      {r.status !== undefined && <td className="px-3"><StatusChip status={r.status} /></td>}
-                      {r.right !== undefined && <td className="px-3 text-end">{r.right}</td>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="d-flex flex-wrap gap-2">
-        {links.map((l) => (
-          <button key={l.tab} className="btn btn-outline-primary btn-sm d-flex align-items-center gap-2" onClick={() => go(l.tab)}>
+            } : undefined}>
             <i className={`bi ${l.icon}`} aria-hidden="true" /> {l.label}
           </button>
         ))}
