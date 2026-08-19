@@ -5,6 +5,7 @@ import { STATUS_COLORS, xpFont, ListSkeleton } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { lvThead } from '../shared/listViewTheme';
@@ -114,7 +115,8 @@ interface CompleteForm {
 interface DyeingOrdersTabProps {
     items: any[];
     recipes: any[];
-    authFetch: Function;
+    /** Typed rather than bare `Function` so usePaginatedFetch accepts it. */
+    authFetch: (url: string, options?: any) => Promise<Response>;
 }
 
 const emptyCreateForm: CreateForm = {
@@ -158,34 +160,33 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const xpSectionHeader = makeSectionHeader(classic);
     const xpPanel = makePanel(classic);
     const xpThCell = makeThCell(classic);
-    const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);
+    // The selected WO's row is retained, not looked up in the current page. The list
+    // is server-paginated now, so paging away from the row you picked would other-
+    // wise blank the runs pane's header mid-session.
+    const [selectedWoRow, setSelectedWoRow] = useState<any | null>(null);
     const [runs, setRuns] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    // Separate from `loading` (which tracks the runs pane) — the WO list is its own fetch.
-    const [woLoading, setWoLoading] = useState(true);
     const [showCreateRun, setShowCreateRun] = useState(false);
     const [showCompleteModal, setShowCompleteModal] = useState<any | null>(null);
     const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
     const [completeForm, setCompleteForm] = useState<CompleteForm>(emptyCompleteForm);
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [woPage, setWoPage] = useState(1);
     const [runPage, setRunPage] = useState(1);
 
-    const fetchWorkOrders = useCallback(async () => {
-        try {
-            const res = await authFetch(`${API_BASE}/work-orders?center_type=DYEING`);
-            if (res.ok) {
-                const data = await res.json();
-                setWorkOrders(Array.isArray(data) ? data : (data.items ?? []));
-            }
-        } catch {
-            // silently fail
-        } finally {
-            setWoLoading(false);
-        }
-    }, [authFetch]);
+    // Server-paginated: this list previously sent no window, so it silently showed
+    // only the endpoint's default first page and paged over that — dyeing WO #51 was
+    // unreachable no matter how far you clicked.
+    const {
+        rows: workOrders, total: woTotal, loading: woLoading,
+        page: clampedWoPage, setPage: setWoPage, refetch: fetchWorkOrders,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/work-orders`,
+        authFetch,
+        pageSize: WO_PAGE_SIZE,
+        params: { center_type: 'DYEING' },
+    });
 
     const fetchRuns = useCallback(async (woId: string) => {
         setLoading(true);
@@ -203,10 +204,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     }, [authFetch]);
 
     useEffect(() => {
-        fetchWorkOrders();
-    }, [fetchWorkOrders]);
-
-    useEffect(() => {
         if (selectedWoId) {
             fetchRuns(selectedWoId);
         } else {
@@ -215,11 +212,9 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         setRunPage(1);
     }, [selectedWoId, fetchRuns]);
 
-    const selectedWo = workOrders.find(wo => String(wo.id) === selectedWoId);
-
-    const woPages = Math.max(1, Math.ceil(workOrders.length / WO_PAGE_SIZE));
-    const clampedWoPage = Math.min(woPage, woPages);
-    const pagedWorkOrders = workOrders.slice((clampedWoPage - 1) * WO_PAGE_SIZE, clampedWoPage * WO_PAGE_SIZE);
+    // Prefer the retained row; fall back to the page for a selection made before it
+    // was retained (or restored from elsewhere).
+    const selectedWo = selectedWoRow ?? workOrders.find((wo: any) => String(wo.id) === selectedWoId);
 
     const runPages = Math.max(1, Math.ceil(runs.length / RUN_PAGE_SIZE));
     const clampedRunPage = Math.min(runPage, runPages);
@@ -227,6 +222,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
 
     const handleSelectWo = (wo: any) => {
         setSelectedWoId(String(wo.id));
+        setSelectedWoRow(wo);
         setShowCreateRun(false);
         setCreateForm(emptyCreateForm);
         setErrorMsg(null);
@@ -468,7 +464,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 </tr>
                             </thead>
                             <tbody>
-                                {pagedWorkOrders.map(wo => {
+                                {workOrders.map((wo: any) => {
                                     const isSelected = String(wo.id) === selectedWoId;
                                     return (
                                         <tr
@@ -513,7 +509,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         </table>
                     )}
                 </div>
-                <Pager page={clampedWoPage} total={workOrders.length} pageSize={WO_PAGE_SIZE} onPageChange={setWoPage} hideWhenEmpty />
+                <Pager page={clampedWoPage} total={woTotal} pageSize={WO_PAGE_SIZE} onPageChange={setWoPage} hideWhenEmpty />
             </div>
 
             {/* Right pane: Runs */}

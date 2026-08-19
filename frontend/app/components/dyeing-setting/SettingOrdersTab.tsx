@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -80,7 +81,8 @@ interface CompleteForm {
 
 interface Props {
     items: any[];
-    authFetch: Function;
+    /** Typed rather than bare `Function` so usePaginatedFetch accepts it. */
+    authFetch: (url: string, options?: any) => Promise<Response>;
 }
 
 const EMPTY_CREATE: CreateForm = {
@@ -145,35 +147,32 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     const { hasPermission } = useUser();
     const canManage = hasPermission('work_order.log');
 
-    const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);
+    // The selected WO's row is retained rather than looked up in the current page:
+    // the list is server-paginated now, so paging away from the row you picked would
+    // otherwise blank the runs pane's header mid-session.
+    const [selectedWoRow, setSelectedWoRow] = useState<any | null>(null);
     const [runs, setRuns] = useState<any[]>([]);
-    // True from first paint so the WO pane shows the loader, not "none found".
-    const [loading, setLoading] = useState(true);
     const [showCreateRun, setShowCreateRun] = useState(false);
     const [showCompleteModal, setShowCompleteModal] = useState<any | null>(null);
     const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE);
     const [completeForm, setCompleteForm] = useState<CompleteForm>(EMPTY_COMPLETE);
     const [saving, setSaving] = useState(false);
     const [completing, setCompleting] = useState(false);
-    const [woPage, setWoPage] = useState(1);
     const [runPage, setRunPage] = useState(1);
 
-    // ── Fetch WOs ─────────────────────────────────────────────────────────────
-    const fetchWorkOrders = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await authFetch(`${API_BASE}/work-orders?center_type=SETTING`);
-            if (res.ok) {
-                const data = await res.json();
-                setWorkOrders(Array.isArray(data) ? data : (data.items ?? []));
-            }
-        } catch {
-            // silent
-        } finally {
-            setLoading(false);
-        }
-    }, [authFetch]);
+    // ── WOs (server-paginated) ────────────────────────────────────────────────
+    // Previously sent no window, so this silently showed only the endpoint's default
+    // first page and paged over that — setting WO #51 was unreachable.
+    const {
+        rows: workOrders, total: woTotal, loading,
+        page: clampedWoPage, setPage: setWoPage, refetch: fetchWorkOrders,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/work-orders`,
+        authFetch,
+        pageSize: SO_WO_PAGE_SIZE,
+        params: { center_type: 'SETTING' },
+    });
 
     // ── Fetch Runs for selected WO ────────────────────────────────────────────
     const fetchRuns = useCallback(async (woId: string) => {
@@ -188,8 +187,6 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
         }
     }, [authFetch]);
 
-    useEffect(() => { fetchWorkOrders(); }, [fetchWorkOrders]);
-
     useEffect(() => {
         if (selectedWoId) {
             fetchRuns(selectedWoId);
@@ -199,11 +196,8 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
         setRunPage(1);
     }, [selectedWoId, fetchRuns]);
 
-    const selectedWo = workOrders.find(w => w.id === selectedWoId);
-
-    const woPages = Math.max(1, Math.ceil(workOrders.length / SO_WO_PAGE_SIZE));
-    const clampedWoPage = Math.min(woPage, woPages);
-    const pagedWorkOrders = workOrders.slice((clampedWoPage - 1) * SO_WO_PAGE_SIZE, clampedWoPage * SO_WO_PAGE_SIZE);
+    // Prefer the retained row; fall back to the page for a selection made elsewhere.
+    const selectedWo = selectedWoRow ?? workOrders.find((w: any) => w.id === selectedWoId);
 
     const runPages = Math.max(1, Math.ceil(runs.length / SO_RUN_PAGE_SIZE));
     const clampedRunPage = Math.min(runPage, runPages);
@@ -336,12 +330,12 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                             No setting work orders found.
                         </div>
                     )}
-                    {pagedWorkOrders.map(wo => {
+                    {workOrders.map((wo: any) => {
                         const selected = wo.id === selectedWoId;
                         return (
                             <div
                                 key={wo.id}
-                                onClick={() => setSelectedWoId(wo.id === selectedWoId ? null : wo.id)}
+                                onClick={() => { const off = wo.id === selectedWoId; setSelectedWoId(off ? null : wo.id); setSelectedWoRow(off ? null : wo); }}
                                 style={classic ? {
                                     padding: '4px 8px', marginBottom: 2, cursor: 'pointer',
                                     background: selected
@@ -373,7 +367,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                         );
                     })}
                 </div>
-                <Pager page={clampedWoPage} total={workOrders.length} pageSize={SO_WO_PAGE_SIZE} onPageChange={setWoPage} hideWhenEmpty />
+                <Pager page={clampedWoPage} total={woTotal} pageSize={SO_WO_PAGE_SIZE} onPageChange={setWoPage} hideWhenEmpty />
                 <div style={{ borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dbe1ea', padding: 4 }}>
                     <button onClick={fetchWorkOrders} style={{ ...xpBtn(classic), width: '100%', fontSize: 10 }}>
                         Refresh
