@@ -14,6 +14,7 @@ from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 from app.schemas import ComboCreate, ComboUpdate, ComboResponse, ComboListResponse
 
 router = APIRouter()
@@ -77,8 +78,7 @@ def _serialize(c: Combo, usage_count: int = 0) -> dict:
 async def list_combos(
     search: str | None = Query(None),
     status: str | None = Query(None),
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=500),
+    window: PageWindow = Depends(PageParams()),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -95,18 +95,14 @@ async def list_combos(
         count_q = count_q.filter(Combo.status == status)
 
     total = (await db.execute(count_q)).scalar_one()
-    q = q.order_by(Combo.code).offset((page - 1) * size).limit(size)
-    combos = (await db.execute(q)).scalars().all()
+    combos = (await db.execute(window.apply(q.order_by(Combo.code)))).scalars().all()
 
     av_ids = [c.attribute_value_id for c in combos if c.attribute_value_id is not None]
     usage_map = await _usage_counts(db, av_ids)
 
-    return {
-        "items": [_serialize(c, usage_map.get(c.attribute_value_id, 0)) for c in combos],
-        "total": total,
-        "page": page,
-        "size": size,
-    }
+    return window.envelope(
+        [_serialize(c, usage_map.get(c.attribute_value_id, 0)) for c in combos], total
+    )
 
 
 @router.post("/combos", response_model=ComboResponse)

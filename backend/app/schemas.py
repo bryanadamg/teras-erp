@@ -1696,6 +1696,8 @@ class SalesOrderResponse(BaseModel):
 class PaginatedSalesOrderResponse(BaseModel):
     items: list[SalesOrderResponse]
     total: int
+    page: int = 1
+    size: int = 50
     status_counts: dict[str, int] = {}
 
 # --- Sample Request Schemas ---

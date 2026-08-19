@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ColorLibraryView from '../components/colors/ColorLibraryView';
 import ColorsVariantView from '../components/colors/ColorsVariantView';
 import { useData } from '../context/DataContext';
+import { usePaginatedFetch } from '../context/usePaginatedList';
 import { useToast } from '../components/shared/Toast';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
@@ -47,52 +48,48 @@ export default function ColorsPage() {
 
     useEffect(() => { if (sourceLineId) setTab('codes'); }, [sourceLineId]);
 
-    const [colors, setColors] = useState<any[]>([]);
-    const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(1);
     const [search, setSearch] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [customerFilter, setCustomerFilter] = useState('');
     const [variantFilter, setVariantFilter] = useState('');
     const [itemSearch, setItemSearch] = useState('');
     const [sourceFilter, setSourceFilter] = useState('');
-    // True from first paint so the list shows the loader, not "none found".
-    const [loading, setLoading] = useState(true);
 
     // Deep-link from LabDip approved-color button: /colors?search=<code> focuses the catalog on that code.
     useEffect(() => {
         const s = searchParams.get('search');
-        if (s) { setTab('codes'); setStatusFilter('ALL'); setSearch(s); setPage(1); }
+        if (s) { setTab('codes'); setStatusFilter('ALL'); setSearch(s); }
     }, [searchParams]);
 
-    const fetchColors = useCallback(async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE), include_meta: 'true' });
-            if (search) params.set('search', search);
-            if (statusFilter !== 'ALL') params.set('status', statusFilter);
-            if (customerFilter) params.set('customer_id', customerFilter);
-            if (variantFilter) params.set('variant_attribute_value_id', variantFilter);
-            if (itemSearch) params.set('item_search', itemSearch);
-            if (sourceFilter) params.set('source', sourceFilter);
-            const res = await authFetch(`${API_BASE}/colors?${params.toString()}`);
-            if (res.ok) {
-                const data = await res.json();
-                setColors(data.items ?? []);
-                setTotal(data.total ?? 0);
-            }
-        } catch { /* silent */ }
-        finally { setLoading(false); }
-    }, [authFetch, API_BASE, page, search, statusFilter, customerFilter, variantFilter, itemSearch, sourceFilter]);
+    // Page window, fetch, loading flag and stale-response race guard all come from
+    // the shared hook (context/usePaginatedList.ts). ColorLibraryView debounces the
+    // two text boxes itself, so `search`/`item_search` arrive already settled and
+    // ride in as plain params rather than through the hook's own search box.
+    const {
+        rows: colors, total, loading, page, setPage, refetch: fetchColors,
+    } = usePaginatedFetch<any>({
+        endpoint: `${API_BASE}/colors`,
+        authFetch,
+        pageSize: PAGE_SIZE,
+        params: {
+            include_meta: 'true',
+            search,
+            status: statusFilter === 'ALL' ? '' : statusFilter,
+            customer_id: customerFilter,
+            variant_attribute_value_id: variantFilter,
+            item_search: itemSearch,
+            source: sourceFilter,
+        },
+    });
 
-    useEffect(() => { fetchColors(); }, [fetchColors]);
-
-    const handleSearchChange = (s: string) => { setPage(1); setSearch(s); };
-    const handleStatusChange = (s: string) => { setPage(1); setStatusFilter(s); };
-    const handleCustomerFilterChange = (v: string) => { setPage(1); setCustomerFilter(v); };
-    const handleVariantFilterChange = (v: string) => { setPage(1); setVariantFilter(v); };
-    const handleItemSearchChange = (s: string) => { setPage(1); setItemSearch(s); };
-    const handleSourceFilterChange = (v: string) => { setPage(1); setSourceFilter(v); };
+    // No setPage(1) here any more — the hook restarts at page 1 whenever a param
+    // changes, which is also what keeps the two from drifting out of step.
+    const handleSearchChange = setSearch;
+    const handleStatusChange = setStatusFilter;
+    const handleCustomerFilterChange = setCustomerFilter;
+    const handleVariantFilterChange = setVariantFilter;
+    const handleItemSearchChange = setItemSearch;
+    const handleSourceFilterChange = setSourceFilter;
 
     const handleCreate = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/colors`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

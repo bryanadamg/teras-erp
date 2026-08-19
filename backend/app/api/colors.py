@@ -14,6 +14,7 @@ from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 from app.schemas import ColorCreate, ColorUpdate, ColorResponse, ColorListResponse
 
 router = APIRouter()
@@ -91,9 +92,8 @@ async def list_colors(
     variant_attribute_value_id: str | None = Query(None),
     item_search: str | None = Query(None),
     source: str | None = Query(None),
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=500),
     include_meta: bool = Query(False),
+    window: PageWindow = Depends(PageParams()),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -161,8 +161,7 @@ async def list_colors(
         count_q = count_q.filter(cond)
 
     total = (await db.execute(count_q)).scalar_one()
-    q = q.order_by(Color.code).offset((page - 1) * size).limit(size)
-    colors = (await db.execute(q)).scalars().all()
+    colors = (await db.execute(window.apply(q.order_by(Color.code)))).scalars().all()
 
     counts: dict = {}
     prov: dict = {}
@@ -170,12 +169,9 @@ async def list_colors(
         color_ids = [c.id for c in colors]
         counts = await _recipe_counts(db, color_ids)
         prov = await _lab_dip_provenance(db, color_ids)
-    return {
-        "items": [_serialize(c, counts.get(c.id, 0), prov.get(c.id)) for c in colors],
-        "total": total,
-        "page": page,
-        "size": size,
-    }
+    return window.envelope(
+        [_serialize(c, counts.get(c.id, 0), prov.get(c.id)) for c in colors], total
+    )
 
 
 

@@ -19,6 +19,7 @@ from app.api.auth import get_current_user, require_permission, require_any_permi
 from app.models.auth import User
 from app.services import audit_service, kpi_service, so_fulfilment_service
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 from typing import Optional
 from datetime import datetime
 import uuid
@@ -183,8 +184,7 @@ async def get_sales_orders(
     status: Optional[str] = None,
     search: Optional[str] = None,
     customer: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 50,
+    window: PageWindow = Depends(PageParams()),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("sales_order.view", "sales_order.create_pr", "production_run.view", "production_run.create")),
 ):
@@ -211,12 +211,9 @@ async def get_sales_orders(
 
     total = (await db.execute(count_query)).scalar() or 0
 
-    # limit=0 means "no cap" — used by the table-print export, which needs every
-    # row matching the active filter, not just the page on screen.
-    query = query.order_by(SalesOrder.created_at.desc()).offset(skip)
-    if limit:
-        query = query.limit(limit)
-    result = await db.execute(query)
+    # `size=0` (or legacy `limit=0`) means "no cap" — the table-print export needs
+    # every row matching the active filter, not just the page on screen.
+    result = await db.execute(window.apply(query.order_by(SalesOrder.created_at.desc())))
     orders = result.scalars().all()
 
     for so in orders:
@@ -233,7 +230,7 @@ async def get_sales_orders(
     )).all()
     status_counts = {s: c for s, c in status_rows}
 
-    return {"items": orders, "total": total, "status_counts": status_counts}
+    return window.envelope(orders, total, status_counts=status_counts)
 
 
 @router.get("/{so_id}", response_model=SalesOrderResponse)
