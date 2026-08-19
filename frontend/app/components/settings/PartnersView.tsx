@@ -165,21 +165,9 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 icon="bi-people-fill"
                 title={`${typeLabel} Management`}
                 subtitle={`Maintain your network of ${typeLabel.toLowerCase()}s`}
-                right={canManage && (classic ? (
-                    <button
-                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
-                        onClick={() => setIsCreateOpen(true)}
-                    >
-                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add {typeLabel}
-                    </button>
-                ) : (
-                    <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-                        <i className="bi bi-plus-lg me-2"></i>Add {typeLabel}
-                    </button>
-                ))}
             />
 
-                {/* ── Secondary toolbar: search + count ── */}
+                {/* ── Secondary toolbar: search + count + actions ── */}
                 <div
                     style={classic ? xpToolbar() : undefined}
                     className={classic ? '' : 'px-3 py-2 border-bottom d-flex align-items-center gap-3 bg-white'}
@@ -196,6 +184,18 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     <ToolbarCount classic={classic}>
                         {filteredPartners.length} {typeLabel}{filteredPartners.length !== 1 ? 's' : ''}
                     </ToolbarCount>
+                    {canManage && (classic ? (
+                        <button
+                            style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', marginLeft: 'auto' })}
+                            onClick={() => setIsCreateOpen(true)}
+                        >
+                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add {typeLabel}
+                        </button>
+                    ) : (
+                        <button className="btn btn-sm btn-primary ms-auto" onClick={() => setIsCreateOpen(true)}>
+                            <i className="bi bi-plus-lg me-2"></i>Add {typeLabel}
+                        </button>
+                    ))}
                 </div>
 
                 {/* ── Bulk action bar ── */}

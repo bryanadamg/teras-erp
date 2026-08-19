@@ -371,11 +371,6 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 classic
                 icon="bi-box2"
                 title="Packing Orders"
-                right={canManage ? (
-                    <button style={xpBtnCreate} onClick={() => setCreating(true)} title="Order finished goods packed into cartons">
-                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
-                    </button>
-                ) : undefined}
             />
             <div style={xpToolbar()}>
                 <button style={xpBtn()} onClick={loadAll} title="Refresh">
@@ -384,6 +379,11 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333' }}>
                     {total.toLocaleString()} order{total !== 1 ? 's' : ''}
                 </span>
+                {canManage && (
+                    <button style={xpBtnCreate} onClick={() => setCreating(true)} title="Order finished goods packed into cartons">
+                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
+                    </button>
+                )}
             </div>
             <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>

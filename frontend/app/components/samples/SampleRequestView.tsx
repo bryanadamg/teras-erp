@@ -1317,18 +1317,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                icon="bi-eyedropper"
                title={t('sample_requests')}
                subtitle="Track prototype and sample approval workflow"
-               right={canManage && (classic ? (
-                   <button
-                       style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
-                       onClick={openCreateModal}
-                   >
-                       <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
-                   </button>
-               ) : (
-                   <button className="btn btn-sm btn-primary" onClick={openCreateModal}>
-                       <i className="bi bi-plus-lg me-2"></i>{t('create')}
-                   </button>
-               ))}
            />
 
            {/* ── Secondary toolbar: search + status filters + count ── */}
@@ -1382,6 +1370,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                            <> · <span style={{ color: '#1c5bc8', fontWeight: 'bold' }}>{unreadCount} unread</span></>
                        )}
                    </ToolbarCount>
+                   {canManage && (
+                       <button
+                           style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
+                           onClick={openCreateModal}
+                       >
+                           <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
+                       </button>
+                   )}
                </div>
            ) : (
                <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
@@ -1439,6 +1435,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                            <> · <span className="fw-bold" style={{ color: '#0d6efd' }}>{unreadCount} unread</span></>
                        )}
                    </span>
+                   {canManage && (
+                       <button className="btn btn-sm btn-primary" onClick={openCreateModal}>
+                           <i className="bi bi-plus-lg me-2"></i>{t('create')}
+                       </button>
+                   )}
                </div>
            )}
 
