@@ -166,7 +166,8 @@ async def get_item_by_code(db: AsyncSession, code: str) -> Item | None:
 async def get_items(
     db: AsyncSession,
     skip: int = 0,
-    limit: int = 100,
+    # None = uncapped (a PageWindow with limit None); SQLAlchemy emits no LIMIT.
+    limit: int | None = 100,
     user=None,
     search: str = None,
     category_id: uuid.UUID | None = None,

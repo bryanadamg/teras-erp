@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
+from app.core.pagination import PageParams, PageWindow
 from uuid import UUID
 from app.models.production_run import ProductionRun
 from app.models.manufacturing import ManufacturingOrder, MOCompletion
@@ -236,11 +237,10 @@ async def get_available_pr_code(
 
 @router.get("/production-runs", response_model=PaginatedProductionRunListResponse)
 async def list_production_runs(
-    skip: int = 0,
-    limit: int = 50,
     search: str | None = None,
     has_sales_order: bool | None = None,
     progress: str | None = None,
+    window: PageWindow = Depends(PageParams(default_size=50)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("production_run.view", "manufacturing_order.view")),
 ):
@@ -303,12 +303,11 @@ async def list_production_runs(
         list_query = list_query.where(*conditions)
     count_result = await db.execute(count_query)
     total = count_result.scalar()
-    result = await db.execute(list_query.offset(skip).limit(limit))
+    result = await db.execute(window.apply(list_query))
     prs = result.unique().scalars().all()
     for pr in prs:
         _post_process_pr(pr)
-    page = (skip // limit) + 1
-    return {"items": prs, "total": total, "page": page, "size": limit}
+    return window.envelope(prs, total)
 
 def _bom_traversal_order(pr) -> dict[tuple, int]:
     """DFS from root MOs → component MOs via required_dependencies.

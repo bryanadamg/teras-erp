@@ -27,7 +27,7 @@ Usage:
         return window.envelope(rows, total)
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Optional
 
 from fastapi import Query
@@ -53,6 +53,19 @@ class PageWindow:
         if self.limit is not None:
             query = query.limit(self.limit)
         return query
+
+    def at_offset(self, offset: int) -> "PageWindow":
+        """Same size, repositioned onto the page that contains row `offset`.
+
+        For deep links that must land on whatever page currently holds a given row
+        (samples' `?focus_id=`, which ranks the row under the active filters) — the
+        offset is snapped down to a page boundary so the window stays aligned.
+        Uncapped windows already hold every row, so they are returned unchanged.
+        """
+        if self.limit is None or self.size <= 0:
+            return self
+        snapped = max(0, offset) // self.size * self.size
+        return replace(self, offset=snapped, page=snapped // self.size + 1)
 
     def envelope(self, items: Any, total: int, **extra: Any) -> dict:
         """The `{items, total, page, size}` response shape every list endpoint returns.

@@ -11,6 +11,7 @@ from app.models.category import Category
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, category_scope_ok
 from sqlalchemy import select
+from app.core.pagination import PageParams, PageWindow
 from app.core.ws_manager import manager
 from app.services import kpi_service
 
@@ -137,13 +138,16 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
 
 @router.get("/items", response_model=PaginatedItemResponse)
 async def get_items_api(
-    skip: int = 0,
-    limit: int = 100,
     search: str | None = None,
     category_id: uuid.UUID | None = None,
     finished_goods: bool = False,
     raw_materials: bool = False,
     purchasable: bool = False,
+    # max_size well above the primitive's 500 default: this endpoint was previously
+    # uncapped, and DyeRecipeTab pulls its chemical picker in one shot with
+    # `?limit=2000`. A 500 clamp would silently drop items from that picker rather
+    # than paginate it — truncation here is a correctness bug, not a page-size tweak.
+    window: PageWindow = Depends(PageParams(default_size=100, max_size=2000)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -157,7 +161,7 @@ async def get_items_api(
         )
         scope_cat = scoped.scalars().first()
         if scope_cat is None:
-            return {"items": [], "total": 0, "page": 1, "size": 0}
+            return window.envelope([], 0)
         category_id = scope_cat.id
 
     category_ids = None
@@ -169,19 +173,14 @@ async def get_items_api(
         )
         scope_cats = scoped.scalars().all()
         if not scope_cats:
-            return {"items": [], "total": 0, "page": 1, "size": 0}
+            return window.envelope([], 0)
         category_ids = [c.id for c in scope_cats]
 
-    items, total = await item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category_id=category_id, category_ids=category_ids)
+    items, total = await item_service.get_items(db, skip=window.offset, limit=window.limit, user=current_user, search=search, category_id=category_id, category_ids=category_ids)
     for item in items:
         _populate_source_info(item)
 
-    return {
-        "items": items,
-        "total": total,
-        "page": (skip // limit) + 1,
-        "size": len(items)
-    }
+    return window.envelope(items, total)
 
 @router.put("/items/{item_id}", response_model=ItemResponse)
 async def update_item_api(item_id: str, payload: ItemUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('item.edit'))):

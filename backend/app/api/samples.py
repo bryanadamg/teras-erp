@@ -17,6 +17,7 @@ from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service, kpi_service, numbering_service
 from app.core.ws_manager import manager
+from app.core.pagination import PageParams, PageWindow
 from datetime import datetime, date, time, timedelta
 from pathlib import Path
 import shutil, os, uuid
@@ -244,8 +245,6 @@ def _sample_conditions(
 
 @router.get("/samples", response_model=PaginatedSampleRequestResponse)
 async def get_samples(
-    skip: int = 0,
-    limit: int = 50,
     search: str | None = None,
     status: str | None = None,
     category: str | None = None,
@@ -253,11 +252,10 @@ async def get_samples(
     created_from: str | None = None,
     created_to: str | None = None,
     focus_id: str | None = None,
+    window: PageWindow = Depends(PageParams(default_size=50, max_size=200)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission("sample_request.view")),
 ):
-    limit = max(1, min(limit, 200))
-    skip = max(0, skip)
     conds = _sample_conditions(search, status, category, created_from, created_to, category_value_id)
 
     total = await db.scalar(select(func.count()).select_from(SampleRequest).where(*conds)) or 0
@@ -283,10 +281,11 @@ async def get_samples(
                     ),
                 )
             ) or 0
-            skip = (rank // limit) * limit
+            # Snap the window onto whichever page currently holds that row.
+            window = window.at_offset(rank)
 
     id_rows = await db.execute(
-        select(SampleRequest.id).where(*conds).order_by(*order_cols).offset(skip).limit(limit)
+        window.apply(select(SampleRequest.id).where(*conds).order_by(*order_cols))
     )
     ids = [r[0] for r in id_rows.all()]
 
@@ -352,14 +351,7 @@ async def get_samples(
         if hasattr(color_stats, key):
             setattr(color_stats, key, getattr(color_stats, key) + cnt)
 
-    return PaginatedSampleRequestResponse(
-        items=samples,
-        total=total,
-        page=(skip // limit) + 1,
-        size=limit,
-        unread=unread,
-        color_stats=color_stats,
-    )
+    return window.envelope(samples, total, unread=unread, color_stats=color_stats)
 
 
 @router.get("/samples/codes", response_model=list[str])

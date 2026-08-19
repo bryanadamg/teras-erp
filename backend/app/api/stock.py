@@ -52,8 +52,6 @@ async def _get_reference_types(db: AsyncSession) -> list[str]:
 
 @router.get("/stock", response_model=PaginatedStockLedgerResponse)
 async def get_stock_ledger(
-    skip: int = 0,
-    limit: int = 100,
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     search: Optional[str] = Query(None, description="Match item name/code or reference id"),
@@ -61,6 +59,7 @@ async def get_stock_ledger(
     category_id: Optional[str] = Query(None, description="Item category id, or comma-separated ids (a category plus its descendants)"),
     reference_type: Optional[str] = Query(None),
     direction: Optional[str] = Query(None, description="'in' (qty >= 0) or 'out' (qty < 0)"),
+    window: PageWindow = Depends(PageParams(default_size=100)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("stock_ledger.view", "stock_on_hand.view"))
 ):
@@ -116,10 +115,11 @@ async def get_stock_ledger(
     total_out = float(agg[1] or 0)
 
     rows = (await db.execute(
-        select(StockLedger).where(*conditions)
-        .options(selectinload(StockLedger.attribute_values), joinedload(StockLedger.batch))
-        .order_by(StockLedger.created_at.desc())
-        .offset(skip).limit(limit)
+        window.apply(
+            select(StockLedger).where(*conditions)
+            .options(selectinload(StockLedger.attribute_values), joinedload(StockLedger.batch))
+            .order_by(StockLedger.created_at.desc())
+        )
     )).scalars().all()
 
     # Resolve item + location display fields for just this page (small IN queries),
@@ -206,15 +206,13 @@ async def get_stock_ledger(
 
     reference_types = await _get_reference_types(db)
 
-    return {
-        "items": items,
-        "total": total,
-        "page": (skip // limit) + 1 if limit else 1,
-        "size": len(items),
-        "total_in": total_in,
-        "total_out": total_out,
-        "reference_types": reference_types,
-    }
+    return window.envelope(
+        items,
+        total,
+        total_in=total_in,
+        total_out=total_out,
+        reference_types=reference_types,
+    )
 
 @router.post("/stock", status_code=201)
 async def create_stock_entry(

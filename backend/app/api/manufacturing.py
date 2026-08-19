@@ -450,13 +450,15 @@ async def get_available_mo_code(
 
 @router.get("/manufacturing-orders", response_model=PaginatedManufacturingOrderResponse)
 async def get_manufacturing_orders(
-    skip: int = 0,
-    limit: int = 100,
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     search: Optional[str] = Query(None),
     all_levels: bool = False,
     slim: bool = False,  # dashboard-only: skip load_mo_tree, return minimal fields
+    # max_size is deliberately far above the usual 500: this route was uncapped and the
+    # scanner still pulls the whole tree in one shot (`limit=9999&all_levels=true`) to
+    # resolve a scanned WO, so a 500-row clamp would silently truncate it.
+    window: PageWindow = Depends(PageParams(default_size=100, max_size=10000)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("manufacturing_order.view", "work_order.view", "production_run.view"))
 ):
@@ -493,7 +495,7 @@ async def get_manufacturing_orders(
     total = count_result.scalar()
 
     root_id_result = await db.execute(
-        id_query.order_by(ManufacturingOrder.created_at.desc()).offset(skip).limit(limit)
+        window.apply(id_query.order_by(ManufacturingOrder.created_at.desc()))
     )
     root_ids = [row[0] for row in root_id_result.fetchall()]
 
@@ -546,7 +548,7 @@ async def get_manufacturing_orders(
             }
             for row in slim_result.all()
         ]
-        return JSONResponse({"items": slim_items, "total": total, "page": (skip // limit) + 1, "size": len(slim_items)})
+        return JSONResponse(window.envelope(slim_items, total))
 
     # Load the full tree (unlimited depth) for the paginated root MOs
     mo_map = await load_mo_tree(db, root_ids)
@@ -585,12 +587,7 @@ async def get_manufacturing_orders(
                     item.is_material_available = False
                     break
 
-    return {
-        "items": items_list,
-        "total": total,
-        "page": (skip // limit) + 1,
-        "size": len(items_list)
-    }
+    return window.envelope(items_list, total)
 
 
 @router.get("/manufacturing-orders/{mo_id}", response_model=ManufacturingOrderResponse)

@@ -5,6 +5,7 @@ from app.models.audit import AuditLog
 from app.models.auth import User
 from app.schemas import AuditLogResponse
 from app.api.auth import get_current_user, user_has_permission, require_permission
+from app.core.pagination import PageParams, PageWindow
 from typing import Optional
 
 router = APIRouter()
@@ -13,10 +14,9 @@ from app.schemas import AuditLogResponse, PaginatedAuditLogResponse # Add Pagina
 
 @router.get("/audit-logs", response_model=PaginatedAuditLogResponse)
 def get_audit_logs(
-    skip: int = 0,
-    limit: int = 100,
     entity_type: Optional[str] = Query(None),
     entity_id: Optional[str] = Query(None),
+    window: PageWindow = Depends(PageParams(default_size=100)),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("audit_log.view"))
 ):
@@ -36,11 +36,6 @@ def get_audit_logs(
         query = query.filter(AuditLog.entity_id == entity_id)
         
     total = query.count()
-    items = query.order_by(AuditLog.timestamp.desc()).offset(skip).limit(limit).all()
-    
-    return {
-        "items": items,
-        "total": total,
-        "page": (skip // limit) + 1,
-        "size": len(items)
-    }
+    items = window.apply(query.order_by(AuditLog.timestamp.desc())).all()
+
+    return window.envelope(items, total)

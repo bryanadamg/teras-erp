@@ -5,9 +5,13 @@ def test_audit_logging(client, auth_headers):
     # Check Logs
     res = client.get("/api/audit-logs", headers=auth_headers)
     assert res.status_code == 200
-    logs = res.json()
+    # Paginated envelope, not a bare list — `logs[0]` on the response dict raised
+    # KeyError (and `len(dict) > 0` passed vacuously by counting its keys).
+    body = res.json()
+    logs = body["items"]
+    assert body["total"] > 0
     assert len(logs) > 0
-    
+
     # Verify latest log
     latest = logs[0]
     assert latest["action"] == "CREATE"
