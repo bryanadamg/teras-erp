@@ -6,6 +6,9 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
+import Pager from '../shared/Pager';
+
+const PAGE_SIZE = 25;
 
 interface Props {
     values: any[];                 // AttributeValue rows of the Colors variant attribute
@@ -25,6 +28,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
     const classic = uiStyle === 'classic';
 
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newValue, setNewValue] = useState('');
     const [newHexOn, setNewHexOn] = useState(false);
@@ -36,6 +40,11 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
 
     const sorted = [...(values || [])].sort((a, b) => String(a.value).localeCompare(String(b.value)));
     const filtered = search ? sorted.filter(v => String(v.value).toLowerCase().includes(search.toLowerCase())) : sorted;
+    const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const clampedPage = Math.min(page, pageCount);
+    const paged = filtered.slice((clampedPage - 1) * PAGE_SIZE, clampedPage * PAGE_SIZE);
+
+    const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
 
     const openCreate = () => { setNewValue(''); setNewHexOn(false); setNewHex('#cccccc'); setIsModalOpen(true); };
 
@@ -75,7 +84,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                     style={{ ...lvInput(classic), width: 220 }}
                     placeholder="Search color…"
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    onChange={e => handleSearchChange(e.target.value)}
                 />
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
                     {filtered.length} color{filtered.length !== 1 ? 's' : ''}
@@ -103,7 +112,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                                 {search ? 'No colors match your search.' : 'No color variants yet.'}
                             </td></tr>
                         )}
-                        {filtered.map((v, idx) => (
+                        {paged.map((v, idx) => (
                             <tr key={v.id} style={lvRow(classic, idx)}>
                                 <td style={lvTd(classic)}>
                                     {editingId === v.id ? (
@@ -174,6 +183,8 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                     </tbody>
                 </table>
             </div>
+
+            <Pager page={clampedPage} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
 
             <ModalWrapper
                 isOpen={isModalOpen}
