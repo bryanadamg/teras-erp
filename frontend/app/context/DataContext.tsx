@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useUser } from './UserContext';
 import { useToast } from '../components/shared/Toast';
+import { usePageState, useDebouncedSearch } from './usePaginatedList';
 
 const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -215,27 +216,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
 
     // UI & Sync State
-    const [itemPage, setItemPage] = useState(1);
-    const [itemTotal, setItemTotal] = useState(0);
-    const [woPage, setWoPage] = useState(1);
-    const [woTotal, setWoTotal] = useState(0);
-    const [prPage, setPrPage] = useState(1);
-    const [prTotal, setPrTotal] = useState(0);
-    const [auditPage, setAuditPage] = useState(1);
-    const [auditTotal, setAuditTotal] = useState(0);
-    const [reportPage, setReportPage] = useState(1);
-    const [reportTotal, setReportTotal] = useState(0);
-    const [soPage, setSoPage] = useState(1);
-    const [soTotal, setSoTotal] = useState(0);
+    // page/total bookkeeping is the same shape for every server-paginated
+    // domain — see usePaginatedList.ts. Destructured back into the original
+    // per-domain names so every downstream reference below is unchanged.
+    const { page: itemPage, setPage: setItemPage, total: itemTotal, setTotal: setItemTotal } = usePageState();
+    const { page: woPage, setPage: setWoPage, total: woTotal, setTotal: setWoTotal } = usePageState();
+    const { page: prPage, setPage: setPrPage, total: prTotal, setTotal: setPrTotal } = usePageState();
+    const { page: auditPage, setPage: setAuditPage, total: auditTotal, setTotal: setAuditTotal } = usePageState();
+    const { page: reportPage, setPage: setReportPage, total: reportTotal, setTotal: setReportTotal } = usePageState();
+    const { page: soPage, setPage: setSoPage, total: soTotal, setTotal: setSoTotal } = usePageState();
     const [pageSize] = useState(50);
-    const [itemSearch, setItemSearch] = useState('');          // committed — drives fetches
-    const [itemSearchInput, setItemSearchInput] = useState(''); // live input value
+    // Debounced search boxes: same input-echoes/committed-value split, same
+    // 350ms delay, same "commit resets to page 1" rule — see usePaginatedList.ts.
+    const { input: itemSearchInput, committed: itemSearch, setSearch: handleSetItemSearch } = useDebouncedSearch(setItemPage);
     const [moSearch, setMoSearch] = useState('');
     const [prSearch, setPrSearch] = useState('');
-    const [soSearch, setSoSearch] = useState('');               // committed — PO / customer PO ref
-    const [soSearchInput, setSoSearchInput] = useState('');
-    const [soCustomerSearch, setSoCustomerSearch] = useState('');
-    const [soCustomerSearchInput, setSoCustomerSearchInput] = useState('');
+    const { input: soSearchInput, committed: soSearch, setSearch: handleSetSoSearch } = useDebouncedSearch(setSoPage);
+    const { input: soCustomerSearchInput, committed: soCustomerSearch, setSearch: handleSetSoCustomerSearch } = useDebouncedSearch(setSoPage);
     const [soStatusFilter, setSoStatusFilter] = useState('ALL');
     const [prSoFilter, setPrSoFilter] = useState('');           // '' | 'with' | 'without'
     const [prProgressFilter, setPrProgressFilter] = useState(''); // '' | 'complete' | 'incomplete'
@@ -296,34 +293,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const handleSetCategoryL2 = useCallback((v: string) => {
         setCategoryL2(v); setCategoryL3('');
     }, []);
-
-    // Debounced item search: the input echoes instantly (itemSearchInput) but the
-    // committed value that triggers a backend round-trip (itemSearch) only updates
-    // after a quiet period — previously every keystroke refetched /items.
-    const itemSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const handleSetItemSearch = useCallback((v: string) => {
-        setItemSearchInput(v);
-        if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
-        itemSearchTimer.current = setTimeout(() => { setItemSearch(v); setItemPage(1); }, 350);
-    }, []);
-    useEffect(() => () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }, []);
-
-    // Same debounce shape as items, for the Sales Orders list's two text filters.
-    const soSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const handleSetSoSearch = useCallback((v: string) => {
-        setSoSearchInput(v);
-        if (soSearchTimer.current) clearTimeout(soSearchTimer.current);
-        soSearchTimer.current = setTimeout(() => { setSoSearch(v); setSoPage(1); }, 350);
-    }, []);
-    useEffect(() => () => { if (soSearchTimer.current) clearTimeout(soSearchTimer.current); }, []);
-
-    const soCustomerSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const handleSetSoCustomerSearch = useCallback((v: string) => {
-        setSoCustomerSearchInput(v);
-        if (soCustomerSearchTimer.current) clearTimeout(soCustomerSearchTimer.current);
-        soCustomerSearchTimer.current = setTimeout(() => { setSoCustomerSearch(v); setSoPage(1); }, 350);
-    }, []);
-    useEffect(() => () => { if (soCustomerSearchTimer.current) clearTimeout(soCustomerSearchTimer.current); }, []);
 
     const handleSetSoStatusFilter = useCallback((v: string) => {
         setSoStatusFilter(v); setSoPage(1);
