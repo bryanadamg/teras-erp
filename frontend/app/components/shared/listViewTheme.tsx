@@ -517,13 +517,23 @@ export function ExpandToggle({ expanded, classic, onToggle, label = 'details', p
             aria-controls={panelId}
             title={`${expanded ? 'Hide' : 'Show'} ${label}`}
             aria-label={`${expanded ? 'Hide' : 'Show'} ${label}`}
+            className="lv-chev-btn"
             style={{
                 background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 lineHeight: 1, color, flexShrink: 0, ...style,
             }}
         >
-            <i className={`bi bi-chevron-${expanded ? 'down' : 'right'}`} style={{ fontSize: 9 }} aria-hidden="true" />
+            {/* Always the right-chevron glyph; "down" is a 90° CSS rotation of it
+                (globals.css `.lv-chev`), so hovering can preview the open state
+                and spring back when the pointer leaves without a click. Swapping
+                bi-chevron-right→bi-chevron-down would have no state to animate
+                between. */}
+            <i
+                className={`bi bi-chevron-right lv-chev${expanded ? ' lv-chev-open' : ''}`}
+                style={{ fontSize: 9 }}
+                aria-hidden="true"
+            />
         </button>
     );
 }
