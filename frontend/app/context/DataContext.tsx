@@ -366,8 +366,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Monotonic generation guard for the production-runs slice. Requests aren't
     // cancelled, so e.g. a filtered fetch made while /production-runs?pr=X is
     // mounted can resolve AFTER the corrective unfiltered fetch fired on unmount,
-    // silently re-narrowing productionRuns for every other page (SO's PR badges)
-    // with no further trigger to self-correct. Only the response from the most
+    // silently re-narrowing productionRuns for every other page that reads it
+    // (MO tab, BOMView) with no further trigger to self-correct. Only the most
     // recently *dispatched* call is allowed to commit.
     const prGenRef = useRef(0);
 
@@ -527,10 +527,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // MES (Manufacturing Orders + Production Runs)
-            // NOT sales-orders for the MO fetch: that page reads productionRuns (SO
-            // coverage check) but never manufacturingOrders — it only rode along
-            // because both fetches shared one `if` (see git blame abbd397). The full
-            // eager-loaded MO tree is expensive; don't pull it for an unused prop.
+            // Neither is fetched for 'sales-orders' any more. That page's two PR
+            // consumers are both served without the feed now: the PR code chips ride
+            // along on each SO row (`production_runs`, see _populate_production_runs)
+            // and the duplicate-PR guard asks GET /sales-orders/{id}/pr-coverage for
+            // the one order the user clicked. The windowed feed cost 115 kB / 2.7 s on
+            // every SO page load — it was the slowest request on the page — and being
+            // windowed it was also *wrong* for both: a PR outside the newest 50 lost
+            // its chip and read as "not covered", letting the user double-create.
             const isDashboard = fetchTarget === 'dashboard' || fetchTarget === '';
             if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || isDashboard || fetchTarget.includes('reports')) {
                 const moSkip = (woPage - 1) * pageSize;
@@ -539,7 +543,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moSlim}${moSearchParam}`, { headers }));
                 requestTypes.push(isDashboard ? 'manufacturing-orders-slim' : 'manufacturing-orders');
             }
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || fetchTarget.includes('reports')) {
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('reports')) {
                 const prSkip = (prPage - 1) * pageSize;
                 myPrGen = ++prGenRef.current;
                 heldPrPending = true;
@@ -921,7 +925,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // When the manufacturing PR filter is CLEARED (e.g. leaving /production-runs
     // after a deep-link PR-badge click narrowed the shared list to one PR), the
     // global productionRuns must be restored to the full set for every page that
-    // reads it (SO PR badges). The corrective fetchData() above can be swallowed
+    // reads it (MO tab, BOMView). The corrective fetchData() above can be swallowed
     // by the target dedupe when a narrowed same-target fetch (nav hover-prefetch,
     // sidebar click dispatched while prSearch was still set) is already in flight,
     // leaving the list stuck narrowed until a hard refresh. This dedupe-free,

@@ -1728,6 +1728,11 @@ class SalesOrderUpdate(BaseModel):
     notes: str | None = None
     lines: list[SalesOrderLineCreate]
 
+class SOPRRef(BaseModel):
+    """The PR chip on a sales-order row — id for the lineage button, code for display."""
+    id: UUID
+    code: str
+
 class SalesOrderResponse(BaseModel):
     id: UUID
     po_number: str
@@ -1738,6 +1743,10 @@ class SalesOrderResponse(BaseModel):
     delivered_at: datetime | None = None
     lines: list[SalesOrderLineResponse]
     created_at: datetime
+    # Populated by the list endpoint only (_populate_production_runs). Mutation
+    # responses leave it empty — every SO mutation refetches the list, so nothing
+    # renders off a stale [].
+    production_runs: list[SOPRRef] = []
     class Config:
         from_attributes = True
 
@@ -1747,6 +1756,17 @@ class PaginatedSalesOrderResponse(BaseModel):
     page: int = 1
     size: int = 50
     status_counts: dict[str, int] = {}
+
+class SOPRCoverageEntry(BaseModel):
+    bom_id: UUID
+    attribute_value_ids: list[str] = []
+    color_id: UUID | None = None
+    labdip_variant_code: str | None = None
+
+class SOPRCoverageResponse(BaseModel):
+    """Duplicate-PR guard for one SO — see GET /sales-orders/{id}/pr-coverage."""
+    covered_size_ids: list[str] = []
+    covered_entries: list[SOPRCoverageEntry] = []
 
 # --- Sample Request Schemas ---
 

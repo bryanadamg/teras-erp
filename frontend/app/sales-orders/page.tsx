@@ -3,12 +3,11 @@
 import SalesOrderView from '../components/sales/SalesOrderView';
 import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
-import { useFinishedGoodsSearch } from '../components/shared/useEntitySearch';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function SalesOrdersPage() {
-    const { items, attributes, salesOrders, partners, bomsLookup: boms, productionRuns, refreshSalesOrders, authFetch } = useData();
+    const { items, attributes, salesOrders, partners, bomsLookup: boms, refreshSalesOrders, authFetch } = useData();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const router = useRouter();
@@ -16,10 +15,9 @@ export default function SalesOrdersPage() {
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    // SO item picker: shared server-side, Finished-Goods-scoped typeahead, so it scales past
-    // the DataContext paginated `items` page. Display/print still use context `items`
-    // (+ embedded line data + itemIndex), so those paths are unchanged.
-    const { results: itemResults, onSearch: handleItemSearch } = useFinishedGoodsSearch();
+    // The SO item + combo pickers live inside SalesOrderView's create/edit modal and
+    // are primed by it only once that modal opens — see `pickersActive` there. They
+    // used to be lifted here and primed on page mount.
 
     const handleCreateSO = async (p: any) => {
         const res = await authFetch(`${API_BASE}/sales-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
@@ -39,7 +37,7 @@ export default function SalesOrdersPage() {
         if (res.ok) refreshSalesOrders();
     };
 
-    const handleGeneratePR = (so: any) => {
+    const handleGeneratePR = async (so: any) => {
         const soLines: any[] = so.lines || [];
 
         // Group lines by (item_id + attribute set + color) — one group = one root MO.
@@ -60,13 +58,22 @@ export default function SalesOrdersPage() {
             attrGroupMap.get(key)!.push(l);
         });
 
-        const coveredSizeIds = new Set<string>();
-        (productionRuns || []).forEach((pr: any) => {
-            if (String(pr.sales_order_id) !== String(so.id)) return;
-            (pr.manufacturing_orders || []).forEach((mo: any) => {
-                if (mo.bom_size_id) coveredSizeIds.add(String(mo.bom_size_id));
-            });
-        });
+        // What this SO already has a PR for. Server-scoped to this one order rather
+        // than filtered client-side out of the windowed /production-runs feed: that
+        // feed only held the newest 50 PRs, so an older SO read as "not covered" and
+        // the user could create a duplicate PR for work already planned.
+        let coverage: { covered_size_ids: string[]; covered_entries: any[] } = { covered_size_ids: [], covered_entries: [] };
+        try {
+            const covRes = await authFetch(`${API_BASE}/sales-orders/${so.id}/pr-coverage`);
+            if (!covRes.ok) throw new Error(String(covRes.status));
+            coverage = await covRes.json();
+        } catch {
+            // Never fall through to "nothing is covered" — that is the duplicate-PR
+            // path this check exists to prevent.
+            showToast('Could not check existing Production Runs for this order. Please retry.', 'danger');
+            return;
+        }
+        const coveredSizeIds = new Set<string>(coverage.covered_size_ids.map(String));
 
         const entries: Array<{
             bom_id: string;
@@ -141,13 +148,10 @@ export default function SalesOrdersPage() {
                 }
             } else {
                 const sortedLineAttrs = [...lineAttrIds].sort().join(',');
-                const covered = (productionRuns || []).some((pr: any) => {
-                    if (String(pr.sales_order_id) !== String(so.id)) return false;
-                    return (pr.bom_entries || []).some((e: any) => {
-                        if (String(e.bom_id) !== String(matchingBOM!.id)) return false;
-                        const entryAttrs = [...(e.attribute_value_ids || [])].sort().join(',');
-                        return entryAttrs === sortedLineAttrs && String(e.color_id || '') === String(lineColorId || '') && String(e.labdip_variant_code || '') === String(lineLabdip || '');
-                    });
+                const covered = coverage.covered_entries.some((e: any) => {
+                    if (String(e.bom_id) !== String(matchingBOM!.id)) return false;
+                    const entryAttrs = [...(e.attribute_value_ids || [])].sort().join(',');
+                    return entryAttrs === sortedLineAttrs && String(e.color_id || '') === String(lineColorId || '') && String(e.labdip_variant_code || '') === String(lineLabdip || '');
                 });
                 if (!covered) {
                     const totalQty = groupLines.reduce((acc: number, l: any) => acc + pickQty(l), 0);
@@ -201,8 +205,6 @@ export default function SalesOrdersPage() {
     return (
             <SalesOrderView
                 items={items}
-                itemResults={itemResults}
-                onSearchItems={handleItemSearch}
                 attributes={attributes}
                 boms={boms}
                 salesOrders={salesOrders}
@@ -212,6 +214,5 @@ export default function SalesOrdersPage() {
                 onEditSO={handleUpdateSO}
                 onUpdateSOStatus={handleUpdateSOStatus}
                 onGenerateWO={handleGeneratePR}
-                productionRuns={productionRuns}
             />
     );}

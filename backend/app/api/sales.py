@@ -4,12 +4,15 @@ from sqlalchemy import select, func, or_, delete as sa_delete, update as sa_upda
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_async_db
-from app.schemas import SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse, PaginatedSalesOrderResponse
+from app.schemas import (
+    SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse, PaginatedSalesOrderResponse,
+    SOPRCoverageEntry, SOPRCoverageResponse,
+)
 from app.models.sales import SalesOrder, SalesOrderLine, sales_order_line_values
 from app.models.attribute import Attribute, AttributeValue
 from app.models.bom import BOMSize
 from app.models.color import Color
-from app.models.production_run import ProductionRun
+from app.models.production_run import ProductionRun, PRBomEntry
 from app.models.manufacturing import ManufacturingOrder
 from app.models.work_order import WorkOrder
 from app.models.batch import Batch
@@ -73,6 +76,34 @@ def _populate_line(line: SalesOrderLine) -> None:
         line.labdip_status = line.labdip_item.status
     if line.bom_size is not None:
         line.size_label = line.bom_size.size_name or line.bom_size.label
+
+
+async def _populate_production_runs(db: AsyncSession, orders: list) -> None:
+    """Attach the PR code chips (id + code) for each order in this page.
+
+    One grouped query scoped to the page's SO ids. The SO list page previously got
+    these by client-side `.filter()` over a *windowed* `/production-runs?limit=50`
+    fetch, which silently dropped the chip (and the lineage button) for any SO whose
+    PR fell outside the newest 50 PRs — the "lookup feed vs list window" trap. It
+    also cost a 115 kB / 2.7 s request to render three fields. Scoping the query to
+    the SO ids already on screen is both correct and free.
+
+    `production_runs` must be declared on SalesOrderResponse or response_model drops
+    it silently.
+    """
+    if not orders:
+        return
+    by_so: dict[str, list] = {}
+    for pr_id, code, so_id in (
+        await db.execute(
+            select(ProductionRun.id, ProductionRun.code, ProductionRun.sales_order_id)
+            .filter(ProductionRun.sales_order_id.in_([o.id for o in orders]))
+            .order_by(ProductionRun.created_at)
+        )
+    ).all():
+        by_so.setdefault(str(so_id), []).append({"id": pr_id, "code": code})
+    for so in orders:
+        so.production_runs = by_so.get(str(so.id), [])
 
 
 async def _populate_variant_attrs(db: AsyncSession, orders: list) -> None:
@@ -221,6 +252,7 @@ async def get_sales_orders(
             _populate_line(line)
     await _populate_fulfilment(db, list(orders))
     await _populate_variant_attrs(db, list(orders))
+    await _populate_production_runs(db, list(orders))
 
     # Unfiltered, all-time counts for the status-bar summary ("X total / Y
     # pending / Z delivered") — deliberately not scoped to the active filter,
@@ -231,6 +263,67 @@ async def get_sales_orders(
     status_counts = {s: c for s, c in status_rows}
 
     return window.envelope(orders, total, status_counts=status_counts)
+
+
+@router.get("/{so_id}/pr-coverage", response_model=SOPRCoverageResponse)
+async def get_so_pr_coverage(
+    so_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission("sales_order.view", "sales_order.create_pr", "production_run.view", "production_run.create")),
+):
+    """What this SO already has a Production Run for — the duplicate-PR guard.
+
+    The SO list page's "Create Production Run" button needs to know which sizes and
+    which (bom, attrs, color, labdip) entries are already covered. It used to derive
+    that client-side from the *windowed* `/production-runs?limit=50` feed, which meant
+    an SO whose PR had aged out of the newest 50 read as "not covered" and let the
+    user create a second PR for work already planned. Two scoped queries here are
+    both correct and far cheaper than shipping every PR's nested MO tree to the
+    browser just to answer one click.
+    """
+    pr_ids = [
+        r[0] for r in (
+            await db.execute(select(ProductionRun.id).filter(ProductionRun.sales_order_id == so_id))
+        ).all()
+    ]
+    if not pr_ids:
+        return SOPRCoverageResponse(covered_size_ids=[], covered_entries=[])
+
+    # Sized coverage comes from the root MOs actually created (a PR entry can be
+    # partially materialised), matching the client logic this replaces.
+    size_ids = [
+        str(r[0]) for r in (
+            await db.execute(
+                select(ManufacturingOrder.bom_size_id)
+                .filter(
+                    ManufacturingOrder.production_run_id.in_(pr_ids),
+                    ManufacturingOrder.bom_size_id.is_not(None),
+                )
+                .distinct()
+            )
+        ).all()
+    ]
+
+    entries = [
+        SOPRCoverageEntry(
+            bom_id=bom_id,
+            attribute_value_ids=[str(v) for v in (attr_ids or [])],
+            color_id=color_id,
+            labdip_variant_code=labdip,
+        )
+        for bom_id, attr_ids, color_id, labdip in (
+            await db.execute(
+                select(
+                    PRBomEntry.bom_id,
+                    PRBomEntry.attribute_value_ids,
+                    PRBomEntry.color_id,
+                    PRBomEntry.labdip_variant_code,
+                ).filter(PRBomEntry.pr_id.in_(pr_ids))
+            )
+        ).all()
+    ]
+
+    return SOPRCoverageResponse(covered_size_ids=size_ids, covered_entries=entries)
 
 
 @router.get("/{so_id}", response_model=SalesOrderResponse)

@@ -12,7 +12,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
-import { useComboSearch } from '../shared/useEntitySearch';
+import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
@@ -22,7 +22,7 @@ import { lvThead } from '../shared/listViewTheme';
 // resized — it is the floor the table refuses to squeeze past before scrolling.
 const SO_TABLE_MIN_WIDTH = 1342;
 
-export default function SalesOrderView({ items, itemResults, onSearchItems, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
+export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -48,9 +48,19 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const lineageEnvBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const LINEAGE_API_BASE = lineageEnvBase.endsWith('/api') ? lineageEnvBase : `${lineageEnvBase}/api`;
 
+  // Both line-form pickers are server-side typeaheads that live *inside* the
+  // create/edit modal, so they prime only once it opens. Priming on mount cost two
+  // requests per page load for dropdowns nobody could see, and they queued ahead of
+  // the fetches the visible table was blocked on.
+  const pickersActive = isCreateOpen || editingSOId !== null;
+
+  // The item picker is Finished-Goods-scoped server-side, so it scales past any
+  // client-side cap on `items`.
+  const { results: itemResults, onSearch: onSearchItems } = useFinishedGoodsSearch({ enabled: pickersActive });
+
   // Combo Library governs which combos are offered — server-searched (thousands of
   // combos won't fit in a client-rendered <select>), scoped to active combos only.
-  const { results: comboResults, onSearch: onSearchCombos } = useComboSearch();
+  const { results: comboResults, onSearch: onSearchCombos } = useComboSearch({ enabled: pickersActive });
   const [lineageSO, setLineageSO] = useState<any>(null);
   const [lineageData, setLineageData] = useState<any>(null);
   const [lineageLoading, setLineageLoading] = useState(false);
@@ -1702,7 +1712,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    ? { ...tdBase, background: rowBg, paddingTop: 3, paddingBottom: 3, fontSize: '10px', borderBottom: isLast ? '1px solid #c0bdb5' : 'none', borderTop: isFirst ? 'none' : '1px dashed #d0cdc8', ...extra }
                                    : { background: rowBg, padding: '3px 10px', fontSize: '0.78rem', borderBottom: isLast ? '1px solid #dee2e6' : 'none', borderTop: isFirst ? 'none' : '1px dashed #e4e4e4', ...extra };
 
-                               const soPRs = (productionRuns || []).filter((pr: any) => String(pr.sales_order_id) === String(so.id));
+                               // Served with the row (see _populate_production_runs). Previously a
+                               // client-side filter over the windowed /production-runs feed, which
+                               // dropped the chip for any SO whose PR aged past the newest 50.
+                               const soPRs: any[] = so.production_runs || [];
 
                                const poCellContent = (
                                    <>
