@@ -12,6 +12,7 @@ import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCa
 import Pager from '../shared/Pager';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption } from '../shared/shellTheme';
 import { lvThead, SortableTh } from '../shared/listViewTheme';
+import { qtyFmt } from '../shared/format';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
 
@@ -39,7 +40,9 @@ const shortRef = (id: string) => {
     return looksUuid ? id.slice(0, 8) + '…' : id;
 };
 
-const fmtQty = (n: number) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
+// Ledger movements carry the rawest numbers in the app — 4dp so a small
+// correction entry is not rounded away.
+const fmtQty = qtyFmt(4);
 const fmtDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 

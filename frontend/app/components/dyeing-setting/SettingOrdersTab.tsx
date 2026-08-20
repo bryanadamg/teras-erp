@@ -7,6 +7,7 @@ import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
 import { CodeChip, xpFont, ListSkeleton } from '../shared/xpTheme';
+import { orDash, fmtQtyFixed } from '../shared/format';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -107,11 +108,7 @@ const EMPTY_COMPLETE: CompleteForm = {
 const SO_WO_PAGE_SIZE = 20;
 const SO_RUN_PAGE_SIZE = 20;
 
-const fmtNum = (v: any, decimals = 2) => {
-    if (v == null || v === '') return '—';
-    const n = parseFloat(v);
-    return isNaN(n) ? '—' : n.toFixed(decimals);
-};
+const fmtNum = (v: any, decimals = 2) => orDash(v, x => fmtQtyFixed(x, decimals));
 
 const statusChip = (status: string, classic: boolean) => {
     const base: React.CSSProperties = classic ? {

@@ -11,6 +11,7 @@ import {
     ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip, rowStateBg,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
+import { fmtQtyCompact } from '../shared/format';
 
 /**
  * Work-center dispatch queue — the PIC's screen.
@@ -128,8 +129,7 @@ const HINT_LABEL: Record<string, string> = {
     unknown: 'work centre unknown',
 };
 
-const num = (v: number, dp = 1) =>
-    (Math.abs(v) >= 1000 ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : v.toFixed(dp));
+const num = fmtQtyCompact;
 
 // Where the queue date came from. The PIC must be able to tell a real plan date
 // from a stand-in — "created" means nobody scheduled the order and the row is

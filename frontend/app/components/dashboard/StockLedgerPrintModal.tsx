@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
 import { useTimezone } from '../../context/TimezoneContext';
 import { xpFont } from '../shared/xpTheme';
+import { qtyFmt } from '../shared/format';
 
 type ColumnDef = { key: string; label: string; width: number };
 const COLUMN_DEFS: ColumnDef[] = [
@@ -38,7 +39,7 @@ const shortRef = (id: string) => {
     const looksUuid = id.length > 14 && /[0-9a-f-]{12,}/i.test(id);
     return looksUuid ? id.slice(0, 8) + '…' : id;
 };
-const fmtQty = (n: number) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
+const fmtQty = qtyFmt(4);   // matches ReportsView, which this prints
 
 function LedgerDocument({ entries, locations, attributes, companyProfile, periodLabel, totals, filtersSummary, hiddenCount, visibleCols }: any) {
     const { formatDateTime: tzDateTime } = useTimezone();

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import PrintModalShell from '../shared/PrintModalShell';
 import { xpFont } from '../shared/xpTheme';
+import { fmtMoney } from '../shared/format';
 
 // PO document fields (SSN, rate, kurs, code, payment, category, VAT, discount, notes)
 // now live on the PurchaseOrder record — entered at PO creation, read here from `po`.
@@ -34,8 +35,7 @@ const FOOTER_NOTES = [
 
 const MIN_TABLE_ROWS = 8;
 
-const money = (n: number) =>
-    (Number.isFinite(n) ? n : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = fmtMoney;
 
 const formatDate = (d: string | null | undefined) => {
     if (!d) return '';

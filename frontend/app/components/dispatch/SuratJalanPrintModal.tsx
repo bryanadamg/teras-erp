@@ -5,6 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell from '../shared/PrintModalShell';
 import { xpFont as font } from '../shared/xpTheme';
+import { qtyFmt } from '../shared/format';
 
 
 // Perincian spreads each group's cartons across fixed columns; a group with more
@@ -27,12 +28,9 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
         try { return tzFmt(d, { day: '2-digit', month: 'short', year: 'numeric' }, 'en-GB').replace(/ /g, '-'); }
         catch { return ''; }
     };
-    const num = (n: any) => {
-        const v = Number(n) || 0;
-        // Indonesian decimal comma, and no trailing ",0" on whole numbers (the
-        // client's sheet reads "37" and "36,7" side by side).
-        return v.toLocaleString('id-ID', { maximumFractionDigits: 2 });
-    };
+    // Indonesian decimal comma, and no trailing ",0" on whole numbers (the
+    // client's sheet reads "37" and "36,7" side by side).
+    const num = qtyFmt(2, 'id-ID');
 
     // The client's Surat Jalan is one row per item+colour with a single total qty;
     // the per-carton breakdown lives in the Perincian band below. Our lines are

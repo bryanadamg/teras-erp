@@ -17,6 +17,7 @@ import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, Tool
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { Tabs } from '../shared/Tabs';
+import { qtyFmt, toNum as num } from '../shared/format';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
@@ -39,8 +40,7 @@ const subTd: React.CSSProperties = lvSubTd(true);
 const subTable: React.CSSProperties = lvSubTable(true);
 const xpLabel: React.CSSProperties = lvLabel(true);
 
-const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
-const fmtQty = (v: any) => num(v).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+const fmtQty = qtyFmt(2, 'id-ID');   // the deck feeds a printed Surat Jalan
 const PAGE_SIZE = 20;
 // '' = no status filter; the bar renders it as the leading "All" segment.
 const SHIPMENT_STATUS_FILTERS = [
