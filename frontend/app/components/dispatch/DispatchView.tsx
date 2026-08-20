@@ -10,7 +10,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
-    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg,
+    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg,
 } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -247,7 +247,7 @@ export default function DispatchView() {
                                 <td style={{ ...td, textAlign: 'center' }}>
                                     <RowCheckbox classic checked={sel.isSelected(d)} onChange={() => sel.toggle(d)} label={`pick list ${d.code}`} />
                                 </td>
-                                <td style={{ ...td, fontFamily: CODE_FONT }}>{d.code}</td>
+                                <td style={td}><CodeChip code={d.code} classic tone="accent" /></td>
                                 <td style={td}>{d.sales_order_code || '-'}</td>
                                 <td style={td}>{d.customer_po_ref || '-'}</td>
                                 <td style={td}>{d.customer_name || '-'}</td>
@@ -310,8 +310,8 @@ export default function DispatchView() {
                                         style={{ ...rowStyle(i), ...(open ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
                                         onClick={() => setExpandedId(open ? null : String(shp.id))}
                                     >
-                                        <td style={{ ...td, fontFamily: CODE_FONT }}>{shp.code}</td>
-                                        <td style={{ ...td, fontFamily: CODE_FONT }}>{shp.delivery_note_number || '-'}</td>
+                                        <td style={td}><CodeChip code={shp.code} classic tone="accent" /></td>
+                                        <td style={td}>{shp.delivery_note_number ? <CodeChip code={shp.delivery_note_number} classic /> : '—'}</td>
                                         <td style={td}>{shp.customer_name || '-'}</td>
                                         <td style={td}>{shp.vehicle_plate || '-'}</td>
                                         <td style={{ ...td, textAlign: 'right' }}>{shp.carton_count}</td>
@@ -492,13 +492,13 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
                         {(shp.pick_lists || []).flatMap((pl: any) =>
                             (pl.lines || []).map((l: any) => (
                                 <tr key={`${pl.id}-${l.id}`}>
-                                    <td style={{ ...subTd, fontFamily: CODE_FONT }}>{pl.code}</td>
+                                    <td style={subTd}><CodeChip code={pl.code} classic tier={2} /></td>
                                     <td style={subTd}>{pl.sales_order_code || '-'}</td>
                                     <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '-'}</td>
                                     <td style={subTd}>
                                         {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : '-'}
                                     </td>
-                                    <td style={{ ...subTd, fontFamily: CODE_FONT }}>{l.batch_number || '-'}</td>
+                                    <td style={subTd}>{l.batch_number ? <CodeChip code={l.batch_number} classic tier={2} /> : '—'}</td>
                                     <td style={{ ...subTd, textAlign: 'right' }}>{fmtQty(l.qty_picked)} {l.item_uom || ''}</td>
                                 </tr>
                             )))}
@@ -648,7 +648,7 @@ function EditShipmentModal({ shp, deck, authFetch, showToast, onClose, onSaved }
                             <label key={String(c.id)} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '2px 0' }}>
                                 <RowCheckbox classic checked={!!members[String(c.id)]} label={`pick list ${c.code}`}
                                     onChange={() => setMembers(m => ({ ...m, [String(c.id)]: !m[String(c.id)] }))} />
-                                <span style={{ fontFamily: CODE_FONT }}>{c.code}</span>
+                                <CodeChip code={c.code} classic tier={2} />
                                 <span style={{ color: '#555' }}>{c.sales_order_code} · {c.carton_count} ctn</span>
                             </label>
                         ))}
@@ -711,7 +711,7 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                                         <RowCheckbox classic checked={!!ticked[String(c.id)]} label={`carton ${c.batch_number}`}
                                             onChange={() => setTicked(t => ({ ...t, [String(c.id)]: !t[String(c.id)] }))} />
                                     </td>
-                                    <td style={{ ...td, fontFamily: CODE_FONT }}>{c.batch_number}</td>
+                                    <td style={td}><CodeChip code={c.batch_number} classic tier={2} /></td>
                                     <td style={td}>{c.item_name}</td>
                                     <td style={td}>{c.color_name || '-'}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>{fmtQty(c.qty_picked)} {c.item_uom || ''}</td>
