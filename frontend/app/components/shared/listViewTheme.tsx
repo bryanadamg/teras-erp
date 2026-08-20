@@ -250,6 +250,17 @@ export function useRowSelection<T>(
     };
 }
 
+// Row of a checkbox PICKER list — the lot pickers in the WO completion, WO
+// staging and packing-log modals, which are `<label>` stacks rather than tables.
+// Three files had byte-identical copies of this style object. Deliberately a
+// lighter fill than a data row's `rowStateBg('selected')`: these lists are 10px
+// dense and sit inside a form, where the full selection blue reads as an error.
+export const lvPickerRow = (classic: boolean, on: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'flex-start', gap: 5, padding: '3px 5px', cursor: 'pointer',
+    borderBottom: `1px solid ${classic ? '#eceae2' : '#eef2f7'}`,
+    background: on ? (classic ? '#e6f0ff' : '#eff6ff') : 'transparent',
+});
+
 const checkboxStyle = (classic: boolean, enabled: boolean): React.CSSProperties =>
     ({ margin: 0, cursor: enabled ? 'pointer' : 'not-allowed', verticalAlign: 'middle' });
 

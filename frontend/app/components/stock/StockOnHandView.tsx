@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { SortMark, useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { SortMark, useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
@@ -610,9 +610,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
         return (
             <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
-                className={classic ? undefined : (sel.isSelectedKey(rk) ? 'table-primary' : qStatus ? 'table-danger' : undefined)}
+                className={classic ? undefined : (qStatus && !sel.isSelectedKey(rk) ? 'table-danger' : undefined)}
                 title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
-                style={classic ? { background: sel.isSelectedKey(rk) ? (i % 2 === 0 ? '#e8f0fb' : '#dee9f7') : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' } : undefined}>
+                style={classic
+                    ? { background: sel.isSelectedKey(rk) ? rowStateBg('selected', true) : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' }
+                    : (sel.isSelectedKey(rk) ? { background: rowStateBg('selected', false) } : undefined)}>
                 <td className={classic ? undefined : 'text-center'} style={classic ? { padding: '4px 6px', textAlign: 'center', ...colDivider } : colDivider}>{checkCell}</td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     <div title={bal.item_name}

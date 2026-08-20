@@ -12,7 +12,7 @@ import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
     useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg,
 } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -80,7 +80,6 @@ export default function DispatchView() {
     const [editing, setEditing] = useState<any | null>(null);     // shipment header edit
     const [verifying, setVerifying] = useState<any | null>(null);
     const [printShp, setPrintShp] = useState<any | null>(null);
-    const [selected, setSelected] = useState<Record<string, boolean>>({});
 
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(180);
@@ -117,7 +116,10 @@ export default function DispatchView() {
         await Promise.all([loadDeck(), loadShipments()]);
     }, [loadDeck, loadShipments]);
 
-    const selectedDeck = useMemo(() => deck.filter(d => selected[String(d.id)]), [deck, selected]);
+    // Keeps the pick-list rows themselves — staging posts their ids and the header
+    // count sums their cartons.
+    const sel = useRowSelection<any>(deck, d => String(d.id));
+    const selectedDeck = sel.items;
     // One Surat Jalan addresses one customer — the backend rejects a mixed set, so
     // the button is disabled rather than letting the user find out on submit.
     const mixedCustomers = useMemo(
@@ -137,7 +139,7 @@ export default function DispatchView() {
         }
         const shp = await res.json();
         setStaging(null);
-        setSelected({});
+        sel.clear();
         await refreshAll();
         setTab('shipments');
         showToast(`Staged ${shp.code} — Surat Jalan ${shp.delivery_note_number}`, 'success');
@@ -219,7 +221,10 @@ export default function DispatchView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: 11 }}>
                     <thead>
                         <tr>
-                            <th style={{ ...xpTableHeader, width: 30 }} />
+                            <th style={{ ...xpTableHeader, width: LV_CHECK_COL_W, textAlign: 'center' }}>
+                                <SelectAllCheckbox classic allSelected={sel.allPageSelected} someSelected={sel.someSelected}
+                                    disabled={!sel.pageEligibleCount} onChange={sel.togglePage} />
+                            </th>
                             <th style={xpTableHeader}>Pick List</th>
                             <th style={xpTableHeader}>SO</th>
                             <th style={xpTableHeader}>Customer PO</th>
@@ -238,13 +243,9 @@ export default function DispatchView() {
                             </td></tr>
                         ))}
                         {deck.map((d, i) => (
-                            <tr key={String(d.id)} style={rowStyle(i)}>
+                            <tr key={String(d.id)} style={{ ...rowStyle(i), ...(sel.isSelected(d) ? { background: rowStateBg('selected', true) } : {}) }}>
                                 <td style={{ ...td, textAlign: 'center' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={!!selected[String(d.id)]}
-                                        onChange={e => setSelected(s => ({ ...s, [String(d.id)]: e.target.checked }))}
-                                    />
+                                    <RowCheckbox classic checked={sel.isSelected(d)} onChange={() => sel.toggle(d)} label={`pick list ${d.code}`} />
                                 </td>
                                 <td style={{ ...td, fontFamily: CODE_FONT }}>{d.code}</td>
                                 <td style={td}>{d.sales_order_code || '-'}</td>
@@ -644,11 +645,8 @@ function EditShipmentModal({ shp, deck, authFetch, showToast, onClose, onSaved }
                     <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid #b0a898', padding: 6, background: '#fff' }}>
                         {candidates.map((c: any) => (
                             <label key={String(c.id)} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '2px 0' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={!!members[String(c.id)]}
-                                    onChange={e => setMembers(m => ({ ...m, [String(c.id)]: e.target.checked }))}
-                                />
+                                <RowCheckbox classic checked={!!members[String(c.id)]} label={`pick list ${c.code}`}
+                                    onChange={() => setMembers(m => ({ ...m, [String(c.id)]: !m[String(c.id)] }))} />
                                 <span style={{ fontFamily: CODE_FONT }}>{c.code}</span>
                                 <span style={{ color: '#555' }}>{c.sales_order_code} · {c.carton_count} ctn</span>
                             </label>
@@ -696,7 +694,7 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                         <thead>
                             <tr>
-                                <th style={{ ...xpTableHeader, width: 30 }} />
+                                <th style={{ ...xpTableHeader, width: LV_CHECK_COL_W, textAlign: 'center' }} />
                                 <th style={xpTableHeader}>Carton</th>
                                 <th style={xpTableHeader}>Item</th>
                                 <th style={xpTableHeader}>Colour</th>
@@ -707,8 +705,10 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                             {cartons.map((c: any, i: number) => (
                                 <tr key={String(c.id)} style={rowStyle(i)}>
                                     <td style={{ ...td, textAlign: 'center' }}>
-                                        <input type="checkbox" checked={!!ticked[String(c.id)]}
-                                            onChange={e => setTicked(t => ({ ...t, [String(c.id)]: e.target.checked }))} />
+                                        {/* Ticked one carton at a time by design — a select-all
+                                            would defeat the second count. */}
+                                        <RowCheckbox classic checked={!!ticked[String(c.id)]} label={`carton ${c.batch_number}`}
+                                            onChange={() => setTicked(t => ({ ...t, [String(c.id)]: !t[String(c.id)] }))} />
                                     </td>
                                     <td style={{ ...td, fontFamily: CODE_FONT }}>{c.batch_number}</td>
                                     <td style={td}>{c.item_name}</td>

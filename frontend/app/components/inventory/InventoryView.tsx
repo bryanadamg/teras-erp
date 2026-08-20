@@ -11,11 +11,11 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W } from '../shared/listViewTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryTabIcon(name: string): string {
@@ -42,7 +42,7 @@ function getCategoryXPStyle(category: string): { bg: string; border: string; col
 // Floating [...] action menu — aggregates row actions (except the always-visible
 // Event Log button). Rendered in a fixed-position overlay so table overflow
 // never clips it.
-const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: string; icon: string; danger?: boolean; onClick: () => void }[]; classic: boolean; isSelected: boolean }) => {
+const RowActionMenu = memo(({ items, classic }: { items: { label: string; icon: string; danger?: boolean; onClick: () => void }[]; classic: boolean }) => {
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
     const btnRef = useRef<HTMLButtonElement>(null);
@@ -119,10 +119,10 @@ const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: st
                 title="More actions"
                 onClick={toggle}
                 style={classic
-                    ? { background: open ? (isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8') : 'none', border: '1px solid ' + (open ? '#7f9db9' : 'transparent'), borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#555', fontSize: '12px' }
+                    ? { background: open ? '#e8f0f8' : 'none', border: '1px solid ' + (open ? '#7f9db9' : 'transparent'), borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: '#555', fontSize: '12px' }
                     : undefined}
                 className={classic ? '' : 'btn btn-sm btn-link text-secondary p-0'}
-                onMouseEnter={classic ? (e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }) : undefined}
+                onMouseEnter={classic ? (e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }) : undefined}
                 onMouseLeave={classic ? (e => { if (!open) { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; } }) : undefined}
             >
                 <i className="bi bi-three-dots"></i>
@@ -138,13 +138,16 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
     const { hasPermission, hasAnyPermission } = useUser();
     const canManage = hasAnyPermission('item.create', 'item.edit');
     const canDelete = hasPermission('item.delete');
-    const rowBg = classic
-        ? (isSelected ? '#316ac5' : isEditing ? '#fff8cc' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee')
-        : undefined;
-    const textColor = classic && isSelected ? '#ffffff' : classic ? '#000000' : undefined;
+    // Selected and being-edited are the two shared row states — same fills as
+    // every other list (see rowStateBg). This row used to invert to XP selection
+    // blue with white text, which meant re-colouring the code chip, the category
+    // chip and every link inside it.
+    const rowBg = isSelected ? rowStateBg('selected', classic)
+        : isEditing ? rowStateBg('highlighted', classic)
+        : classic ? (rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined;
 
     const tdBase: React.CSSProperties = classic
-        ? { padding: '4px 6px', borderRight: '1px solid #c0bdb5', borderBottom: '1px solid #d0cdc8', verticalAlign: 'middle', color: textColor }
+        ? { padding: '4px 6px', borderRight: '1px solid #c0bdb5', borderBottom: '1px solid #d0cdc8', verticalAlign: 'middle', color: '#000000' }
         : {};
 
     const categoryDisplay = item.category_path?.length ? item.category_path.join(' / ') : (item.category || '');
@@ -152,18 +155,13 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
 
     return (
         <tr
-            className={classic ? '' : (isEditing ? 'table-primary' : isSelected ? 'table-active' : '')}
-            style={classic ? { background: rowBg, borderBottom: '1px solid #c0bdb5' } : undefined}
+            style={{ background: rowBg, ...(classic ? { borderBottom: '1px solid #c0bdb5' } : {}) }}
         >
-            <td style={classic ? { ...tdBase, width: '32px', textAlign: 'center' } : undefined} className={classic ? '' : 'ps-3'}>
+            <td style={classic ? { ...tdBase, width: LV_CHECK_COL_W, textAlign: 'center' } : { width: LV_CHECK_COL_W }} className={classic ? '' : 'ps-3'}>
                 <RowCheckbox classic={classic} checked={isSelected} onChange={() => onToggleSelect(item.id)} label={item.code} />
             </td>
             <td style={classic ? { ...tdBase, width: '110px' } : undefined} className={classic ? '' : 'ps-4'}>
-                <CodeChip
-                    code={item.code}
-                    classic={classic}
-                    style={isSelected ? { color: '#fff' } : undefined}
-                />
+                <CodeChip code={item.code} classic={classic} />
             </td>
             <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined}>
                 {item.name}
@@ -172,9 +170,9 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                 {categoryDisplay ? (
                     classic ? (
                         <span style={{
-                            background: isSelected ? 'rgba(255,255,255,0.2)' : catStyle!.bg,
-                            border: `1px solid ${isSelected ? 'rgba(255,255,255,0.5)' : catStyle!.border}`,
-                            color: isSelected ? '#fff' : catStyle!.color,
+                            background: catStyle!.bg,
+                            border: `1px solid ${catStyle!.border}`,
+                            color: catStyle!.color,
                             padding: '1px 5px',
                             fontSize: '9px',
                             fontFamily: xpFont,
@@ -190,7 +188,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
             </td>
             <td style={classic ? { ...tdBase, width: '55px' } : { width: '55px' }}>
                 {classic ? (
-                    <span style={{ color: isSelected ? '#e8f0ff' : '#333', fontSize: '9px' }}>{item.uom}</span>
+                    <span style={{ color: '#333', fontSize: '9px' }}>{item.uom}</span>
                 ) : (
                     <span className="text-muted small">{item.uom}</span>
                 )}
@@ -200,7 +198,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                     classic ? (
                         <a
                             href={`/samples?highlight=${item.source_sample_id}`}
-                            style={{ color: isSelected ? '#cce0ff' : '#0047c8', fontSize: '9px', fontFamily: xpFont, textDecoration: 'underline', cursor: 'pointer' }}
+                            style={{ color: '#0047c8', fontSize: '9px', fontFamily: xpFont, textDecoration: 'underline', cursor: 'pointer' }}
                             onClick={e => e.stopPropagation()}
                         >
                             ↖ {item.source_sample_code}{item.source_color_name ? ` · ${item.source_color_name}` : ''}
@@ -215,7 +213,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                         </a>
                     )
                 ) : (
-                    <span style={classic ? { color: isSelected ? '#cce0ff' : '#999', fontSize: '9px' } : undefined} className={classic ? '' : 'text-muted small'}>-</span>
+                    <span style={classic ? { color: '#999', fontSize: '9px' } : undefined} className={classic ? '' : 'text-muted small'}>-</span>
                 )}
             </td>
             <td style={{ ...tdBase, width: '70px' }}>
@@ -229,14 +227,14 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
             <td style={tdBase}>
                 {item.weight_per_unit != null ? (
                     classic ? (
-                        <span style={{ color: isSelected ? '#e8f0ff' : '#333', fontSize: '9px', whiteSpace: 'nowrap' }}>
+                        <span style={{ color: '#333', fontSize: '9px', whiteSpace: 'nowrap' }}>
                             {item.weight_per_unit} {item.weight_unit || ''}
                         </span>
                     ) : (
                         <span className="text-muted small">{item.weight_per_unit} {item.weight_unit || ''}</span>
                     )
                 ) : (
-                    <span style={classic ? { color: isSelected ? '#cce0ff' : '#999', fontSize: '9px' } : undefined} className={classic ? '' : 'text-muted small'}>-</span>
+                    <span style={classic ? { color: '#999', fontSize: '9px' } : undefined} className={classic ? '' : 'text-muted small'}>-</span>
                 )}
             </td>
             <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' } : undefined}>
@@ -246,15 +244,14 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             <button
                                 title="View History"
                                 onClick={() => onViewHistory(item.id)}
-                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#555', fontSize: '12px' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }}
+                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: '#555', fontSize: '12px' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                             >
                                 <i className="bi bi-clock-history"></i>
                             </button>
                             <RowActionMenu
                                 classic={classic}
-                                isSelected={isSelected}
                                 items={[
                                     ...(canManage ? [{ label: 'Edit', icon: 'bi-pencil-square', onClick: () => onEdit(item) }] : []),
                                     ...(canDelete ? [{ label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => onDelete(item.id) }] : []),
@@ -268,7 +265,6 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             </button>
                             <RowActionMenu
                                 classic={classic}
-                                isSelected={isSelected}
                                 items={[
                                     ...(canManage ? [{ label: 'Edit', icon: 'bi-pencil-square', onClick: () => onEdit(item) }] : []),
                                     ...(canDelete ? [{ label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => onDelete(item.id) }] : []),
@@ -1343,7 +1339,7 @@ export default function InventoryView({
                     style={classic ? xpTableHeader : undefined}
                     className={classic ? '' : 'table-light'}
                   >
-                    <th style={classic ? { ...xpThCell, width: '32px', textAlign: 'center' } : { width: '40px' }} className={classic ? '' : 'ps-3'}>
+                    <th style={classic ? { ...xpThCell, width: LV_CHECK_COL_W, textAlign: 'center' } : { width: LV_CHECK_COL_W }} className={classic ? '' : 'ps-3'}>
                         <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} />
                     </th>
                     <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-4'} onClick={() => toggleSort('code')} title="Sort">{t('item_code')}<SortMark sort={sort} colKey="code" /></th>

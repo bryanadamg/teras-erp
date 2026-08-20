@@ -7,6 +7,7 @@ import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import { LotChips, LotChip } from '../shared/LotChips';
 import { CodeChip, xpFont } from '../shared/xpTheme';
+import { RowCheckbox, lvPickerRow } from '../shared/listViewTheme';
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
@@ -524,19 +525,14 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                             ) : (batchesByItem[r.item_id] || []).map((b: any) => {
                                                                 const checked = (batchByItem[r.item_id] || []).includes(b.id);
                                                                 return (
-                                                                    <label key={b.id} style={{
-                                                                        display: 'flex', alignItems: 'flex-start', gap: 5,
-                                                                        padding: '3px 5px', cursor: 'pointer',
-                                                                        borderBottom: '1px solid #eceae2',
-                                                                        background: checked ? '#e6f0ff' : 'transparent',
-                                                                    }}>
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            style={{ marginTop: 1 }}
+                                                                    <label key={b.id} style={lvPickerRow(true, checked)}>
+                                                                        <RowCheckbox
+                                                                            classic
                                                                             checked={checked}
-                                                                            onChange={e => setBatchByItem(p => {
+                                                                            label={b.batch_number || 'lot'}
+                                                                            onChange={() => setBatchByItem(p => {
                                                                                 const cur = p[r.item_id] || [];
-                                                                                const next = e.target.checked
+                                                                                const next = !checked
                                                                                     ? [...cur, b.id]
                                                                                     : cur.filter(id => id !== b.id);
                                                                                 return { ...p, [r.item_id]: next };

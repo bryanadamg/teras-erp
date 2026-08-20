@@ -10,7 +10,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, RowCheckbox, lvPickerRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -1390,13 +1390,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 const id = String(b.id);
                                                 const on = selSet.has(id);
                                                 return (
-                                                    <label key={id} style={{
-                                                        display: 'flex', alignItems: 'flex-start', gap: 5, padding: '3px 5px',
-                                                        fontSize: 10, cursor: 'pointer', borderBottom: '1px solid #eceae2',
-                                                        background: on ? '#e6f0ff' : 'transparent',
-                                                    }}>
-                                                        <input type="checkbox" style={{ marginTop: 1 }} checked={on}
-                                                            onChange={e => toggleLot(id, e.target.checked)} />
+                                                    <label key={id} style={{ ...lvPickerRow(CLASSIC, on), fontSize: 10 }}>
+                                                        <RowCheckbox classic={CLASSIC} checked={on} label={b.batch_number || 'lot'}
+                                                            onChange={() => toggleLot(id, !on)} />
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                                                 <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{b.batch_number}</span>
