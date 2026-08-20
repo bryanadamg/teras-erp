@@ -274,9 +274,10 @@ export function RowCheckbox({ classic, checked, onChange, disabled, title, label
     );
 }
 
-/** Header checkbox. Owns the `indeterminate` ref-poke that every call site
- *  hand-wrote (and two of them wrote wrongly, leaving it lit when all rows
- *  were selected). */
+/** Header checkbox. Owns the `indeterminate` ref-poke: four views each derived
+ *  the partial state from their own `someSelected` expression, and Stock On-Hand
+ *  had no partial state at all — its header read as fully unchecked with half
+ *  the page ticked. */
 export function SelectAllCheckbox({ classic, allSelected, someSelected, onChange, disabled, title }: {
     classic: boolean; allSelected: boolean; someSelected: boolean; onChange: () => void;
     disabled?: boolean; title?: string;
