@@ -24,7 +24,7 @@ import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { SearchField } from '../shared/shellTheme';
+import { SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -613,7 +613,7 @@ export default function WorkOrderListView({
     };
 
     const containerStyle: React.CSSProperties = {
-        display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)',
+        ...pageFillStyle,
         ...(classic ? {
             border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
             background: '#ece9d8', fontFamily: xpFont,

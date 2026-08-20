@@ -7,6 +7,7 @@ import CategoriesView from './CategoriesView';
 import UOMLibraryView from './UOMLibraryView';
 import AttributesLibraryView from './AttributesLibraryView';
 import { LvTabBar } from '../shared/listViewTheme';
+import { pageFillStyle } from '../shared/shellTheme';
 
 interface Props {
     categories: any[];
@@ -53,8 +54,8 @@ export default function ItemMetadataView({
 
     return (
         <div className="fade-in" style={classic
-            ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            ? { ...pageFillStyle, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { ...pageFillStyle, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
             <div style={classic
                 ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }

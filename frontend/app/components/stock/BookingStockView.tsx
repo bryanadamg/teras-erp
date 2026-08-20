@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, pageFillStyle } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra, TableEmpty } from '../shared/listViewTheme';
 
@@ -195,7 +195,7 @@ export default function BookingStockView() {
     const numCellM: React.CSSProperties = { whiteSpace: 'nowrap' };
 
     return (
-        <div className={classic ? 'fade-in' : 'fade-in p-2'} style={classic ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 } : undefined}>
+        <div className={classic ? 'fade-in' : 'fade-in p-2'} style={classic ? pageFillStyle : undefined}>
             <div style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 } : undefined} className={classic ? undefined : 'card shadow-sm'}>
                 <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header d-flex align-items-center justify-content-between py-2'}>
                     <span className={classic ? undefined : 'fw-semibold'}>

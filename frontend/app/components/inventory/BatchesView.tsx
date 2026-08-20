@@ -11,7 +11,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
   { value: 'active', label: 'Active' },
@@ -817,7 +817,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const ROW_H = classic ? 40 : 44;
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+    <div className="fade-in" style={pageFillStyle}>
       {classic ? (
         <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* ── Title bar ── */}

@@ -11,7 +11,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra, TableEmpty } from '../shared/listViewTheme';
 import { API_BASE, STATIC_BASE } from '../shared/apiBase';
@@ -506,8 +506,8 @@ export default function LabDipRequestView({
 
     return (
         <div style={classic
-            ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            ? { ...pageFillStyle, fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { ...pageFillStyle, fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
             {/* Title bar */}
             <div style={classic
                 ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }

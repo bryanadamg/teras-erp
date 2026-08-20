@@ -15,6 +15,7 @@ import { xpFont, xpInput, xpLabel, ModalFooterActions } from '../shared/xpTheme'
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
+import { pageFillStyle } from '../shared/shellTheme';
 
 export default function ManufacturingView({
     items,
@@ -504,8 +505,7 @@ export default function ManufacturingView({
                   borderRadius: 0,
                   boxShadow: classic ? '2px 2px 4px rgba(0,0,0,0.3)' : undefined,
                   background: classic ? '#ece9d8' : undefined,
-                  display: 'flex', flexDirection: 'column',
-                  height: 'calc(var(--app-vh) - 80px)',
+                  ...pageFillStyle,
               }} className={classic ? '' : 'card h-100 border-0 shadow-sm'}>
 
                   {/* ── Title bar / toolbar ── */}

@@ -12,7 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
 import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh, lvThSticky, lvTdRuled, lvZebra, Dash } from '../shared/listViewTheme';
@@ -1175,7 +1175,7 @@ export default function InventoryView({
       <div className="col-12 order-2 order-md-1">
         {/* ── Outer shell: XP bevel in classic, Bootstrap card in default ── */}
         <div
-          style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' } : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}
+          style={classic ? { ...xpBevel, ...pageFillStyle } : pageFillStyle}
           className={classic ? '' : 'card h-100 border-0 shadow-sm'}
         >
           {/* ── Title bar ── */}

@@ -26,7 +26,7 @@ import {
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvZebra, Dash } from '../shared/listViewTheme';
 import { qtyFmt } from '../shared/format';
 
@@ -619,9 +619,9 @@ export default function MachineOutputReportView() {
     const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
 
     return (
-        <div className={classic ? 'fade-in' : 'card fade-in border-0 shadow-sm'} style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+        <div className={classic ? 'fade-in' : 'card fade-in border-0 shadow-sm'} style={pageFillStyle}>
             <div style={classic
-                ? sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })
+                ? sharedXpBevel(flexFillStyle)
                 : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
             >
                 {classic ? (

@@ -10,7 +10,7 @@ import {
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { lvThead, SortableTh, lvZebra, Dash } from '../shared/listViewTheme';
 import { qtyFmt } from '../shared/format';
 
@@ -544,8 +544,8 @@ export default function ReportsView(_props: any) {
 
     return (
         <>
-        <div className={classic ? 'fade-in print-container' : 'card fade-in border-0 shadow-sm print-container'} style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-            <div style={classic ? sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }) : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div className={classic ? 'fade-in print-container' : 'card fade-in border-0 shadow-sm print-container'} style={pageFillStyle}>
+            <div style={classic ? sharedXpBevel(flexFillStyle) : flexFillStyle}>
                 {classic ? (
                     <div style={titleBar} className="no-print">
                         <span><i className="bi bi-journal-text" style={{ marginRight: 6 }} />{t('stock_ledger')}</span>

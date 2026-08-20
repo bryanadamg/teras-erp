@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
 import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -1217,9 +1217,9 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     );
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+        <div className="fade-in" style={pageFillStyle}>
             <div
-                style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                style={classic ? { ...xpBevel, ...flexFillStyle } : flexFillStyle}
                 className={classic ? undefined : 'card shadow-sm border-0'}
             >
                 <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center py-3'}>
