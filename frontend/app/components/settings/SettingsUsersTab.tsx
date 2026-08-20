@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg, StatusChip } from '../shared/xpTheme';
 import { SearchField, ToolbarCount, FilterChipBar } from '../shared/shellTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
@@ -300,19 +300,7 @@ export default function SettingsUsersTab({
                                             {formatLastLogin(user.last_login_at)}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>
-                                            {user.is_active ? (
-                                                classic ? (
-                                                    <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>Active</span>
-                                                ) : (
-                                                    <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>Active</span>
-                                                )
-                                            ) : (
-                                                classic ? (
-                                                    <span style={{ background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>Inactive</span>
-                                                ) : (
-                                                    <span className="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25" style={{fontSize: '0.65rem'}}>Inactive</span>
-                                                )
-                                            )}
+                                            <StatusChip status={user.is_active ? 'ACTIVE' : 'INACTIVE'} tint />
                                         </td>
                                         <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
                                             {classic ? (

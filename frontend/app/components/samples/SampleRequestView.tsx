@@ -1688,9 +1688,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                </span>,
                                                isApproved ? (
                                                    <div style={{ textAlign: 'center' as const }}>
-                                                       {classic
-                                                           ? <div style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: xpFont }}>Approved</div>
-                                                           : <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>}
+                                                       <StatusChip status="APPROVED" label="Approved" tint />
                                                        {c.approval_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: xpFont, fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.approval_notes}</div>}
                                                    </div>
                                                ) : isRejected ? (

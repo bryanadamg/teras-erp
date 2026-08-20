@@ -142,6 +142,12 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     // An open order with no work order cut for it. Amber, not red: nothing is
     // broken, someone just has to release it before the floor can touch it.
     NOT_RELEASED: 'amber',
+    // Derived (MO/WO lists): a PENDING order whose earlier routing steps are not
+    // finished. Gray — it is not started and not broken, just not its turn.
+    BLOCKED: 'gray',
+    // Lot quality_status beyond REJECTED: still usable keeps its warning colour,
+    // disposed is terminal and out of every picker.
+    REJECT_USABLE: 'amber', DISPOSED: 'gray',
 };
 
 const FAMILY_SOLID: Record<StatusFamily, string> = {

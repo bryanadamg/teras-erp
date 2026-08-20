@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip, xpFont, ListSkeleton } from '../shared/xpTheme';
+import { CodeChip, xpFont, ListSkeleton, StatusChip } from '../shared/xpTheme';
 import { orDash, fmtQtyFixed } from '../shared/format';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
@@ -109,34 +109,6 @@ const SO_WO_PAGE_SIZE = 20;
 const SO_RUN_PAGE_SIZE = 20;
 
 const fmtNum = (v: any, decimals = 2) => orDash(v, x => fmtQtyFixed(x, decimals));
-
-const statusChip = (status: string, classic: boolean) => {
-    const base: React.CSSProperties = classic ? {
-        display: 'inline-block', fontFamily: xpFont, fontSize: 9, fontWeight: 'bold',
-        padding: '1px 6px', border: '1px solid',
-    } : {
-        display: 'inline-block', fontFamily: modernFont, fontSize: 10, fontWeight: 700,
-        padding: '2px 8px', border: '1px solid', borderRadius: 6,
-    };
-    switch (status) {
-        case 'COMPLETED':
-            return classic
-                ? <span style={{ ...base, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>
-                : <span style={{ ...base, background: '#dcfce7', borderColor: '#86efac', color: '#15803d' }}>COMPLETED</span>;
-        case 'IN_PROGRESS':
-            return classic
-                ? <span style={{ ...base, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>
-                : <span style={{ ...base, background: '#eff6ff', borderColor: '#bfd3f5', color: '#1d4ed8' }}>IN PROGRESS</span>;
-        case 'CANCELLED':
-            return classic
-                ? <span style={{ ...base, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>
-                : <span style={{ ...base, background: '#fee2e2', borderColor: '#fca5a5', color: '#b91c1c' }}>CANCELLED</span>;
-        default:
-            return classic
-                ? <span style={{ ...base, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>
-                : <span style={{ ...base, background: '#f1f5f9', borderColor: '#cbd3df', color: '#64748b' }}>PENDING</span>;
-    }
-};
 
 export default function SettingOrdersTab({ items, authFetch }: Props) {
     const { uiStyle } = useTheme();
@@ -358,7 +330,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                     />
                                 )}
                                 {wo.status && (
-                                    <div style={{ marginTop: 2 }}>{statusChip(wo.status, classic)}</div>
+                                    <div style={{ marginTop: 2 }}><StatusChip status={wo.status || 'PENDING'} /></div>
                                 )}
                             </div>
                         );
@@ -490,7 +462,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                     <td style={tdStyle}>{fmtNum(run.speed_mpm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.width_cm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.overfeed_pct, 2)}</td>
-                                                    <td style={tdStyle}>{statusChip(run.status || 'PENDING', classic)}</td>
+                                                    <td style={tdStyle}><StatusChip status={run.status || 'PENDING'} /></td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_width_cm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_gsm, 2)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_shrinkage_pct, 2)}</td>

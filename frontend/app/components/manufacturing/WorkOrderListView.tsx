@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg, StatusChip } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, SortableTh } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
@@ -375,16 +375,6 @@ export default function WorkOrderListView({
     const xpInput: React.CSSProperties = {
         fontFamily: xpFont, fontSize: 11,
         border: '1px solid #7f9db9', background: 'white', height: 20, padding: '0 4px', outline: 'none',
-    };
-
-    const statusChip = (status: string) => {
-        if (!classic) return <span className={`badge extra-small ${
-            status === 'COMPLETED' ? 'bg-success' :
-            status === 'IN_PROGRESS' ? 'bg-warning text-dark' :
-            status === 'CANCELLED' ? 'bg-danger' : 'bg-secondary'
-        }`}>{status.replace('_', ' ')}</span>;
-
-        return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
     };
 
     // Selection holds the WO rows themselves — the bulk print modal needs the
@@ -981,7 +971,7 @@ export default function WorkOrderListView({
                                                                 onClick={e => toggleStatusMenu(wo.id, e)}
                                                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, cursor: 'pointer' }}
                                                             >
-                                                                {statusChip(wo.status)}
+                                                                <StatusChip status={wo.status || 'PENDING'} />
                                                                 {hasStaging && (
                                                                     <i className={`bi ${wo.staging_status === 'STAGED' ? 'bi-box-seam-fill' : 'bi-box-seam'}`}
                                                                         title={stagingLabel}

@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -22,6 +22,7 @@ import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLoc
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
 import { ExpanderCell, SortableTh } from '../shared/listViewTheme';
+import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
@@ -507,6 +508,28 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   // Product — item code on line 1, then what the lot actually IS as chips: size
   // (from the lot's stamped bom_size_snapshot), combo and shade (from the producing
   // MO's variant attributes). Same identity vocabulary as the staging/completion
+  // One chip for the lot's quality grade in both themes. The vocabulary comes
+  // from rejectDisplay so a rejected lot reads the same here as on the
+  // completion log that rejected it.
+  const qualityChip = (b: any) => {
+    const label = rejectGradeLabel(b.quality_status);
+    if (!label) return null;
+    return (
+      <StatusChip
+        status={b.quality_status}
+        label={label}
+        tint
+        style={{ marginLeft: 5 }}
+        title={b.quality_status === 'REJECT_USABLE'
+          ? 'Rejected but still usable — out of availability planning, still offered in consumption pickers'
+          : undefined}
+      />
+    );
+  };
+
+  // Product — item code on line 1, then what the lot actually IS as chips: size
+  // (from the lot's stamped bom_size_snapshot), combo and shade (from the producing
+  // MO's variant attributes). Same identity vocabulary as the staging/completion
   // lot pickers — see components/shared/LotChips.tsx for the label rules.
   const productCell = (b: Batch) => {
     const sz = lotSizeLabel(b);
@@ -872,18 +895,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                         tdStyle={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }} />
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>
                         <strong>{b.batch_number}</strong>
-                        {b.quality_status === 'REJECTED' && (
-                          <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fbe4e4', padding: '0 3px' }}>REJECTED</span>
-                        )}
-                        {b.quality_status === 'REJECT_USABLE' && (
-                          <span
-                            style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#663300', border: '1px solid #d9b06a', background: '#fdf3e0', padding: '0 3px' }}
-                            title="Rejected but still usable — out of availability planning, still offered in consumption pickers"
-                          >REJECT · USABLE</span>
-                        )}
-                        {b.quality_status === 'DISPOSED' && (
-                          <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', border: '1px solid #aaa', background: '#eee', padding: '0 3px' }}>DISPOSED</span>
-                        )}
+                        {qualityChip(b)}
                       </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{productCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{originCell(b)}</td>
@@ -995,14 +1007,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       <ExpanderCell classic={false} expanded={!!expandedRows[b.id]} onToggle={() => toggleExpand(b)} label="lot lineage" />
                       <td>
                         <strong>{b.batch_number}</strong>
-                        {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}
-                        {b.quality_status === 'REJECT_USABLE' && (
-                          <span
-                            className="badge bg-warning text-dark ms-1"
-                            title="Rejected but still usable — out of availability planning, still offered in consumption pickers"
-                          >REJECT · USABLE</span>
-                        )}
-                        {b.quality_status === 'DISPOSED' && <span className="badge bg-secondary ms-1">DISPOSED</span>}
+                        {qualityChip(b)}
                       </td>
                       <td>{productCell(b)}</td>
                       <td>{originCell(b)}</td>

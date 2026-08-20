@@ -6,7 +6,7 @@ import { FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
@@ -113,7 +113,7 @@ export default function ProductionRunsTab({
     const skel = useTableSkeletonMetrics('production-runs', listBodyRef, (productionRuns?.length ?? 0) > 0);
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
-    const { getLocationName, getAttributeValueName, formatDate, getStatusBadge } = helpers;
+    const { getLocationName, getAttributeValueName, formatDate } = helpers;
 
     const [expandedPRs, setExpandedPRs] = useState<Record<string, boolean>>({});
     const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
@@ -423,11 +423,7 @@ export default function ProductionRunsTab({
                                             <div style={{ fontSize: 9, color: '#666' }}>{done}/{total} done</div>
                                         </td>
                                         <td style={tdStyle}>
-                                            {classic ? (
-                                                <span style={statusChipStyle(pr.status)}>{(pr.status || 'PENDING').replace('_', ' ')}</span>
-                                            ) : (
-                                                <span className={`badge ${getStatusBadge(pr.status)} extra-small`}>{pr.status}</span>
-                                            )}
+                                            <StatusChip status={pr.status || 'PENDING'} />
                                         </td>
                                         <td style={{ ...tdStyle, textAlign: 'center' }} title={!mstat && prStatusLoading ? 'Loading material status...' : !mstat ? 'Material status unavailable' : statusTotal === 0 ? 'No components' : `${statusShort} short / ${statusSuff} sufficient`}>
                                             {!mstat && prStatusLoading ? (

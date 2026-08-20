@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -53,7 +53,7 @@ export default function ManufacturingOrdersTab({
     const {
         getItemName, getItemCode, getItemUom, getItemEnds, uomBadgeStyle,
         getBOMCode, getLocationName, getWCName, getAttributeValueName, getBomSizeLabel,
-        getStatusBadge, formatDate, formatDateTime, getDueDateWarning,
+        formatDate, formatDateTime, getDueDateWarning,
         calculateRequiredQty, getStockAcrossLocations, getBeamBatchCount,
     } = helpers;
 
@@ -1190,16 +1190,6 @@ export default function ManufacturingOrdersTab({
                                                  && other.id !== wo.id
                                 );
 
-                                // XP-style status chip
-                                const statusChip = (status: string) => {
-                                    if (!classic) {
-                                        if (isBlocked) return <span className="badge bg-secondary extra-small" title="Earlier routing steps must complete first">BLOCKED</span>;
-                                        return <span className={`badge ${getStatusBadge(status)} extra-small`}>{status}</span>;
-                                    }
-                                    if (isBlocked) return <span style={statusChipStyle('PENDING', { background: '#888', borderColor: '#555', color: '#fff' })} title="Earlier routing steps must complete first">BLOCKED</span>;
-                                    return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
-                                };
-
                                 // XP-style action button
                                 const xpBtn = (label: string, colorScheme: 'primary'|'success'|'danger'|'default', onClick: () => void, title?: string, iconCls?: string) => {
                                     if (!classic) return null; // rendered separately below
@@ -1355,7 +1345,11 @@ export default function ManufacturingOrdersTab({
                                         </td>
 
                                         {/* Status */}
-                                        <td style={tdStyle}>{statusChip(wo.status)}</td>
+                                        <td style={tdStyle}>
+                                            {isBlocked
+                                                ? <StatusChip status="BLOCKED" title="Earlier routing steps must complete first" />
+                                                : <StatusChip status={wo.status || 'PENDING'} />}
+                                        </td>
 
                                         {/* Actions — icon Start + [...] menu (Print / Delete) */}
                                         <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print" onClick={(e) => e.stopPropagation()}>
