@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, TableEmpty } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -1162,11 +1162,10 @@ export default function ManufacturingOrdersTab({
                             {filteredWorkOrders.length === 0 && (dataLoading.manufacturingOrders ? (
                                 <TableSkeleton rows={8} cols={skel.cols ?? 10} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : (
-                                <tr><td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
-                                    {moCodeFilter
-                                        ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
-                                        : 'No Manufacturing Orders yet.'}
-                                </td></tr>
+                                <TableEmpty colSpan={10} classic={classic}
+                                    message={moCodeFilter
+                                        ? <>No Manufacturing Orders match &quot;<strong>{moCodeFilter}</strong>&quot;.</>
+                                        : 'No Manufacturing Orders yet.'} />
                             ))}
                             {filteredWorkOrders.map((wo: any, rowIdx: number) => {
                                 const warning = getDueDateWarning(wo);

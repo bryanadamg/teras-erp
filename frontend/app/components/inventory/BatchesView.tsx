@@ -21,7 +21,7 @@ const LOT_STATUS_FILTERS = [
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
-import { ExpanderCell, SortableTh, lvZebra } from '../shared/listViewTheme';
+import { ExpanderCell, SortableTh, lvZebra, TableEmpty } from '../shared/listViewTheme';
 import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -881,7 +881,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               <tbody ref={listBodyRef}>
                 {loading && <TableSkeleton rows={8} cols={skel.cols ?? colSpan} classic tdStyle={xpTd(false)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
                 {!loading && batches.length === 0 && (
-                  <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
+                  <TableEmpty colSpan={colSpan} classic tdStyle={xpTd(false)} message="No lots found." />
                 )}
                 {sortedBatches.map((b, i) => (
                   <>
@@ -995,7 +995,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               </thead>
               <tbody ref={listBodyRef}>
                 {loading && <TableSkeleton rows={8} cols={skel.cols ?? colSpan} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
-                {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
+                {!loading && batches.length === 0 && <TableEmpty colSpan={colSpan} classic={false} message="No lots found." />}
                 {sortedBatches.map(b => (
                   <>
                     <tr

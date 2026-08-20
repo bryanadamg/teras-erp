@@ -13,7 +13,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, TableEmpty } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -661,9 +661,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         {recipes.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={9} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                No recipes found.
-                            </td></tr>
+                            <TableEmpty colSpan={9} classic={classic} tdStyle={lvTd(classic)} message="No recipes found." />
                         ))}
                         {recipes.map((recipe: any, idx: number) => {
                             const rid = String(recipe.id);

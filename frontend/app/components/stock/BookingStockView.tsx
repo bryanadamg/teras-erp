@@ -8,7 +8,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra, TableEmpty } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -307,16 +307,14 @@ export default function BookingStockView() {
                                 );
                             })}
                             {!loading && sorted.length === 0 && (
-                                <tr>
-                                    <td colSpan={COLS.length + 1} style={classic ? { textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-center text-muted py-4'}>
-                                        No components are currently demanded by ongoing MOs.
-                                    </td>
-                                </tr>
+                                <TableEmpty colSpan={COLS.length + 1} classic={classic}
+                                    message="No components are currently demanded by ongoing MOs." />
                             )}
+                            {/* Skeleton in both themes — the modern branch used to show a bare
+                                "Loading..." line, which reads as a row rather than as a wait. */}
                             {loading && (
-                                classic
-                                    ? <TableSkeleton rows={8} cols={skel.cols ?? COLS.length} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                                    : <tr><td colSpan={COLS.length + 1} className="text-center text-muted py-4">Loading...</td></tr>
+                                <TableSkeleton rows={8} cols={skel.cols ?? COLS.length + 1} classic={classic}
+                                    rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             )}
                         </tbody>
                     </table>

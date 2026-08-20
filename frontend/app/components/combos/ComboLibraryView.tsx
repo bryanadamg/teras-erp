@@ -8,7 +8,8 @@ import Pager from '../shared/Pager';
 import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import {
-    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
+} from '../shared/listViewTheme';
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
 
@@ -144,9 +145,7 @@ export default function ComboLibraryView({
                         {combos.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 6} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={6} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                No combos found.
-                            </td></tr>
+                            <TableEmpty colSpan={6} classic={classic} tdStyle={lvTd(classic)} message="No combos found." />
                         ))}
                         {combos.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>

@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
@@ -957,11 +957,10 @@ export default function BOMView({
                                     {boms.length === 0 && bomLoading ? (
                                         <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                                     ) : boms.length === 0 ? (
-                                        <tr><td colSpan={9} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
-                                            {bomSearch.trim()
+                                        <TableEmpty colSpan={9} classic={classic}
+                                            message={bomSearch.trim()
                                                 ? 'No BOMs match your search.'
-                                                : 'No BOMs yet. Click Create Recipe to get started.'}
-                                        </td></tr>
+                                                : 'No BOMs yet. Click Create Recipe to get started.'} />
                                     ) : (
                                         boms.map((bom: any, index: number) => {
                                             const isExpanded = expandedBOMRows[bom.id];

@@ -10,7 +10,8 @@ import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 import {
-    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
+} from '../shared/listViewTheme';
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
 
@@ -279,9 +280,7 @@ export default function ColorLibraryView({
                         {colors.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 13} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={13} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                No colors found.
-                            </td></tr>
+                            <TableEmpty colSpan={13} classic={classic} tdStyle={lvTd(classic)} message="No colors found." />
                         ))}
                         {colors.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>

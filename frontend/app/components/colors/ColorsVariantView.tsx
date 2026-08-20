@@ -4,7 +4,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead, TableEmpty } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
@@ -108,9 +108,8 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                     </thead>
                     <tbody>
                         {filtered.length === 0 && (
-                            <tr><td colSpan={3} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                {search ? 'No colors match your search.' : 'No color variants yet.'}
-                            </td></tr>
+                            <TableEmpty colSpan={3} classic={classic} tdStyle={lvTd(classic)}
+                                message={search ? 'No colors match your search.' : 'No color variants yet.'} />
                         )}
                         {paged.map((v, idx) => (
                             <tr key={v.id} style={lvRow(classic, idx)}>

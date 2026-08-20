@@ -184,6 +184,41 @@ export const lvRow = (classic: boolean, idx: number): React.CSSProperties => ({
     borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e6eaf1',
 });
 
+// ── Empty list row ───────────────────────────────────────────────────────────
+// "Nothing here" inside a table body. Twenty-odd lists wrote their own version of
+// this cell and drifted on all of it: padding 8 / 16 / 20 / 24px, colour #555 /
+// #666 / #888 / .text-muted, italic or not. Pair with `TableSkeleton` — skeleton
+// while the first fetch is in flight, this once it has resolved empty, so "no
+// data yet" never flashes as "there is no data".
+//
+// `tdStyle` takes the list's own cell style (its borders/gridlines); the
+// alignment, padding and muted italic come from here.
+export function TableEmpty({ colSpan, classic, message, icon, tdStyle }: {
+    colSpan: number;
+    classic: boolean;
+    message: React.ReactNode;
+    icon?: string;
+    tdStyle?: React.CSSProperties;
+}) {
+    return (
+        <tr>
+            <td
+                colSpan={colSpan}
+                style={{
+                    ...tdStyle,
+                    textAlign: 'center', padding: '20px 8px', fontStyle: 'italic',
+                    color: classic ? '#666' : '#64748b',
+                    fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
+                    fontSize: classic ? 11 : 13,
+                }}
+            >
+                {icon && <i className={`bi ${icon}`} style={{ display: 'block', fontSize: 18, opacity: 0.45, marginBottom: 6 }} aria-hidden="true" />}
+                {message}
+            </td>
+        </tr>
+    );
+}
+
 // ── Sortable column header ────────────────────────────────────────────────────
 // `useSortable`/`useServerSort` give the state and `SortMark` the arrow, but the
 // header cell itself was hand-written 45 times across 6 lists — each repeating
