@@ -22,12 +22,12 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import {
     xpFont, xpBtn, xpInput, xpSep, TableBlockSkeleton, XPEmptyState,
-    useSortable, SortMark, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar, rowStateBg,
+    useSortable, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar, rowStateBg,
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar } from '../shared/shellTheme';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh } from '../shared/listViewTheme';
 
 const fmtQty = (n: number) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const fmtPct = (n: number | null | undefined) => (n == null ? '-' : `${n}%`);
@@ -792,23 +792,21 @@ export default function MachineOutputReportView() {
                                     <tr>
                                         <th style={classic ? { ...th, width: 22 } : { width: 28 }} />
                                         {columns.map((c, ci) => (
-                                            <th
+                                            <SortableTh
                                                 key={c.key}
+                                                sort={sort} colKey={c.sortKey || null} onSort={toggle}
                                                 className={!classic && c.align === 'right' ? 'text-end' : undefined}
                                                 style={classic ? {
                                                     ...th,
                                                     ...(c.align === 'right' ? { textAlign: 'right' } : {}),
                                                     ...(c.width ? { width: c.width } : {}),
                                                     ...(ci === columns.length - 1 ? { borderRight: 'none' } : {}),
-                                                    ...(c.sortKey ? { cursor: 'pointer' } : {}),
                                                 } : {
                                                     ...(c.width ? { width: c.width + 10 } : {}),
-                                                    ...(c.sortKey ? { cursor: 'pointer' } : {}),
                                                 }}
-                                                onClick={c.sortKey ? () => toggle(c.sortKey!) : undefined}
                                             >
-                                                {c.label}{c.sortKey && <SortMark sort={sort} colKey={c.sortKey} />}
-                                            </th>
+                                                {c.label}
+                                            </SortableTh>
                                         ))}
                                     </tr>
                                 </thead>

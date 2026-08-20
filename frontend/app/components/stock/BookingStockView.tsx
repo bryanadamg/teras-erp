@@ -5,10 +5,10 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
+import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -232,12 +232,11 @@ export default function BookingStockView() {
                             <tr>
                                 <th style={classic ? { ...xpTableHeader, width: LV_EXPANDER_COL_W } : { width: LV_EXPANDER_COL_W }} />
                                 {COLS.map(c => (
-                                    <th key={c.key} role={classic ? undefined : 'button'}
-                                        style={classic ? { ...xpTableHeader, textAlign: c.align || 'left', cursor: 'pointer' } : undefined}
-                                        className={classic ? undefined : `user-select-none ${c.align === 'right' ? 'text-end' : ''}`}
-                                        onClick={() => toggle(c.key)} title={classic ? 'Sort' : undefined}>
-                                        {c.label}<SortMark sort={sort} colKey={c.key} />
-                                    </th>
+                                    <SortableTh key={c.key} sort={sort} colKey={c.key} onSort={toggle}
+                                        style={classic ? { ...xpTableHeader, textAlign: c.align || 'left' } : undefined}
+                                        className={classic ? undefined : (c.align === 'right' ? 'text-end' : undefined)}>
+                                        {c.label}
+                                    </SortableTh>
                                 ))}
                             </tr>
                         </thead>

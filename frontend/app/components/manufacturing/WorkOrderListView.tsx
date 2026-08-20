@@ -16,9 +16,9 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, SortableTh } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -772,13 +772,12 @@ export default function WorkOrderListView({
                                     </th>
                                     <th style={{ ...thStyle, width: 22, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
                                     {([['Root MO', 'rootmo'], ['#', 'sequence'], ['Name', 'name'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Created', 'created'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
-                                        <th key={`${h}-${i}`}
-                                            style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left', cursor: key ? 'pointer' : undefined, userSelect: 'none' }}
-                                            className={classic ? '' : 'ps-3'}
-                                            onClick={key ? () => toggleSort(key) : undefined}
-                                            title={key ? 'Sort' : undefined}>
-                                            {h}{key && <SortMark sort={sort} colKey={key} />}
-                                        </th>
+                                        <SortableTh key={`${h}-${i}`}
+                                            sort={sort} colKey={key || null} onSort={toggleSort}
+                                            style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left' }}
+                                            className={classic ? '' : 'ps-3'}>
+                                            {h}
+                                        </SortableTh>
                                     ))}
                                 </tr>
                             </thead>

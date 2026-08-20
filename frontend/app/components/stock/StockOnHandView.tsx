@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { SortMark, useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
+import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
@@ -10,7 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
 
@@ -1247,15 +1247,15 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                         disabled={!sel.pageEligibleCount} onChange={sel.togglePage}
                                         title={sel.allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'} />
                                 </th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.item } : { cursor: 'pointer', width: COL_W.item, ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.category } : { cursor: 'pointer', width: COL_W.category, ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.location } : { cursor: 'pointer', width: COL_W.location, ...colDivider }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.lot } : { cursor: 'pointer', width: COL_W.lot, ...colDivider }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                <SortableTh sort={sort} colKey="item" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.item } : { width: COL_W.item, ...colDivider }}>Item</SortableTh>
+                                <SortableTh sort={sort} colKey="itemCategory" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.category } : { width: COL_W.category, ...colDivider }}>Item Category</SortableTh>
+                                <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.location } : { width: COL_W.location, ...colDivider }}>{t('locations') || 'Location'}</SortableTh>
+                                <SortableTh sort={sort} colKey="batch" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.lot } : { width: COL_W.lot, ...colDivider }}>Lot</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.attrs } : { width: COL_W.attrs, ...colDivider }}>{t('attributes') || 'Attributes'}</th>
-                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: COL_W.qty } : { cursor: 'pointer', width: COL_W.qty, ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                <SortableTh sort={sort} colKey="qty" onSort={toggleSort} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.qty } : { width: COL_W.qty, ...colDivider }} className={classic ? undefined : 'text-end'}>{t('qty') || 'Qty'}</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.uom } : { width: COL_W.uom, ...colDivider }}>UOM</th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.packaging } : { cursor: 'pointer', width: COL_W.packaging, ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.notes } : { cursor: 'pointer', width: COL_W.notes, ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                <SortableTh sort={sort} colKey="packaging" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.packaging } : { width: COL_W.packaging, ...colDivider }}>Packaging</SortableTh>
+                                <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.notes } : { width: COL_W.notes, ...colDivider }}>Notes</SortableTh>
                                 <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.ends } : { width: COL_W.ends, ...colDivider }}>Ends</th>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.actions, borderRight: 'none' } : { width: COL_W.actions }}></th>
                             </tr>

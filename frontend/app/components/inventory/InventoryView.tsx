@@ -11,11 +11,11 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh } from '../shared/listViewTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryTabIcon(name: string): string {
@@ -1342,13 +1342,13 @@ export default function InventoryView({
                     <th style={classic ? { ...xpThCell, width: LV_CHECK_COL_W, textAlign: 'center' } : { width: LV_CHECK_COL_W }} className={classic ? '' : 'ps-3'}>
                         <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} />
                     </th>
-                    <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-4'} onClick={() => toggleSort('code')} title="Sort">{t('item_code')}<SortMark sort={sort} colKey="code" /></th>
-                    <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('name')} title="Sort">{t('item_name')}<SortMark sort={sort} colKey="name" /></th>
-                    <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">{t('categories')}<SortMark sort={sort} colKey="category" /></th>
+                    <SortableTh sort={sort} colKey="code" onSort={toggleSort} style={classic ? { ...xpThCell, width: '110px' } : {}} className={classic ? '' : 'ps-4'}>{t('item_code')}</SortableTh>
+                    <SortableTh sort={sort} colKey="name" onSort={toggleSort} style={classic ? { ...xpThCell } : {}}>{t('item_name')}</SortableTh>
+                    <SortableTh sort={sort} colKey="category" onSort={toggleSort} style={classic ? { ...xpThCell, width: '110px' } : {}}>{t('categories')}</SortableTh>
                     <th style={classic ? { ...xpThCell, width: '55px' } : { width: '55px' }}>{t('uom')}</th>
                     <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>{t('source_sample')}</th>
                     <th style={classic ? { ...xpThCell, width: '70px' } : { width: '70px' }}>{t('item_type')}</th>
-                    <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { width: '90px', cursor: 'pointer' }} onClick={() => toggleSort('weight')} title="Sort">{t('weight_per_unit')}<SortMark sort={sort} colKey="weight" /></th>
+                    <SortableTh sort={sort} colKey="weight" onSort={toggleSort} style={classic ? { ...xpThCell, width: '90px' } : { width: '90px' }}>{t('weight_per_unit')}</SortableTh>
                     <th style={classic ? { ...xpThCell, width: '80px', borderRight: 'none' } : { width: '80px' }}>{t('actions')}</th>
                   </tr>
                 </thead>

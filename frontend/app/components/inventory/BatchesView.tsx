@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -21,7 +21,7 @@ const LOT_STATUS_FILTERS = [
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
-import { ExpanderCell } from '../shared/listViewTheme';
+import { ExpanderCell, SortableTh } from '../shared/listViewTheme';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
@@ -413,7 +413,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
 
   // Client-side sort of the current page (list is server-paginated). Mirrors the
-  // WO table: click a header to toggle asc → desc → off, SortMark shows the arrow.
+  // WO table: click a header to toggle asc → desc → off shows the arrow.
   const sortCols = React.useMemo(() => ({
     lot:       (b: Batch) => b.batch_number,
     product:   (b: Batch) => batchItemCode(b),
@@ -843,15 +843,15 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               <thead>
                 <tr>
                   <th style={{ ...xpTh, width: 20 }}></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">WO/MO/PR<SortMark sort={sort} colKey="mopr" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
-                  <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
-                  <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('created')} title="Sort">Created<SortMark sort={sort} colKey="created" /></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={xpTh}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={xpTh}>Product</SortableTh>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={xpTh}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="mopr" onSort={toggleSort} style={xpTh}>WO/MO/PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={xpTh}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Ends</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={xpTh}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={xpTh}>Created</SortableTh>
                   <th style={xpTh}></th>
                 </tr>
               </thead>
@@ -969,15 +969,15 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
                   <th style={{ width: 24 }}></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">WO/MO/PR<SortMark sort={sort} colKey="mopr" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
-                  <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
-                  <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('created')} title="Sort">Created<SortMark sort={sort} colKey="created" /></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort}>Product</SortableTh>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="mopr" onSort={toggleSort}>WO/MO/PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} className="text-end">Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} className="text-end">Ends</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort}>Created</SortableTh>
                   <th></th>
                 </tr>
               </thead>

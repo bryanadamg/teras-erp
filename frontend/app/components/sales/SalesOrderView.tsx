@@ -11,12 +11,12 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, SortMark, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, SortableTh } from '../shared/listViewTheme';
 
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
 // resized — it is the floor the table refuses to squeeze past before scrolling.
@@ -1678,9 +1678,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    >
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
-                               <th style={classic ? { ...xpThCell, width: '130px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-3'} onClick={() => toggleSOSort('po')} title="Sort">PO# / Ref<SortMark sort={soSort} colKey="po" /></th>
-                               <th style={classic ? { ...xpThCell, width: '180px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('customer')} title="Sort">Customer<SortMark sort={soSort} colKey="customer" /></th>
-                               <th style={classic ? { ...xpThCell, width: '72px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('date')} title="Sort">Date<SortMark sort={soSort} colKey="date" /></th>
+                               <SortableTh sort={soSort} colKey="po" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '130px' } : {}} className={classic ? '' : 'ps-3'}>PO# / Ref</SortableTh>
+                               <SortableTh sort={soSort} colKey="customer" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '180px' } : {}}>Customer</SortableTh>
+                               <SortableTh sort={soSort} colKey="date" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '72px' } : {}}>Date</SortableTh>
                                <th style={classic ? { ...xpThCell, width: '180px' } : undefined}>Item</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Size</th>
                                <th style={classic ? { ...xpThCell, width: '175px' } : undefined}>Qty</th>
@@ -1688,7 +1688,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
                                <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty. READY needs packed cartons in stock.">Fulfilment</th>
-                               <th style={classic ? { ...xpThCell, width: '80px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('status')} title="Sort">Status<SortMark sort={soSort} colKey="status" /></th>
+                               <SortableTh sort={soSort} colKey="status" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '80px' } : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '75px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>

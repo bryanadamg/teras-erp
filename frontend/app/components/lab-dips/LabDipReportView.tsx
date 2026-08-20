@@ -8,9 +8,10 @@ import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, ToolbarButton } from '../shared/shellTheme';
 import {
     lvTh, lvThead, lvRow, lvBtn, lvInput, lvLabel, lvSep, LvSectionCaption, LV_XP_FONT, LV_MODERN_FONT,
+    SortableTh,
 } from '../shared/listViewTheme';
 import {
-    StatusChip, TableBlockSkeleton, XPStatusBar, XPEmptyState, useSortable, SortMark,
+    StatusChip, TableBlockSkeleton, XPStatusBar, XPEmptyState, useSortable,
     familyColor, familyTint, xpPanel, type StatusFamily,
 } from '../shared/xpTheme';
 
@@ -283,13 +284,9 @@ export default function LabDipReportView() {
 
     // ── Variant table ────────────────────────────────────────────────────────
     const Th = ({ colKey, label, width, align }: { colKey: string; label: string; width?: number; align?: 'right' }) => (
-        <th
-            style={{ ...lvTh(classic), width, textAlign: align, cursor: 'pointer', userSelect: 'none' }}
-            onClick={() => toggle(colKey)}
-            title="Sort"
-        >
-            {label}<SortMark sort={sort} colKey={colKey} />
-        </th>
+        <SortableTh sort={sort} colKey={colKey} onSort={toggle} style={{ ...lvTh(classic), width, textAlign: align }}>
+            {label}
+        </SortableTh>
     );
 
     const countCell = (n: number, tone: string) => (

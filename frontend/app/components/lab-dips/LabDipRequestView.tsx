@@ -10,10 +10,10 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
-import { lvThead, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh } from '../shared/listViewTheme';
 import { API_BASE, STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -574,14 +574,14 @@ export default function LabDipRequestView({
                     <thead style={lvThead(classic)}>
                         <tr>
                             <th style={{ ...xpThCell(classic), width: LV_EXPANDER_COL_W }} />
-                            <th style={{ ...xpThCell(classic), width: 140, cursor: 'pointer' }} onClick={() => toggleSort('code')} title="Sort">Request Code<SortMark sort={sort} colKey="code" /></th>
-                            <th style={{ ...xpThCell(classic), width: 120, cursor: 'pointer' }} onClick={() => toggleSort('customer')} title="Sort">Customer<SortMark sort={sort} colKey="customer" /></th>
+                            <SortableTh sort={sort} colKey="code" onSort={toggleSort} style={{ ...xpThCell(classic), width: 140 }}>Request Code</SortableTh>
+                            <SortableTh sort={sort} colKey="customer" onSort={toggleSort} style={{ ...xpThCell(classic), width: 120 }}>Customer</SortableTh>
                             <th style={xpThCell(classic)}>Items</th>
                             <th style={{ ...xpThCell(classic), width: 140 }}>{colorsAttrName}</th>
-                            <th style={{ ...xpThCell(classic), width: 90, cursor: 'pointer' }} onClick={() => toggleSort('type')} title="Sort">Type<SortMark sort={sort} colKey="type" /></th>
-                            <th style={{ ...xpThCell(classic), width: 110, cursor: 'pointer' }} onClick={() => toggleSort('status')} title="Sort">Status<SortMark sort={sort} colKey="status" /></th>
+                            <SortableTh sort={sort} colKey="type" onSort={toggleSort} style={{ ...xpThCell(classic), width: 90 }}>Type</SortableTh>
+                            <SortableTh sort={sort} colKey="status" onSort={toggleSort} style={{ ...xpThCell(classic), width: 110 }}>Status</SortableTh>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Variants</th>
-                            <th style={{ ...xpThCell(classic), width: 128, cursor: 'pointer' }} onClick={() => toggleSort('updated')} title="Sort by last update">Updated<SortMark sort={sort} colKey="updated" /></th>
+                            <SortableTh sort={sort} colKey="updated" onSort={toggleSort} style={{ ...xpThCell(classic), width: 128 }}>Updated</SortableTh>
                             <th style={{ ...xpThCell(classic), width: 44, textAlign: 'right' as const, borderRight: 'none' }}></th>
                         </tr>
                     </thead>

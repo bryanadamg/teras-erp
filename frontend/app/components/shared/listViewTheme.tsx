@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont } from './xpTheme';
+import { xpFont, modernFont, SortMark, SortState } from './xpTheme';
 
 // Shared dual-theme (classic XP / modern) style helpers for master-data list views
 // (Color Library, Combo Library, Colors variant, …). xpTheme's xpBtn/xpInput are
@@ -156,6 +156,49 @@ export const lvSep = (classic: boolean): React.CSSProperties =>
 export const lvRow = (classic: boolean, idx: number): React.CSSProperties => (classic
     ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }
     : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' });
+
+// ── Sortable column header ────────────────────────────────────────────────────
+// `useSortable`/`useServerSort` give the state and `SortMark` the arrow, but the
+// header cell itself was hand-written 45 times across 6 lists — each repeating
+// `cursor: 'pointer'` + `title="Sort"` + `onClick={() => toggleSort(key)}` +
+// `<SortMark/>`, and only some of them adding `userSelect: 'none'` (without it a
+// double-click on the label selects the text instead of sorting twice).
+//
+// `style`/`className` stay per-call because the header chrome is still
+// per-table (see lvTh); this owns only the sort behaviour and its affordances.
+//
+// A null/absent `colKey` renders a plain, inert header — so a table whose
+// columns come from a config array (weaving output report, work-order list,
+// booking stock) keeps ONE component call instead of branching the whole cell on
+// `c.sortKey ? <th sortable> : <th>`.
+export function SortableTh({ sort, colKey, onSort, children, style, className, title, colSpan }: {
+    sort?: SortState;
+    colKey?: string | null;
+    onSort?: (key: string) => void;
+    children?: React.ReactNode;
+    style?: React.CSSProperties;
+    className?: string;
+    title?: string;
+    colSpan?: number;
+}) {
+    if (!colKey || !onSort) {
+        return <th className={className} colSpan={colSpan} title={title} style={style}>{children}</th>;
+    }
+    const key = colKey;
+    const dir = sort?.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none';
+    return (
+        <th
+            className={className}
+            colSpan={colSpan}
+            title={title ?? 'Sort'}
+            aria-sort={dir as React.AriaAttributes['aria-sort']}
+            style={{ ...style, cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => onSort(key)}
+        >
+            {children}<SortMark sort={sort ?? null} colKey={key} />
+        </th>
+    );
+}
 
 // ── Row multi-select ──────────────────────────────────────────────────────────
 // The checkbox half of a bulk-action list. Six views grew their own copy of this

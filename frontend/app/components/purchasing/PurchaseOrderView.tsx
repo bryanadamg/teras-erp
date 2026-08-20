@@ -11,10 +11,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
+import { useSortable, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh } from '../shared/listViewTheme';
 
 export default function PurchaseOrderView({ items, itemResults, onSearchItems, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
@@ -870,13 +870,13 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
                                <th style={classic ? { ...xpThCell, width: '20px' } : undefined}></th>
-                               <th style={classic ? { ...xpThCell, width: '130px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-2'} onClick={() => togglePOSort('po')} title="Sort">PO Number<SortMark sort={poSort} colKey="po" /></th>
-                               <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('supplier')} title="Sort">Supplier<SortMark sort={poSort} colKey="supplier" /></th>
-                               <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('date')} title="Sort">Date<SortMark sort={poSort} colKey="date" /></th>
+                               <SortableTh sort={poSort} colKey="po" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '130px' } : {}} className={classic ? '' : 'ps-2'}>PO Number</SortableTh>
+                               <SortableTh sort={poSort} colKey="supplier" onSort={togglePOSort} style={classic ? { ...xpThCell } : {}}>Supplier</SortableTh>
+                               <SortableTh sort={poSort} colKey="date" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '90px' } : {}}>Date</SortableTh>
                                <th style={classic ? { ...xpThCell, width: '70px' } : { width: 70 }}>Items</th>
-                               <th style={classic ? { ...xpThCell, width: '150px', cursor: 'pointer' } : { cursor: 'pointer', width: 150 }} onClick={() => togglePOSort('received')} title="Sort">Received<SortMark sort={poSort} colKey="received" /></th>
-                               <th style={classic ? { ...xpThCell, width: '110px', textAlign: 'right' as const, cursor: 'pointer' } : { cursor: 'pointer', textAlign: 'right' as const }} onClick={() => togglePOSort('total')} title="Sort">Total<SortMark sort={poSort} colKey="total" /></th>
-                               <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('status')} title="Sort">Status<SortMark sort={poSort} colKey="status" /></th>
+                               <SortableTh sort={poSort} colKey="received" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '150px' } : { width: 150 }}>Received</SortableTh>
+                               <SortableTh sort={poSort} colKey="total" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '110px', textAlign: 'right' as const } : { textAlign: 'right' as const }}>Total</SortableTh>
+                               <SortableTh sort={poSort} colKey="status" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '90px' } : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '96px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>

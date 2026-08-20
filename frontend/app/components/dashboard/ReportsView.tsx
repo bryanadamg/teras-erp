@@ -6,12 +6,12 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, SortMark, CodeChip,
+    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, CodeChip,
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption } from '../shared/shellTheme';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, SortableTh } from '../shared/listViewTheme';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
 
@@ -519,12 +519,12 @@ export default function ReportsView(_props: any) {
             <table className={classic ? undefined : 'table table-hover table-bordered align-middle mb-0'} style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined}>
                 <thead className={classic ? undefined : 'table-light'} style={classic ? undefined : { position: 'sticky', top: 0, zIndex: 1 }}>
                     <tr>
-                        <th className={classic ? undefined : 'ps-4'} style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
-                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
-                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('category')}>Category<SortMark sort={sort} colKey="category" /></th>
-                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('location')}>{t('locations')}<SortMark sort={sort} colKey="location" /></th>
+                        <SortableTh sort={sort} colKey="date" onSort={toggle} style={classic ? th : undefined} className={classic ? undefined : 'ps-4'}>{t('date')}</SortableTh>
+                        <SortableTh sort={sort} colKey="item" onSort={toggle} style={classic ? th : undefined}>Item</SortableTh>
+                        <SortableTh sort={sort} colKey="category" onSort={toggle} style={classic ? th : undefined}>Category</SortableTh>
+                        <SortableTh sort={sort} colKey="location" onSort={toggle} style={classic ? th : undefined}>{t('locations')}</SortableTh>
                         <th style={classic ? th : undefined}>Lot</th>
-                        <th className={classic ? undefined : 'text-end'} style={classic ? { ...th, textAlign: 'right', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('qty')}>Movement<SortMark sort={sort} colKey="qty" /></th>
+                        <SortableTh sort={sort} colKey="qty" onSort={toggle} className={classic ? undefined : 'text-end'} style={classic ? { ...th, textAlign: 'right' } : undefined}>Movement</SortableTh>
                         <th className={classic ? undefined : 'pe-4'} style={classic ? { ...th, borderRight: 'none' } : undefined}>Source</th>
                     </tr>
                 </thead>
