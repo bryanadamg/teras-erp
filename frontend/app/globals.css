@@ -1570,3 +1570,16 @@ table {
 .ui-style-classic .toast {
     box-shadow: 2px 2px 4px rgba(0,0,0,0.3) !important;
 }
+
+/* Row / select-all multi-select checkboxes (RowCheckbox, SelectAllCheckbox in
+   listViewTheme.tsx). Hover ring only — the box itself never moves, so a dense
+   list doesn't reflow under the cursor. Disabled boxes stay flat. */
+.lv-check {
+    transition: box-shadow 0.12s ease;
+}
+.lv-check:hover:not(:disabled) {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.20);
+}
+.ui-style-classic .lv-check:hover:not(:disabled) {
+    box-shadow: 0 0 0 2px rgba(26, 61, 107, 0.30);
+}

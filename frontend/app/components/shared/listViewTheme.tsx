@@ -385,6 +385,11 @@ export const lvPickerRow = (classic: boolean, on: boolean): React.CSSProperties 
 const checkboxStyle = (classic: boolean, enabled: boolean): React.CSSProperties =>
     ({ margin: 0, cursor: enabled ? 'pointer' : 'not-allowed', verticalAlign: 'middle' });
 
+// The hover ring lives in globals.css (`.lv-check`), not in the style object: an
+// inline style can't express `:hover`, and every call site is a bare `<input>`
+// with no wrapper to hang a mouseenter on. Both themes get a branch there.
+const checkboxClass = (classic: boolean) => (classic ? 'lv-check' : 'form-check-input lv-check');
+
 export function RowCheckbox({ classic, checked, onChange, disabled, title, label }: {
     classic: boolean; checked: boolean; onChange: () => void;
     disabled?: boolean; title?: string; label?: string;
@@ -392,7 +397,7 @@ export function RowCheckbox({ classic, checked, onChange, disabled, title, label
     return (
         <input
             type="checkbox"
-            className={classic ? undefined : 'form-check-input'}
+            className={checkboxClass(classic)}
             style={checkboxStyle(classic, !disabled)}
             checked={checked}
             disabled={disabled}
@@ -417,7 +422,7 @@ export function SelectAllCheckbox({ classic, allSelected, someSelected, onChange
     return (
         <input
             type="checkbox"
-            className={classic ? undefined : 'form-check-input'}
+            className={checkboxClass(classic)}
             style={checkboxStyle(classic, !disabled)}
             checked={allSelected}
             disabled={disabled}
