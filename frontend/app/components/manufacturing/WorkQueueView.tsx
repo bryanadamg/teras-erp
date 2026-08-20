@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, xpToolbar } from '../shared/shellTheme';
-import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT, ExpanderCell } from '../shared/listViewTheme';
+import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 import {
     StatusChip, XPStatusBar, XPEmptyState, TableSkeleton, CodeChip,
     ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip, rowStateBg,
@@ -471,7 +471,7 @@ export default function WorkQueueView() {
                     {/* Fixed widths, independent of row content — otherwise switching center-type/verdict
                         filters (which change what each row's cells contain) reflows column widths. */}
                     <colgroup>
-                        <col style={{ width: 28 }} />
+                        <col style={{ width: LV_EXPANDER_COL_W }} />
                         <col style={{ width: 34 }} />
                         <col style={{ width: 110 }} />
                         <col style={{ width: 220 }} />

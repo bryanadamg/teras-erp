@@ -327,9 +327,19 @@ export function SelectAllCell({ tdStyle, tdClassName, ...cb }: React.ComponentPr
 // CategoriesView, TreeSelect), which is a different affordance from "this row
 // has a detail panel". Up/down chevrons mean a card/section fold, also not this.
 //
-// Pair `ExpanderCell` (dedicated first column) or a bare `ExpandToggle` (glyph
-// sitting inline beside a code chip) with `rowStateBg('expanded', classic)` on
-// the row — the two halves of the same convention.
+// COLUMN ORDER IS FIXED. A list's leading control columns are, in this order:
+//
+//     [ checkbox (LV_CHECK_COL_W, only if the list has bulk actions) ]
+//     [ chevron  (LV_EXPANDER_COL_W, only if the row expands)        ]
+//     [ first data column — the row's code/identity                  ]
+//
+// The chevron gets its OWN column; never park it inside a data cell. Four
+// Engineering lists each picked a different arrangement of the same three
+// things (checkbox→chevron-in-code-cell, chevron→code, code→chevron-in-second-
+// cell, checkbox→chevron→code) so no two tables had their controls in the same
+// place. Pair `ExpanderCell` with `rowStateBg('expanded', classic)` on the row —
+// the two halves of the same convention. `ExpandToggle` on its own is for a
+// non-table disclosure, not for smuggling the glyph back into a data cell.
 export const LV_EXPANDER_COL_W = 22;
 
 // `base` is the caller's own cell style (their `tdBase`/`xpTd` with its borders

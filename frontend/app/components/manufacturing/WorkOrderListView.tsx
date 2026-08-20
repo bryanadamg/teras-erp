@@ -18,7 +18,7 @@ import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -749,8 +749,8 @@ export default function WorkOrderListView({
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                         >
                             <colgroup>
-                                <col style={{ width: 28 }} />   {/* checkbox */}
-                                <col style={{ width: 22 }} />   {/* chevron */}
+                                <col style={{ width: LV_CHECK_COL_W }} />       {/* checkbox */}
+                                <col style={{ width: LV_EXPANDER_COL_W }} />   {/* chevron */}
                                 <col style={{ width: 190 }} />  {/* Root MO */}
                                 <col style={{ width: 34 }} />   {/* # */}
                                 <col style={{ width: '20%' }} />{/* Name */}

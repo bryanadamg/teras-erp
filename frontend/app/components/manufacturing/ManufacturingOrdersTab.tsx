@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpandToggle } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -1116,6 +1116,7 @@ export default function ManufacturingOrdersTab({
                         background: classic ? '#fff' : undefined,
                     }} className={classic ? '' : 'table table-hover align-middle mb-0'}>
                         <colgroup>
+                            <col style={{ width: `${LV_EXPANDER_COL_W}px` }} />
                             <col style={{ width: '195px' }} />
                             <col />
                             <col style={{ width: '150px' }} />
@@ -1134,6 +1135,7 @@ export default function ManufacturingOrdersTab({
                                 fontSize: classic ? '10px' : '9pt',
                             }} className={classic ? '' : 'table-light'}>
                                 {[
+                                    { label: '',                  align: 'left',   cls: '' },
                                     { label: 'MO Code',           align: 'left',   cls: 'ps-3' },
                                     { label: 'Product',           align: 'left',   cls: '' },
                                     { label: 'BOM',               align: 'left',   cls: '' },
@@ -1158,9 +1160,9 @@ export default function ManufacturingOrdersTab({
                         </thead>
                         <tbody ref={listBodyRef}>
                             {filteredWorkOrders.length === 0 && (dataLoading.manufacturingOrders ? (
-                                <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                                <TableSkeleton rows={8} cols={skel.cols ?? 10} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : (
-                                <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
+                                <tr><td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
                                     {moCodeFilter
                                         ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
                                         : 'No Manufacturing Orders yet.'}
@@ -1223,6 +1225,8 @@ export default function ManufacturingOrdersTab({
                                     <>
                                     <tr key={wo.id} id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}>
 
+                                        <ExpanderCell classic={classic} expanded={!!isExpanded} onToggle={() => toggleRow(wo.id)} label="order detail" tdStyle={tdStyle} />
+
                                         {/* MO Code */}
                                         <td style={{ ...tdStyle, paddingLeft: classic ? '10px' : undefined }}
                                             className={!classic ? 'ps-4' : ''}>
@@ -1238,7 +1242,6 @@ export default function ManufacturingOrdersTab({
                                         {/* Product — name (line 1) + variant chips (line 2); click to expand */}
                                         <td style={{ ...tdStyle, cursor: 'pointer' }} onClick={() => toggleRow(wo.id)}>
                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                <ExpandToggle expanded={isExpanded} classic={classic} onToggle={() => toggleRow(wo.id)} label="order detail" style={{ marginTop: 2 }} />
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ fontWeight: 'bold', color: '#000', fontSize: classic ? '11px' : '9pt', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {wo.item_name || getItemName(wo.item_id)}
@@ -1368,7 +1371,7 @@ export default function ManufacturingOrdersTab({
                                     </tr>
                                     {isExpanded && (
                                         <tr key={`${wo.id}-detail`}>
-                                            <td colSpan={9} className="p-0 border-0">
+                                            <td colSpan={10} className="p-0 border-0">
                                                 {renderWOExpandedPanel({
                                                     wo,
                                                     detailTab: expandedDetailTabs[wo.id] || 'bom',

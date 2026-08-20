@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead, ExpandToggle, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
@@ -474,7 +474,7 @@ export default function BOMView({
                 {/* Frame on the cell, inner grounds untouched: this expansion is a two-pane
                     BOM workspace, not a detail readout, so it keeps its own beige panes and
                     takes only the standard rail + edge rules. */}
-                <td colSpan={8} style={{ padding: 0, ...expandedRowFrame(classic) }}>
+                <td colSpan={9} style={{ padding: 0, ...expandedRowFrame(classic) }}>
                     <div style={{ display: 'flex', height: 420, background: '#ece9d8', fontFamily: xpFont, fontSize: 11, paddingLeft: classic ? 4 : 3 }}>
 
                         {/* LEFT: Tree */}
@@ -939,9 +939,10 @@ export default function BOMView({
                             >
                                 <thead>
                                     <tr style={classic ? { ...lvThead(true), fontSize: '10px', fontWeight: 'bold', color: '#000', letterSpacing: '0.2px' } : undefined} className={classic ? '' : 'table-light'}>
-                                        <th style={classic ? { width: '40px', padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: '40px' }} className={classic ? '' : 'ps-3'}>
+                                        <th style={classic ? { width: LV_CHECK_COL_W, padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: LV_CHECK_COL_W }} className={classic ? '' : 'ps-3'}>
                                             <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} />
                                         </th>
+                                        <th style={classic ? { width: LV_EXPANDER_COL_W, padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: LV_EXPANDER_COL_W }} />
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined} className={classic ? '' : 'ps-2'}>BOM Code</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>{t('finished_good')}</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>Code</th>
@@ -954,9 +955,9 @@ export default function BOMView({
 
                                 <tbody ref={listBodyRef}>
                                     {boms.length === 0 && bomLoading ? (
-                                        <TableSkeleton rows={8} cols={skel.cols ?? 8} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                                        <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                                     ) : boms.length === 0 ? (
-                                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
+                                        <tr><td colSpan={9} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
                                             {bomSearch.trim()
                                                 ? 'No BOMs match your search.'
                                                 : 'No BOMs yet. Click Create Recipe to get started.'}
@@ -979,6 +980,8 @@ export default function BOMView({
                                                     <td style={classic ? { padding: '7px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'ps-3'}>
                                                         <RowCheckbox classic={classic} checked={sel.isSelected(bom)} onChange={() => sel.toggle(bom)} label={`BOM ${bom.code}`} />
                                                     </td>
+                                                    <ExpanderCell classic={classic} expanded={!!isExpanded} onToggle={() => toggleBOMRow(bom.id, bom.item_id)} label="BOM details"
+                                                        tdStyle={classic ? { borderRight: '1px solid #c0bdb5' } : undefined} />
                                                     {/* BOM Code — click to expand */}
                                                     <td
                                                         onClick={() => toggleBOMRow(bom.id, bom.item_id)}
@@ -987,7 +990,6 @@ export default function BOMView({
                                                         title="Click to expand BOM details"
                                                     >
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                            <ExpandToggle expanded={isExpanded} classic={classic} onToggle={() => toggleBOMRow(bom.id, bom.item_id)} label="BOM details" />
                                                             <CodeChip code={bom.code} classic={classic} />
                                                         </div>
                                                     </td>

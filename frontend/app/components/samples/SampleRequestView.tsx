@@ -18,7 +18,7 @@ import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
-import { lvThead, ExpandToggle } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 
 // Request classification, chosen at create time. Values are the `Sample Category`
 // system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
@@ -1454,6 +1454,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    >
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
+                               <th style={classic ? { ...xpThCell, width: LV_EXPANDER_COL_W } : { width: LV_EXPANDER_COL_W }} />
                                <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-4'}>Request Code</th>
                                <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Category</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Customer</th>
@@ -1481,9 +1482,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        outline: s.id === highlightId ? '2px solid #f0a000' : undefined,
                                    }}
                                >
+                                   <ExpanderCell classic={classic} expanded={expandedIds.has(s.id)} onToggle={() => toggleExpand(s.id)} label="sample detail"
+                                       tdStyle={classic ? tdBase : undefined} />
                                    <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}>
                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                           <ExpandToggle expanded={expandedIds.has(s.id)} classic={classic} onToggle={() => toggleExpand(s.id)} label="sample detail" />
                                            <div>
                                                {/* Unread rows keep their extra weight — that is a state
                                                    marker on top of the tier-1 code, not a second style. */}
@@ -1797,7 +1799,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                expanding a row can't reflow the auto-width columns (e.g. Specs badges). */}
                                            {/* Rail + edge rules go on the cell, not a wrapper: the panel inside is
                                                absolutely positioned, so it can't carry the frame itself. */}
-                                           <td colSpan={8} style={{
+                                           <td colSpan={9} style={{
                                                padding: 0, position: 'relative', height: 300,
                                                background: '#fff',
                                                ...expandedRowFrame(classic),
@@ -1823,11 +1825,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                </React.Fragment>
                            ))}
                            {pageSamples.length === 0 && (dataLoading.samples ? (
-                               <TableSkeleton rows={8} cols={skel.cols ?? 8} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                               <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                            ) : (
                                <tr>
                                    <td
-                                       colSpan={8}
+                                       colSpan={9}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#555', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >

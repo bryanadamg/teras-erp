@@ -8,7 +8,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpandToggle } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -230,6 +230,7 @@ export default function BookingStockView() {
                     <table style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined} className={classic ? undefined : 'table table-sm table-hover align-middle mb-0'}>
                         <thead className={classic ? undefined : 'table-light'}>
                             <tr>
+                                <th style={classic ? { ...xpTableHeader, width: LV_EXPANDER_COL_W } : { width: LV_EXPANDER_COL_W }} />
                                 {COLS.map(c => (
                                     <th key={c.key} role={classic ? undefined : 'button'}
                                         style={classic ? { ...xpTableHeader, textAlign: c.align || 'left', cursor: 'pointer' } : undefined}
@@ -254,12 +255,15 @@ export default function BookingStockView() {
                                                 ? { background: isOpen ? rowStateBg('expanded', true) : (h === HEALTH.short ? h.tint : zebra), borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }
                                                 : { cursor: 'pointer' }}
                                             className={classic ? undefined : (h === HEALTH.short ? 'table-danger' : undefined)}>
-                                            <td style={classic ? { padding: '4px 8px 4px 5px', fontFamily: xpFont, borderLeft: `3px solid ${h.color}` } : { borderLeft: `3px solid ${h.color}` }}>
-                                                <ExpandToggle expanded={isOpen} classic={classic} onToggle={() => toggleRow(k)} label="MO breakdown" style={{ marginRight: 5 }} />
+                                            {/* The health stripe rides the row's leftmost cell, which is now the
+                                                chevron column. */}
+                                            <ExpanderCell classic={classic} expanded={isOpen} onToggle={() => toggleRow(k)} label="MO breakdown"
+                                                tdStyle={{ borderLeft: `3px solid ${h.color}`, fontFamily: classic ? xpFont : undefined }} />
+                                            <td style={classic ? { padding: '4px 8px', fontFamily: xpFont } : undefined}>
                                                 {classic ? (
                                                     <>
                                                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{r.item_name}</span>
-                                                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', marginLeft: 18 }}>{r.item_code}</div>
+                                                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{r.item_code}</div>
                                                     </>
                                                 ) : (
                                                     <>
@@ -300,7 +304,7 @@ export default function BookingStockView() {
                                         </tr>
                                         {isOpen && (
                                             <tr>
-                                                <td colSpan={COLS.length} style={classic ? { padding: 0 } : undefined} className={classic ? undefined : 'p-0'}>
+                                                <td colSpan={COLS.length + 1} style={classic ? { padding: 0 } : undefined} className={classic ? undefined : 'p-0'}>
                                                     {renderDetail(r)}
                                                 </td>
                                             </tr>
@@ -310,7 +314,7 @@ export default function BookingStockView() {
                             })}
                             {!loading && sorted.length === 0 && (
                                 <tr>
-                                    <td colSpan={COLS.length} style={classic ? { textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-center text-muted py-4'}>
+                                    <td colSpan={COLS.length + 1} style={classic ? { textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-center text-muted py-4'}>
                                         No components are currently demanded by ongoing MOs.
                                     </td>
                                 </tr>
@@ -318,7 +322,7 @@ export default function BookingStockView() {
                             {loading && (
                                 classic
                                     ? <TableSkeleton rows={8} cols={skel.cols ?? COLS.length} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                                    : <tr><td colSpan={COLS.length} className="text-center text-muted py-4">Loading...</td></tr>
+                                    : <tr><td colSpan={COLS.length + 1} className="text-center text-muted py-4">Loading...</td></tr>
                             )}
                         </tbody>
                     </table>

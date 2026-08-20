@@ -7,7 +7,7 @@ import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 // Column defs for the expanded row's material table. Module-level so the loading
@@ -319,7 +319,7 @@ export default function ProductionRunsTab({
                             }} className={classic ? '' : 'table-light'}>
                                 {(() => {
                                     const colWidths: Record<string, string | undefined> = {
-                                        '': '22px',
+                                        '': `${LV_EXPANDER_COL_W}px`,
                                         'Code': '210px',
                                         'BOM / Style': undefined, // flexes
                                         'MOs': '48px',

@@ -13,7 +13,7 @@ import Pager from '../shared/Pager';
 import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
-import { lvThead, ExpandToggle } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 import { API_BASE, STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -573,6 +573,7 @@ export default function LabDipRequestView({
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                     <thead style={lvThead(classic)}>
                         <tr>
+                            <th style={{ ...xpThCell(classic), width: LV_EXPANDER_COL_W }} />
                             <th style={{ ...xpThCell(classic), width: 140, cursor: 'pointer' }} onClick={() => toggleSort('code')} title="Sort">Request Code<SortMark sort={sort} colKey="code" /></th>
                             <th style={{ ...xpThCell(classic), width: 120, cursor: 'pointer' }} onClick={() => toggleSort('customer')} title="Sort">Customer<SortMark sort={sort} colKey="customer" /></th>
                             <th style={xpThCell(classic)}>Items</th>
@@ -586,9 +587,9 @@ export default function LabDipRequestView({
                     </thead>
                     <tbody ref={listBodyRef}>
                         {labDips.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={tdBase(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                            <TableSkeleton rows={8} cols={skel.cols ?? 10} classic={classic} tdStyle={tdBase(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
+                            <tr><td colSpan={10} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 {hasActiveFilter ? 'No requests match the current filter.' : isYarn ? 'No yarn lab dip requests yet.' : 'No lab dip requests yet.'}</td></tr>
                         ))}
                         {sorted.map((r: any, idx: number) => {
@@ -603,9 +604,10 @@ export default function LabDipRequestView({
                                         borderBottom: classic ? '1px solid #c0bdb5' : undefined,
                                         cursor: 'pointer',
                                     }}>
+                                        <ExpanderCell classic={classic} expanded={expandedIds.has(r.id)} onToggle={() => toggleExpand(r.id)} label="lab dip detail"
+                                            tdStyle={tdBase(classic)} />
                                         <td style={tdBase(classic)}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                <ExpandToggle expanded={expandedIds.has(r.id)} classic={classic} onToggle={() => toggleExpand(r.id)} label="lab dip detail" />
                                                 <div>
                                                     <CodeChip code={r.code} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                                     <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.created_at ? tzDate(r.created_at) : ''}</div>
@@ -806,7 +808,7 @@ export default function LabDipRequestView({
 
                                         return (
                                         <tr>
-                                            <td colSpan={9} style={{ padding: 0 }}>
+                                            <td colSpan={10} style={{ padding: 0 }}>
                                                 <ExpandedRowPanel classic={classic} style={{ overflow: 'hidden' }}>
                                                     <RequestDetailPanel
                                                         classic={classic}
