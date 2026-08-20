@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -1174,7 +1174,7 @@ export default function ManufacturingOrdersTab({
                                 const isHighlighted = !!moCodeFilter && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
                                 const rowBg = isHighlighted ? rowStateBg('highlighted', classic)
                                     : isExpanded ? rowStateBg('expanded', classic)
-                                    : classic ? (rowIdx % 2 === 0 ? '#fff' : '#f5f3ee') : undefined;
+                                    : classic ? lvZebra(true, rowIdx) : undefined;
                                 const tdStyle: React.CSSProperties = classic ? {
                                     border: '1px solid #c0bdb5',
                                     padding: '4px 8px',

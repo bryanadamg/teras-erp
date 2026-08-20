@@ -170,10 +170,19 @@ export const lvSubCaption = (classic: boolean): React.CSSProperties => ({
 export const lvSep = (classic: boolean): React.CSSProperties =>
     ({ width: 1, height: 20, background: classic ? '#a0988c' : '#dbe1ea', margin: '0 2px' });
 
+// The zebra stripe on its own, for rows that compose their background out of
+// several states (selected / expanded / QC-tinted / stripe) and so cannot take
+// `lvRow` wholesale. ~24 rows wrote this ternary inline, and they had drifted:
+// the lot list striped bluish `#f0f0f8` and sales orders used `#fafafa` in modern
+// where every other list used `#f8fafc`.
+export const lvZebra = (classic: boolean, idx: number): string =>
+    idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc');
+
 // Row background stripe (zebra), dual-theme + border.
-export const lvRow = (classic: boolean, idx: number): React.CSSProperties => (classic
-    ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }
-    : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' });
+export const lvRow = (classic: boolean, idx: number): React.CSSProperties => ({
+    background: lvZebra(classic, idx),
+    borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e6eaf1',
+});
 
 // ── Sortable column header ────────────────────────────────────────────────────
 // `useSortable`/`useServerSort` give the state and `SortMark` the arrow, but the

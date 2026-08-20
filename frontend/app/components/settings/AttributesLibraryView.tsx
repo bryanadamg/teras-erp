@@ -4,7 +4,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, lvZebra } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
 
 // Attributes with a dedicated management home are hidden here so they are not
@@ -250,7 +250,7 @@ export default function AttributesLibraryView({
                             <>
                                 <div style={{ background: '#fff', border: '1px solid #7f9db9', maxHeight: 220, overflowY: 'auto', marginBottom: 8 }}>
                                     {editing.values.map((val: any, vi: number) => (
-                                        <div key={val.id} style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', background: vi % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e0dfd8' }}>
+                                        <div key={val.id} style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', background: lvZebra(true, vi), borderBottom: '1px solid #e0dfd8' }}>
                                             <input
                                                 style={{ ...lvInput(classic), flex: 1, border: 'none', boxShadow: 'none', background: 'transparent' }}
                                                 defaultValue={val.value}

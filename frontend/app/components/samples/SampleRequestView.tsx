@@ -18,7 +18,7 @@ import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
-import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, lvTh, lvTdRuled } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, lvTh, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 // Request classification, chosen at create time. Values are the `Sample Category`
 // system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
@@ -1458,7 +1458,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        background: s.id === highlightId ? rowStateBg('highlighted', classic)
                                            : expandedIds.has(s.id) ? rowStateBg('expanded', classic)
                                            : s.is_unread ? (classic ? '#dde8fb' : '#f0f7ff')
-                                           : classic ? (rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined,
+                                           : classic ? lvZebra(true, rowIndex) : undefined,
                                        borderBottom: classic ? '1px solid #c0bdb5' : undefined,
                                        cursor: 'pointer',
                                        outline: s.id === highlightId ? '2px solid #f0a000' : undefined,

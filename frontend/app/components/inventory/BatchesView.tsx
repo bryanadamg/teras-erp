@@ -21,7 +21,7 @@ const LOT_STATUS_FILTERS = [
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
-import { ExpanderCell, SortableTh } from '../shared/listViewTheme';
+import { ExpanderCell, SortableTh, lvZebra } from '../shared/listViewTheme';
 import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -808,7 +808,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
   const xpTd = (alt: boolean): React.CSSProperties => classic ? {
     border: '1px solid #c8c8c8', padding: '2px 6px',
-    background: alt ? '#f0f0f8' : '#ffffff', verticalAlign: 'middle',
+    background: lvZebra(true, alt ? 1 : 0), verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
   const colSpan = 11; // Chevron, Lot Number, Product, Origin, MO/PR, Location, Remaining, Ends, Notes, Created, Actions
@@ -887,7 +887,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                   <>
                     <tr
                       key={b.id}
-                      style={{ background: expandedRows[b.id] ? rowStateBg('expanded', true) : i % 2 === 1 ? '#f0f0f8' : '#ffffff', cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined, height: ROW_H }}
+                      style={{ background: expandedRows[b.id] ? rowStateBg('expanded', true) : lvZebra(true, i), cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined, height: ROW_H }}
                       onClick={() => toggleExpand(b)}
                       title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >

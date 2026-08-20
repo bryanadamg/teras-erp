@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvZebra } from '../shared/listViewTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
   const itemOptions = (selectItems ?? items);
@@ -112,7 +112,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
           </thead>
           <tbody>
               {filteredBalance.map((bal: any, i: number) => (
-                  <tr key={i} style={classic ? { background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}>
+                  <tr key={i} style={classic ? { background: lvZebra(true, i), borderBottom: '1px solid #c0bdb5' } : undefined}>
                       <td style={classic ? { padding: '4px 8px' } : undefined} className={classic ? undefined : 'ps-4'}>
                           <div style={classic ? { fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#000' } : undefined} className={classic ? undefined : 'fw-bold text-dark'}>{getItemName(bal)}</div>
                           {classic ? (

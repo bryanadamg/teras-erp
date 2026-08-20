@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { lvThead, lvThBanded } from '../shared/listViewTheme';
+import { lvThead, lvThBanded, lvZebra } from '../shared/listViewTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -740,7 +740,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             const shadeColors = run.shade_result ? SHADE_COLORS[run.shade_result] : null;
                                             return (
                                                 <tr key={run.id} style={classic
-                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f5f3ee' }
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
                                                     : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontWeight: 'bold' } : { padding: '6px 10px', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>{runLabel}</td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{recipeName}</td>
@@ -922,7 +922,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         <tbody>
                                             {completeForm.chemicals.map((row, idx) => (
                                                 <tr key={idx} style={classic
-                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f5f3ee' }
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
                                                     : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <select

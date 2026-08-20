@@ -13,7 +13,7 @@ import Pager from '../shared/Pager';
 import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
-import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 import { API_BASE, STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -584,7 +584,7 @@ export default function LabDipRequestView({
                                     <tr id={`labdip-row-${r.id}`} onClick={() => toggleExpand(r.id)} style={{
                                         background: String(r.id) === String(openRequestId) ? rowStateBg('highlighted', classic)
                                             : expandedIds.has(r.id) ? rowStateBg('expanded', classic)
-                                            : idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc'),
+                                            : lvZebra(classic, idx),
                                         borderBottom: classic ? '1px solid #c0bdb5' : undefined,
                                         cursor: 'pointer',
                                     }}>

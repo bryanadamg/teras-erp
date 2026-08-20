@@ -15,7 +15,7 @@ import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, Form
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh, lvThSticky, lvTdRuled } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryTabIcon(name: string): string {
@@ -144,7 +144,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
     // chip and every link inside it.
     const rowBg = isSelected ? rowStateBg('selected', classic)
         : isEditing ? rowStateBg('highlighted', classic)
-        : classic ? (rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined;
+        : classic ? lvZebra(true, rowIndex) : undefined;
 
     const tdBase: React.CSSProperties = classic ? lvTdRuled(true) : {};
 

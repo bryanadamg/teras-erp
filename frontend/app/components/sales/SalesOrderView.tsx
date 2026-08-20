@@ -16,7 +16,7 @@ import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearc
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
-import { lvThead, SortableTh, lvThSticky, lvTdRuled } from '../shared/listViewTheme';
+import { lvThead, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
 // resized — it is the floor the table refuses to squeeze past before scrolling.
@@ -1543,7 +1543,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    {/* Lines list */}
                    <div>
                        {newSO.lines.map((line: any, idx) => (
-                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?lvZebra(true,idx):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
                                    <CodeChip code={getItemCode(line.item_id, line.item_code)} classic={classic} tier={2} style={{ marginLeft: 8 }} />
@@ -1672,7 +1672,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                        </thead>
                        <tbody ref={listBodyRef}>
                            {pageOrders.flatMap((so: any, rowIndex: number) => {
-                               const rowBg = rowIndex % 2 === 0 ? '#ffffff' : (classic ? '#f5f3ee' : '#fafafa');
+                               const rowBg = lvZebra(classic, rowIndex);
                                const soLines: any[] = so.lines;
                                const lineCount = Math.max(soLines.length, 1);
 

@@ -7,7 +7,7 @@ import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 // Column defs for the expanded row's material table. Module-level so the loading
@@ -352,7 +352,7 @@ export default function ProductionRunsTab({
                                 const total = mos.length;
                                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                                 const rowBg = classic
-                                    ? (rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
+                                    ? lvZebra(true, rowIdx)
                                     : undefined;
                                 const tdStyle: React.CSSProperties = classic ? {
                                     border: '1px solid #c0bdb5', padding: '4px 8px', color: '#000', verticalAlign: 'middle',

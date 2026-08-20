@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
 import { CodeChip, xpFont, ListSkeleton, StatusChip } from '../shared/xpTheme';
 import { orDash, fmtQtyFixed } from '../shared/format';
-import { lvThBanded, lvTd, lvTdRuled } from '../shared/listViewTheme';
+import { lvThBanded, lvTd, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -442,7 +442,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                             {pagedRuns.map((run: any, idx: number) => (
                                                 <tr
                                                     key={run.id}
-                                                    style={{ background: idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc') }}
+                                                    style={{ background: lvZebra(classic, idx) }}
                                                 >
                                                     <td style={tdStyle}>{run.run_number ?? idx + 1}</td>
                                                     <td style={tdStyle}>{fmtNum(run.substrate_qty)}</td>

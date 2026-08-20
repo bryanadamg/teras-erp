@@ -11,7 +11,7 @@ import {
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption } from '../shared/shellTheme';
-import { lvThead, SortableTh } from '../shared/listViewTheme';
+import { lvThead, SortableTh, lvZebra } from '../shared/listViewTheme';
 import { qtyFmt } from '../shared/format';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
@@ -396,7 +396,7 @@ export default function ReportsView(_props: any) {
         const up = e.qty_change >= 0;
         const pkg = pkgDelta(e);
         return classic ? (
-            <tr key={e.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #e0ddd3' }}>
+            <tr key={e.id} style={{ background: lvZebra(true, i), borderBottom: '1px solid #e0ddd3' }}>
                 <td style={{ ...xpCell, whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: '11px', color: '#000' }}>{tzDate(e.created_at)}</div>
                     <div style={{ fontSize: '10px', color: '#777' }}>{tzTime(e.created_at)}</div>

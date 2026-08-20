@@ -16,6 +16,7 @@ import UserFormModal, { UserFormPayload } from './UserFormModal';
 import EffectivePermissions, { effectivePermissionList } from './EffectivePermissions';
 import PermissionBreakdown from './PermissionBreakdown';
 import { API_BASE } from '../shared/apiBase';
+import { lvZebra } from '../shared/listViewTheme';
 
 const USERS_PAGE_SIZE = 10;
 
@@ -265,7 +266,7 @@ export default function SettingsUsersTab({
                                     <Fragment key={user.id}>
                                     <tr
                                         style={classic
-                                            ? { background: isExpanded ? rowStateBg('expanded', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 }
+                                            ? { background: isExpanded ? rowStateBg('expanded', true) : lvZebra(true, rowIndex), borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 }
                                             : { background: isExpanded ? rowStateBg('expanded', false) : undefined, opacity: user.is_active ? 1 : 0.6 }}
                                     >
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-4'}>

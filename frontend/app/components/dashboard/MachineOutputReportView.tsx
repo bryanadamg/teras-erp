@@ -27,7 +27,7 @@ import {
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar } from '../shared/shellTheme';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvZebra } from '../shared/listViewTheme';
 import { qtyFmt } from '../shared/format';
 
 // Machine output is weighed to the gram, so this report alone runs at 3dp.
@@ -820,7 +820,7 @@ export default function MachineOutputReportView() {
                                             <React.Fragment key={key}>
                                             <tr
                                                 style={classic
-                                                    ? { background: open ? rowStateBg('expanded', true) : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }
+                                                    ? { background: open ? rowStateBg('expanded', true) : lvZebra(true, i), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }
                                                     : { background: open ? rowStateBg('expanded', false) : undefined, cursor: 'pointer' }}
                                                 onClick={() => setExpanded(open ? null : key)}
                                             >

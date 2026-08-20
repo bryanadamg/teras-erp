@@ -14,7 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { useSortable, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvThSticky, lvTdRuled } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 export default function PurchaseOrderView({ items, itemResults, onSearchItems, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
@@ -609,7 +609,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                    </div>
                    <div>
                        {newPO.lines.map((line: any, idx) => (
-                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined}}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?lvZebra(true,idx):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id)}</span>
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontSize:classic?'10px':''}}>{getItemCode(line.item_id)}</span>
@@ -707,7 +707,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                        </thead>
                        <tbody>
                            {receiptTarget.lines.map((line: any, idx: number) => (
-                               <tr key={line.id} style={classic?{background:idx%2===0?'#ffffff':'#f5f3ee',borderBottom:'1px solid #d0cdc8'}:undefined}>
+                               <tr key={line.id} style={classic?{background:lvZebra(true,idx),borderBottom:'1px solid #d0cdc8'}:undefined}>
                                    <td style={classic?tdBase:undefined}>
                                        <div style={classic?{fontWeight:'bold'}:undefined} className={classic?'':'fw-bold'}>{line.item_name || getItemName(line.item_id)}</div>
                                        <div style={classic?{fontSize:'10px',color:'#666'}:undefined} className={classic?'':'small text-muted'}>{line.item_code || getItemCode(line.item_id)}</div>
@@ -864,7 +864,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                <tr
                                    key={po.id}
                                    style={classic
-                                       ? { background: expandedRows[po.id] ? rowStateBg('expanded', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: expandedRows[po.id] ? 'none' : '1px solid #c0bdb5' }
+                                       ? { background: expandedRows[po.id] ? rowStateBg('expanded', true) : lvZebra(true, rowIndex), borderBottom: expandedRows[po.id] ? 'none' : '1px solid #c0bdb5' }
                                        : { background: expandedRows[po.id] ? rowStateBg('expanded', false) : undefined }}
                                >
                                    <ExpanderCell classic={classic} expanded={!!expandedRows[po.id]} label="items & receipts"

@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
@@ -555,7 +555,7 @@ export default function BOMView({
                                                 {lines.map((line: any, i: number) => {
                                                     const isSubBOM = !!findSubBOM(line);
                                                     return (
-                                                        <tr key={line.id} style={{ background: i % 2 === 0 ? '#fff' : '#f5f3ee' }}>
+                                                        <tr key={line.id} style={{ background: lvZebra(true, i) }}>
                                                             <td style={xpTd}>
                                                                 <CodeChip code={line.item_code} classic={classic} tone="accent" />
                                                                 <span style={{ marginLeft: 5, color: '#000' }}>{line.item_name}</span>
@@ -769,7 +769,7 @@ export default function BOMView({
                                                 </thead>
                                                 <tbody>
                                                     {(displayBOM.sizes || []).map((s: any, i: number) => (
-                                                        <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f5f3ee' }}>
+                                                        <tr key={i} style={{ background: lvZebra(true, i) }}>
                                                             <td style={{ padding: '1px 4px 1px 0', fontWeight: 'bold', fontSize: 10 }}>{s.size_name || s.label || `Row ${i + 1}`}</td>
                                                             <td style={{ padding: '1px 4px', textAlign: 'right', fontSize: 10, background: '#f8f7f2', border: '1px solid #e0ddd4' }}>{s.target_measurement != null ? s.target_measurement : '—'}</td>
                                                             <td style={{ padding: '1px 4px', textAlign: 'right', fontSize: 10, background: '#f8f7f2', border: '1px solid #e0ddd4', borderLeft: 'none' }}>{s.measurement_min != null ? s.measurement_min : '—'}</td>
@@ -967,7 +967,7 @@ export default function BOMView({
                                             const isExpanded = expandedBOMRows[bom.id];
                                             const rowBg = sel.isSelected(bom) ? rowStateBg('selected', classic)
                                                 : isExpanded ? rowStateBg('expanded', classic)
-                                                : classic ? (index % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined;
+                                                : classic ? lvZebra(true, index) : undefined;
 
                                             return (
                                                 <>

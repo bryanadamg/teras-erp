@@ -14,6 +14,7 @@ import RoleFormModal, { RoleFormPayload, RoleLike } from './RoleFormModal';
 import ScopeBreakdown from './ScopeBreakdown';
 import { API_BASE } from '../shared/apiBase';
 import { groupPermissionsBySection } from '../shared/permissionMatrix';
+import { lvZebra } from '../shared/listViewTheme';
 
 export default function SettingsRolesTab({
     roles, allPermissions, reload, roleFilter, onFilterUsers,
@@ -180,7 +181,7 @@ export default function SettingsRolesTab({
                                 return (
                                     <Fragment key={role.id}>
                                     <tr style={classic
-                                        ? { background: isExpanded ? rowStateBg('expanded', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' }
+                                        ? { background: isExpanded ? rowStateBg('expanded', true) : lvZebra(true, rowIndex), borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' }
                                         : { background: isExpanded ? rowStateBg('expanded', false) : undefined }}>
                                         <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold ps-4'}>{role.name}</td>
                                         <td style={classic ? tdBase : undefined} className={classic ? '' : 'text-muted small'}>{role.description || '-'}</td>

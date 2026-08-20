@@ -10,7 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky, lvZebra } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
 
@@ -610,7 +610,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 className={classic ? undefined : (qStatus && !sel.isSelectedKey(rk) ? 'table-danger' : undefined)}
                 title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
                 style={classic
-                    ? { background: sel.isSelectedKey(rk) ? rowStateBg('selected', true) : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' }
+                    ? { background: sel.isSelectedKey(rk) ? rowStateBg('selected', true) : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : lvZebra(true, i), borderBottom: '1px solid #c0bdb5' }
                     : (sel.isSelectedKey(rk) ? { background: rowStateBg('selected', false) } : undefined)}>
                 <td className={classic ? undefined : 'text-center'} style={classic ? { padding: '4px 6px', textAlign: 'center', ...colDivider } : colDivider}>{checkCell}</td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>

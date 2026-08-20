@@ -10,7 +10,7 @@ import { useUser } from '../../context/UserContext';
 import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
+import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, lvZebra } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
@@ -244,7 +244,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                                 {pagedPartners.map((p, rowIndex) => (
                                     <tr
                                         key={p.id}
-                                        style={classic ? { background: sel.isSelected(p) ? rowStateBg('selected', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : { background: sel.isSelected(p) ? rowStateBg('selected', false) : undefined }}
+                                        style={classic ? { background: sel.isSelected(p) ? rowStateBg('selected', true) : lvZebra(true, rowIndex), borderBottom: '1px solid #c0bdb5' } : { background: sel.isSelected(p) ? rowStateBg('selected', false) : undefined }}
                                     >
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-3'}>
                                             <RowCheckbox classic={classic} checked={sel.isSelected(p)} onChange={() => sel.toggle(p)} label={p.name} />

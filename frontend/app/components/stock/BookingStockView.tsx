@@ -8,7 +8,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -241,7 +241,7 @@ export default function BookingStockView() {
                                 const isOpen = expanded.has(k);
                                 const variant = variantLabel(r.attribute_value_ids);
                                 const h = healthOf(r.qty_net_free);
-                                const zebra = i % 2 === 0 ? '#ffffff' : '#f5f3ee';
+                                const zebra = lvZebra(true, i);
                                 return (
                                     <Fragment key={k}>
                                         <tr onClick={() => toggleRow(k)} title={classic ? 'Click for MO breakdown' : undefined}
