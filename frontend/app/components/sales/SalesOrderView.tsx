@@ -16,7 +16,7 @@ import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearc
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
-import { lvThead, SortableTh } from '../shared/listViewTheme';
+import { lvThead, SortableTh, lvThSticky, lvTdRuled } from '../shared/listViewTheme';
 
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
 // resized — it is the floor the table refuses to squeeze past before scrolling.
@@ -213,33 +213,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       flexShrink: 0,
   };
 
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px',
-      fontWeight: 'bold',
-      color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true);
 
-  const xpThCell: React.CSSProperties = {
-      padding: '3px 6px',
-      borderRight: '1px solid #b0aaa0',
-      textAlign: 'left' as const,
-      whiteSpace: 'nowrap' as const,
-      fontFamily: xpFont,
-      position: 'sticky' as const,
-      top: 0,
-      zIndex: 5,
-      ...lvThead(true)
-  };
+  const xpThCell: React.CSSProperties = lvThSticky(true);
 
-  const tdBase: React.CSSProperties = {
-      padding: '4px 6px',
-      borderRight: '1px solid #c0bdb5',
-      borderBottom: '1px solid #d0cdc8',
-      verticalAlign: 'middle' as const,
-      fontFamily: xpFont,
-      fontSize: '11px',
-  };
+  const tdBase: React.CSSProperties = lvTdRuled(true);
 
 
   const [newSO, setNewSO] = useState({

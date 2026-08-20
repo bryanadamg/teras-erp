@@ -10,7 +10,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, lvThSticky } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -27,11 +27,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
 const xpFont = LV_XP_FONT;
 const xpInput: React.CSSProperties = lvInput(true);
 const xpSelect: React.CSSProperties = { ...xpInput, height: 22 };
-const xpTableHeader: React.CSSProperties = {
-    ...lvTh(true),
-    ...lvThead(true),
-    position: 'sticky', top: 0,
-};
+const xpTableHeader: React.CSSProperties = lvThSticky(true);
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);

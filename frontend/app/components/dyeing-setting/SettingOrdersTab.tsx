@@ -8,6 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
 import { CodeChip, xpFont, ListSkeleton, StatusChip } from '../shared/xpTheme';
 import { orDash, fmtQtyFixed } from '../shared/format';
+import { lvThBanded, lvTd, lvTdRuled } from '../shared/listViewTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -244,24 +245,12 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     };
 
     // ── Styles ────────────────────────────────────────────────────────────────
-    const thStyle: React.CSSProperties = classic ? {
-        background: 'linear-gradient(to bottom, #fff 0%, #d4d0c8 100%)',
-        border: '1px solid #808080', padding: '2px 6px',
-        fontFamily: xpFont, fontSize: 10, fontWeight: 'bold',
-        whiteSpace: 'nowrap', textAlign: 'left',
-    } : {
-        background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
-        fontSize: 11, fontWeight: 700, padding: '6px 10px',
-        borderBottom: '1.5px solid #cbd3df', fontFamily: modernFont,
-        whiteSpace: 'nowrap', textAlign: 'left',
-    };
-    const tdStyle: React.CSSProperties = classic ? {
-        border: '1px solid #c0bdb5', padding: '2px 6px',
-        fontFamily: xpFont, fontSize: 10, verticalAlign: 'middle',
-    } : {
-        color: '#334155', fontSize: 13, padding: '6px 10px',
-        borderBottom: '1px solid #e6eaf1', fontFamily: modernFont, verticalAlign: 'middle',
-    };
+    const thStyle: React.CSSProperties = classic
+        ? lvThBanded(true, { border: '1px solid #808080' })
+        : lvThBanded(false);
+    const tdStyle: React.CSSProperties = classic
+        ? { ...lvTd(true), border: '1px solid #c0bdb5' }
+        : lvTdRuled(false);
 
     const inputStyle = (width?: number): React.CSSProperties => ({
         ...xpInput(classic), width: width ?? '100%',

@@ -18,7 +18,7 @@ import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg, StatusChip } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, SortableTh } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvTd } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -636,15 +636,15 @@ export default function WorkOrderListView({
         padding: '6px 12px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
     };
 
-    const thStyle: React.CSSProperties = classic ? {
-        border: '1px solid #808080', padding: '3px 8px', color: '#000', fontWeight: 'bold',
-        background: 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)', fontSize: 10, whiteSpace: 'nowrap',
-        position: 'sticky', top: 0, zIndex: 5, // sticks to top of the table's own scroll pane
-    } : { fontSize: '9pt', fontWeight: 'bold', whiteSpace: 'nowrap' };
+    // Full cell borders rather than lvTh/lvTd's single rule: 15 columns of dates
+    // and quantities, where the verticals are what keep a row readable.
+    const thStyle: React.CSSProperties = classic
+        ? lvThSticky(true, { border: '1px solid #808080' })
+        : { fontSize: '9pt', fontWeight: 'bold', whiteSpace: 'nowrap' };
 
-    const tdBase: React.CSSProperties = classic ? {
-        border: '1px solid #c0bdb5', padding: '3px 8px', color: '#000', verticalAlign: 'middle',
-    } : { verticalAlign: 'middle' };
+    const tdBase: React.CSSProperties = classic
+        ? { ...lvTd(true), border: '1px solid #c0bdb5' }
+        : { verticalAlign: 'middle' };
 
     return (
         <>

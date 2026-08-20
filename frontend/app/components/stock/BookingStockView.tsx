@@ -8,7 +8,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -187,12 +187,7 @@ export default function BookingStockView() {
     const xpBevel: React.CSSProperties = sharedXpBevel();
     const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
     const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
-    const xpTableHeader: React.CSSProperties = {
-        ...lvThead(true),
-        borderRight: '1px solid #b0aa9c',
-        fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
-        padding: '3px 8px', position: 'sticky', top: 0, whiteSpace: 'nowrap', userSelect: 'none',
-    };
+    const xpTableHeader: React.CSSProperties = lvThSticky(true, { borderRight: '1px solid #b0aa9c' });
     const xpSep: React.CSSProperties = { width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0 };
 
     const colLine: React.CSSProperties = { borderRight: '1px solid #d8d4c8' };

@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvThBanded } from '../shared/listViewTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -54,15 +54,7 @@ const makePanel = (classic: boolean): React.CSSProperties => classic ? {
 } : {
     background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9,
 };
-const makeThCell = (classic: boolean): React.CSSProperties => classic ? {
-    ...lvThead(true), borderRight: '1px solid #b0aaa0',
-    padding: '3px 6px', textAlign: 'left', whiteSpace: 'nowrap',
-    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
-} : {
-    background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
-    fontSize: 11, fontWeight: 700, borderBottom: '1.5px solid #cbd3df',
-    fontFamily: modernFont,
-};
+const makeThCell = (classic: boolean): React.CSSProperties => lvThBanded(classic);
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';

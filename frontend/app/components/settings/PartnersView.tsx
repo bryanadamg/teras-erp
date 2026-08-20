@@ -98,9 +98,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
         flexShrink: 0,
     };
     const xpThCell: React.CSSProperties = lvTh(true);
-    const xpTableHeader: React.CSSProperties = {
-        ...lvThead(true)
-    };
+    const xpTableHeader: React.CSSProperties = lvThead(true);
     const tdBase: React.CSSProperties = lvTd(true);
     const xpLabel: React.CSSProperties = lvLabel(true);
 

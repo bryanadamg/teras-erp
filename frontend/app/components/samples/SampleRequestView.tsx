@@ -18,7 +18,7 @@ import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
-import { lvThead, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, lvTh, lvTdRuled } from '../shared/listViewTheme';
 
 // Request classification, chosen at create time. Values are the `Sample Category`
 // system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
@@ -304,29 +304,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       flexShrink: 0,
   };
 
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px',
-      fontWeight: 'bold',
-      color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true);
 
-  const xpThCell: React.CSSProperties = {
-      padding: '3px 6px',
-      borderRight: '1px solid #b0aaa0',
-      textAlign: 'left' as const,
-      whiteSpace: 'nowrap' as const,
-      fontFamily: xpFont,
-  };
+  const xpThCell: React.CSSProperties = lvTh(true);
 
-  const tdBase: React.CSSProperties = {
-      padding: '4px 6px',
-      borderRight: '1px solid #c0bdb5',
-      borderBottom: '1px solid #d0cdc8',
-      verticalAlign: 'middle' as const,
-      fontFamily: xpFont,
-      fontSize: '11px',
-  };
+  const tdBase: React.CSSProperties = lvTdRuled(true);
 
   const today = new Date().toISOString().split('T')[0];
   const emptyForm = () => ({

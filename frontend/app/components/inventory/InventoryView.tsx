@@ -15,7 +15,7 @@ import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, Form
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh, lvThSticky, lvTdRuled } from '../shared/listViewTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryTabIcon(name: string): string {
@@ -146,9 +146,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
         : isEditing ? rowStateBg('highlighted', classic)
         : classic ? (rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined;
 
-    const tdBase: React.CSSProperties = classic
-        ? { padding: '4px 6px', borderRight: '1px solid #c0bdb5', borderBottom: '1px solid #d0cdc8', verticalAlign: 'middle', color: '#000000' }
-        : {};
+    const tdBase: React.CSSProperties = classic ? lvTdRuled(true) : {};
 
     const categoryDisplay = item.category_path?.length ? item.category_path.join(' / ') : (item.category || '');
     const catStyle = classic ? getCategoryXPStyle(categoryDisplay) : null;
@@ -744,23 +742,9 @@ export default function InventoryView({
       flexShrink: 0,
   };
 
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px',
-      fontWeight: 'bold',
-      color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true);
 
-  const xpThCell: React.CSSProperties = {
-      padding: '3px 6px',
-      borderRight: '1px solid #b0aaa0',
-      textAlign: 'left' as const,
-      whiteSpace: 'nowrap' as const,
-      position: 'sticky' as const,
-      top: 0,
-      zIndex: 5,
-      ...lvThead(true)
-  };
+  const xpThCell: React.CSSProperties = lvThSticky(true);
 
   const xpStatusBar: React.CSSProperties = {
       background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)',

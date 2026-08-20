@@ -10,7 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
 
@@ -534,12 +534,9 @@ export default function StockOnHandView({ locations, attributes, categories, ite
         background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
     };
     const xpSelect: React.CSSProperties = { ...xpInput, height: '22px' };
-    const xpTableHeader: React.CSSProperties = {
-        ...lvThead(true),
-        borderRight: '1px solid #a8a29a',
-        fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
-        padding: '3px 8px', position: 'sticky' as const, top: 0,
-    };
+    // Heavier divider than lvTh's: this is a 12-column grid and the verticals are
+    // what keep a row's figures tracking across it.
+    const xpTableHeader: React.CSSProperties = lvThSticky(true, { borderRight: '1px solid #a8a29a' });
     const colDivider: React.CSSProperties = { borderRight: '1px solid #c0bdb5' };
     const xpBtn = (extra: any = {}): React.CSSProperties => ({
         fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',

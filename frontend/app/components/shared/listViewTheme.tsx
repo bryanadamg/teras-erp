@@ -66,11 +66,29 @@ export const lvThead = (classic: boolean, sticky = false): React.CSSProperties =
     ...(sticky ? { position: 'sticky' as const, top: 0, zIndex: 1 } : {}),
 });
 
+// A header cell that paints its own band. In modern `lvTh` already carries the
+// band; in classic the gradient lives on the row (`lvThead`), so a cell that must
+// look right on its own — sticky headers, and any table whose `<thead>` styling
+// is applied per-cell — needs both. Ten views wrote this pair out by hand, four
+// of them with a different padding than the other six.
+export const lvThBanded = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
+    ({ ...lvTh(classic), ...lvThead(classic), ...extra });
+
+// Same, pinned to the top of the table's own scroll pane. `zIndex` keeps it over
+// chips and sticky first columns.
+export const lvThSticky = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
+    ({ ...lvThBanded(classic), position: 'sticky', top: 0, zIndex: 5, ...extra });
+
 export const lvTd = (classic: boolean): React.CSSProperties => (classic ? {
     padding: '4px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle', fontFamily: LV_XP_FONT, fontSize: 11,
 } : {
     padding: '6px 10px', verticalAlign: 'middle', fontFamily: LV_MODERN_FONT, fontSize: 13, color: '#334155',
 });
+
+// Body cell with a horizontal rule under it, for lists that separate rows on the
+// cell instead of on the row (they don't use `lvRow`).
+export const lvTdRuled = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
+    ({ ...lvTd(classic), borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #e6eaf1', ...extra });
 
 // ── Sub-tables (mini-tables inside an expanded row) ───────────────────────────
 // A different job from lvTh/lvTd, which dress the *main* list. A table nested

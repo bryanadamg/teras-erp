@@ -87,10 +87,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
   const xpSep: React.CSSProperties = {
       width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
   };
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px', fontWeight: 'bold', color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true);
   const xpLabel: React.CSSProperties = {
       fontFamily: xpFont, fontSize: '11px', color: '#000', display: 'block', marginBottom: 2,
   };
