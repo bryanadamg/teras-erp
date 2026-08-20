@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { lvThead, lvThBanded, lvZebra } from '../shared/listViewTheme';
+import { lvThead, lvThBanded, lvZebra, Dash } from '../shared/listViewTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -492,7 +492,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                 </span>
                                             </td>
                                             <td style={{ padding: classic ? '2px 6px' : '6px 10px', fontSize: classic ? 10 : 11, color: isSelected ? (classic ? '#cce' : '#2563eb') : (classic ? '#555' : '#64748b') }}>
-                                                {wo.manufacturing_order_id ? shortId(wo.manufacturing_order_id) : '-'}
+                                                {wo.manufacturing_order_id ? shortId(wo.manufacturing_order_id) : '—'}
                                             </td>
                                         </tr>
                                     );
@@ -736,7 +736,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             const runLabel = run.run_number ?? run.run_code ?? `#${idx + 1}`;
                                             const recipeName = run.recipe_name
                                                 ?? recipes.find(r => String(r.id) === String(run.recipe_id))?.name
-                                                ?? (run.recipe_id ? shortId(run.recipe_id) : '-');
+                                                ?? (run.recipe_id ? shortId(run.recipe_id) : '—');
                                             const shadeColors = run.shade_result ? SHADE_COLORS[run.shade_result] : null;
                                             return (
                                                 <tr key={run.id} style={classic
@@ -745,7 +745,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontWeight: 'bold' } : { padding: '6px 10px', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>{runLabel}</td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{recipeName}</td>
                                                     <td style={classic ? { padding: '2px 6px', textAlign: 'right' } : { padding: '6px 10px', textAlign: 'right', color: '#334155', fontFamily: modernFont }}>
-                                                        {run.substrate_qty != null ? run.substrate_qty : '-'}
+                                                        {run.substrate_qty != null ? run.substrate_qty : '—'}
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{run.machine_name ?? '-'}</td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
@@ -779,7 +779,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                                 {run.shade_result}
                                                             </span>
                                                         ) : (
-                                                            <span style={{ color: classic ? '#999' : '#94a3b8' }}>-</span>
+                                                            <Dash classic={classic} />
                                                         )}
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontSize: 10 } : { padding: '6px 10px', whiteSpace: 'nowrap', fontSize: 12, color: '#64748b', fontFamily: modernFont }}>

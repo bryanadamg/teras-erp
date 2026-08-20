@@ -12,7 +12,7 @@ import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
     useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg,
 } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, EMPTY_DASH } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -248,12 +248,12 @@ export default function DispatchView() {
                                     <RowCheckbox classic checked={sel.isSelected(d)} onChange={() => sel.toggle(d)} label={`pick list ${d.code}`} />
                                 </td>
                                 <td style={td}><CodeChip code={d.code} classic tone="accent" /></td>
-                                <td style={td}>{d.sales_order_code || '-'}</td>
-                                <td style={td}>{d.customer_po_ref || '-'}</td>
-                                <td style={td}>{d.customer_name || '-'}</td>
+                                <td style={td}>{d.sales_order_code || '—'}</td>
+                                <td style={td}>{d.customer_po_ref || '—'}</td>
+                                <td style={td}>{d.customer_name || '—'}</td>
                                 <td style={{ ...td, textAlign: 'right' }}>{d.carton_count}</td>
                                 <td style={{ ...td, textAlign: 'right' }}>{fmtQty(d.total_qty)}</td>
-                                <td style={td}>{d.picked_at ? tzDate(d.picked_at) : '-'}</td>
+                                <td style={td}>{d.picked_at ? tzDate(d.picked_at) : '—'}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -312,14 +312,14 @@ export default function DispatchView() {
                                     >
                                         <td style={td}><CodeChip code={shp.code} classic tone="accent" /></td>
                                         <td style={td}>{shp.delivery_note_number ? <CodeChip code={shp.delivery_note_number} classic /> : '—'}</td>
-                                        <td style={td}>{shp.customer_name || '-'}</td>
-                                        <td style={td}>{shp.vehicle_plate || '-'}</td>
+                                        <td style={td}>{shp.customer_name || '—'}</td>
+                                        <td style={td}>{shp.vehicle_plate || '—'}</td>
                                         <td style={{ ...td, textAlign: 'right' }}>{shp.carton_count}</td>
                                         <td style={td}><StatusChip status={shp.status} /></td>
                                         <td style={td}>
                                             {shp.verified_by_name
                                                 ? `${shp.verified_by_name}${shp.verified_with_discrepancy ? ' (discrepancy)' : ''}`
-                                                : '-'}
+                                                : EMPTY_DASH}
                                         </td>
                                         <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                             {canVerify && shp.status === 'STAGED' && (
@@ -493,10 +493,10 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
                             (pl.lines || []).map((l: any) => (
                                 <tr key={`${pl.id}-${l.id}`}>
                                     <td style={subTd}><CodeChip code={pl.code} classic tier={2} /></td>
-                                    <td style={subTd}>{pl.sales_order_code || '-'}</td>
-                                    <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '-'}</td>
+                                    <td style={subTd}>{pl.sales_order_code || '—'}</td>
+                                    <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '—'}</td>
                                     <td style={subTd}>
-                                        {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : '-'}
+                                        {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : '—'}
                                     </td>
                                     <td style={subTd}>{l.batch_number ? <CodeChip code={l.batch_number} classic tier={2} /> : '—'}</td>
                                     <td style={{ ...subTd, textAlign: 'right' }}>{fmtQty(l.qty_picked)} {l.item_uom || ''}</td>
@@ -713,7 +713,7 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                                     </td>
                                     <td style={td}><CodeChip code={c.batch_number} classic tier={2} /></td>
                                     <td style={td}>{c.item_name}</td>
-                                    <td style={td}>{c.color_name || '-'}</td>
+                                    <td style={td}>{c.color_name || '—'}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>{fmtQty(c.qty_picked)} {c.item_uom || ''}</td>
                                 </tr>
                             ))}

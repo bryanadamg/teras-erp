@@ -11,7 +11,7 @@ import {
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption } from '../shared/shellTheme';
-import { lvThead, SortableTh, lvZebra } from '../shared/listViewTheme';
+import { lvThead, SortableTh, lvZebra, Dash } from '../shared/listViewTheme';
 import { qtyFmt } from '../shared/format';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
@@ -415,7 +415,7 @@ export default function ReportsView(_props: any) {
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     {e.item_category_name
                         ? <span title={e.item_category_name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>{e.item_category_name}</span>
-                        : <span style={{ fontSize: '10px', color: '#aaa' }}>-</span>}
+                        : <Dash classic={classic} />}
                 </td>
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
@@ -432,7 +432,7 @@ export default function ReportsView(_props: any) {
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     {e.batch_number
                         ? <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00' }}>{e.batch_number}</span>
-                        : <span style={{ fontSize: '10px', color: '#aaa' }}>-</span>}
+                        : <Dash classic={classic} />}
                 </td>
                 <td style={{ ...xpCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: up ? '#1a5e1a' : '#c00000' }}>
@@ -469,7 +469,7 @@ export default function ReportsView(_props: any) {
                 <td>
                     {e.item_category_name
                         ? <span title={e.item_category_name} className="badge bg-info-subtle text-info-emphasis d-inline-block text-truncate mw-100 align-bottom">{e.item_category_name}</span>
-                        : <span className="text-muted">-</span>}
+                        : <Dash classic={classic} />}
                 </td>
                 <td>
                     <div className="d-flex flex-wrap gap-1">
@@ -479,7 +479,7 @@ export default function ReportsView(_props: any) {
                         <span className="badge bg-primary-subtle text-primary-emphasis">{getLocName(e)}</span>
                     </div>
                 </td>
-                <td>{e.batch_number ? <span className="badge bg-warning text-dark">{e.batch_number}</span> : <span className="text-muted">-</span>}</td>
+                <td>{e.batch_number ? <span className="badge bg-warning text-dark">{e.batch_number}</span> : <Dash classic={classic} />}</td>
                 <td className="text-end" style={{ whiteSpace: 'nowrap' }}>
                     <span className={`fw-bold ${up ? 'text-success' : 'text-danger'}`}>
                         <i className={`bi ${up ? 'bi-caret-up-fill' : 'bi-caret-down-fill'} me-1`} style={{ fontSize: 10 }} />

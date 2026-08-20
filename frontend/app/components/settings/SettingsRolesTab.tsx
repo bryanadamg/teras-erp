@@ -184,7 +184,7 @@ export default function SettingsRolesTab({
                                         ? { background: isExpanded ? rowStateBg('expanded', true) : lvZebra(true, rowIndex), borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' }
                                         : { background: isExpanded ? rowStateBg('expanded', false) : undefined }}>
                                         <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold ps-4'}>{role.name}</td>
-                                        <td style={classic ? tdBase : undefined} className={classic ? '' : 'text-muted small'}>{role.description || '-'}</td>
+                                        <td style={classic ? tdBase : undefined} className={classic ? '' : 'text-muted small'}>{role.description || '—'}</td>
                                         <td style={classic ? tdBase : undefined}>
                                             {isAdminRole ? (
                                                 classic ? (

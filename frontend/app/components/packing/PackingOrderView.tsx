@@ -424,7 +424,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <td style={{ ...td, textAlign: 'right' }}>{num(po.qty_target).toLocaleString()} {po.item_uom || it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
-                                    <td style={td}>{po.created_at ? tzDate(po.created_at) : '-'}</td>
+                                    <td style={td}>{po.created_at ? tzDate(po.created_at) : '—'}</td>
                                     <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                         {/* Pack is the row's primary action — inline, same shape as
                                             "log production output" on the WO list, not buried in the menu. */}

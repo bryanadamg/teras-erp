@@ -282,10 +282,10 @@ export default function SettingsUsersTab({
                                         <td style={classic ? tdBase : undefined}>
                                             {classic ? (
                                                 <span style={{ display: 'inline-block', width: 'fit-content', maxWidth: '100%', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>
-                                                    {user.role?.name || '-'}
+                                                    {user.role?.name || '—'}
                                                 </span>
                                             ) : (
-                                                <span className="badge bg-secondary" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{user.role?.name || '-'}</span>
+                                                <span className="badge bg-secondary" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{user.role?.name || '—'}</span>
                                             )}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>

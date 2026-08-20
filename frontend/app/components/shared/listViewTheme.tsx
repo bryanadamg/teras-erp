@@ -184,6 +184,16 @@ export const lvRow = (classic: boolean, idx: number): React.CSSProperties => ({
     borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e6eaf1',
 });
 
+// ── Empty value ──────────────────────────────────────────────────────────────
+// The placeholder for a cell with no value. The app had settled on an em dash in
+// ~280 places and a plain hyphen in ~69 — often in neighbouring columns of the
+// same table, where the hyphen reads as a minus sign next to a quantity.
+export const EMPTY_DASH = '\u2014';
+
+export function Dash({ classic = true, style }: { classic?: boolean; style?: React.CSSProperties }) {
+    return <span style={{ color: classic ? '#999' : '#94a3b8', ...style }}>{EMPTY_DASH}</span>;
+}
+
 // ── Empty list row ───────────────────────────────────────────────────────────
 // "Nothing here" inside a table body. Twenty-odd lists wrote their own version of
 // this cell and drifted on all of it: padding 8 / 16 / 20 / 24px, colour #555 /

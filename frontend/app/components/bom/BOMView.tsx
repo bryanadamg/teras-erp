@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
@@ -1015,7 +1015,7 @@ export default function BOMView({
                                                         {(bom.attribute_value_ids || []).length > 0 ? (
                                                             renderVariantChips(bom.attribute_value_ids)
                                                         ) : (
-                                                            <span style={{ color: '#999', fontSize: 10 }} className={classic ? '' : 'text-muted small'}>-</span>
+                                                            <Dash classic={classic} />
                                                         )}
                                                     </td>
                                                     {/* Machine — hue-coded by work-center type */}
@@ -1023,7 +1023,7 @@ export default function BOMView({
                                                         {bom.work_center_name ? (
                                                             <span style={{ ...workCenterChipStyle(bom.work_center_type, bom.work_center_name), borderWidth: 1, borderStyle: 'solid', fontSize: 9, padding: '1px 6px', whiteSpace: 'nowrap', fontFamily: xpFont, fontWeight: 'bold' }}>{bom.work_center_name}</span>
                                                         ) : (
-                                                            <span style={{ color: '#999', fontSize: 10 }} className={classic ? '' : 'text-muted small'}>-</span>
+                                                            <Dash classic={classic} />
                                                         )}
                                                     </td>
                                                     {/* Smart stats — glyph shows only when it carries signal */}

@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
-import { lvThead, lvZebra } from '../shared/listViewTheme';
+import { lvThead, lvZebra, Dash } from '../shared/listViewTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
   const itemOptions = (selectItems ?? items);
@@ -150,7 +150,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                       </td>
                       <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }} className={classic ? undefined : 'small'}>
                           {pkgParts(bal).length === 0
-                              ? <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                              ? <Dash classic={classic} />
                               : pkgParts(bal).map((p, idx) => (
                                   <span key={idx} style={classic ? { color: p.n < 0 ? '#c00000' : '#5a3c00' } : undefined} className={classic ? undefined : (p.n < 0 ? 'text-danger' : '')}>
                                       {idx > 0 ? ' / ' : ''}{p.n} {p.label}

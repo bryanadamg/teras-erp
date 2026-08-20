@@ -15,7 +15,7 @@ import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, Form
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, SortableTh, lvThSticky, lvTdRuled, lvZebra, Dash } from '../shared/listViewTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryTabIcon(name: string): string {
@@ -211,7 +211,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                         </a>
                     )
                 ) : (
-                    <span style={classic ? { color: '#999', fontSize: '9px' } : undefined} className={classic ? '' : 'text-muted small'}>-</span>
+                    <Dash classic={classic} />
                 )}
             </td>
             <td style={{ ...tdBase, width: '70px' }}>
@@ -232,7 +232,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                         <span className="text-muted small">{item.weight_per_unit} {item.weight_unit || ''}</span>
                     )
                 ) : (
-                    <span style={classic ? { color: '#999', fontSize: '9px' } : undefined} className={classic ? '' : 'text-muted small'}>-</span>
+                    <Dash classic={classic} />
                 )}
             </td>
             <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' } : undefined}>

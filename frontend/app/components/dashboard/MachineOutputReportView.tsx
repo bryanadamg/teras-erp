@@ -27,7 +27,7 @@ import {
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar } from '../shared/shellTheme';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvZebra } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvZebra, Dash } from '../shared/listViewTheme';
 import { qtyFmt } from '../shared/format';
 
 // Machine output is weighed to the gram, so this report alone runs at 3dp.
@@ -284,12 +284,12 @@ export default function MachineOutputReportView() {
                 },
                 {
                     key: 'item', label: 'Item', sortKey: 'item',
-                    render: (r, c) => twoLine(r.item_code || '-', r.item_name, c),
+                    render: (r, c) => twoLine(r.item_code || '—', r.item_name, c),
                     csv: r => r.item_code || r.item_name || '',
                 },
                 {
                     key: 'status', label: 'Status', sortKey: 'status',
-                    render: r => (r.po_status ? <StatusChip status={r.po_status} tint /> : <span style={{ color: '#aaa' }}>-</span>),
+                    render: r => (r.po_status ? <StatusChip status={r.po_status} tint /> : <Dash classic={classic} />),
                     csv: r => r.po_status || '',
                 },
                 {
@@ -324,22 +324,22 @@ export default function MachineOutputReportView() {
                 },
                 {
                     key: 'item', label: 'Item', sortKey: 'item',
-                    render: (r, c) => twoLine(r.item_code || '-', r.item_name, c),
+                    render: (r, c) => twoLine(r.item_code || '—', r.item_name, c),
                     csv: r => r.item_code || r.item_name || '',
                 },
                 {
                     key: 'machine', label: 'Machine', sortKey: 'machine',
-                    render: (r, c) => twoLine(r.work_center_name || '-', r.work_center_code, c),
+                    render: (r, c) => twoLine(r.work_center_name || '—', r.work_center_code, c),
                     csv: r => r.work_center_name || '',
                 },
                 {
                     key: 'status', label: 'Status', sortKey: 'status',
-                    render: r => (r.wo_status ? <StatusChip status={r.wo_status} tint /> : <span style={{ color: '#aaa' }}>-</span>),
+                    render: r => (r.wo_status ? <StatusChip status={r.wo_status} tint /> : <Dash classic={classic} />),
                     csv: r => r.wo_status || '',
                 },
                 {
                     key: 'target', label: 'Target', sortKey: 'target', align: 'right',
-                    render: r => (r.wo_qty != null ? fmtQty(r.wo_qty) : <span style={{ color: '#aaa' }}>-</span>),
+                    render: r => (r.wo_qty != null ? fmtQty(r.wo_qty) : <Dash classic={classic} />),
                     csv: r => r.wo_qty ?? '',
                 },
                 ...shared,
@@ -363,7 +363,7 @@ export default function MachineOutputReportView() {
                 key: 'type', label: 'Type',
                 render: r => (r.center_type
                     ? <WorkCenterChip type={r.center_type} name={r.work_center_name} />
-                    : <span style={{ color: '#aaa', fontSize: 10 }}>-</span>),
+                    : <Dash classic={classic} />),
                 csv: r => r.center_type || '',
             },
             {
@@ -457,13 +457,13 @@ export default function MachineOutputReportView() {
                                 <div style={{ fontWeight: 'bold' }}>{w.wo_code || '(MO-level log)'}</div>
                                 <div style={{ fontSize: 9, color: '#777' }}>{w.wo_name || ''}{w.mo_code ? ` · ${w.mo_code}` : ''}</div>
                             </td>
-                            <td style={dtd}>{w.item_code || w.item_name || '-'}</td>
+                            <td style={dtd}>{w.item_code || w.item_name || '—'}</td>
                             <td style={{ ...dtd, textAlign: 'right', fontWeight: 'bold' }}>{fmtQty(w.qty_good)} <span style={{ color: '#888', fontWeight: 'normal' }}>{w.uom}</span></td>
                             <td style={{ ...dtd, textAlign: 'right', color: w.qty_rejected ? '#c00000' : '#aaa' }}>{fmtQty(w.qty_rejected)}</td>
                             <td style={{ ...dtd, textAlign: 'right' }}>{fmtPct(w.reject_pct)}</td>
                             <td style={dtd}>
                                 {w.wo_status && <StatusChip status={w.wo_status} tint />}
-                                <div style={{ fontSize: 9, color: '#777' }}>{w.last_log ? `${tzDate(w.last_log)} ${tzTime(w.last_log)}` : '-'}</div>
+                                <div style={{ fontSize: 9, color: '#777' }}>{w.last_log ? `${tzDate(w.last_log)} ${tzTime(w.last_log)}` : '—'}</div>
                             </td>
                         </tr>
                     ))}
@@ -517,7 +517,7 @@ export default function MachineOutputReportView() {
                     ) : r.rejects.map((rj: any) => (
                         <tr key={rj.completion_id}>
                             <td style={dtd}>
-                                <div>{rj.logged_at ? tzDate(rj.logged_at) : '-'}</div>
+                                <div>{rj.logged_at ? tzDate(rj.logged_at) : '—'}</div>
                                 <div style={{ fontSize: 9, color: '#777' }}>{rj.logged_at ? tzTime(rj.logged_at) : ''}</div>
                             </td>
                             {!isWoMode && !isPacking && (

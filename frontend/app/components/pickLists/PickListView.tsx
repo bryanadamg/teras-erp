@@ -432,12 +432,12 @@ export default function PickListView() {
                                 <ExpanderCell classic expanded={isExpanded} tdStyle={td} label="pick list detail"
                                     onToggle={() => setExpandedId(prev => prev === String(pl.id) ? null : String(pl.id))} />
                                 <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{pl.code}</td>
-                                <td style={td}>{pl.sales_order_code || '-'}</td>
-                                <td style={td}>{pl.customer_name || '-'}</td>
+                                <td style={td}>{pl.sales_order_code || '—'}</td>
+                                <td style={td}>{pl.customer_name || '—'}</td>
                                 <td style={td}><StatusChip status={pl.status} /></td>
                                 <td style={{ ...td, textAlign: 'right' }}>{cartonProgress(pl)}</td>
-                                <td style={td}>{pl.delivery_note_number || '-'}</td>
-                                <td style={td}>{pl.dispatched_at ? tzDate(pl.dispatched_at) : '-'}</td>
+                                <td style={td}>{pl.delivery_note_number || '—'}</td>
+                                <td style={td}>{pl.dispatched_at ? tzDate(pl.dispatched_at) : '—'}</td>
                                 <td style={{ ...td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                                     <span style={{ marginRight: 2 }}>
                                         <XPActionButton

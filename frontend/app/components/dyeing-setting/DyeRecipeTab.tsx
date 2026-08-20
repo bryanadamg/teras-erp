@@ -216,7 +216,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     // Recipe code base = configurable prefix + selected color's code (Configure edits
     // prefix/separator). Counter is a 5-digit suffix, incremented per base.
     const recipeCodeBase = useCallback((colorCode: string): string => {
-        const sep = codeConfig?.separator || '-';
+        const sep = codeConfig?.separator || '—';
         const prefix = codeConfig?.prefix || 'DR';
         return [prefix, colorCode].filter(Boolean).join(sep);
     }, [codeConfig]);
@@ -230,7 +230,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             setForm(f => (f.code || f.name ? { ...f, code: '', name: '', color_standard: '' } : f));
             return;
         }
-        const sep = codeConfig?.separator || '-';
+        const sep = codeConfig?.separator || '—';
         const base = recipeCodeBase(color.code || '');
         let cancelled = false;
         (async () => {
@@ -559,7 +559,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                         // g/L and /100kg are alternate rate bases — show whichever the line carries
                                         // (mirrors the fallback in DyeRecipePrintView).
                                         const rate = line.qty_per_liter ?? line.qty_per_100kg ?? null;
-                                        const rateUnit = line.uom_name || (line.qty_per_liter != null ? 'g/L' : line.qty_per_100kg != null ? '/100kg' : '-');
+                                        const rateUnit = line.uom_name || (line.qty_per_liter != null ? 'g/L' : line.qty_per_100kg != null ? '/100kg' : '—');
                                         return (
                                             <tr key={idx} style={lvSubRow(classic, idx)}>
                                                 <td style={{ ...subTd, color: '#666' }}>{idx + 1}</td>
@@ -570,14 +570,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                         padding: '0 4px', fontWeight: 'bold', fontSize: 8,
                                                         border: `1px solid ${typeColor(line.chemical_type, classic).border}`,
                                                     }}>
-                                                        {line.chemical_type || '-'}
+                                                        {line.chemical_type || '—'}
                                                     </span>
                                                 </td>
                                                 <td style={{ ...subTd, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={line.item_name || linkedItem?.name}>
-                                                    {line.item_name || linkedItem?.name || (line.item_id || '-')}
+                                                    {line.item_name || linkedItem?.name || (line.item_id || '—')}
                                                 </td>
                                                 <td style={{ ...subTd, textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
-                                                    {rate != null ? Number(rate).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
+                                                    {rate != null ? Number(rate).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'}
                                                 </td>
                                                 <td style={{ ...subTd, color: '#555' }}>{rateUnit}</td>
                                             </tr>
@@ -596,7 +596,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         ? <div style={emptyStyle}>None.</div>
                         : (recipe.wash_baths || []).map((wb: any, i: number) => (
                             <div key={i} style={{ fontSize: 9, color: '#222', padding: '1px 0' }}>
-                                <b>{wb.bath_number}.</b> {wb.description || '-'}
+                                <b>{wb.bath_number}.</b> {wb.description || '—'}
                             </div>
                         ))}
                     <div style={{ borderTop: '1px solid #e0ddd8', margin: '5px 0 3px' }} />
@@ -605,7 +605,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         ? <div style={emptyStyle}>None.</div>
                         : (recipe.finishing_steps || []).map((fs: any, i: number) => (
                             <div key={i} style={{ fontSize: 9, color: '#222', padding: '1px 0' }}>
-                                {i + 1}. {fs.description || '-'}
+                                {i + 1}. {fs.description || '—'}
                             </div>
                         ))}
                 </div>
@@ -1090,7 +1090,7 @@ function DetailField({ label, value, classic }: { label: string; value?: string 
                 background: '#f8fafc', border: '1px solid #dbe1ea', borderRadius: 7,
                 padding: '4px 8px', minHeight: 18,
             }}>
-                {value || '-'}
+                {value || '—'}
             </div>
         </div>
     );

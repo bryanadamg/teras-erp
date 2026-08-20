@@ -10,7 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
-import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky, lvZebra } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky, lvZebra, Dash } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
 
@@ -588,7 +588,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     );
 
     const renderRow = (bal: any, i: number) => {
-        const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '-';
+        const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '—';
         // QC-rejected/disposed lots sit in the same bin as good stock — tint the row
         // and flag the lot so the qty is never mistaken for available.
         const qStatus: string = bal.quality_status && bal.quality_status !== 'GOOD' ? bal.quality_status : '';
@@ -714,7 +714,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                             )}
                         </div>
                     ) : (
-                        <span style={classic ? { fontSize: '10px', color: '#999', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                        <Dash classic={classic} />
                     )}
                 </td>
                 <td style={classic ? { padding: '4px 8px', ...colDivider } : colDivider}>
@@ -743,7 +743,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 </td>
                 <td className={classic ? undefined : 'small'} style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
                     {pkgParts(bal).length === 0
-                        ? <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                        ? <Dash classic={classic} />
                         : pkgParts(bal).map((p, idx) => (
                             <span key={idx}
                                 style={classic ? { color: p.n < 0 ? '#c00000' : '#5a3c00' } : undefined}
@@ -760,7 +760,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                             {bal.batch_notes}
                         </span>
                     ) : (
-                        <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                        <Dash classic={classic} />
                     )}
                 </td>
                 <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
@@ -885,7 +885,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                             </td>
                                             <td style={{ padding: '3px 6px' }}>{bal.location_name || getLocationName(bal.location_id)}</td>
                                             <td style={{ padding: '3px 6px', fontFamily: CODE_FONT, fontSize: 10 }}>
-                                                <div>{bal.batch_key ? (bal.batch_number || bal.batch_key) : '-'}</div>
+                                                <div>{bal.batch_key ? (bal.batch_number || bal.batch_key) : '—'}</div>
                                                 {bal.mo_code && <div style={{ color: '#2a4a2a' }}>MO {bal.mo_code}</div>}
                                             </td>
                                             <td style={{ padding: '3px 6px', textAlign: 'right', fontFamily: CODE_FONT }}>

@@ -84,7 +84,7 @@ function LedgerDocument({ entries, locations, attributes, companyProfile, period
             case 'lot':
                 return (
                     <td key={colKey} style={td}>
-                        {e.batch_number || '-'}
+                        {e.batch_number || '—'}
                         {e.vendor_lot && <div style={{ color: '#777', fontSize: 7 }}>Supplier: {e.vendor_lot}</div>}
                     </td>
                 );
@@ -99,7 +99,7 @@ function LedgerDocument({ entries, locations, attributes, companyProfile, period
             case 'packaging': {
                 const c = e.qty_cones_change || 0, b = e.qty_boxes_change || 0, d = e.qty_drums_change || 0;
                 const pkg = [c ? `${c > 0 ? '+' : ''}${c} cones` : '', b ? `${b > 0 ? '+' : ''}${b} boxes` : '', d ? `${d > 0 ? '+' : ''}${d} drums` : ''].filter(Boolean).join(', ');
-                return <td key={colKey} style={{ ...td, fontSize: 7 }}>{pkg || '-'}</td>;
+                return <td key={colKey} style={{ ...td, fontSize: 7 }}>{pkg || '—'}</td>;
             }
             case 'source':
                 return <td key={colKey} style={td}>{refMeta(e.reference_type).label}</td>;

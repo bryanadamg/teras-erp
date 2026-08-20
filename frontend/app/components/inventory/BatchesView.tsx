@@ -21,7 +21,7 @@ const LOT_STATUS_FILTERS = [
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
-import { ExpanderCell, SortableTh, lvZebra, TableEmpty } from '../shared/listViewTheme';
+import { ExpanderCell, SortableTh, lvZebra, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
 import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -411,7 +411,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
   const isDepleted = (b: Batch) => (b.remaining ?? 0) <= 0;
 
-  const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
+  const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '—';
 
   // Client-side sort of the current page (list is server-paginated). Mirrors the
   // WO table: click a header to toggle asc → desc → off shows the arrow.
@@ -574,14 +574,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const notesCell = (b: Batch) => (
     b.notes
       ? <span title={b.notes} style={{ display: 'block', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.notes}</span>
-      : '-'
+      : EMPTY_DASH
   );
 
   // Remaining — value with the green (or gray, if depleted) status dot pinned to
   // the far right so every row's dot aligns in a column.
   const remainingCell = (b: Batch) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-      <span>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</span>
+      <span>{b.remaining != null ? Number(b.remaining).toFixed(2) : '—'}</span>
       <span style={{
         display: 'inline-block', width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
         background: isDepleted(b) ? '#b8b8b8' : '#3a9b3a',
