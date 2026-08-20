@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, lvZebra } from '../shared/listViewTheme';
-import { ToolbarButton } from '../shared/shellTheme';
+import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 
 // Attributes with a dedicated management home are hidden here so they are not
 // hand-edited in two places:
@@ -121,15 +121,10 @@ export default function AttributesLibraryView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                <input
-                    style={{ ...lvInput(classic), width: 220 }}
-                    placeholder="Search attributes…"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                <SearchField classic={classic} value={search} onChange={setSearch} placeholder="Search attributes…" width={220} />
+                <ToolbarCount classic={classic} right>
                     {filtered.length} attribute{filtered.length !== 1 ? 's' : ''}
-                </span>
+                </ToolbarCount>
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />

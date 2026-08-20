@@ -4,6 +4,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead, ExpanderCell } from '../shared/listViewTheme';
 import { ExpandedRowPanel, rowStateBg } from '../shared/xpTheme';
+import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 interface Props {
     uoms: any[];
@@ -80,15 +81,10 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                     </form>
                 )}
                 <span style={lvSep(classic)} />
-                <input
-                    style={{ ...lvInput(classic), width: 200 }}
-                    placeholder="Search units…"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                <SearchField classic={classic} value={search} onChange={setSearch} placeholder="Search units…" width={200} />
+                <ToolbarCount classic={classic} right>
                     {filtered.filter((u: any) => u.is_system).length} system &nbsp;+&nbsp; {filtered.filter((u: any) => !u.is_system).length} packaging
-                </span>
+                </ToolbarCount>
             </div>
 
             {/* Table */}

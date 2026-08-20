@@ -14,7 +14,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, TableEmpty } from '../shared/listViewTheme';
-import { ToolbarButton } from '../shared/shellTheme';
+import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -624,15 +624,10 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                <input
-                    style={{ ...lvInput(classic), width: 240, flexBasis: 240 }}
-                    placeholder="Search code or name…"
-                    value={searchText}
-                    onChange={e => setSearchText(e.target.value)}
-                />
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                <SearchField classic={classic} value={searchText} onChange={setSearchText} placeholder="Search code or name…" width={240} />
+                <ToolbarCount classic={classic} right>
                     {total.toLocaleString()} recipe{total !== 1 ? 's' : ''}
-                </span>
+                </ToolbarCount>
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />

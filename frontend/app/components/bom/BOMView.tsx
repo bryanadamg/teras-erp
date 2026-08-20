@@ -12,7 +12,7 @@ import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
-import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
+import { FilterChipBar, xpToolbar, ToolbarButton, SearchField } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
     { value: 'root', label: 'Root BOMs' },
@@ -883,8 +883,7 @@ export default function BOMView({
                     {/* Toolbar: search + filter + selection + create */}
                     {classic ? (
                         <div style={xpToolbar()}>
-                            <input type="text" value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..."
-                                style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
+                            <SearchField classic value={bomSearch} onChange={v => onBomSearch?.(v)} placeholder="Search BOMs..." width={200} />
                             <FilterChipBar
                                 classic
                                 options={BOM_SCOPE_FILTERS}
@@ -908,7 +907,7 @@ export default function BOMView({
                         </div>
                     ) : (
                         <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
-                            <input type="text" className="form-control form-control-sm" style={{ width: '180px' }} value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..." />
+                            <SearchField classic={false} value={bomSearch} onChange={v => onBomSearch?.(v)} placeholder="Search BOMs..." width={220} />
                             <FilterChipBar
                                 classic={false}
                                 options={BOM_SCOPE_FILTERS}

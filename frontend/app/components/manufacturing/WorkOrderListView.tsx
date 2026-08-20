@@ -24,6 +24,7 @@ import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
 import { Tabs, TabDef } from '../shared/Tabs';
+import { SearchField } from '../shared/shellTheme';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -679,12 +680,7 @@ export default function WorkOrderListView({
                     {/* Filter bar */}
                     <div style={filterBarStyle}>
                         <label style={{ fontSize: classic ? 10 : 11, color: classic ? '#000' : '#555', whiteSpace: 'nowrap' }}>Filter:</label>
-                        <input
-                            type="text" value={woSearch} onChange={e => onSearch(e.target.value)}
-                            placeholder="Search WO / MO..."
-                            style={classic ? { ...xpInput, width: 140 } : { width: 160 }}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                        />
+                        <SearchField classic={classic} value={woSearch} onChange={onSearch} placeholder="Search WO / MO..." width={classic ? 160 : 180} />
                         <select value={filterStatus} onChange={e => onFilterStatus(e.target.value)}
                             style={classic ? { ...xpInput, width: 110 } : { width: 130 }}
                             className={classic ? '' : 'form-select form-select-sm'}>

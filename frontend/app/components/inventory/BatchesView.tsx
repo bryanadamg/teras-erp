@@ -11,7 +11,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
   { value: 'active', label: 'Active' },
@@ -826,12 +826,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           </div>
           {/* ── Filter/search bar + actions ── */}
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
-            <input
-              style={{ ...xpInput, width: 240 }}
-              placeholder="Search lot, item, WO/MO/PR, SO..."
-              value={searchInput}
-              onChange={e => setSearch(e.target.value)}
-            />
+            <SearchField classic value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={240} />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Item:</span>
             <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
@@ -942,13 +937,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           </div>
           {/* ── Filter/search bar + actions ── */}
           <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
-            <input
-              className="form-control form-control-sm"
-              style={{ width: 260 }}
-              placeholder="Search lot, item, WO/MO/PR, SO..."
-              value={searchInput}
-              onChange={e => setSearch(e.target.value)}
-            />
+            <SearchField classic={false} value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={260} />
             <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
