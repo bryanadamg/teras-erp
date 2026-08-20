@@ -15,6 +15,29 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-20
+
+### Added
+- Sales Orders list serves its Production Run chips inline from the server (new SO response fields + an index on `production_runs.sales_order_id`)
+- List tables now keep their header row pinned while the body scrolls
+
+### Changed
+- One shared table vocabulary across every list route: sortable column headers (`SortableTh`), header/cell styling (`lvTh`/`lvTd`), zebra striping, empty-state row, code chips, checkboxes and picker rows, and the row-expand chevron (`ExpandToggle`/`ExpanderCell`)
+- Bulk-select lists share one `useRowSelection` hook instead of per-page selection state
+- Every domain status renders through `StatusChip`; every number through one formatting module where views declare precision once; every blank value as the same em-dash placeholder
+- Expandable lists use one control-column order — checkbox, chevron, then code
+- One page-fill and scroll-area convention for list routes, and the last hand-rolled toolbars moved onto shared `SearchField`/`ToolbarCount`
+- List loading shows a shape-matched skeleton instead of a bare loading line
+- Row chevron rotates on hover and multi-select checkboxes show a hover ring, instead of swapping glyphs/flat states
+
+### Fixed
+- Dates and date-input seeds render in the configured display timezone rather than the browser's
+- Sales Orders sort server-side, so page 1 shows the real first rows
+- Work Queue columns have locked widths and truncate long codes instead of overlapping
+
+### Performance
+- Sales Orders page no longer pulls a ~1.3 MB production-runs payload or primes idle pickers on load
+
 ## [0.3.1] - 2026-08-19
 
 ### Fixed
