@@ -8,6 +8,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import {
     xpFont, familyColor, StatusChip, XPActionButton, PanelSkeleton, XPEmptyState,
@@ -83,11 +84,12 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [moCands, setMoCands] = useState<any[]>([]);
     const [moCandsAll, setMoCandsAll] = useState(false);
     const [moCandsLoading, setMoCandsLoading] = useState(false);
+    const { todayInput } = useTimezone();
     const [startOpen, setStartOpen] = useState(false);
     const [lines, setLines] = useState('1');
     const [rate, setRate] = useState('5');
     const [eff, setEff] = useState('50');
-    const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [startDate, setStartDate] = useState(todayInput);
 
     // Both inline editors are keyed by run id, not a boolean: a loom shows several
     // runs at once and a shared flag would open the editor on every one of them.

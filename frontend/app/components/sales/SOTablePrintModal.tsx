@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import PrintModalShell from '../shared/PrintModalShell';
 import { xpFont } from '../shared/xpTheme';
+import { useTimezone } from '../../context/TimezoneContext';
 
 const TABLE_SETTINGS_KEY = 'so_table_print_settings';
 
@@ -16,6 +17,7 @@ function SOTableDocument({
     partners: any[];
     companyProfile: any;
 }) {
+    const { formatCustom: tzFmt } = useTimezone();
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const { itemIndex } = useData();
 
@@ -148,7 +150,7 @@ function SOTableDocument({
             </table>
 
             <div style={{ marginTop: 8, fontSize: '7px', color: '#555', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Printed: {new Date().toLocaleString('id-ID')}</span>
+                <span>Printed: {tzFmt(new Date(), { dateStyle: 'short', timeStyle: 'short' }, 'id-ID')}</span>
                 <span>Total rows: {rows.length}</span>
             </div>
         </div>
@@ -166,6 +168,7 @@ export default function SOTablePrintModal({
     attributes: any[];
     partners: any[];
 }) {
+    const { formatCustom: tzFmt } = useTimezone();
     const isClassic = currentStyle === 'classic';
 
     useEffect(() => {

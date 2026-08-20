@@ -58,6 +58,18 @@ export const fmtQtyCompact = (v: any, dp = 1): string => {
     return Math.abs(n) >= 1000 ? fmtInt(n) : n.toFixed(dp);
 };
 
+/**
+ * A Date to the `YYYY-MM-DD` an <input type="date"> expects, read off the date's
+ * own calendar fields. `toISOString().slice(0, 10)` is the trap this replaces:
+ * it converts to UTC first, so a local evening east of Greenwich yields
+ * yesterday. For "today" specifically, prefer `useTimezone().todayInput()`,
+ * which answers in the user's *display* timezone.
+ */
+export const isoDate = (d: Date): string => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 /** Blank/non-numeric renders as an em dash instead of 0 — for optional fields. */
 export const orDash = (v: any, fmt: (x: any) => string = fmtQty): string =>
     v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? '—' : fmt(v);

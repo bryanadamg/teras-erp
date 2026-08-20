@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
+import { isoDate } from '../shared/format';
 import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, ToolbarButton } from '../shared/shellTheme';
 import {
@@ -29,7 +30,7 @@ import {
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = isoDate;   // calendar-field formatting: toISOString() would shift the range by a day
 const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); };
 
 type Preset = 'month' | 'last30' | 'quarter' | 'year';

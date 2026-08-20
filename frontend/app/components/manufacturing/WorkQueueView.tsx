@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, xpToolbar } from '../shared/shellTheme';
 import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
@@ -145,14 +146,13 @@ const DATE_SOURCE_LABEL: Record<string, string> = {
 
 const ellipsis: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
-const shortDate = (iso: string | null) => {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
-};
-
 export default function WorkQueueView() {
     const { uiStyle } = useTheme();
+    // Backend timestamps are naive UTC; formatCustom parses them as such and
+    // renders in the user's display timezone. `new Date(iso)` read them as local.
+    const { formatCustom: tzFmt } = useTimezone();
+    const shortDate = (iso: string | null) =>
+        iso ? tzFmt(iso, { day: '2-digit', month: 'short' }) : '—';
     const classic = uiStyle === 'classic';
     const { authFetch, workCenters, subscribeLiveEvents } = useData();
 

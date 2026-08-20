@@ -656,7 +656,7 @@ export default function LabDipRequestView({
                                         </td>
                                     </tr>
                                     {expandedIds.has(r.id) && (() => {
-                                        const fmt = (d: any) => d ? new Date(d).toLocaleDateString() : '—';
+                                        const fmt = (d: any) => d ? tzDate(d) : '—';
                                         const recipeLabel = recipeOptions.find((o: any) => o.value === r.approved_recipe_id)?.label;
                                         // Progress/Reject toggle: clicking the active one reverts to PENDING.
                                         // APPROVED/REJECTED are terminal (locked) — guarded here and on the server.

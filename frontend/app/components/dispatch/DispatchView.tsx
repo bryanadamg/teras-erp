@@ -511,11 +511,12 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
 
 // ── Stage: capture the loading-deck facts and mint the Surat Jalan ─────────
 function StageModal({ picks, onClose, onSubmit }: any) {
+    const { todayInput } = useTimezone();
     const [carrier, setCarrier] = useState('');
     const [vehicle, setVehicle] = useState('');
     const [driver, setDriver] = useState('');
     const [dn, setDn] = useState('');
-    const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [date, setDate] = useState(todayInput);
     const [notes, setNotes] = useState('');
 
     const cartons = picks.reduce((s: number, p: any) => s + num(p.carton_count), 0);
