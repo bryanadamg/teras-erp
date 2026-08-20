@@ -8,7 +8,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpandToggle } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -255,8 +255,7 @@ export default function BookingStockView() {
                                                 : { cursor: 'pointer' }}
                                             className={classic ? undefined : (h === HEALTH.short ? 'table-danger' : undefined)}>
                                             <td style={classic ? { padding: '4px 8px 4px 5px', fontFamily: xpFont, borderLeft: `3px solid ${h.color}` } : { borderLeft: `3px solid ${h.color}` }}>
-                                                <i className={classic ? `bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}` : `bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'} me-1 text-muted small`}
-                                                    style={classic ? { fontSize: 8, marginRight: 5, color: '#888' } : undefined} />
+                                                <ExpandToggle expanded={isOpen} classic={classic} onToggle={() => toggleRow(k)} label="MO breakdown" style={{ marginRight: 5 }} />
                                                 {classic ? (
                                                     <>
                                                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{r.item_name}</span>

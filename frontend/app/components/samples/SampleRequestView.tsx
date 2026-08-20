@@ -18,7 +18,7 @@ import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, ExpandToggle } from '../shared/listViewTheme';
 
 // Request classification, chosen at create time. Values are the `Sample Category`
 // system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
@@ -1483,22 +1483,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                >
                                    <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}>
                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                           {classic ? (
-                                               <button
-                                                   onClick={e => { e.stopPropagation(); toggleExpand(s.id); }}
-                                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontFamily: xpFont, fontSize: 10, color: '#333' }}
-                                               >
-                                                   {expandedIds.has(s.id) ? '▼' : '▶'}
-                                               </button>
-                                           ) : (
-                                               <button
-                                                   className="btn btn-link p-0 text-muted"
-                                                   style={{ fontSize: 10, lineHeight: 1 }}
-                                                   onClick={e => { e.stopPropagation(); toggleExpand(s.id); }}
-                                               >
-                                                   <i className={`bi bi-chevron-${expandedIds.has(s.id) ? 'down' : 'right'}`}></i>
-                                               </button>
-                                           )}
+                                           <ExpandToggle expanded={expandedIds.has(s.id)} classic={classic} onToggle={() => toggleExpand(s.id)} label="sample detail" />
                                            <div>
                                                {/* Unread rows keep their extra weight — that is a state
                                                    marker on top of the tier-1 code, not a second style. */}

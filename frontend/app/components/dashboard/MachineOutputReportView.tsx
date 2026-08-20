@@ -27,7 +27,7 @@ import {
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar } from '../shared/shellTheme';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell } from '../shared/listViewTheme';
 
 const fmtQty = (n: number) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const fmtPct = (n: number | null | undefined) => (n == null ? '-' : `${n}%`);
@@ -824,12 +824,7 @@ export default function MachineOutputReportView() {
                                                     : { background: open ? rowStateBg('expanded', false) : undefined, cursor: 'pointer' }}
                                                 onClick={() => setExpanded(open ? null : key)}
                                             >
-                                                <td
-                                                    className={classic ? undefined : 'text-center text-muted'}
-                                                    style={classic ? { ...td, textAlign: 'center', color: '#555' } : undefined}
-                                                >
-                                                    <i className={`bi bi-chevron-${open ? 'down' : 'right'}`} style={{ fontSize: classic ? 8 : 10 }} />
-                                                </td>
+                                                <ExpanderCell classic={classic} expanded={open} onToggle={() => setExpanded(open ? null : key)} tdStyle={classic ? td : undefined} label="machine detail" />
                                                 {columns.map((c, ci) => (
                                                     <td
                                                         key={c.key}

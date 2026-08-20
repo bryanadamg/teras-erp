@@ -157,6 +157,82 @@ export const lvRow = (classic: boolean, idx: number): React.CSSProperties => (cl
     ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }
     : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' });
 
+// ── Row-detail disclosure ─────────────────────────────────────────────────────
+// One expander for every list row that opens a detail panel below itself. This
+// used to be hand-written at ~17 call sites in five different glyphs (thin
+// chevron, solid caret, and the literals `►`, `▶`, `▼`) at 8–11px in five
+// colours, so no two lists disclosed a row the same way and none of them was
+// keyboard-reachable or announced its state.
+//
+// Chevron-right/down ONLY. The solid `bi-caret-*-fill` is deliberately NOT
+// used here: it means *tree hierarchy* (RoutingView, PermissionsPicker,
+// CategoriesView, TreeSelect), which is a different affordance from "this row
+// has a detail panel". Up/down chevrons mean a card/section fold, also not this.
+//
+// Pair `ExpanderCell` (dedicated first column) or a bare `ExpandToggle` (glyph
+// sitting inline beside a code chip) with `rowStateBg('expanded', classic)` on
+// the row — the two halves of the same convention.
+export const LV_EXPANDER_COL_W = 22;
+
+// `base` is the caller's own cell style (their `tdBase`/`xpTd` with its borders
+// and font). It is spread BEFORE the column geometry so the width/alignment of
+// the expander column can never drift, while the table keeps its own gridlines.
+export const lvExpanderTd = (classic: boolean, base: React.CSSProperties = {}): React.CSSProperties => ({
+    ...lvTd(classic),
+    ...base,
+    width: LV_EXPANDER_COL_W, textAlign: 'center', padding: '3px 4px', verticalAlign: 'middle',
+});
+
+export interface ExpandToggleProps {
+    expanded: boolean;
+    classic: boolean;
+    /** Same handler the row's onClick uses. Always pass it: the button stops
+     *  propagation, so a row-clickable table does not toggle twice, and the
+     *  expander becomes tab-reachable instead of mouse-only. */
+    onToggle: () => void;
+    /** What is being disclosed, for the screen-reader label ("Show lot lineage"). */
+    label?: string;
+    /** id of the panel element, for aria-controls. */
+    panelId?: string;
+    /** `alert` recolours the open glyph when the panel holds a problem
+     *  (a Production Run with a material shortfall). */
+    tone?: 'default' | 'alert';
+    style?: React.CSSProperties;
+}
+
+export function ExpandToggle({ expanded, classic, onToggle, label = 'details', panelId, tone = 'default', style }: ExpandToggleProps) {
+    const color = tone === 'alert' && expanded ? '#c00000' : (classic ? '#0058e6' : '#64748b');
+    return (
+        <button
+            type="button"
+            // The row itself is usually clickable too; without this the click
+            // would toggle twice and land back where it started.
+            onClick={e => { e.stopPropagation(); onToggle(); }}
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            title={`${expanded ? 'Hide' : 'Show'} ${label}`}
+            aria-label={`${expanded ? 'Hide' : 'Show'} ${label}`}
+            style={{
+                background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, color, flexShrink: 0, ...style,
+            }}
+        >
+            <i className={`bi bi-chevron-${expanded ? 'down' : 'right'}`} style={{ fontSize: 9 }} aria-hidden="true" />
+        </button>
+    );
+}
+
+/** The dedicated first column: geometry + toggle in one, so a list only ever
+ *  writes `<ExpanderCell … />` instead of a `<td>` wrapping an `<i>`. */
+export function ExpanderCell({ tdStyle, tdClassName, ...toggle }: ExpandToggleProps & { tdStyle?: React.CSSProperties; tdClassName?: string }) {
+    return (
+        <td style={lvExpanderTd(toggle.classic, tdStyle)} className={tdClassName}>
+            <ExpandToggle {...toggle} />
+        </td>
+    );
+}
+
 // ── Section caption ───────────────────────────────────────────────────────────
 // Small uppercase band that names a table/panel inside a view that stacks more
 // than one of them, with optional right-aligned meta (row counts, hints). Keeps

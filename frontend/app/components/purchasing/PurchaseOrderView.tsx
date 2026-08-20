@@ -14,7 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell } from '../shared/listViewTheme';
 
 export default function PurchaseOrderView({ items, itemResults, onSearchItems, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
@@ -889,16 +889,9 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                        ? { background: expandedRows[po.id] ? rowStateBg('expanded', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: expandedRows[po.id] ? 'none' : '1px solid #c0bdb5' }
                                        : { background: expandedRows[po.id] ? rowStateBg('expanded', false) : undefined }}
                                >
-                                   <td style={classic ? { ...tdBase, padding: '4px 4px', textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-3 text-center'}>
-                                       <button
-                                           onClick={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
-                                           style={classic ? { background: 'none', border: 'none', cursor: 'pointer', fontSize: '10px', color: '#555', padding: '0 2px' } : undefined}
-                                           className={classic ? '' : 'btn btn-sm btn-link p-0 text-muted'}
-                                           title={expandedRows[po.id] ? 'Hide items & receipts' : 'Show items & receipts'}
-                                       >
-                                           <i className={`bi bi-chevron-${expandedRows[po.id] ? 'down' : 'right'}`}></i>
-                                       </button>
-                                   </td>
+                                   <ExpanderCell classic={classic} expanded={!!expandedRows[po.id]} label="items & receipts"
+                                       onToggle={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
+                                       tdStyle={classic ? tdBase : undefined} tdClassName={classic ? '' : 'ps-3'} />
                                    <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-2'}>
                                        <CodeChip code={po.po_number} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                    </td>

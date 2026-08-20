@@ -10,7 +10,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -433,9 +433,8 @@ export default function PickListView() {
                                 style={{ ...rowStyle(idx), ...(isExpanded ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
                                 onClick={() => setExpandedId(prev => prev === String(pl.id) ? null : String(pl.id))}
                             >
-                                <td style={{ ...td, padding: '3px 4px', textAlign: 'center' }}>
-                                    <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>{isExpanded ? '▼' : '►'}</span>
-                                </td>
+                                <ExpanderCell classic expanded={isExpanded} tdStyle={td} label="pick list detail"
+                                    onToggle={() => setExpandedId(prev => prev === String(pl.id) ? null : String(pl.id))} />
                                 <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{pl.code}</td>
                                 <td style={td}>{pl.sales_order_code || '-'}</td>
                                 <td style={td}>{pl.customer_name || '-'}</td>

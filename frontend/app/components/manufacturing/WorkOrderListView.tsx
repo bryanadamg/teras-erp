@@ -18,7 +18,7 @@ import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -887,11 +887,7 @@ export default function WorkOrderListView({
                                                         style={{ cursor: 'pointer' }}
                                                     />
                                                 </td>
-                                                <td style={{ ...tdBase, padding: '3px 4px', textAlign: 'center', width: 20 }} className={classic ? '' : 'ps-2'}>
-                                                    <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>
-                                                        {isExpanded ? '▼' : '►'}
-                                                    </span>
-                                                </td>
+                                                <ExpanderCell classic={classic} expanded={isExpanded} onToggle={() => setExpandedWOId(prev => prev === wo.id ? null : wo.id)} tdStyle={tdBase} tdClassName={classic ? '' : 'ps-2'} label="work order detail" />
                                                 {/* Root MO — top of the parent/pegging chain, not this WO's own MO.
                                                     A shared component MO feeds several roots; the first is shown and
                                                     the rest sit behind a +N marker. */}

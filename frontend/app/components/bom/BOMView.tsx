@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, ExpandToggle } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
@@ -1002,7 +1002,7 @@ export default function BOMView({
                                                         title="Click to expand BOM details"
                                                     >
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ fontSize: '9px', color: '#0058e6', flexShrink: 0 }} />
+                                                            <ExpandToggle expanded={isExpanded} classic={classic} onToggle={() => toggleBOMRow(bom.id, bom.item_id)} label="BOM details" />
                                                             <CodeChip code={bom.code} classic={classic} />
                                                         </div>
                                                     </td>

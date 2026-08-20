@@ -11,7 +11,7 @@ import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount, FilterChipBar, FilterChipOption } from '../shared/shellTheme';
 import {
     lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep,
-    lvSubTh, lvSubTd, lvSubTable, lvSubCaption, lvSubRow, LV_XP_FONT, LV_MODERN_FONT,
+    lvSubTh, lvSubTd, lvSubTable, lvSubCaption, lvSubRow, LV_XP_FONT, LV_MODERN_FONT, ExpandToggle,
 } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
@@ -812,8 +812,7 @@ export default function QuarantinePackingView() {
                                     }}
                                 >
                                     <td style={lvTd(classic)}>
-                                        <i className={`bi ${open ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}`}
-                                            style={{ fontSize: 8, marginRight: 5, color: '#888' }} />
+                                        <ExpandToggle expanded={open} classic={classic} onToggle={() => toggleRow(g.key, g.lots)} label="lots" style={{ marginRight: 5 }} />
                                         {g.mo_code
                                             ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
                                             : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}

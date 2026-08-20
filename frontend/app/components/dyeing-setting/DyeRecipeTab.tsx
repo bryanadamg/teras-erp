@@ -13,7 +13,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -672,9 +672,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                             return (
                                 <React.Fragment key={rid}>
                                     <tr style={{ ...lvRow(classic, idx), ...(expanded ? { background: rowStateBg('expanded', classic) } : {}), cursor: 'pointer' }} onClick={() => toggleExpand(rid)}>
-                                        <td style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#555' : '#64748b' }}>
-                                            <i className={expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill'} style={{ fontSize: 10 }} />
-                                        </td>
+                                        <ExpanderCell classic={classic} expanded={expanded} onToggle={() => toggleExpand(rid)} label="recipe detail" />
                                         <td style={lvTd(classic)}>
                                             <CodeChip code={recipe.code} classic={classic} tone="accent" />
                                         </td>

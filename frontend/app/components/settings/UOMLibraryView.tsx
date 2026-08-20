@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead, ExpanderCell } from '../shared/listViewTheme';
 import { ExpandedRowPanel, rowStateBg } from '../shared/xpTheme';
 
 interface Props {
@@ -114,9 +114,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                             return (
                                 <React.Fragment key={uom.id}>
                                     <tr style={{ ...lvRow(classic, idx), cursor: 'pointer', background: isExpanded ? rowStateBg('expanded', classic) : lvRow(classic, idx).background }} onClick={() => toggleExpand(uom)}>
-                                        <td style={{ ...lvTd(classic), textAlign: 'center' }}>
-                                            <i className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 10, color: '#888' }} />
-                                        </td>
+                                        <ExpanderCell classic={classic} expanded={isExpanded} onToggle={() => toggleExpand(uom)} label="conversion factors" />
                                         <td style={lvTd(classic)}>
                                             <span style={{ fontWeight: 'bold', fontVariant: classic ? 'all-small-caps' : undefined as any }}>{uom.name}</span>
                                             {uom.is_system && (

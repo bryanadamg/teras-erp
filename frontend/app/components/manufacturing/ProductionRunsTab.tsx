@@ -7,7 +7,7 @@ import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 // Column defs for the expanded row's material table. Module-level so the loading
@@ -372,12 +372,7 @@ export default function ProductionRunsTab({
                                 return (
                                     <React.Fragment key={pr.id}>
                                     <tr style={{ background: isExpanded ? rowStateBg('expanded', classic) : rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
-                                        <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                            <i
-                                                className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}
-                                                style={{ color: hasShortfall && isExpanded ? '#c00000' : '#555' }}
-                                            ></i>
-                                        </td>
+                                        <ExpanderCell classic={classic} expanded={isExpanded} onToggle={() => togglePR(pr.id)} tdStyle={tdStyle} tone={hasShortfall ? 'alert' : 'default'} label="material requirements" />
                                         <td style={tdStyle}>
                                             <CodeChip code={pr.code} classic={classic} style={{ fontWeight: 'bold' }} />
                                             {pr.sales_order_id && (

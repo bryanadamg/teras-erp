@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, xpToolbar } from '../shared/shellTheme';
-import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
+import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT, ExpanderCell } from '../shared/listViewTheme';
 import {
     StatusChip, XPStatusBar, XPEmptyState, TableSkeleton, CodeChip,
     ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip, rowStateBg,
@@ -527,9 +527,7 @@ export default function WorkQueueView() {
                                         }}
                                         onClick={() => setExpanded(open ? null : rowKey)}
                                     >
-                                        <td style={{ ...lvTd(classic), textAlign: 'center', color: '#666' }}>
-                                            <i className={`bi ${open ? 'bi-chevron-down' : 'bi-chevron-right'}`} />
-                                        </td>
+                                        <ExpanderCell classic={classic} expanded={open} onToggle={() => setExpanded(open ? null : rowKey)} label="work order detail" />
                                         <td style={{ ...lvTd(classic), textAlign: 'right', color: '#888' }}>
                                             {(page - 1) * PAGE_SIZE + i + 1}
                                         </td>

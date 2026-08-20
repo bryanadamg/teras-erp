@@ -9,7 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpandToggle } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -1238,7 +1238,7 @@ export default function ManufacturingOrdersTab({
                                         {/* Product — name (line 1) + variant chips (line 2); click to expand */}
                                         <td style={{ ...tdStyle, cursor: 'pointer' }} onClick={() => toggleRow(wo.id)}>
                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ color: '#555', fontSize: '10px', marginTop: 2, flexShrink: 0 }}></i>
+                                                <ExpandToggle expanded={isExpanded} classic={classic} onToggle={() => toggleRow(wo.id)} label="order detail" style={{ marginTop: 2 }} />
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ fontWeight: 'bold', color: '#000', fontSize: classic ? '11px' : '9pt', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {wo.item_name || getItemName(wo.item_id)}

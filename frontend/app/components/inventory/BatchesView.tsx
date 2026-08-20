@@ -21,6 +21,7 @@ const LOT_STATUS_FILTERS = [
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
+import { ExpanderCell } from '../shared/listViewTheme';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
@@ -867,9 +868,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       onClick={() => toggleExpand(b)}
                       title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
-                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'center', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>
-                        <span style={{ fontSize: 10, color: '#555' }}>{expandedRows[b.id] ? '▼' : '►'}</span>
-                      </td>
+                      <ExpanderCell classic expanded={!!expandedRows[b.id]} onToggle={() => toggleExpand(b)} label="lot lineage"
+                        tdStyle={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }} />
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>
                         <strong>{b.batch_number}</strong>
                         {b.quality_status === 'REJECTED' && (
@@ -992,9 +992,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       onClick={() => toggleExpand(b)}
                       title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
-                      <td className="text-center text-muted">
-                        <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 11 }} />
-                      </td>
+                      <ExpanderCell classic={false} expanded={!!expandedRows[b.id]} onToggle={() => toggleExpand(b)} label="lot lineage" />
                       <td>
                         <strong>{b.batch_number}</strong>
                         {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}

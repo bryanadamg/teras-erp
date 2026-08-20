@@ -13,7 +13,7 @@ import Pager from '../shared/Pager';
 import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, ExpandToggle } from '../shared/listViewTheme';
 import { API_BASE, STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -605,9 +605,7 @@ export default function LabDipRequestView({
                                     }}>
                                         <td style={tdBase(classic)}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                <button onClick={e => { e.stopPropagation(); toggleExpand(r.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 10, color: classic ? '#333' : '#64748b' }}>
-                                                    {expandedIds.has(r.id) ? '▼' : '▶'}
-                                                </button>
+                                                <ExpandToggle expanded={expandedIds.has(r.id)} classic={classic} onToggle={() => toggleExpand(r.id)} label="lab dip detail" />
                                                 <div>
                                                     <CodeChip code={r.code} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                                     <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.created_at ? tzDate(r.created_at) : ''}</div>

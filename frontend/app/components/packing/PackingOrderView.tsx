@@ -10,7 +10,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -416,9 +416,8 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     style={{ ...rowStyle(idx), ...(isExpanded ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
                                     onClick={() => setExpandedId(prev => prev === String(po.id) ? null : String(po.id))}
                                 >
-                                    <td style={{ ...td, padding: '3px 4px', textAlign: 'center' }}>
-                                        <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>{isExpanded ? '▼' : '►'}</span>
-                                    </td>
+                                    <ExpanderCell classic={CLASSIC} expanded={isExpanded} tdStyle={td} label="packing order detail"
+                                        onToggle={() => setExpandedId(prev => prev === String(po.id) ? null : String(po.id))} />
                                     <td style={td}><CodeChip code={po.code} classic={CLASSIC} tone="accent" style={{ fontWeight: 'bold' }} /></td>
                                     <td style={td}>
                                         <div>{po.item_name || it?.name || po.item_id}</div>
