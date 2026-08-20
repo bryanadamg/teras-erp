@@ -15,7 +15,7 @@ import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, Sort
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryTabIcon(name: string): string {
@@ -156,12 +156,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
             style={classic ? { background: rowBg, borderBottom: '1px solid #c0bdb5' } : undefined}
         >
             <td style={classic ? { ...tdBase, width: '32px', textAlign: 'center' } : undefined} className={classic ? '' : 'ps-3'}>
-                <input
-                    className="form-check-input"
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => onToggleSelect(item.id)}
-                />
+                <RowCheckbox classic={classic} checked={isSelected} onChange={() => onToggleSelect(item.id)} label={item.code} />
             </td>
             <td style={classic ? { ...tdBase, width: '110px' } : undefined} className={classic ? '' : 'ps-4'}>
                 <CodeChip
@@ -367,7 +362,6 @@ export default function InventoryView({
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
@@ -670,33 +664,16 @@ export default function InventoryView({
   const listBodyRef = useRef<HTMLTableSectionElement>(null);
   const skel = useTableSkeletonMetrics('items', listBodyRef, sortedItems.length > 0);
 
-  const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
-  const someSelected = selectedIds.size > 0 && !allSelected;
-
-  const toggleSelect = (id: string) => {
-      setSelectedIds(prev => {
-          const next = new Set(prev);
-          if (next.has(id)) next.delete(id); else next.add(id);
-          return next;
-      });
-  };
-
-  const toggleSelectAll = () => {
-      if (allSelected) {
-          setSelectedIds(new Set());
-      } else {
-          setSelectedIds(new Set(filteredItems.map((i: any) => i.id)));
-      }
-  };
+  // Select-all is page-scoped and ticked rows keep their row object, so the
+  // per-page reset this used to need (selection was ids against one page) is gone.
+  const sel = useRowSelection<any>(sortedItems, (i: any) => i.id);
 
   const handleBulkDelete = async () => {
       if (onDeleteMultipleItems) {
-          await onDeleteMultipleItems([...selectedIds]);
-          setSelectedIds(new Set());
+          await onDeleteMultipleItems(sel.keys);
+          sel.clear();
       }
   };
-
-  useEffect(() => { setSelectedIds(new Set()); }, [currentPage]);
 
   const handleEdit = (item: any) => {
       setEditingItem({...item, attribute_ids: item.attribute_ids || [], packaging_factor_ids: (item.packaging_factor_ids || []).map(String)});
@@ -1230,25 +1207,25 @@ export default function InventoryView({
                   <i className="bi bi-box-seam" style={{ marginRight: '6px' }}></i>
                   {forcedCategory ? t('sample_masters') : t('item_inventory')}
                 </span>
-                {selectedIds.size > 0 && (
+                {sel.count > 0 && (
                   <span style={{ fontSize: '10px', color: '#cce8ff', fontWeight: 'normal' }}>
-                    — {selectedIds.size} selected
+                    — {sel.count} selected
                   </span>
                 )}
               </div>
               {/* Right: action buttons */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                {canDelete && selectedIds.size > 0 && (
+                {canDelete && sel.count > 0 && (
                   <>
                     <button
                       style={xpBtn({ background: 'linear-gradient(to bottom, #ff6060, #cc0000)', borderColor: '#800000 #4a0000 #4a0000 #800000', color: '#ffffff' })}
                       onClick={handleBulkDelete}
                     >
-                      <i className="bi bi-trash"></i> Delete ({selectedIds.size})
+                      <i className="bi bi-trash"></i> Delete ({sel.count})
                     </button>
                     <button
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cce8ff', textDecoration: 'underline', fontFamily: xpFont, fontSize: '10px', padding: 0 }}
-                      onClick={() => setSelectedIds(new Set())}
+                      onClick={sel.clear}
                     >
                       Clear
                     </button>
@@ -1265,13 +1242,13 @@ export default function InventoryView({
                       <p className="text-muted small mb-0 mt-1">
                           {forcedCategory ? 'Manage product samples and prototypes' : 'Master list of all products and materials'}
                       </p>
-                      {canDelete && selectedIds.size > 0 && (
+                      {canDelete && sel.count > 0 && (
                           <div className="d-flex align-items-center gap-2 mt-2">
-                              <span className="text-muted small">{selectedIds.size} selected</span>
+                              <span className="text-muted small">{sel.count} selected</span>
                               <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}>
                                   <i className="bi bi-trash me-1"></i>Delete Selected
                               </button>
-                              <button className="btn btn-sm btn-link text-secondary p-0" onClick={() => setSelectedIds(new Set())}>
+                              <button className="btn btn-sm btn-link text-secondary p-0" onClick={sel.clear}>
                                   Clear
                               </button>
                           </div>
@@ -1367,13 +1344,7 @@ export default function InventoryView({
                     className={classic ? '' : 'table-light'}
                   >
                     <th style={classic ? { ...xpThCell, width: '32px', textAlign: 'center' } : { width: '40px' }} className={classic ? '' : 'ps-3'}>
-                        <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={allSelected}
-                            ref={el => { if (el) el.indeterminate = someSelected; }}
-                            onChange={toggleSelectAll}
-                        />
+                        <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} />
                     </th>
                     <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-4'} onClick={() => toggleSort('code')} title="Sort">{t('item_code')}<SortMark sort={sort} colKey="code" /></th>
                     <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('name')} title="Sort">{t('item_name')}<SortMark sort={sort} colKey="name" /></th>
@@ -1392,8 +1363,8 @@ export default function InventoryView({
                         item={item}
                         rowIndex={idx}
                         isEditing={editingItem?.id === item.id}
-                        isSelected={selectedIds.has(item.id)}
-                        onToggleSelect={toggleSelect}
+                        isSelected={sel.isSelectedKey(item.id)}
+                        onToggleSelect={sel.toggleKey}
                         onEdit={handleEdit}
                         onDelete={onDeleteItem}
                         onViewHistory={setHistoryEntityId}
@@ -1432,8 +1403,8 @@ export default function InventoryView({
             pageSize={pageSize}
             onPageChange={onPageChange}
             leftContent={classic
-              ? (selectedIds.size > 0
-                  ? `${selectedIds.size} of ${totalItems} item${totalItems !== 1 ? 's' : ''} selected`
+              ? (sel.count > 0
+                  ? `${sel.count} of ${totalItems} item${totalItems !== 1 ? 's' : ''} selected`
                   : `${totalItems} item${totalItems !== 1 ? 's' : ''} total`)
               : undefined}
           />

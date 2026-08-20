@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead, ExpandToggle } from '../shared/listViewTheme';
+import { lvThead, ExpandToggle, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
@@ -113,7 +113,6 @@ export default function BOMView({
     const [printBOM, setPrintBOM] = useState<any>(null);
     const [startPRBom, setStartPRBom] = useState<any>(null);
     const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     // Cache of fetched BOM trees: rootBomId -> { bomId: bomObj } flat map
     const [bomTreeCache, setBomTreeCache] = useState<Record<string, Record<string, any>>>({});
 
@@ -244,26 +243,12 @@ export default function BOMView({
         </div>
     );
 
-    // Server already filters by search + root_only; boms is the current page result
-    const allSelected = boms.length > 0 && boms.every((b: any) => selectedIds.has(b.id));
-    const someSelected = boms.some((b: any) => selectedIds.has(b.id)) && !allSelected;
-
-    const toggleSelect = (id: string) => setSelectedIds(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        return next;
-    });
-
-    const toggleSelectAll = () => {
-        if (allSelected) {
-            setSelectedIds(prev => { const n = new Set(prev); boms.forEach((b: any) => n.delete(b.id)); return n; });
-        } else {
-            setSelectedIds(prev => { const n = new Set(prev); boms.forEach((b: any) => n.add(b.id)); return n; });
-        }
-    };
+    // Server already filters by search + root_only; boms is the current page result,
+    // so select-all is page-scoped while ticked rows survive paging.
+    const sel = useRowSelection<any>(boms, (b: any) => b.id);
 
     const handleBulkDelete = async () => {
-        if (onDeleteMultipleBOMs) { await onDeleteMultipleBOMs([...selectedIds]); setSelectedIds(new Set()); }
+        if (onDeleteMultipleBOMs) { await onDeleteMultipleBOMs(sel.keys); sel.clear(); }
     };
 
     const initialItemCode = initialCreateState ? (items.find((i: any) => i.id === initialCreateState.item_id)?.code || '') : '';
@@ -906,13 +891,13 @@ export default function BOMView({
                                 value={showRootOnly ? 'root' : 'all'}
                                 onChange={v => setShowRootOnly?.(v === 'root')}
                             />
-                            {canManage && selectedIds.size > 0 && (
+                            {canManage && sel.count > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#333' }}>{selectedIds.size} selected</span>
+                                    <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#333' }}>{sel.count} selected</span>
                                     <button style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' }} onClick={handleBulkDelete}>
                                         <i className="bi bi-trash" style={{ marginRight: '4px' }} />Delete Selected
                                     </button>
-                                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003ea6', textDecoration: 'underline', fontFamily: xpFont, fontSize: '11px', padding: 0 }} onClick={() => setSelectedIds(new Set())}>Clear</button>
+                                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003ea6', textDecoration: 'underline', fontFamily: xpFont, fontSize: '11px', padding: 0 }} onClick={sel.clear}>Clear</button>
                                 </div>
                             )}
                             {canManage && (
@@ -930,11 +915,11 @@ export default function BOMView({
                                 value={showRootOnly ? 'root' : 'all'}
                                 onChange={v => setShowRootOnly?.(v === 'root')}
                             />
-                            {canManage && selectedIds.size > 0 && (
+                            {canManage && sel.count > 0 && (
                                 <div className="d-flex align-items-center gap-2">
-                                    <span className="text-muted small">{selectedIds.size} selected</span>
+                                    <span className="text-muted small">{sel.count} selected</span>
                                     <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}><i className="bi bi-trash me-1" />Delete Selected</button>
-                                    <button className="btn btn-sm btn-link text-secondary p-0" onClick={() => setSelectedIds(new Set())}>Clear</button>
+                                    <button className="btn btn-sm btn-link text-secondary p-0" onClick={sel.clear}>Clear</button>
                                 </div>
                             )}
                             {canManage && (
@@ -955,7 +940,7 @@ export default function BOMView({
                                 <thead>
                                     <tr style={classic ? { ...lvThead(true), fontSize: '10px', fontWeight: 'bold', color: '#000', letterSpacing: '0.2px' } : undefined} className={classic ? '' : 'table-light'}>
                                         <th style={classic ? { width: '40px', padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: '40px' }} className={classic ? '' : 'ps-3'}>
-                                            <input className="form-check-input" type="checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected; }} onChange={toggleSelectAll} />
+                                            <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} />
                                         </th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined} className={classic ? '' : 'ps-2'}>BOM Code</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>{t('finished_good')}</th>
@@ -979,7 +964,7 @@ export default function BOMView({
                                     ) : (
                                         boms.map((bom: any, index: number) => {
                                             const isExpanded = expandedBOMRows[bom.id];
-                                            const rowBg = selectedIds.has(bom.id) ? rowStateBg('selected', classic)
+                                            const rowBg = sel.isSelected(bom) ? rowStateBg('selected', classic)
                                                 : isExpanded ? rowStateBg('expanded', classic)
                                                 : classic ? (index % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined;
 
@@ -992,7 +977,7 @@ export default function BOMView({
                                                         : { background: rowBg }}
                                                 >
                                                     <td style={classic ? { padding: '7px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'ps-3'}>
-                                                        <input className="form-check-input" type="checkbox" checked={selectedIds.has(bom.id)} onChange={() => toggleSelect(bom.id)} />
+                                                        <RowCheckbox classic={classic} checked={sel.isSelected(bom)} onChange={() => sel.toggle(bom)} label={`BOM ${bom.code}`} />
                                                     </td>
                                                     {/* BOM Code — click to expand */}
                                                     <td

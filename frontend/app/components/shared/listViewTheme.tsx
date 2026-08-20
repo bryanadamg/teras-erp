@@ -157,6 +157,163 @@ export const lvRow = (classic: boolean, idx: number): React.CSSProperties => (cl
     ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }
     : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' });
 
+// ── Row multi-select ──────────────────────────────────────────────────────────
+// The checkbox half of a bulk-action list. Six views grew their own copy of this
+// and drifted on all three axes: the state shape (`Set<id>` / `Record<key,row>`),
+// the "all selected" test (`size === rows.length`, which is wrong the moment a
+// selection outlives a page), and the checkbox chrome (bare input vs
+// `form-check-input`, 28/32/40px columns).
+//
+// `useRowSelection` keeps the ROW OBJECT, not just its id, because every bulk
+// action downstream needs the row (print a WO card, move a stock line) and a
+// selection that survives paging can no longer look it up in the visible page.
+// Select-all is deliberately page-scoped — ticking 4000 filtered rows in one
+// click is never what the user meant — while individually selected rows on other
+// pages stay selected.
+export const LV_CHECK_COL_W = 28;
+
+export const lvCheckTd = (classic: boolean, base: React.CSSProperties = {}): React.CSSProperties => ({
+    ...lvTd(classic),
+    ...base,
+    width: LV_CHECK_COL_W, textAlign: 'center', padding: '3px 4px', verticalAlign: 'middle',
+});
+
+export interface RowSelection<T> {
+    /** key → row, for the bulk action and the row's own `checked` test. */
+    selected: Record<string, T>;
+    keys: string[];
+    items: T[];
+    entries: [string, T][];
+    count: number;
+    isSelected: (row: T) => boolean;
+    isSelectedKey: (key: string) => boolean;
+    toggle: (row: T) => void;
+    /** For rows handed to a memoised child that only knows the id. */
+    toggleKey: (key: string) => void;
+    deselectKey: (key: string) => void;
+    /** Header checkbox: adds/removes every eligible row on the current page. */
+    togglePage: () => void;
+    allPageSelected: boolean;
+    /** Some — but not all — of this page is selected: the indeterminate state. */
+    someSelected: boolean;
+    /** Eligible rows on this page; 0 means the header checkbox has nothing to do. */
+    pageEligibleCount: number;
+    clear: () => void;
+}
+
+export function useRowSelection<T>(
+    rows: T[],
+    keyOf: (row: T) => string,
+    opts: { selectable?: (row: T) => boolean } = {},
+): RowSelection<T> {
+    const [selected, setSelected] = React.useState<Record<string, T>>({});
+    const { selectable } = opts;
+    const eligible = selectable ? rows.filter(selectable) : rows;
+
+    const isSelectedKey = (key: string) => !!selected[key];
+    const isSelected = (row: T) => isSelectedKey(keyOf(row));
+
+    const setRow = (row: T, on: boolean) => setSelected(prev => {
+        const next = { ...prev };
+        const k = keyOf(row);
+        if (on) next[k] = row; else delete next[k];
+        return next;
+    });
+
+    const allPageSelected = eligible.length > 0 && eligible.every(r => !!selected[keyOf(r)]);
+    const anyPageSelected = eligible.some(r => !!selected[keyOf(r)]);
+
+    return {
+        selected,
+        keys: Object.keys(selected),
+        items: Object.values(selected),
+        entries: Object.entries(selected) as [string, T][],
+        count: Object.keys(selected).length,
+        isSelected,
+        isSelectedKey,
+        toggle: (row: T) => setRow(row, !isSelected(row)),
+        toggleKey: (key: string) => {
+            const row = rows.find(r => keyOf(r) === key);
+            if (row) setRow(row, !isSelectedKey(key));
+        },
+        deselectKey: (key: string) => setSelected(prev => { const n = { ...prev }; delete n[key]; return n; }),
+        togglePage: () => setSelected(prev => {
+            const next = { ...prev };
+            if (allPageSelected) { for (const r of eligible) delete next[keyOf(r)]; }
+            else { for (const r of eligible) next[keyOf(r)] = r; }
+            return next;
+        }),
+        allPageSelected,
+        someSelected: anyPageSelected && !allPageSelected,
+        pageEligibleCount: eligible.length,
+        clear: () => setSelected({}),
+    };
+}
+
+const checkboxStyle = (classic: boolean, enabled: boolean): React.CSSProperties =>
+    ({ margin: 0, cursor: enabled ? 'pointer' : 'not-allowed', verticalAlign: 'middle' });
+
+export function RowCheckbox({ classic, checked, onChange, disabled, title, label }: {
+    classic: boolean; checked: boolean; onChange: () => void;
+    disabled?: boolean; title?: string; label?: string;
+}) {
+    return (
+        <input
+            type="checkbox"
+            className={classic ? undefined : 'form-check-input'}
+            style={checkboxStyle(classic, !disabled)}
+            checked={checked}
+            disabled={disabled}
+            title={title}
+            aria-label={label ? `Select ${label}` : 'Select row'}
+            onChange={onChange}
+            // The row around it is usually clickable (expand / open): a tick must
+            // never also fire that.
+            onClick={e => e.stopPropagation()}
+        />
+    );
+}
+
+/** Header checkbox. Owns the `indeterminate` ref-poke that every call site
+ *  hand-wrote (and two of them wrote wrongly, leaving it lit when all rows
+ *  were selected). */
+export function SelectAllCheckbox({ classic, allSelected, someSelected, onChange, disabled, title }: {
+    classic: boolean; allSelected: boolean; someSelected: boolean; onChange: () => void;
+    disabled?: boolean; title?: string;
+}) {
+    return (
+        <input
+            type="checkbox"
+            className={classic ? undefined : 'form-check-input'}
+            style={checkboxStyle(classic, !disabled)}
+            checked={allSelected}
+            disabled={disabled}
+            ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+            onChange={onChange}
+            title={title ?? (allSelected ? 'Clear selection on this page' : 'Select every row on this page')}
+            aria-label={allSelected ? 'Clear selection on this page' : 'Select every row on this page'}
+        />
+    );
+}
+
+/** `<td>` + row checkbox, geometry fixed like ExpanderCell. */
+export function RowCheckboxCell({ tdStyle, tdClassName, ...cb }: React.ComponentProps<typeof RowCheckbox> & { tdStyle?: React.CSSProperties; tdClassName?: string }) {
+    return (
+        <td style={lvCheckTd(cb.classic, tdStyle)} className={tdClassName}>
+            <RowCheckbox {...cb} />
+        </td>
+    );
+}
+
+/** `<th>` + select-all checkbox. */
+export function SelectAllCell({ tdStyle, tdClassName, ...cb }: React.ComponentProps<typeof SelectAllCheckbox> & { tdStyle?: React.CSSProperties; tdClassName?: string }) {
+    return (
+        <th style={lvCheckTd(cb.classic, tdStyle)} className={tdClassName}>
+            <SelectAllCheckbox {...cb} />
+        </th>
+    );
+}
+
 // ── Row-detail disclosure ─────────────────────────────────────────────────────
 // One expander for every list row that opens a detail panel below itself. This
 // used to be hand-written at ~17 call sites in five different glyphs (thin

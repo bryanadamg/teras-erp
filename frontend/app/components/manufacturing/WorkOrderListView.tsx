@@ -18,7 +18,7 @@ import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -165,7 +165,6 @@ export default function WorkOrderListView({
     const [completionWO, setCompletionWO] = useState<any>(null);
     const [stageWO, setStageWO] = useState<FlatWO | null>(null);
     const [scanStageWO, setScanStageWO] = useState<FlatWO | null>(null);
-    const [selectedWOIds, setSelectedWOIds] = useState<Set<string>>(new Set());
     const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
     // Bag labels: one sticker per weighed bag (= one lotted completion on this WO).
     // The flat WO payload lacks lots/attrs/putaway the label needs, so fetch the
@@ -388,15 +387,9 @@ export default function WorkOrderListView({
         return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
     };
 
-    const allFilteredSelected = filtered.length > 0 && filtered.every(wo => selectedWOIds.has(wo.id));
-    const someSelected = filtered.some(wo => selectedWOIds.has(wo.id));
-    const toggleSelectAll = () => {
-        if (allFilteredSelected) {
-            setSelectedWOIds(prev => { const n = new Set(prev); filtered.forEach(wo => n.delete(wo.id)); return n; });
-        } else {
-            setSelectedWOIds(prev => { const n = new Set(prev); filtered.forEach(wo => n.add(wo.id)); return n; });
-        }
-    };
+    // Selection holds the WO rows themselves — the bulk print modal needs the
+    // objects, and a WO ticked before paging can no longer be found in `filtered`.
+    const sel = useRowSelection<FlatWO>(filtered, wo => wo.id);
 
     const COLS = 15; // checkbox + chevron + 12 data cols + actions
 
@@ -678,14 +671,14 @@ export default function WorkOrderListView({
                         <span style={{ fontSize: classic ? 10 : 11, color: classic ? '#cce0ff' : '#888', marginLeft: 4 }}>
                             {filtered.length} of {flatWOs.length} steps
                         </span>
-                        {selectedWOIds.size > 0 && (
+                        {sel.count > 0 && (
                             <button
                                 onClick={() => setBulkPrintOpen(true)}
                                 style={classic ? { fontFamily: xpFont, fontSize: 10, padding: '1px 8px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginLeft: 8 } : undefined}
                                 className={classic ? '' : 'btn btn-sm btn-success ms-2'}
                             >
                                 {classic ? '' : <i className="bi bi-printer me-1" />}
-                                Print Selected ({selectedWOIds.size})
+                                Print Selected ({sel.count})
                             </button>
                         )}
                     </div>
@@ -775,14 +768,7 @@ export default function WorkOrderListView({
                             <thead>
                                 <tr className={classic ? '' : 'table-light'}>
                                     <th style={{ ...thStyle, width: 28, padding: '3px 6px' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={allFilteredSelected}
-                                            ref={el => { if (el) el.indeterminate = someSelected && !allFilteredSelected; }}
-                                            onChange={toggleSelectAll}
-                                            title="Select all filtered"
-                                            style={{ cursor: 'pointer' }}
-                                        />
+                                        <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} title="Select all filtered" />
                                     </th>
                                     <th style={{ ...thStyle, width: 22, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
                                     {([['Root MO', 'rootmo'], ['#', 'sequence'], ['Name', 'name'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Created', 'created'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
@@ -874,18 +860,7 @@ export default function WorkOrderListView({
                                                 onClick={() => setExpandedWOId(prev => prev === wo.id ? null : wo.id)}
                                             >
                                                 <td style={{ ...tdBase, padding: '3px 6px', width: 24 }} onClick={e => e.stopPropagation()}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedWOIds.has(wo.id)}
-                                                        onChange={e => {
-                                                            setSelectedWOIds(prev => {
-                                                                const n = new Set(prev);
-                                                                e.target.checked ? n.add(wo.id) : n.delete(wo.id);
-                                                                return n;
-                                                            });
-                                                        }}
-                                                        style={{ cursor: 'pointer' }}
-                                                    />
+                                                    <RowCheckbox classic={classic} checked={sel.isSelected(wo)} onChange={() => sel.toggle(wo)} label={`work order ${wo.name || wo.id}`} />
                                                 </td>
                                                 <ExpanderCell classic={classic} expanded={isExpanded} onToggle={() => setExpandedWOId(prev => prev === wo.id ? null : wo.id)} tdStyle={tdBase} tdClassName={classic ? '' : 'ps-2'} label="work order detail" />
                                                 {/* Root MO — top of the parent/pegging chain, not this WO's own MO.
@@ -1123,9 +1098,9 @@ export default function WorkOrderListView({
                     })()}
 
                     <Pager page={page} total={total} pageSize={pageSize} onPageChange={onPageChange} hideWhenEmpty />
-                    {classic && selectedWOIds.size > 0 && (
+                    {classic && sel.count > 0 && (
                         <XPStatusBar right={null}>
-                            {`${selectedWOIds.size} selected`}
+                            {`${sel.count} selected`}
                         </XPStatusBar>
                     )}
                 </div>
@@ -1167,9 +1142,8 @@ export default function WorkOrderListView({
         )}
         {bulkPrintOpen && (
             <WOBulkPrintModal
-                selectedWOs={flatWOs.filter(wo => selectedWOIds.has(wo.id))}
-                manufacturingOrders={flatWOs
-                    .filter(wo => selectedWOIds.has(wo.id))
+                selectedWOs={sel.items}
+                manufacturingOrders={sel.items
                     .map(wo => ({
                         id: wo.mo_id,
                         code: wo.mo_code,

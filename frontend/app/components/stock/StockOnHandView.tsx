@@ -10,7 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
 
@@ -76,10 +76,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const [transferDrums, setTransferDrums] = useState('');
     const [transferring, setTransferring] = useState(false);
 
-    // Multi-select + combined move. Selection is keyed by the balance-row identity
-    // (item + location + lot + variant) and holds the row object itself, so a pick
-    // survives paging, sorting and filter changes.
-    const [selected, setSelected] = useState<Record<string, any>>({});
+    // Multi-select + combined move. The selection itself is `sel` (useRowSelection),
+    // declared further down where pageRows exists to scope select-all to.
     const [bulkOpen, setBulkOpen] = useState(false);
     const [bulkToLoc, setBulkToLoc] = useState('');
     const [bulkQty, setBulkQty] = useState<Record<string, string>>({});
@@ -127,23 +125,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const rowKey = (bal: any) =>
         `${bal.item_id}|${bal.location_id}|${bal.batch_key || ''}|${[...(bal.attribute_value_ids || [])].sort().join(',')}`;
 
-    const selectedKeys = Object.keys(selected);
-    const selectedRows = useMemo(
-        () => selectedKeys.map(k => selected[k]),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [selected]
-    );
     // Only positive-qty rows can be moved; a zero/negative row has nothing to send.
     const movable = (bal: any) => bal.qty > 0;
-    const toggleRow = (bal: any) => {
-        const k = rowKey(bal);
-        setSelected(prev => {
-            const next = { ...prev };
-            if (next[k]) delete next[k]; else next[k] = bal;
-            return next;
-        });
-    };
-    const clearSelection = () => setSelected({});
 
     const openTransfer = (bal: any) => {
         setTransferTarget(bal);
@@ -193,22 +176,21 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
     const openBulkMove = () => {
         const qtys: Record<string, string> = {};
-        for (const k of selectedKeys) qtys[k] = String(selected[k].qty);
+        for (const [k, bal] of sel.entries) qtys[k] = String(bal.qty);
         setBulkQty(qtys);
         setBulkToLoc('');
         setBulkOpen(true);
     };
 
     const dropBulkRow = (k: string) => {
-        setSelected(prev => { const n = { ...prev }; delete n[k]; return n; });
+        sel.deselectKey(k);
         setBulkQty(prev => { const n = { ...prev }; delete n[k]; return n; });
     };
 
     const handleBulkMove = async () => {
         if (!bulkToLoc) { showToast('Select a destination location', 'danger'); return; }
         const lines: any[] = [];
-        for (const k of selectedKeys) {
-            const bal = selected[k];
+        for (const [k, bal] of sel.entries) {
             const qty = parseFloat(bulkQty[k]);
             if (!qty || qty <= 0) { showToast(`${bal.item_name}: enter a positive quantity`, 'danger'); return; }
             if (qty > bal.qty) { showToast(`${bal.item_name}: only ${bal.qty} on hand`, 'danger'); return; }
@@ -243,7 +225,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             const body = await res.json().catch(() => ({}));
             showToast(body.message || `Moved ${lines.length} rows`, 'success');
             setBulkOpen(false);
-            clearSelection();
+            sel.clear();
             reload();
         } catch (err: any) {
             showToast(err.message, 'danger');
@@ -541,18 +523,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics(classic ? 'stock-on-hand-classic' : 'stock-on-hand', listBodyRef, pageRows.length > 0);
 
-    // Header checkbox acts on the visible page only — selecting 4000 filtered rows
-    // in one click is never what the operator meant.
-    const pageMovable = useMemo(() => pageRows.filter(movable), [pageRows]);
-    const allPageSelected = pageMovable.length > 0 && pageMovable.every((b: any) => selected[rowKey(b)]);
-    const togglePageSelection = () => {
-        setSelected(prev => {
-            const next = { ...prev };
-            if (allPageSelected) { for (const b of pageMovable) delete next[rowKey(b)]; }
-            else { for (const b of pageMovable) next[rowKey(b)] = b; }
-            return next;
-        });
-    };
+    // Keyed by the balance-row identity (item + location + lot + variant) and
+    // holding the row object, so a pick survives paging, sorting and filter
+    // changes. The header checkbox acts on the visible page only — selecting 4000
+    // filtered rows in one click is never what the operator meant.
+    const sel = useRowSelection<any>(pageRows, rowKey, { selectable: movable });
 
     // ── XP style helpers ─────────────────────────────────────────────────────
     const xpBevel: React.CSSProperties = sharedXpBevel();
@@ -628,21 +603,21 @@ export default function StockOnHandView({ locations, attributes, categories, ite
         const qtyColor = bal.qty < 0 ? '#c00000' : qStatus ? '#8b0000' : '#00008b';
         const rk = rowKey(bal);
         const checkCell = (
-            <input
-                type="checkbox"
-                style={{ margin: 0, cursor: movable(bal) ? 'pointer' : 'not-allowed' }}
-                checked={!!selected[rk]}
+            <RowCheckbox
+                classic={classic}
+                checked={sel.isSelectedKey(rk)}
                 disabled={!movable(bal)}
                 title={movable(bal) ? 'Select for a combined move' : 'Nothing on hand to move'}
-                onChange={() => toggleRow(bal)}
+                onChange={() => sel.toggle(bal)}
+                label={bal.item_name}
             />
         );
 
         return (
             <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
-                className={classic ? undefined : (selected[rk] ? 'table-primary' : qStatus ? 'table-danger' : undefined)}
+                className={classic ? undefined : (sel.isSelectedKey(rk) ? 'table-primary' : qStatus ? 'table-danger' : undefined)}
                 title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
-                style={classic ? { background: selected[rk] ? (i % 2 === 0 ? '#e8f0fb' : '#dee9f7') : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' } : undefined}>
+                style={classic ? { background: sel.isSelectedKey(rk) ? (i % 2 === 0 ? '#e8f0fb' : '#dee9f7') : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' } : undefined}>
                 <td className={classic ? undefined : 'text-center'} style={classic ? { padding: '4px 6px', textAlign: 'center', ...colDivider } : colDivider}>{checkCell}</td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     <div title={bal.item_name}
@@ -869,12 +844,12 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             isOpen={bulkOpen}
             modeless
             onClose={() => setBulkOpen(false)}
-            title={`Combined Move — ${selectedKeys.length} row${selectedKeys.length === 1 ? '' : 's'}`}
+            title={`Combined Move — ${sel.count} row${sel.count === 1 ? '' : 's'}`}
             size="lg"
             footer={<>
                 <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setBulkOpen(false)}>Cancel</button>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleBulkMove} disabled={bulkMoving || !selectedKeys.length}>
-                    {bulkMoving ? 'Moving...' : `Move ${selectedKeys.length} row${selectedKeys.length === 1 ? '' : 's'}`}
+                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleBulkMove} disabled={bulkMoving || !sel.count}>
+                    {bulkMoving ? 'Moving...' : `Move ${sel.count} row${sel.count === 1 ? '' : 's'}`}
                 </button>
             </>}
         >
@@ -904,7 +879,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 </tr>
                             </thead>
                             <tbody>
-                                {selectedRows.map((bal: any) => {
+                                {sel.items.map((bal: any) => {
                                     const k = rowKey(bal);
                                     const q = parseFloat(bulkQty[k]);
                                     const bad = !q || q <= 0 || q > bal.qty;
@@ -1198,23 +1173,23 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     <label className="form-check-label small" htmlFor="sohHideRejected">Hide rejected</label>
                 </div>
             )}
-            {canEntry && selectedKeys.length > 0 && (
+            {canEntry && sel.count > 0 && (
                 classic ? (
                     <>
                         <div style={xpSep} />
                         <button style={xpBtn({ background: 'linear-gradient(to bottom,#cfe3ff,#a9c9f0)', fontWeight: 'bold' })} onClick={openBulkMove}
                             title="Move every selected row to one destination in a single transaction">
-                            <i className="bi bi-arrow-left-right" style={{ marginRight: 4 }} />Move {selectedKeys.length} selected
+                            <i className="bi bi-arrow-left-right" style={{ marginRight: 4 }} />Move {sel.count} selected
                         </button>
-                        <button style={xpBtn()} onClick={clearSelection} title="Clear selection">Clear</button>
+                        <button style={xpBtn()} onClick={sel.clear} title="Clear selection">Clear</button>
                     </>
                 ) : col('col-md-3 d-flex gap-2', (
                     <>
                         <button className="btn btn-primary btn-sm flex-fill" onClick={openBulkMove}
                             title="Move every selected row to one destination in a single transaction">
-                            <i className="bi bi-arrow-left-right me-1" />Move {selectedKeys.length} selected
+                            <i className="bi bi-arrow-left-right me-1" />Move {sel.count} selected
                         </button>
-                        <button className="btn btn-outline-secondary btn-sm" onClick={clearSelection} title="Clear selection">Clear</button>
+                        <button className="btn btn-outline-secondary btn-sm" onClick={sel.clear} title="Clear selection">Clear</button>
                     </>
                 ))
             )}
@@ -1270,8 +1245,10 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     <table style={classic ? { width: '100%', minWidth: TABLE_MIN_WIDTH, borderCollapse: 'collapse', tableLayout: 'fixed' } : { tableLayout: 'fixed', minWidth: TABLE_MIN_WIDTH }} className={classic ? undefined : 'table table-hover table-sm mb-0'}>
                         <thead className={classic ? undefined : 'table-light'}>
                             <tr>
-                                <th className={classic ? undefined : 'text-center'} style={classic ? { ...xpTableHeader, width: COL_W.check, textAlign: 'center' } : { width: COL_W.check, ...colDivider }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
-                                    <input type="checkbox" style={{ margin: 0, cursor: 'pointer' }} checked={allPageSelected} disabled={!pageMovable.length} onChange={togglePageSelection} />
+                                <th className={classic ? undefined : 'text-center'} style={classic ? { ...xpTableHeader, width: COL_W.check, textAlign: 'center' } : { width: COL_W.check, ...colDivider }}>
+                                    <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected}
+                                        disabled={!sel.pageEligibleCount} onChange={sel.togglePage}
+                                        title={sel.allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'} />
                                 </th>
                                 <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.item } : { cursor: 'pointer', width: COL_W.item, ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
                                 <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.category } : { cursor: 'pointer', width: COL_W.category, ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
