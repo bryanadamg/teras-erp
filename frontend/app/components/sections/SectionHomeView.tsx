@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { xpFont, StatusChip, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { NAV_SECTIONS, navLabel, NavSection } from '../shared/navConfig';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvZebra } from '../shared/listViewTheme';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section Home — a focused mini-dashboard per sidebar section. Reuses the data
@@ -287,7 +287,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
                   <tr><td colSpan={section.list.cols.length} style={{ padding: '10px', textAlign: 'center', color: '#888', fontStyle: 'italic' }}>No records</td></tr>
                 )}
                 {section.list.rows.map((r, i) => (
-                  <tr key={i} style={{ background: i % 2 ? '#f5f3ee' : '#fff' }}>
+                  <tr key={i} style={{ background: lvZebra(true, i) }}>
                     {r.code !== '' && <td style={{ padding: '3px 6px' }}><CodeChip code={r.code} classic /></td>}
                     <td style={{ padding: '3px 6px' }}>{r.primary}</td>
                     {r.status !== undefined && <td style={{ padding: '3px 6px' }}><StatusChip status={r.status} /></td>}

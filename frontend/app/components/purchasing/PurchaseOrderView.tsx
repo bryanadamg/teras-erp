@@ -11,10 +11,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
+import { useSortable, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 export default function PurchaseOrderView({ items, itemResults, onSearchItems, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
@@ -127,33 +127,11 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
       flexShrink: 0,
   };
 
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px',
-      fontWeight: 'bold',
-      color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true);
 
-  const xpThCell: React.CSSProperties = {
-      padding: '3px 6px',
-      borderRight: '1px solid #b0aaa0',
-      textAlign: 'left' as const,
-      whiteSpace: 'nowrap' as const,
-      fontFamily: xpFont,
-      position: 'sticky' as const,
-      top: 0,
-      zIndex: 5,
-      ...lvThead(true)
-  };
+  const xpThCell: React.CSSProperties = lvThSticky(true);
 
-  const tdBase: React.CSSProperties = {
-      padding: '4px 6px',
-      borderRight: '1px solid #c0bdb5',
-      borderBottom: '1px solid #d0cdc8',
-      verticalAlign: 'middle' as const,
-      fontFamily: xpFont,
-      fontSize: '11px',
-  };
+  const tdBase: React.CSSProperties = lvTdRuled(true);
 
   // Order-lines / receipt-history mini-tables inside the expanded row. These used
   // to be a classic-only const pair plus Bootstrap classNames for modern; both
@@ -631,7 +609,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                    </div>
                    <div>
                        {newPO.lines.map((line: any, idx) => (
-                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined}}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?lvZebra(true,idx):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id)}</span>
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontSize:classic?'10px':''}}>{getItemCode(line.item_id)}</span>
@@ -729,7 +707,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                        </thead>
                        <tbody>
                            {receiptTarget.lines.map((line: any, idx: number) => (
-                               <tr key={line.id} style={classic?{background:idx%2===0?'#ffffff':'#f5f3ee',borderBottom:'1px solid #d0cdc8'}:undefined}>
+                               <tr key={line.id} style={classic?{background:lvZebra(true,idx),borderBottom:'1px solid #d0cdc8'}:undefined}>
                                    <td style={classic?tdBase:undefined}>
                                        <div style={classic?{fontWeight:'bold'}:undefined} className={classic?'':'fw-bold'}>{line.item_name || getItemName(line.item_id)}</div>
                                        <div style={classic?{fontSize:'10px',color:'#666'}:undefined} className={classic?'':'small text-muted'}>{line.item_code || getItemCode(line.item_id)}</div>
@@ -870,13 +848,13 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
                                <th style={classic ? { ...xpThCell, width: '20px' } : undefined}></th>
-                               <th style={classic ? { ...xpThCell, width: '130px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-2'} onClick={() => togglePOSort('po')} title="Sort">PO Number<SortMark sort={poSort} colKey="po" /></th>
-                               <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('supplier')} title="Sort">Supplier<SortMark sort={poSort} colKey="supplier" /></th>
-                               <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('date')} title="Sort">Date<SortMark sort={poSort} colKey="date" /></th>
+                               <SortableTh sort={poSort} colKey="po" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '130px' } : {}} className={classic ? '' : 'ps-2'}>PO Number</SortableTh>
+                               <SortableTh sort={poSort} colKey="supplier" onSort={togglePOSort} style={classic ? { ...xpThCell } : {}}>Supplier</SortableTh>
+                               <SortableTh sort={poSort} colKey="date" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '90px' } : {}}>Date</SortableTh>
                                <th style={classic ? { ...xpThCell, width: '70px' } : { width: 70 }}>Items</th>
-                               <th style={classic ? { ...xpThCell, width: '150px', cursor: 'pointer' } : { cursor: 'pointer', width: 150 }} onClick={() => togglePOSort('received')} title="Sort">Received<SortMark sort={poSort} colKey="received" /></th>
-                               <th style={classic ? { ...xpThCell, width: '110px', textAlign: 'right' as const, cursor: 'pointer' } : { cursor: 'pointer', textAlign: 'right' as const }} onClick={() => togglePOSort('total')} title="Sort">Total<SortMark sort={poSort} colKey="total" /></th>
-                               <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('status')} title="Sort">Status<SortMark sort={poSort} colKey="status" /></th>
+                               <SortableTh sort={poSort} colKey="received" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '150px' } : { width: 150 }}>Received</SortableTh>
+                               <SortableTh sort={poSort} colKey="total" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '110px', textAlign: 'right' as const } : { textAlign: 'right' as const }}>Total</SortableTh>
+                               <SortableTh sort={poSort} colKey="status" onSort={togglePOSort} style={classic ? { ...xpThCell, width: '90px' } : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '96px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
@@ -886,19 +864,12 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                <tr
                                    key={po.id}
                                    style={classic
-                                       ? { background: expandedRows[po.id] ? rowStateBg('expanded', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: expandedRows[po.id] ? 'none' : '1px solid #c0bdb5' }
+                                       ? { background: expandedRows[po.id] ? rowStateBg('expanded', true) : lvZebra(true, rowIndex), borderBottom: expandedRows[po.id] ? 'none' : '1px solid #c0bdb5' }
                                        : { background: expandedRows[po.id] ? rowStateBg('expanded', false) : undefined }}
                                >
-                                   <td style={classic ? { ...tdBase, padding: '4px 4px', textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-3 text-center'}>
-                                       <button
-                                           onClick={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
-                                           style={classic ? { background: 'none', border: 'none', cursor: 'pointer', fontSize: '10px', color: '#555', padding: '0 2px' } : undefined}
-                                           className={classic ? '' : 'btn btn-sm btn-link p-0 text-muted'}
-                                           title={expandedRows[po.id] ? 'Hide items & receipts' : 'Show items & receipts'}
-                                       >
-                                           <i className={`bi bi-chevron-${expandedRows[po.id] ? 'down' : 'right'}`}></i>
-                                       </button>
-                                   </td>
+                                   <ExpanderCell classic={classic} expanded={!!expandedRows[po.id]} label="items & receipts"
+                                       onToggle={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
+                                       tdStyle={classic ? tdBase : undefined} tdClassName={classic ? '' : 'ps-3'} />
                                    <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-2'}>
                                        <CodeChip code={po.po_number} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                    </td>

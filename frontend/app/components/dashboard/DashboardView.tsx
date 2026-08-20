@@ -331,7 +331,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             <div className="fade-in">
                 <div className="d-flex justify-content-between align-items-center mb-3">
                     <h4 className="fw-bold mb-0 text-capitalize">{t('dashboard')}</h4>
-                    <span className="text-muted small">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    <span className="text-muted small">{tzFmt(new Date(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
 
                 {/* Smart Advisor */}
@@ -692,7 +692,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                     <i className="bi bi-speedometer2" style={{ marginRight: 4 }} aria-hidden="true" /> {t('dashboard')}
                 </span>
                 <span style={{ fontSize: '10px', color: '#555' }}>
-                    {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    {tzFmt(new Date(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </span>
             </div>
 

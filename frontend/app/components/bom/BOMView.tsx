@@ -11,8 +11,8 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead } from '../shared/listViewTheme';
-import { FilterChipBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
+import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
+import { FilterChipBar, xpToolbar, ToolbarButton, SearchField } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
     { value: 'root', label: 'Root BOMs' },
@@ -113,7 +113,6 @@ export default function BOMView({
     const [printBOM, setPrintBOM] = useState<any>(null);
     const [startPRBom, setStartPRBom] = useState<any>(null);
     const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     // Cache of fetched BOM trees: rootBomId -> { bomId: bomObj } flat map
     const [bomTreeCache, setBomTreeCache] = useState<Record<string, Record<string, any>>>({});
 
@@ -244,26 +243,12 @@ export default function BOMView({
         </div>
     );
 
-    // Server already filters by search + root_only; boms is the current page result
-    const allSelected = boms.length > 0 && boms.every((b: any) => selectedIds.has(b.id));
-    const someSelected = boms.some((b: any) => selectedIds.has(b.id)) && !allSelected;
-
-    const toggleSelect = (id: string) => setSelectedIds(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        return next;
-    });
-
-    const toggleSelectAll = () => {
-        if (allSelected) {
-            setSelectedIds(prev => { const n = new Set(prev); boms.forEach((b: any) => n.delete(b.id)); return n; });
-        } else {
-            setSelectedIds(prev => { const n = new Set(prev); boms.forEach((b: any) => n.add(b.id)); return n; });
-        }
-    };
+    // Server already filters by search + root_only; boms is the current page result,
+    // so select-all is page-scoped while ticked rows survive paging.
+    const sel = useRowSelection<any>(boms, (b: any) => b.id);
 
     const handleBulkDelete = async () => {
-        if (onDeleteMultipleBOMs) { await onDeleteMultipleBOMs([...selectedIds]); setSelectedIds(new Set()); }
+        if (onDeleteMultipleBOMs) { await onDeleteMultipleBOMs(sel.keys); sel.clear(); }
     };
 
     const initialItemCode = initialCreateState ? (items.find((i: any) => i.id === initialCreateState.item_id)?.code || '') : '';
@@ -489,7 +474,7 @@ export default function BOMView({
                 {/* Frame on the cell, inner grounds untouched: this expansion is a two-pane
                     BOM workspace, not a detail readout, so it keeps its own beige panes and
                     takes only the standard rail + edge rules. */}
-                <td colSpan={8} style={{ padding: 0, ...expandedRowFrame(classic) }}>
+                <td colSpan={9} style={{ padding: 0, ...expandedRowFrame(classic) }}>
                     <div style={{ display: 'flex', height: 420, background: '#ece9d8', fontFamily: xpFont, fontSize: 11, paddingLeft: classic ? 4 : 3 }}>
 
                         {/* LEFT: Tree */}
@@ -570,7 +555,7 @@ export default function BOMView({
                                                 {lines.map((line: any, i: number) => {
                                                     const isSubBOM = !!findSubBOM(line);
                                                     return (
-                                                        <tr key={line.id} style={{ background: i % 2 === 0 ? '#fff' : '#f5f3ee' }}>
+                                                        <tr key={line.id} style={{ background: lvZebra(true, i) }}>
                                                             <td style={xpTd}>
                                                                 <CodeChip code={line.item_code} classic={classic} tone="accent" />
                                                                 <span style={{ marginLeft: 5, color: '#000' }}>{line.item_name}</span>
@@ -784,7 +769,7 @@ export default function BOMView({
                                                 </thead>
                                                 <tbody>
                                                     {(displayBOM.sizes || []).map((s: any, i: number) => (
-                                                        <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f5f3ee' }}>
+                                                        <tr key={i} style={{ background: lvZebra(true, i) }}>
                                                             <td style={{ padding: '1px 4px 1px 0', fontWeight: 'bold', fontSize: 10 }}>{s.size_name || s.label || `Row ${i + 1}`}</td>
                                                             <td style={{ padding: '1px 4px', textAlign: 'right', fontSize: 10, background: '#f8f7f2', border: '1px solid #e0ddd4' }}>{s.target_measurement != null ? s.target_measurement : '—'}</td>
                                                             <td style={{ padding: '1px 4px', textAlign: 'right', fontSize: 10, background: '#f8f7f2', border: '1px solid #e0ddd4', borderLeft: 'none' }}>{s.measurement_min != null ? s.measurement_min : '—'}</td>
@@ -898,21 +883,20 @@ export default function BOMView({
                     {/* Toolbar: search + filter + selection + create */}
                     {classic ? (
                         <div style={xpToolbar()}>
-                            <input type="text" value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..."
-                                style={{ fontFamily: xpFont, fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
+                            <SearchField classic value={bomSearch} onChange={v => onBomSearch?.(v)} placeholder="Search BOMs..." width={200} />
                             <FilterChipBar
                                 classic
                                 options={BOM_SCOPE_FILTERS}
                                 value={showRootOnly ? 'root' : 'all'}
                                 onChange={v => setShowRootOnly?.(v === 'root')}
                             />
-                            {canManage && selectedIds.size > 0 && (
+                            {canManage && sel.count > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#333' }}>{selectedIds.size} selected</span>
+                                    <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#333' }}>{sel.count} selected</span>
                                     <button style={{ fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' }} onClick={handleBulkDelete}>
                                         <i className="bi bi-trash" style={{ marginRight: '4px' }} />Delete Selected
                                     </button>
-                                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003ea6', textDecoration: 'underline', fontFamily: xpFont, fontSize: '11px', padding: 0 }} onClick={() => setSelectedIds(new Set())}>Clear</button>
+                                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003ea6', textDecoration: 'underline', fontFamily: xpFont, fontSize: '11px', padding: 0 }} onClick={sel.clear}>Clear</button>
                                 </div>
                             )}
                             {canManage && (
@@ -923,18 +907,18 @@ export default function BOMView({
                         </div>
                     ) : (
                         <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
-                            <input type="text" className="form-control form-control-sm" style={{ width: '180px' }} value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..." />
+                            <SearchField classic={false} value={bomSearch} onChange={v => onBomSearch?.(v)} placeholder="Search BOMs..." width={220} />
                             <FilterChipBar
                                 classic={false}
                                 options={BOM_SCOPE_FILTERS}
                                 value={showRootOnly ? 'root' : 'all'}
                                 onChange={v => setShowRootOnly?.(v === 'root')}
                             />
-                            {canManage && selectedIds.size > 0 && (
+                            {canManage && sel.count > 0 && (
                                 <div className="d-flex align-items-center gap-2">
-                                    <span className="text-muted small">{selectedIds.size} selected</span>
+                                    <span className="text-muted small">{sel.count} selected</span>
                                     <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}><i className="bi bi-trash me-1" />Delete Selected</button>
-                                    <button className="btn btn-sm btn-link text-secondary p-0" onClick={() => setSelectedIds(new Set())}>Clear</button>
+                                    <button className="btn btn-sm btn-link text-secondary p-0" onClick={sel.clear}>Clear</button>
                                 </div>
                             )}
                             {canManage && (
@@ -946,17 +930,21 @@ export default function BOMView({
                     )}
 
                     {/* Table body — flex:1 fills space between toolbar and pager */}
-                    <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                        <div className={classic ? '' : 'table-responsive'}>
+                    {/* `overflow: auto` here, and no `.table-responsive` inside: a nested overflow
+                        wrapper is its own scroll container, so a sticky header in it pins to a box
+                        that never scrolls vertically. */}
+                    <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                        <div>
                             <table
                                 className={classic ? '' : 'table table-hover align-middle mb-0'}
                                 style={classic ? { width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: '11px', background: '#fff' } : undefined}
                             >
-                                <thead>
+                                <thead style={LV_STICKY_THEAD}>
                                     <tr style={classic ? { ...lvThead(true), fontSize: '10px', fontWeight: 'bold', color: '#000', letterSpacing: '0.2px' } : undefined} className={classic ? '' : 'table-light'}>
-                                        <th style={classic ? { width: '40px', padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: '40px' }} className={classic ? '' : 'ps-3'}>
-                                            <input className="form-check-input" type="checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected; }} onChange={toggleSelectAll} />
+                                        <th style={classic ? { width: LV_CHECK_COL_W, padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: LV_CHECK_COL_W }} className={classic ? '' : 'ps-3'}>
+                                            <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} />
                                         </th>
+                                        <th style={classic ? { width: LV_EXPANDER_COL_W, padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: LV_EXPANDER_COL_W }} />
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined} className={classic ? '' : 'ps-2'}>BOM Code</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>{t('finished_good')}</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>Code</th>
@@ -969,19 +957,18 @@ export default function BOMView({
 
                                 <tbody ref={listBodyRef}>
                                     {boms.length === 0 && bomLoading ? (
-                                        <TableSkeleton rows={8} cols={skel.cols ?? 8} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                                        <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                                     ) : boms.length === 0 ? (
-                                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
-                                            {bomSearch.trim()
+                                        <TableEmpty colSpan={9} classic={classic}
+                                            message={bomSearch.trim()
                                                 ? 'No BOMs match your search.'
-                                                : 'No BOMs yet. Click Create Recipe to get started.'}
-                                        </td></tr>
+                                                : 'No BOMs yet. Click Create Recipe to get started.'} />
                                     ) : (
                                         boms.map((bom: any, index: number) => {
                                             const isExpanded = expandedBOMRows[bom.id];
-                                            const rowBg = selectedIds.has(bom.id) ? rowStateBg('selected', classic)
+                                            const rowBg = sel.isSelected(bom) ? rowStateBg('selected', classic)
                                                 : isExpanded ? rowStateBg('expanded', classic)
-                                                : classic ? (index % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined;
+                                                : classic ? lvZebra(true, index) : undefined;
 
                                             return (
                                                 <>
@@ -992,8 +979,10 @@ export default function BOMView({
                                                         : { background: rowBg }}
                                                 >
                                                     <td style={classic ? { padding: '7px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'ps-3'}>
-                                                        <input className="form-check-input" type="checkbox" checked={selectedIds.has(bom.id)} onChange={() => toggleSelect(bom.id)} />
+                                                        <RowCheckbox classic={classic} checked={sel.isSelected(bom)} onChange={() => sel.toggle(bom)} label={`BOM ${bom.code}`} />
                                                     </td>
+                                                    <ExpanderCell classic={classic} expanded={!!isExpanded} onToggle={() => toggleBOMRow(bom.id, bom.item_id)} label="BOM details"
+                                                        tdStyle={classic ? { borderRight: '1px solid #c0bdb5' } : undefined} />
                                                     {/* BOM Code — click to expand */}
                                                     <td
                                                         onClick={() => toggleBOMRow(bom.id, bom.item_id)}
@@ -1002,7 +991,6 @@ export default function BOMView({
                                                         title="Click to expand BOM details"
                                                     >
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ fontSize: '9px', color: '#0058e6', flexShrink: 0 }} />
                                                             <CodeChip code={bom.code} classic={classic} />
                                                         </div>
                                                     </td>
@@ -1029,7 +1017,7 @@ export default function BOMView({
                                                         {(bom.attribute_value_ids || []).length > 0 ? (
                                                             renderVariantChips(bom.attribute_value_ids)
                                                         ) : (
-                                                            <span style={{ color: '#999', fontSize: 10 }} className={classic ? '' : 'text-muted small'}>-</span>
+                                                            <Dash classic={classic} />
                                                         )}
                                                     </td>
                                                     {/* Machine — hue-coded by work-center type */}
@@ -1037,7 +1025,7 @@ export default function BOMView({
                                                         {bom.work_center_name ? (
                                                             <span style={{ ...workCenterChipStyle(bom.work_center_type, bom.work_center_name), borderWidth: 1, borderStyle: 'solid', fontSize: 9, padding: '1px 6px', whiteSpace: 'nowrap', fontFamily: xpFont, fontWeight: 'bold' }}>{bom.work_center_name}</span>
                                                         ) : (
-                                                            <span style={{ color: '#999', fontSize: 10 }} className={classic ? '' : 'text-muted small'}>-</span>
+                                                            <Dash classic={classic} />
                                                         )}
                                                     </td>
                                                     {/* Smart stats — glyph shows only when it carries signal */}

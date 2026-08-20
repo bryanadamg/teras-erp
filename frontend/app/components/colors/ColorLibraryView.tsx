@@ -8,9 +8,10 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import {
-    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
+} from '../shared/listViewTheme';
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
 
@@ -201,8 +202,8 @@ export default function ColorLibraryView({
         <div style={embedded
             ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
             : classic
-            ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            ? { ...pageFillStyle, fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { ...pageFillStyle, fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
             {/* Title bar (hidden when embedded under the Colors tab shell) */}
             {!embedded && (
@@ -258,7 +259,7 @@ export default function ColorLibraryView({
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 34 }}></th>
                             <th style={{ ...lvTh(classic), width: 130 }}>Code</th>
@@ -279,9 +280,7 @@ export default function ColorLibraryView({
                         {colors.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 13} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={13} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                No colors found.
-                            </td></tr>
+                            <TableEmpty colSpan={13} classic={classic} tdStyle={lvTd(classic)} message="No colors found." />
                         ))}
                         {colors.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>

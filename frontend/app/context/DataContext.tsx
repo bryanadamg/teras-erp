@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useUser } from './UserContext';
 import { useToast } from '../components/shared/Toast';
 import { usePageState, useDebouncedSearch } from './usePaginatedList';
+import type { SortState } from '../components/shared/xpTheme';
 
 const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -147,10 +148,21 @@ interface DataContextType {
         soSearch: string; setSoSearch: (s: string) => void;
         soCustomerSearch: string; setSoCustomerSearch: (s: string) => void;
         soStatusFilter: string; setSoStatusFilter: (s: string) => void;
+        /**
+         * SO list column sort. Lives here, not in the view, because the fetch does:
+         * the list is windowed, so sorting has to travel with the page request.
+         */
+        soSort: SortState; setSoSort: (s: SortState) => void;
         /** PO number / supplier name text filter, live-input echo. */
         poSearch: string; setPoSearch: (s: string) => void;
         poStatusFilter: string; setPoStatusFilter: (s: string) => void;
     };
+
+    /**
+     * The /sales-orders query string for the active filters + sort. Use this instead
+     * of rebuilding the filter block at a call site — see the definition for why.
+     */
+    soQuery: (page: number, opts?: { uncapped?: boolean }) => string;
 
     fetchData: (targetTab?: string) => Promise<void>;
     refreshManufacturing: () => Promise<void>;
@@ -245,6 +257,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const { input: soSearchInput, committed: soSearch, setSearch: handleSetSoSearch } = useDebouncedSearch(setSoPage);
     const { input: soCustomerSearchInput, committed: soCustomerSearch, setSearch: handleSetSoCustomerSearch } = useDebouncedSearch(setSoPage);
     const [soStatusFilter, setSoStatusFilter] = useState('ALL');
+    const [soSort, setSoSortState] = useState<SortState>(null);
     const { input: poSearchInput, committed: poSearch, setSearch: handleSetPoSearch } = useDebouncedSearch(setPoPage);
     const [poStatusFilter, setPoStatusFilter] = useState('ALL');
     const [prSoFilter, setPrSoFilter] = useState('');           // '' | 'with' | 'without'
@@ -311,6 +324,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setSoStatusFilter(v); setSoPage(1);
     }, []);
 
+    // Re-sorting reorders the WHOLE filtered set, so the row that was on page 3 is
+    // very likely not there any more — stay on page 3 and the user lands somewhere
+    // arbitrary in the new order. Same rule the search/status setters follow.
+    const handleSetSoSort = useCallback((s: SortState) => {
+        setSoSortState(s); setSoPage(1);
+    }, []);
+
+    // The /sales-orders window + filter + sort query, built in ONE place so its three
+    // callers — the central fetchData, the targeted refreshSalesOrders, and the view's
+    // Print Table export — can't drift into asking for different slices of the same
+    // list. All three had their own copy of the filter block, and the print one had
+    // already drifted: it never sent the sort, so the printout came back in server
+    // default order while the screen showed something else.
+    // `uncapped` is the print/CSV case: every row matching the active filter, not the
+    // visible page (backend reads limit=0 as "no cap").
+    const soQuery = useCallback((page: number, opts?: { uncapped?: boolean }) => {
+        const p = new URLSearchParams();
+        if (soStatusFilter && soStatusFilter !== 'ALL') p.set('status', soStatusFilter);
+        if (soSearch) p.set('search', soSearch);
+        if (soCustomerSearch) p.set('customer', soCustomerSearch);
+        if (soSort) { p.set('sort_by', soSort.key); p.set('sort_dir', soSort.dir === 1 ? 'asc' : 'desc'); }
+        if (opts?.uncapped) {
+            p.set('limit', '0');
+        } else {
+            p.set('skip', String((page - 1) * pageSize));
+            p.set('limit', String(pageSize));
+        }
+        return p.toString();
+    }, [soStatusFilter, soSearch, soCustomerSearch, soSort, pageSize]);
+
     const handleSetPoStatusFilter = useCallback((v: string) => {
         setPoStatusFilter(v); setPoPage(1);
     }, []);
@@ -352,7 +395,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // character could also appear inside a value and collapse two distinct windows.
     const windowKey = JSON.stringify([
         itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, pageSize,
-        itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter,
+        itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, soSort,
         poSearch, poStatusFilter, categoryL1, categoryL2, categoryL3, auditType,
     ]);
 
@@ -366,8 +409,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Monotonic generation guard for the production-runs slice. Requests aren't
     // cancelled, so e.g. a filtered fetch made while /production-runs?pr=X is
     // mounted can resolve AFTER the corrective unfiltered fetch fired on unmount,
-    // silently re-narrowing productionRuns for every other page (SO's PR badges)
-    // with no further trigger to self-correct. Only the response from the most
+    // silently re-narrowing productionRuns for every other page that reads it
+    // (MO tab, BOMView) with no further trigger to self-correct. Only the most
     // recently *dispatched* call is allowed to commit.
     const prGenRef = useRef(0);
 
@@ -527,10 +570,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // MES (Manufacturing Orders + Production Runs)
-            // NOT sales-orders for the MO fetch: that page reads productionRuns (SO
-            // coverage check) but never manufacturingOrders — it only rode along
-            // because both fetches shared one `if` (see git blame abbd397). The full
-            // eager-loaded MO tree is expensive; don't pull it for an unused prop.
+            // Neither is fetched for 'sales-orders' any more. That page's two PR
+            // consumers are both served without the feed now: the PR code chips ride
+            // along on each SO row (`production_runs`, see _populate_production_runs)
+            // and the duplicate-PR guard asks GET /sales-orders/{id}/pr-coverage for
+            // the one order the user clicked. The windowed feed cost 115 kB / 2.7 s on
+            // every SO page load — it was the slowest request on the page — and being
+            // windowed it was also *wrong* for both: a PR outside the newest 50 lost
+            // its chip and read as "not covered", letting the user double-create.
             const isDashboard = fetchTarget === 'dashboard' || fetchTarget === '';
             if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || isDashboard || fetchTarget.includes('reports')) {
                 const moSkip = (woPage - 1) * pageSize;
@@ -539,7 +586,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moSlim}${moSearchParam}`, { headers }));
                 requestTypes.push(isDashboard ? 'manufacturing-orders-slim' : 'manufacturing-orders');
             }
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || fetchTarget.includes('reports')) {
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('reports')) {
                 const prSkip = (prPage - 1) * pageSize;
                 myPrGen = ++prGenRef.current;
                 heldPrPending = true;
@@ -570,14 +617,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // (only partners, fetched separately in master data) — each used to
             // pull both regardless of which one it actually needed.
             if (fetchTarget.includes('sales-orders')) {
-                const soSkip = (soPage - 1) * pageSize;
-                const soParams = new URLSearchParams();
-                if (soStatusFilter && soStatusFilter !== 'ALL') soParams.set('status', soStatusFilter);
-                if (soSearch) soParams.set('search', soSearch);
-                if (soCustomerSearch) soParams.set('customer', soCustomerSearch);
-                soParams.set('skip', String(soSkip));
-                soParams.set('limit', String(pageSize));
-                requests.push(fetch(`${API_BASE}/sales-orders?${soParams.toString()}`, { headers }));
+                requests.push(fetch(`${API_BASE}/sales-orders?${soQuery(soPage)}`, { headers }));
                 requestTypes.push('sales-orders');
             }
             // NOT samples: the samples list is server-paginated + server-filtered
@@ -706,7 +746,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const p = run().finally(() => { delete inFlightRef.current[inFlightKey]; });
         inFlightRef.current[inFlightKey] = p;
         return p;
-    }, [currentUser, windowKey, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, poQuery, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
+    }, [currentUser, windowKey, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soQuery, poQuery, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
 
     // Targeted refresh for the Manufacturing Orders page: re-pull ONLY the MO
     // (root-only) + PR lists. Used after WO/MO/PR mutations instead of the broad
@@ -759,16 +799,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            const soParams = new URLSearchParams();
-            if (soStatusFilter && soStatusFilter !== 'ALL') soParams.set('status', soStatusFilter);
-            if (soSearch) soParams.set('search', soSearch);
-            if (soCustomerSearch) soParams.set('customer', soCustomerSearch);
-            soParams.set('skip', String((soPage - 1) * pageSize));
-            soParams.set('limit', String(pageSize));
-            const res = await fetch(`${API_BASE}/sales-orders?${soParams.toString()}`, { headers, cache: 'no-store' });
+            const res = await fetch(`${API_BASE}/sales-orders?${soQuery(soPage)}`, { headers, cache: 'no-store' });
             if (res.ok) { const d = await res.json(); setSalesOrders(d.items || []); setSoTotal(d.total || 0); setSoStatusCounts(d.status_counts || {}); }
         } catch (e) { console.error('refreshSalesOrders error', e); }
-    }, [currentUser, soPage, soSearch, soCustomerSearch, soStatusFilter, pageSize]);
+    }, [currentUser, soPage, soQuery]);
 
     // The samples list is fetched one page at a time with the filters applied
     // server-side — the table can hold tens of thousands of requests, so it is
@@ -916,12 +950,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const handleTabHover = (tab: string) => fetchData(tab);
 
-    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, poSearch, poStatusFilter, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
+    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, soPage, poPage, itemSearch, moSearch, prFilterQuery, soSearch, soCustomerSearch, soStatusFilter, soSort, poSearch, poStatusFilter, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
 
     // When the manufacturing PR filter is CLEARED (e.g. leaving /production-runs
     // after a deep-link PR-badge click narrowed the shared list to one PR), the
     // global productionRuns must be restored to the full set for every page that
-    // reads it (SO PR badges). The corrective fetchData() above can be swallowed
+    // reads it (MO tab, BOMView). The corrective fetchData() above can be swallowed
     // by the target dedupe when a narrowed same-target fetch (nav hover-prefetch,
     // sidebar click dispatched while prSearch was still set) is already in flight,
     // leaving the list stuck narrowed until a hard refresh. This dedupe-free,
@@ -1151,7 +1185,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         loading,
         loadProgress,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, soPage, setSoPage, soTotal, poPage, setPoPage, poTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, prSoFilter, setPrSoFilter: handleSetPrSoFilter, prProgressFilter, setPrProgressFilter: handleSetPrProgressFilter, pageSize },
-        filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType, soSearch: soSearchInput, setSoSearch: handleSetSoSearch, soCustomerSearch: soCustomerSearchInput, setSoCustomerSearch: handleSetSoCustomerSearch, soStatusFilter, setSoStatusFilter: handleSetSoStatusFilter, poSearch: poSearchInput, setPoSearch: handleSetPoSearch, poStatusFilter, setPoStatusFilter: handleSetPoStatusFilter },
+        filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType, soSearch: soSearchInput, setSoSearch: handleSetSoSearch, soCustomerSearch: soCustomerSearchInput, setSoCustomerSearch: handleSetSoCustomerSearch, soStatusFilter, setSoStatusFilter: handleSetSoStatusFilter, soSort, setSoSort: handleSetSoSort, poSearch: poSearchInput, setPoSearch: handleSetPoSearch, poStatusFilter, setPoStatusFilter: handleSetPoStatusFilter },
+        soQuery,
         fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, bomsLookup, manufacturingOrders, productionRuns,
@@ -1160,9 +1195,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         printTemplates, refreshPrintTemplates, wsStatus, loading, loadProgress,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, soPage, soTotal, poPage, poTotal, pageSize,
         itemSearchInput, moSearch, prSearch, prSoFilter, prProgressFilter, categoryL1, categoryL2, categoryL3, auditType,
-        soSearchInput, soCustomerSearchInput, soStatusFilter, poSearchInput, poStatusFilter, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
+        soSearchInput, soCustomerSearchInput, soStatusFilter, soSort, soQuery, poSearchInput, poStatusFilter, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, loadSamples, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetPrSoFilter, handleSetPrProgressFilter, handleSetItemSearch,
-        handleSetSoSearch, handleSetSoCustomerSearch, handleSetSoStatusFilter, handleSetPoSearch, handleSetPoStatusFilter, subscribeLiveEvents
+        handleSetSoSearch, handleSetSoCustomerSearch, handleSetSoStatusFilter, handleSetSoSort, handleSetPoSearch, handleSetPoStatusFilter, subscribeLiveEvents
     ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

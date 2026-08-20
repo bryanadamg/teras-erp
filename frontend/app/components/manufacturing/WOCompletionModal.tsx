@@ -9,6 +9,7 @@ import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
 import { ProgressBar, LegendPanel, CodeChip, xpFont } from '../shared/xpTheme';
+import { RowCheckbox, lvPickerRow, LV_STICKY_THEAD } from '../shared/listViewTheme';
 import { LotChips } from '../shared/LotChips';
 import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -543,8 +544,9 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                             </label>
                                             <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 150, overflowY: 'auto' }}>
                                                 {(batchesByItem[itemId] || []).map((b: any) => (
-                                                    <label key={b.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, padding: '3px 5px', fontSize: 10, cursor: 'pointer', borderBottom: '1px solid #eceae2', background: selSet.has(b.id) ? '#e6f0ff' : 'transparent' }}>
-                                                        <input type="checkbox" style={{ marginTop: 1 }} checked={selSet.has(b.id)} onChange={e => toggle(b.id, e.target.checked)} />
+                                                    <label key={b.id} style={{ ...lvPickerRow(true, selSet.has(b.id)), fontSize: 10 }}>
+                                                        <RowCheckbox classic checked={selSet.has(b.id)} label={b.batch_number || 'lot'}
+                                                            onChange={() => toggle(b.id, !selSet.has(b.id))} />
                                                         {/* Same lot identity chips as the staging picker: two lots of the
                                                             same item differ only by size / combo / shade. */}
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
@@ -830,7 +832,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             >
                                 <div style={{ maxHeight: 140, overflowY: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, fontFamily: xpFont }}>
-                                        <thead>
+                                        <thead style={LV_STICKY_THEAD}>
                                             <tr style={{ background: '#dddbd0' }}>
                                                 <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
                                                 <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Pkg</th>

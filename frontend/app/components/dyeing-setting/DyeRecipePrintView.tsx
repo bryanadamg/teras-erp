@@ -5,6 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import PrintModalShell from '../shared/PrintModalShell';
 import { CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useTimezone } from '../../context/TimezoneContext';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
 
@@ -47,6 +48,7 @@ interface Props {
 
 export default function DyeRecipePrintView({ recipe, onClose }: Props) {
     const { companyProfile } = useData();
+    const { formatCustom: tzFmt } = useTimezone();
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
 
@@ -64,9 +66,7 @@ export default function DyeRecipePrintView({ recipe, onClose }: Props) {
     const chems = sortedLines.filter(l => l.chemical_type !== 'DYE');
     const allLines = [...dyes, ...chems];
 
-    const today = new Date().toLocaleDateString('id-ID', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-    }).replace(/\//g, '.');
+    const today = tzFmt(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID').replace(/\//g, '.');
 
     // ── Theme-aware chrome styles ─────────────────────────────────────────────
     const xpBtnGrey: React.CSSProperties = isClassic
@@ -213,7 +213,7 @@ export default function DyeRecipePrintView({ recipe, onClose }: Props) {
                 <div style={{ fontSize: '7px', color: '#555' }}>
                     <div>Kode: {recipe.code}</div>
                     {recipe.notes && <div>Catatan: {recipe.notes}</div>}
-                    <div>Printed: {new Date().toLocaleString('id-ID')}</div>
+                    <div>Printed: {tzFmt(new Date(), { dateStyle: 'short', timeStyle: 'short' }, 'id-ID')}</div>
                 </div>
                 {showSignature && (
                     <div style={{ display: 'flex', gap: 32 }}>

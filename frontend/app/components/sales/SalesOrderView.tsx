@@ -11,18 +11,18 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
-import { useComboSearch } from '../shared/useEntitySearch';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
 // resized — it is the floor the table refuses to squeeze past before scrolling.
 const SO_TABLE_MIN_WIDTH = 1342;
 
-export default function SalesOrderView({ items, itemResults, onSearchItems, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
+export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -33,9 +33,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const [printLoading, setPrintLoading] = useState(false);
   const { uiStyle: currentStyle } = useTheme();
   const {
-      companyProfile, uoms, authFetch, itemIndex, loading: dataLoading, soStatusCounts,
+      companyProfile, uoms, authFetch, itemIndex, loading: dataLoading, soStatusCounts, soQuery,
       pagination: { soPage, setSoPage, soTotal, pageSize: soPageSize },
-      filters: { soSearch: searchTerm, setSoSearch: setSearchTerm, soCustomerSearch: customerSearch, setSoCustomerSearch: setCustomerSearch, soStatusFilter: statusFilter, setSoStatusFilter: setStatusFilter },
+      filters: { soSearch: searchTerm, setSoSearch: setSearchTerm, soCustomerSearch: customerSearch, setSoCustomerSearch: setCustomerSearch, soStatusFilter: statusFilter, setSoStatusFilter: setStatusFilter, soSort, setSoSort },
   } = useData();
   const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('sales_order.create', 'sales_order.edit', 'sales_order.delete', 'sales_order.close');
@@ -48,9 +48,19 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const lineageEnvBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const LINEAGE_API_BASE = lineageEnvBase.endsWith('/api') ? lineageEnvBase : `${lineageEnvBase}/api`;
 
+  // Both line-form pickers are server-side typeaheads that live *inside* the
+  // create/edit modal, so they prime only once it opens. Priming on mount cost two
+  // requests per page load for dropdowns nobody could see, and they queued ahead of
+  // the fetches the visible table was blocked on.
+  const pickersActive = isCreateOpen || editingSOId !== null;
+
+  // The item picker is Finished-Goods-scoped server-side, so it scales past any
+  // client-side cap on `items`.
+  const { results: itemResults, onSearch: onSearchItems } = useFinishedGoodsSearch({ enabled: pickersActive });
+
   // Combo Library governs which combos are offered — server-searched (thousands of
   // combos won't fit in a client-rendered <select>), scoped to active combos only.
-  const { results: comboResults, onSearch: onSearchCombos } = useComboSearch();
+  const { results: comboResults, onSearch: onSearchCombos } = useComboSearch({ enabled: pickersActive });
   const [lineageSO, setLineageSO] = useState<any>(null);
   const [lineageData, setLineageData] = useState<any>(null);
   const [lineageLoading, setLineageLoading] = useState(false);
@@ -203,33 +213,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       flexShrink: 0,
   };
 
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px',
-      fontWeight: 'bold',
-      color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true);
 
-  const xpThCell: React.CSSProperties = {
-      padding: '3px 6px',
-      borderRight: '1px solid #b0aaa0',
-      textAlign: 'left' as const,
-      whiteSpace: 'nowrap' as const,
-      fontFamily: xpFont,
-      position: 'sticky' as const,
-      top: 0,
-      zIndex: 5,
-      ...lvThead(true)
-  };
+  const xpThCell: React.CSSProperties = lvThSticky(true);
 
-  const tdBase: React.CSSProperties = {
-      padding: '4px 6px',
-      borderRight: '1px solid #c0bdb5',
-      borderBottom: '1px solid #d0cdc8',
-      verticalAlign: 'middle' as const,
-      fontFamily: xpFont,
-      fontSize: '11px',
-  };
+  const tdBase: React.CSSProperties = lvTdRuled(true);
 
 
   const [newSO, setNewSO] = useState({
@@ -914,17 +902,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   // echoes* (DataContext debounces the committed value it actually queries with).
   // Re-filtering on the echo blanked the table for the length of the debounce while
   // the Pager still reported the full server total.
-  const soSortCols = useMemo(() => ({
-      po:       (so: any) => so.po_number,
-      customer: (so: any) => so.customer_name,
-      date:     (so: any) => so.order_date,
-      status:   (so: any) => so.status,
-  }), []);
-  // Filtering/pagination now happen server-side (DataContext fetches the
-  // committed/debounced search+status+page); sorting stays client-side over
-  // just the current page's ~50 rows.
-  const { sorted: sortedOrders, sort: soSort, toggle: toggleSOSort } = useSortable(salesOrders, soSortCols);
-  const pageOrders = sortedOrders;
+  // Filtering, pagination AND sorting all happen server-side. Sorting used to run
+  // client-side over the loaded page, which only reordered the 50 rows the server
+  // had already picked — clicking "Customer" sorted those 50, not all 62 orders, so
+  // page 1 never showed the actual first rows in that order. The header now drives a
+  // `sort_by`/`sort_dir` query param (see _SO_SORT_MAP) and the keys below match it.
+  const toggleSOSort = (key: string) => setSoSort(nextSortState(soSort, key));
+  const pageOrders = salesOrders;
 
   // Skeleton sizing: measure one real row so the placeholders shown on the next
   // load are exactly as tall as the rows that replace them.
@@ -936,12 +920,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const handleOpenTablePrint = async () => {
       setPrintLoading(true);
       try {
-          const params = new URLSearchParams();
-          if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter);
-          if (searchTerm) params.set('search', searchTerm);
-          if (customerSearch) params.set('customer', customerSearch);
-          params.set('limit', '0');
-          const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders?${params.toString()}`);
+          // Same filters AND sort as the screen, every matching row (not just this
+          // page) — the shared builder keeps the printout in the order the user is
+          // actually looking at.
+          const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders?${soQuery(1, { uncapped: true })}`);
           if (res.ok) {
               const d = await res.json();
               setPrintOrders(d.items || []);
@@ -1561,7 +1543,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                    {/* Lines list */}
                    <div>
                        {newSO.lines.map((line: any, idx) => (
-                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?lvZebra(true,idx):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?xpFont:undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
                                    <CodeChip code={getItemCode(line.item_id, line.item_code)} classic={classic} tier={2} style={{ marginLeft: 8 }} />
@@ -1674,9 +1656,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                    >
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
-                               <th style={classic ? { ...xpThCell, width: '130px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-3'} onClick={() => toggleSOSort('po')} title="Sort">PO# / Ref<SortMark sort={soSort} colKey="po" /></th>
-                               <th style={classic ? { ...xpThCell, width: '180px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('customer')} title="Sort">Customer<SortMark sort={soSort} colKey="customer" /></th>
-                               <th style={classic ? { ...xpThCell, width: '72px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('date')} title="Sort">Date<SortMark sort={soSort} colKey="date" /></th>
+                               <SortableTh sort={soSort} colKey="po" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '130px' } : {}} className={classic ? '' : 'ps-3'}>PO# / Ref</SortableTh>
+                               <SortableTh sort={soSort} colKey="customer" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '180px' } : {}}>Customer</SortableTh>
+                               <SortableTh sort={soSort} colKey="date" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '72px' } : {}}>Date</SortableTh>
                                <th style={classic ? { ...xpThCell, width: '180px' } : undefined}>Item</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Size</th>
                                <th style={classic ? { ...xpThCell, width: '175px' } : undefined}>Qty</th>
@@ -1684,13 +1666,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
                                <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty. READY needs packed cartons in stock.">Fulfilment</th>
-                               <th style={classic ? { ...xpThCell, width: '80px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('status')} title="Sort">Status<SortMark sort={soSort} colKey="status" /></th>
+                               <SortableTh sort={soSort} colKey="status" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '80px' } : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '75px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody ref={listBodyRef}>
                            {pageOrders.flatMap((so: any, rowIndex: number) => {
-                               const rowBg = rowIndex % 2 === 0 ? '#ffffff' : (classic ? '#f5f3ee' : '#fafafa');
+                               const rowBg = lvZebra(classic, rowIndex);
                                const soLines: any[] = so.lines;
                                const lineCount = Math.max(soLines.length, 1);
 
@@ -1702,7 +1684,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    ? { ...tdBase, background: rowBg, paddingTop: 3, paddingBottom: 3, fontSize: '10px', borderBottom: isLast ? '1px solid #c0bdb5' : 'none', borderTop: isFirst ? 'none' : '1px dashed #d0cdc8', ...extra }
                                    : { background: rowBg, padding: '3px 10px', fontSize: '0.78rem', borderBottom: isLast ? '1px solid #dee2e6' : 'none', borderTop: isFirst ? 'none' : '1px dashed #e4e4e4', ...extra };
 
-                               const soPRs = (productionRuns || []).filter((pr: any) => String(pr.sales_order_id) === String(so.id));
+                               // Served with the row (see _populate_production_runs). Previously a
+                               // client-side filter over the windowed /production-runs feed, which
+                               // dropped the chip for any SO whose PR aged past the newest 50.
+                               const soPRs: any[] = so.production_runs || [];
 
                                const poCellContent = (
                                    <>

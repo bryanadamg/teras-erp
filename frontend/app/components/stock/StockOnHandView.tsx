@@ -2,15 +2,15 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { SortMark, SortState, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky, lvZebra, Dash } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
 
@@ -59,13 +59,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     // for anyone reading the table as available stock.
     const [hideRejected, setHideRejected] = useState(false);
     // Sort is a server param (the grid only holds one page), so the column-header
-    // toggle drives this state instead of useSortable's in-memory comparator.
-    const [sort, setSort] = useState<SortState>(null);
-    const toggleSort = (key: string) => setSort(prev =>
-        prev?.key !== key ? { key, dir: 1 }
-        : prev.dir === 1 ? { key, dir: -1 }
-        : null
-    );
+    // toggle drives query state instead of useSortable's in-memory comparator.
+    const { sort, toggleSort } = useServerSort();
 
     // Transfer modal state
     const [transferTarget, setTransferTarget] = useState<any>(null);
@@ -76,10 +71,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const [transferDrums, setTransferDrums] = useState('');
     const [transferring, setTransferring] = useState(false);
 
-    // Multi-select + combined move. Selection is keyed by the balance-row identity
-    // (item + location + lot + variant) and holds the row object itself, so a pick
-    // survives paging, sorting and filter changes.
-    const [selected, setSelected] = useState<Record<string, any>>({});
+    // Multi-select + combined move. The selection itself is `sel` (useRowSelection),
+    // declared further down where pageRows exists to scope select-all to.
     const [bulkOpen, setBulkOpen] = useState(false);
     const [bulkToLoc, setBulkToLoc] = useState('');
     const [bulkQty, setBulkQty] = useState<Record<string, string>>({});
@@ -127,23 +120,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const rowKey = (bal: any) =>
         `${bal.item_id}|${bal.location_id}|${bal.batch_key || ''}|${[...(bal.attribute_value_ids || [])].sort().join(',')}`;
 
-    const selectedKeys = Object.keys(selected);
-    const selectedRows = useMemo(
-        () => selectedKeys.map(k => selected[k]),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [selected]
-    );
     // Only positive-qty rows can be moved; a zero/negative row has nothing to send.
     const movable = (bal: any) => bal.qty > 0;
-    const toggleRow = (bal: any) => {
-        const k = rowKey(bal);
-        setSelected(prev => {
-            const next = { ...prev };
-            if (next[k]) delete next[k]; else next[k] = bal;
-            return next;
-        });
-    };
-    const clearSelection = () => setSelected({});
 
     const openTransfer = (bal: any) => {
         setTransferTarget(bal);
@@ -193,22 +171,21 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
     const openBulkMove = () => {
         const qtys: Record<string, string> = {};
-        for (const k of selectedKeys) qtys[k] = String(selected[k].qty);
+        for (const [k, bal] of sel.entries) qtys[k] = String(bal.qty);
         setBulkQty(qtys);
         setBulkToLoc('');
         setBulkOpen(true);
     };
 
     const dropBulkRow = (k: string) => {
-        setSelected(prev => { const n = { ...prev }; delete n[k]; return n; });
+        sel.deselectKey(k);
         setBulkQty(prev => { const n = { ...prev }; delete n[k]; return n; });
     };
 
     const handleBulkMove = async () => {
         if (!bulkToLoc) { showToast('Select a destination location', 'danger'); return; }
         const lines: any[] = [];
-        for (const k of selectedKeys) {
-            const bal = selected[k];
+        for (const [k, bal] of sel.entries) {
             const qty = parseFloat(bulkQty[k]);
             if (!qty || qty <= 0) { showToast(`${bal.item_name}: enter a positive quantity`, 'danger'); return; }
             if (qty > bal.qty) { showToast(`${bal.item_name}: only ${bal.qty} on hand`, 'danger'); return; }
@@ -243,7 +220,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             const body = await res.json().catch(() => ({}));
             showToast(body.message || `Moved ${lines.length} rows`, 'success');
             setBulkOpen(false);
-            clearSelection();
+            sel.clear();
             reload();
         } catch (err: any) {
             showToast(err.message, 'danger');
@@ -541,18 +518,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics(classic ? 'stock-on-hand-classic' : 'stock-on-hand', listBodyRef, pageRows.length > 0);
 
-    // Header checkbox acts on the visible page only — selecting 4000 filtered rows
-    // in one click is never what the operator meant.
-    const pageMovable = useMemo(() => pageRows.filter(movable), [pageRows]);
-    const allPageSelected = pageMovable.length > 0 && pageMovable.every((b: any) => selected[rowKey(b)]);
-    const togglePageSelection = () => {
-        setSelected(prev => {
-            const next = { ...prev };
-            if (allPageSelected) { for (const b of pageMovable) delete next[rowKey(b)]; }
-            else { for (const b of pageMovable) next[rowKey(b)] = b; }
-            return next;
-        });
-    };
+    // Keyed by the balance-row identity (item + location + lot + variant) and
+    // holding the row object, so a pick survives paging, sorting and filter
+    // changes. The header checkbox acts on the visible page only — selecting 4000
+    // filtered rows in one click is never what the operator meant.
+    const sel = useRowSelection<any>(pageRows, rowKey, { selectable: movable });
 
     // ── XP style helpers ─────────────────────────────────────────────────────
     const xpBevel: React.CSSProperties = sharedXpBevel();
@@ -564,12 +534,9 @@ export default function StockOnHandView({ locations, attributes, categories, ite
         background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
     };
     const xpSelect: React.CSSProperties = { ...xpInput, height: '22px' };
-    const xpTableHeader: React.CSSProperties = {
-        ...lvThead(true),
-        borderRight: '1px solid #a8a29a',
-        fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
-        padding: '3px 8px', position: 'sticky' as const, top: 0,
-    };
+    // Heavier divider than lvTh's: this is a 12-column grid and the verticals are
+    // what keep a row's figures tracking across it.
+    const xpTableHeader: React.CSSProperties = lvThSticky(true, { borderRight: '1px solid #a8a29a' });
     const colDivider: React.CSSProperties = { borderRight: '1px solid #c0bdb5' };
     const xpBtn = (extra: any = {}): React.CSSProperties => ({
         fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
@@ -621,28 +588,30 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     );
 
     const renderRow = (bal: any, i: number) => {
-        const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '-';
+        const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '—';
         // QC-rejected/disposed lots sit in the same bin as good stock — tint the row
         // and flag the lot so the qty is never mistaken for available.
         const qStatus: string = bal.quality_status && bal.quality_status !== 'GOOD' ? bal.quality_status : '';
         const qtyColor = bal.qty < 0 ? '#c00000' : qStatus ? '#8b0000' : '#00008b';
         const rk = rowKey(bal);
         const checkCell = (
-            <input
-                type="checkbox"
-                style={{ margin: 0, cursor: movable(bal) ? 'pointer' : 'not-allowed' }}
-                checked={!!selected[rk]}
+            <RowCheckbox
+                classic={classic}
+                checked={sel.isSelectedKey(rk)}
                 disabled={!movable(bal)}
                 title={movable(bal) ? 'Select for a combined move' : 'Nothing on hand to move'}
-                onChange={() => toggleRow(bal)}
+                onChange={() => sel.toggle(bal)}
+                label={bal.item_name}
             />
         );
 
         return (
             <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
-                className={classic ? undefined : (selected[rk] ? 'table-primary' : qStatus ? 'table-danger' : undefined)}
+                className={classic ? undefined : (qStatus && !sel.isSelectedKey(rk) ? 'table-danger' : undefined)}
                 title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
-                style={classic ? { background: selected[rk] ? (i % 2 === 0 ? '#e8f0fb' : '#dee9f7') : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' } : undefined}>
+                style={classic
+                    ? { background: sel.isSelectedKey(rk) ? rowStateBg('selected', true) : qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : lvZebra(true, i), borderBottom: '1px solid #c0bdb5' }
+                    : (sel.isSelectedKey(rk) ? { background: rowStateBg('selected', false) } : undefined)}>
                 <td className={classic ? undefined : 'text-center'} style={classic ? { padding: '4px 6px', textAlign: 'center', ...colDivider } : colDivider}>{checkCell}</td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     <div title={bal.item_name}
@@ -745,7 +714,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                             )}
                         </div>
                     ) : (
-                        <span style={classic ? { fontSize: '10px', color: '#999', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                        <Dash classic={classic} />
                     )}
                 </td>
                 <td style={classic ? { padding: '4px 8px', ...colDivider } : colDivider}>
@@ -774,7 +743,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 </td>
                 <td className={classic ? undefined : 'small'} style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
                     {pkgParts(bal).length === 0
-                        ? <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                        ? <Dash classic={classic} />
                         : pkgParts(bal).map((p, idx) => (
                             <span key={idx}
                                 style={classic ? { color: p.n < 0 ? '#c00000' : '#5a3c00' } : undefined}
@@ -791,7 +760,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                             {bal.batch_notes}
                         </span>
                     ) : (
-                        <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                        <Dash classic={classic} />
                     )}
                 </td>
                 <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
@@ -869,12 +838,12 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             isOpen={bulkOpen}
             modeless
             onClose={() => setBulkOpen(false)}
-            title={`Combined Move — ${selectedKeys.length} row${selectedKeys.length === 1 ? '' : 's'}`}
+            title={`Combined Move — ${sel.count} row${sel.count === 1 ? '' : 's'}`}
             size="lg"
             footer={<>
                 <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setBulkOpen(false)}>Cancel</button>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleBulkMove} disabled={bulkMoving || !selectedKeys.length}>
-                    {bulkMoving ? 'Moving...' : `Move ${selectedKeys.length} row${selectedKeys.length === 1 ? '' : 's'}`}
+                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleBulkMove} disabled={bulkMoving || !sel.count}>
+                    {bulkMoving ? 'Moving...' : `Move ${sel.count} row${sel.count === 1 ? '' : 's'}`}
                 </button>
             </>}
         >
@@ -904,7 +873,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 </tr>
                             </thead>
                             <tbody>
-                                {selectedRows.map((bal: any) => {
+                                {sel.items.map((bal: any) => {
                                     const k = rowKey(bal);
                                     const q = parseFloat(bulkQty[k]);
                                     const bad = !q || q <= 0 || q > bal.qty;
@@ -916,7 +885,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                             </td>
                                             <td style={{ padding: '3px 6px' }}>{bal.location_name || getLocationName(bal.location_id)}</td>
                                             <td style={{ padding: '3px 6px', fontFamily: CODE_FONT, fontSize: 10 }}>
-                                                <div>{bal.batch_key ? (bal.batch_number || bal.batch_key) : '-'}</div>
+                                                <div>{bal.batch_key ? (bal.batch_number || bal.batch_key) : '—'}</div>
                                                 {bal.mo_code && <div style={{ color: '#2a4a2a' }}>MO {bal.mo_code}</div>}
                                             </td>
                                             <td style={{ padding: '3px 6px', textAlign: 'right', fontFamily: CODE_FONT }}>
@@ -1198,23 +1167,23 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     <label className="form-check-label small" htmlFor="sohHideRejected">Hide rejected</label>
                 </div>
             )}
-            {canEntry && selectedKeys.length > 0 && (
+            {canEntry && sel.count > 0 && (
                 classic ? (
                     <>
                         <div style={xpSep} />
                         <button style={xpBtn({ background: 'linear-gradient(to bottom,#cfe3ff,#a9c9f0)', fontWeight: 'bold' })} onClick={openBulkMove}
                             title="Move every selected row to one destination in a single transaction">
-                            <i className="bi bi-arrow-left-right" style={{ marginRight: 4 }} />Move {selectedKeys.length} selected
+                            <i className="bi bi-arrow-left-right" style={{ marginRight: 4 }} />Move {sel.count} selected
                         </button>
-                        <button style={xpBtn()} onClick={clearSelection} title="Clear selection">Clear</button>
+                        <button style={xpBtn()} onClick={sel.clear} title="Clear selection">Clear</button>
                     </>
                 ) : col('col-md-3 d-flex gap-2', (
                     <>
                         <button className="btn btn-primary btn-sm flex-fill" onClick={openBulkMove}
                             title="Move every selected row to one destination in a single transaction">
-                            <i className="bi bi-arrow-left-right me-1" />Move {selectedKeys.length} selected
+                            <i className="bi bi-arrow-left-right me-1" />Move {sel.count} selected
                         </button>
-                        <button className="btn btn-outline-secondary btn-sm" onClick={clearSelection} title="Clear selection">Clear</button>
+                        <button className="btn btn-outline-secondary btn-sm" onClick={sel.clear} title="Clear selection">Clear</button>
                     </>
                 ))
             )}
@@ -1248,9 +1217,9 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     );
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+        <div className="fade-in" style={pageFillStyle}>
             <div
-                style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                style={classic ? { ...xpBevel, ...flexFillStyle } : flexFillStyle}
                 className={classic ? undefined : 'card shadow-sm border-0'}
             >
                 <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center py-3'}>
@@ -1270,18 +1239,20 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     <table style={classic ? { width: '100%', minWidth: TABLE_MIN_WIDTH, borderCollapse: 'collapse', tableLayout: 'fixed' } : { tableLayout: 'fixed', minWidth: TABLE_MIN_WIDTH }} className={classic ? undefined : 'table table-hover table-sm mb-0'}>
                         <thead className={classic ? undefined : 'table-light'}>
                             <tr>
-                                <th className={classic ? undefined : 'text-center'} style={classic ? { ...xpTableHeader, width: COL_W.check, textAlign: 'center' } : { width: COL_W.check, ...colDivider }} title={allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'}>
-                                    <input type="checkbox" style={{ margin: 0, cursor: 'pointer' }} checked={allPageSelected} disabled={!pageMovable.length} onChange={togglePageSelection} />
+                                <th className={classic ? undefined : 'text-center'} style={classic ? { ...xpTableHeader, width: COL_W.check, textAlign: 'center' } : { width: COL_W.check, ...colDivider }}>
+                                    <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected}
+                                        disabled={!sel.pageEligibleCount} onChange={sel.togglePage}
+                                        title={sel.allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'} />
                                 </th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.item } : { cursor: 'pointer', width: COL_W.item, ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.category } : { cursor: 'pointer', width: COL_W.category, ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.location } : { cursor: 'pointer', width: COL_W.location, ...colDivider }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.lot } : { cursor: 'pointer', width: COL_W.lot, ...colDivider }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                <SortableTh sort={sort} colKey="item" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.item } : { width: COL_W.item, ...colDivider }}>Item</SortableTh>
+                                <SortableTh sort={sort} colKey="itemCategory" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.category } : { width: COL_W.category, ...colDivider }}>Item Category</SortableTh>
+                                <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.location } : { width: COL_W.location, ...colDivider }}>{t('locations') || 'Location'}</SortableTh>
+                                <SortableTh sort={sort} colKey="batch" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.lot } : { width: COL_W.lot, ...colDivider }}>Lot</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.attrs } : { width: COL_W.attrs, ...colDivider }}>{t('attributes') || 'Attributes'}</th>
-                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: COL_W.qty } : { cursor: 'pointer', width: COL_W.qty, ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                <SortableTh sort={sort} colKey="qty" onSort={toggleSort} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.qty } : { width: COL_W.qty, ...colDivider }} className={classic ? undefined : 'text-end'}>{t('qty') || 'Qty'}</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.uom } : { width: COL_W.uom, ...colDivider }}>UOM</th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.packaging } : { cursor: 'pointer', width: COL_W.packaging, ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                <th style={classic ? { ...xpTableHeader, cursor: 'pointer', width: COL_W.notes } : { cursor: 'pointer', width: COL_W.notes, ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                <SortableTh sort={sort} colKey="packaging" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.packaging } : { width: COL_W.packaging, ...colDivider }}>Packaging</SortableTh>
+                                <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.notes } : { width: COL_W.notes, ...colDivider }}>Notes</SortableTh>
                                 <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.ends } : { width: COL_W.ends, ...colDivider }}>Ends</th>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.actions, borderRight: 'none' } : { width: COL_W.actions }}></th>
                             </tr>

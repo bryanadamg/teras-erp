@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, LV_STICKY_THEAD, lvZebra, Dash } from '../shared/listViewTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
   const itemOptions = (selectItems ?? items);
@@ -87,10 +87,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
   const xpSep: React.CSSProperties = {
       width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
   };
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px', fontWeight: 'bold', color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true);
   const xpLabel: React.CSSProperties = {
       fontFamily: xpFont, fontSize: '11px', color: '#000', display: 'block', marginBottom: 2,
   };
@@ -102,7 +99,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
 
   const balanceTable = (
       <table style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined} className={classic ? undefined : 'table table-hover align-middle mb-0'}>
-          <thead className={classic ? undefined : 'table-light'}>
+          <thead className={classic ? undefined : 'table-light'} style={classic ? LV_STICKY_THEAD : undefined}>
               <tr>
                   <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined} className={classic ? undefined : 'ps-4'}>{t('item_code')}</th>
                   <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined}>{t('attributes')}</th>
@@ -115,7 +112,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
           </thead>
           <tbody>
               {filteredBalance.map((bal: any, i: number) => (
-                  <tr key={i} style={classic ? { background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}>
+                  <tr key={i} style={classic ? { background: lvZebra(true, i), borderBottom: '1px solid #c0bdb5' } : undefined}>
                       <td style={classic ? { padding: '4px 8px' } : undefined} className={classic ? undefined : 'ps-4'}>
                           <div style={classic ? { fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: '#000' } : undefined} className={classic ? undefined : 'fw-bold text-dark'}>{getItemName(bal)}</div>
                           {classic ? (
@@ -153,7 +150,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                       </td>
                       <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }} className={classic ? undefined : 'small'}>
                           {pkgParts(bal).length === 0
-                              ? <span style={classic ? { color: '#999' } : undefined} className={classic ? undefined : 'text-muted'}>-</span>
+                              ? <Dash classic={classic} />
                               : pkgParts(bal).map((p, idx) => (
                                   <span key={idx} style={classic ? { color: p.n < 0 ? '#c00000' : '#5a3c00' } : undefined} className={classic ? undefined : (p.n < 0 ? 'text-danger' : '')}>
                                       {idx > 0 ? ' / ' : ''}{p.n} {p.label}

@@ -22,14 +22,16 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import {
     xpFont, xpBtn, xpInput, xpSep, TableBlockSkeleton, XPEmptyState,
-    useSortable, SortMark, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar, rowStateBg,
+    useSortable, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar, rowStateBg,
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar } from '../shared/shellTheme';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption } from '../shared/listViewTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, FilterChipBar, SegmentedBar, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvZebra, Dash } from '../shared/listViewTheme';
+import { qtyFmt } from '../shared/format';
 
-const fmtQty = (n: number) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
+// Machine output is weighed to the gram, so this report alone runs at 3dp.
+const fmtQty = qtyFmt(3);
 const fmtPct = (n: number | null | undefined) => (n == null ? '-' : `${n}%`);
 const fmtDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -282,12 +284,12 @@ export default function MachineOutputReportView() {
                 },
                 {
                     key: 'item', label: 'Item', sortKey: 'item',
-                    render: (r, c) => twoLine(r.item_code || '-', r.item_name, c),
+                    render: (r, c) => twoLine(r.item_code || '—', r.item_name, c),
                     csv: r => r.item_code || r.item_name || '',
                 },
                 {
                     key: 'status', label: 'Status', sortKey: 'status',
-                    render: r => (r.po_status ? <StatusChip status={r.po_status} tint /> : <span style={{ color: '#aaa' }}>-</span>),
+                    render: r => (r.po_status ? <StatusChip status={r.po_status} tint /> : <Dash classic={classic} />),
                     csv: r => r.po_status || '',
                 },
                 {
@@ -322,22 +324,22 @@ export default function MachineOutputReportView() {
                 },
                 {
                     key: 'item', label: 'Item', sortKey: 'item',
-                    render: (r, c) => twoLine(r.item_code || '-', r.item_name, c),
+                    render: (r, c) => twoLine(r.item_code || '—', r.item_name, c),
                     csv: r => r.item_code || r.item_name || '',
                 },
                 {
                     key: 'machine', label: 'Machine', sortKey: 'machine',
-                    render: (r, c) => twoLine(r.work_center_name || '-', r.work_center_code, c),
+                    render: (r, c) => twoLine(r.work_center_name || '—', r.work_center_code, c),
                     csv: r => r.work_center_name || '',
                 },
                 {
                     key: 'status', label: 'Status', sortKey: 'status',
-                    render: r => (r.wo_status ? <StatusChip status={r.wo_status} tint /> : <span style={{ color: '#aaa' }}>-</span>),
+                    render: r => (r.wo_status ? <StatusChip status={r.wo_status} tint /> : <Dash classic={classic} />),
                     csv: r => r.wo_status || '',
                 },
                 {
                     key: 'target', label: 'Target', sortKey: 'target', align: 'right',
-                    render: r => (r.wo_qty != null ? fmtQty(r.wo_qty) : <span style={{ color: '#aaa' }}>-</span>),
+                    render: r => (r.wo_qty != null ? fmtQty(r.wo_qty) : <Dash classic={classic} />),
                     csv: r => r.wo_qty ?? '',
                 },
                 ...shared,
@@ -361,7 +363,7 @@ export default function MachineOutputReportView() {
                 key: 'type', label: 'Type',
                 render: r => (r.center_type
                     ? <WorkCenterChip type={r.center_type} name={r.work_center_name} />
-                    : <span style={{ color: '#aaa', fontSize: 10 }}>-</span>),
+                    : <Dash classic={classic} />),
                 csv: r => r.center_type || '',
             },
             {
@@ -455,13 +457,13 @@ export default function MachineOutputReportView() {
                                 <div style={{ fontWeight: 'bold' }}>{w.wo_code || '(MO-level log)'}</div>
                                 <div style={{ fontSize: 9, color: '#777' }}>{w.wo_name || ''}{w.mo_code ? ` · ${w.mo_code}` : ''}</div>
                             </td>
-                            <td style={dtd}>{w.item_code || w.item_name || '-'}</td>
+                            <td style={dtd}>{w.item_code || w.item_name || '—'}</td>
                             <td style={{ ...dtd, textAlign: 'right', fontWeight: 'bold' }}>{fmtQty(w.qty_good)} <span style={{ color: '#888', fontWeight: 'normal' }}>{w.uom}</span></td>
                             <td style={{ ...dtd, textAlign: 'right', color: w.qty_rejected ? '#c00000' : '#aaa' }}>{fmtQty(w.qty_rejected)}</td>
                             <td style={{ ...dtd, textAlign: 'right' }}>{fmtPct(w.reject_pct)}</td>
                             <td style={dtd}>
                                 {w.wo_status && <StatusChip status={w.wo_status} tint />}
-                                <div style={{ fontSize: 9, color: '#777' }}>{w.last_log ? `${tzDate(w.last_log)} ${tzTime(w.last_log)}` : '-'}</div>
+                                <div style={{ fontSize: 9, color: '#777' }}>{w.last_log ? `${tzDate(w.last_log)} ${tzTime(w.last_log)}` : '—'}</div>
                             </td>
                         </tr>
                     ))}
@@ -515,7 +517,7 @@ export default function MachineOutputReportView() {
                     ) : r.rejects.map((rj: any) => (
                         <tr key={rj.completion_id}>
                             <td style={dtd}>
-                                <div>{rj.logged_at ? tzDate(rj.logged_at) : '-'}</div>
+                                <div>{rj.logged_at ? tzDate(rj.logged_at) : '—'}</div>
                                 <div style={{ fontSize: 9, color: '#777' }}>{rj.logged_at ? tzTime(rj.logged_at) : ''}</div>
                             </td>
                             {!isWoMode && !isPacking && (
@@ -617,9 +619,9 @@ export default function MachineOutputReportView() {
     const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
 
     return (
-        <div className={classic ? 'fade-in' : 'card fade-in border-0 shadow-sm'} style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+        <div className={classic ? 'fade-in' : 'card fade-in border-0 shadow-sm'} style={pageFillStyle}>
             <div style={classic
-                ? sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })
+                ? sharedXpBevel(flexFillStyle)
                 : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
             >
                 {classic ? (
@@ -792,23 +794,21 @@ export default function MachineOutputReportView() {
                                     <tr>
                                         <th style={classic ? { ...th, width: 22 } : { width: 28 }} />
                                         {columns.map((c, ci) => (
-                                            <th
+                                            <SortableTh
                                                 key={c.key}
+                                                sort={sort} colKey={c.sortKey || null} onSort={toggle}
                                                 className={!classic && c.align === 'right' ? 'text-end' : undefined}
                                                 style={classic ? {
                                                     ...th,
                                                     ...(c.align === 'right' ? { textAlign: 'right' } : {}),
                                                     ...(c.width ? { width: c.width } : {}),
                                                     ...(ci === columns.length - 1 ? { borderRight: 'none' } : {}),
-                                                    ...(c.sortKey ? { cursor: 'pointer' } : {}),
                                                 } : {
                                                     ...(c.width ? { width: c.width + 10 } : {}),
-                                                    ...(c.sortKey ? { cursor: 'pointer' } : {}),
                                                 }}
-                                                onClick={c.sortKey ? () => toggle(c.sortKey!) : undefined}
                                             >
-                                                {c.label}{c.sortKey && <SortMark sort={sort} colKey={c.sortKey} />}
-                                            </th>
+                                                {c.label}
+                                            </SortableTh>
                                         ))}
                                     </tr>
                                 </thead>
@@ -820,16 +820,11 @@ export default function MachineOutputReportView() {
                                             <React.Fragment key={key}>
                                             <tr
                                                 style={classic
-                                                    ? { background: open ? rowStateBg('expanded', true) : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }
+                                                    ? { background: open ? rowStateBg('expanded', true) : lvZebra(true, i), borderBottom: '1px solid #e0ddd3', cursor: 'pointer' }
                                                     : { background: open ? rowStateBg('expanded', false) : undefined, cursor: 'pointer' }}
                                                 onClick={() => setExpanded(open ? null : key)}
                                             >
-                                                <td
-                                                    className={classic ? undefined : 'text-center text-muted'}
-                                                    style={classic ? { ...td, textAlign: 'center', color: '#555' } : undefined}
-                                                >
-                                                    <i className={`bi bi-chevron-${open ? 'down' : 'right'}`} style={{ fontSize: classic ? 8 : 10 }} />
-                                                </td>
+                                                <ExpanderCell classic={classic} expanded={open} onToggle={() => setExpanded(open ? null : key)} tdStyle={classic ? td : undefined} label="machine detail" />
                                                 {columns.map((c, ci) => (
                                                     <td
                                                         key={c.key}

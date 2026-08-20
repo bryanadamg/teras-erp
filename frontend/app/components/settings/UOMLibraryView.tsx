@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead, ExpanderCell } from '../shared/listViewTheme';
 import { ExpandedRowPanel, rowStateBg } from '../shared/xpTheme';
+import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 interface Props {
     uoms: any[];
@@ -80,21 +81,16 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                     </form>
                 )}
                 <span style={lvSep(classic)} />
-                <input
-                    style={{ ...lvInput(classic), width: 200 }}
-                    placeholder="Search units…"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                <SearchField classic={classic} value={search} onChange={setSearch} placeholder="Search units…" width={200} />
+                <ToolbarCount classic={classic} right>
                     {filtered.filter((u: any) => u.is_system).length} system &nbsp;+&nbsp; {filtered.filter((u: any) => !u.is_system).length} packaging
-                </span>
+                </ToolbarCount>
             </div>
 
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 34 }}></th>
                             <th style={{ ...lvTh(classic), width: 160 }}>Name</th>
@@ -114,9 +110,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                             return (
                                 <React.Fragment key={uom.id}>
                                     <tr style={{ ...lvRow(classic, idx), cursor: 'pointer', background: isExpanded ? rowStateBg('expanded', classic) : lvRow(classic, idx).background }} onClick={() => toggleExpand(uom)}>
-                                        <td style={{ ...lvTd(classic), textAlign: 'center' }}>
-                                            <i className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 10, color: '#888' }} />
-                                        </td>
+                                        <ExpanderCell classic={classic} expanded={isExpanded} onToggle={() => toggleExpand(uom)} label="conversion factors" />
                                         <td style={lvTd(classic)}>
                                             <span style={{ fontWeight: 'bold', fontVariant: classic ? 'all-small-caps' : undefined as any }}>{uom.name}</span>
                                             {uom.is_system && (

@@ -13,8 +13,8 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
-import { ToolbarButton } from '../shared/shellTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, TableEmpty } from '../shared/listViewTheme';
+import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -216,7 +216,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     // Recipe code base = configurable prefix + selected color's code (Configure edits
     // prefix/separator). Counter is a 5-digit suffix, incremented per base.
     const recipeCodeBase = useCallback((colorCode: string): string => {
-        const sep = codeConfig?.separator || '-';
+        const sep = codeConfig?.separator || '—';
         const prefix = codeConfig?.prefix || 'DR';
         return [prefix, colorCode].filter(Boolean).join(sep);
     }, [codeConfig]);
@@ -230,7 +230,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             setForm(f => (f.code || f.name ? { ...f, code: '', name: '', color_standard: '' } : f));
             return;
         }
-        const sep = codeConfig?.separator || '-';
+        const sep = codeConfig?.separator || '—';
         const base = recipeCodeBase(color.code || '');
         let cancelled = false;
         (async () => {
@@ -559,7 +559,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                         // g/L and /100kg are alternate rate bases — show whichever the line carries
                                         // (mirrors the fallback in DyeRecipePrintView).
                                         const rate = line.qty_per_liter ?? line.qty_per_100kg ?? null;
-                                        const rateUnit = line.uom_name || (line.qty_per_liter != null ? 'g/L' : line.qty_per_100kg != null ? '/100kg' : '-');
+                                        const rateUnit = line.uom_name || (line.qty_per_liter != null ? 'g/L' : line.qty_per_100kg != null ? '/100kg' : '—');
                                         return (
                                             <tr key={idx} style={lvSubRow(classic, idx)}>
                                                 <td style={{ ...subTd, color: '#666' }}>{idx + 1}</td>
@@ -570,14 +570,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                         padding: '0 4px', fontWeight: 'bold', fontSize: 8,
                                                         border: `1px solid ${typeColor(line.chemical_type, classic).border}`,
                                                     }}>
-                                                        {line.chemical_type || '-'}
+                                                        {line.chemical_type || '—'}
                                                     </span>
                                                 </td>
                                                 <td style={{ ...subTd, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={line.item_name || linkedItem?.name}>
-                                                    {line.item_name || linkedItem?.name || (line.item_id || '-')}
+                                                    {line.item_name || linkedItem?.name || (line.item_id || '—')}
                                                 </td>
                                                 <td style={{ ...subTd, textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
-                                                    {rate != null ? Number(rate).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
+                                                    {rate != null ? Number(rate).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'}
                                                 </td>
                                                 <td style={{ ...subTd, color: '#555' }}>{rateUnit}</td>
                                             </tr>
@@ -596,7 +596,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         ? <div style={emptyStyle}>None.</div>
                         : (recipe.wash_baths || []).map((wb: any, i: number) => (
                             <div key={i} style={{ fontSize: 9, color: '#222', padding: '1px 0' }}>
-                                <b>{wb.bath_number}.</b> {wb.description || '-'}
+                                <b>{wb.bath_number}.</b> {wb.description || '—'}
                             </div>
                         ))}
                     <div style={{ borderTop: '1px solid #e0ddd8', margin: '5px 0 3px' }} />
@@ -605,7 +605,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         ? <div style={emptyStyle}>None.</div>
                         : (recipe.finishing_steps || []).map((fs: any, i: number) => (
                             <div key={i} style={{ fontSize: 9, color: '#222', padding: '1px 0' }}>
-                                {i + 1}. {fs.description || '-'}
+                                {i + 1}. {fs.description || '—'}
                             </div>
                         ))}
                 </div>
@@ -624,15 +624,10 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                <input
-                    style={{ ...lvInput(classic), width: 240, flexBasis: 240 }}
-                    placeholder="Search code or name…"
-                    value={searchText}
-                    onChange={e => setSearchText(e.target.value)}
-                />
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                <SearchField classic={classic} value={searchText} onChange={setSearchText} placeholder="Search code or name…" width={240} />
+                <ToolbarCount classic={classic} right>
                     {total.toLocaleString()} recipe{total !== 1 ? 's' : ''}
-                </span>
+                </ToolbarCount>
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
@@ -644,7 +639,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 30 }}></th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Code</th>
@@ -661,9 +656,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                         {recipes.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={9} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                No recipes found.
-                            </td></tr>
+                            <TableEmpty colSpan={9} classic={classic} tdStyle={lvTd(classic)} message="No recipes found." />
                         ))}
                         {recipes.map((recipe: any, idx: number) => {
                             const rid = String(recipe.id);
@@ -672,9 +665,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                             return (
                                 <React.Fragment key={rid}>
                                     <tr style={{ ...lvRow(classic, idx), ...(expanded ? { background: rowStateBg('expanded', classic) } : {}), cursor: 'pointer' }} onClick={() => toggleExpand(rid)}>
-                                        <td style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#555' : '#64748b' }}>
-                                            <i className={expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill'} style={{ fontSize: 10 }} />
-                                        </td>
+                                        <ExpanderCell classic={classic} expanded={expanded} onToggle={() => toggleExpand(rid)} label="recipe detail" />
                                         <td style={lvTd(classic)}>
                                             <CodeChip code={recipe.code} classic={classic} tone="accent" />
                                         </td>
@@ -1094,7 +1085,7 @@ function DetailField({ label, value, classic }: { label: string; value?: string 
                 background: '#f8fafc', border: '1px solid #dbe1ea', borderRadius: 7,
                 padding: '4px 8px', minHeight: 18,
             }}>
-                {value || '-'}
+                {value || '—'}
             </div>
         </div>
     );

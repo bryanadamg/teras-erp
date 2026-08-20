@@ -4,8 +4,8 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
-import { ToolbarButton } from '../shared/shellTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, lvZebra } from '../shared/listViewTheme';
+import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 
 // Attributes with a dedicated management home are hidden here so they are not
 // hand-edited in two places:
@@ -121,15 +121,10 @@ export default function AttributesLibraryView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                <input
-                    style={{ ...lvInput(classic), width: 220 }}
-                    placeholder="Search attributes…"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                <SearchField classic={classic} value={search} onChange={setSearch} placeholder="Search attributes…" width={220} />
+                <ToolbarCount classic={classic} right>
                     {filtered.length} attribute{filtered.length !== 1 ? 's' : ''}
-                </span>
+                </ToolbarCount>
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
@@ -141,7 +136,7 @@ export default function AttributesLibraryView({
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 200 }}>Name</th>
                             <th style={{ ...lvTh(classic), width: 140 }}>Role</th>
@@ -250,7 +245,7 @@ export default function AttributesLibraryView({
                             <>
                                 <div style={{ background: '#fff', border: '1px solid #7f9db9', maxHeight: 220, overflowY: 'auto', marginBottom: 8 }}>
                                     {editing.values.map((val: any, vi: number) => (
-                                        <div key={val.id} style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', background: vi % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e0dfd8' }}>
+                                        <div key={val.id} style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', background: lvZebra(true, vi), borderBottom: '1px solid #e0dfd8' }}>
                                             <input
                                                 style={{ ...lvInput(classic), flex: 1, border: 'none', boxShadow: 'none', background: 'transparent' }}
                                                 defaultValue={val.value}

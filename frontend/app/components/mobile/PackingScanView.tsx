@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT } from '../shared/xpTheme';
+import { toNum } from '../shared/format';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -35,7 +36,7 @@ const xpInput: React.CSSProperties = {
 };
 const xpLabel: React.CSSProperties = { fontFamily: XP_FONT, fontSize: 11, color: '#333', display: 'block', marginBottom: 3 };
 
-const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const num = toNum;
 
 function playBeep() {
     try {

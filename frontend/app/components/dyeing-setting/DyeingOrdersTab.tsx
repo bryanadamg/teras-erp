@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, lvThBanded, LV_STICKY_THEAD, lvZebra, Dash } from '../shared/listViewTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -54,15 +54,7 @@ const makePanel = (classic: boolean): React.CSSProperties => classic ? {
 } : {
     background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9,
 };
-const makeThCell = (classic: boolean): React.CSSProperties => classic ? {
-    ...lvThead(true), borderRight: '1px solid #b0aaa0',
-    padding: '3px 6px', textAlign: 'left', whiteSpace: 'nowrap',
-    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
-} : {
-    background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
-    fontSize: 11, fontWeight: 700, borderBottom: '1.5px solid #cbd3df',
-    fontFamily: modernFont,
-};
+const makeThCell = (classic: boolean): React.CSSProperties => lvThBanded(classic);
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -448,7 +440,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             : <div style={{ padding: '8px', color: classic ? '#666' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing work orders found.</div>
                     ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
-                            <thead>
+                            <thead style={LV_STICKY_THEAD}>
                                 <tr style={classic
                                     ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
                                     : {}}>
@@ -500,7 +492,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                 </span>
                                             </td>
                                             <td style={{ padding: classic ? '2px 6px' : '6px 10px', fontSize: classic ? 10 : 11, color: isSelected ? (classic ? '#cce' : '#2563eb') : (classic ? '#555' : '#64748b') }}>
-                                                {wo.manufacturing_order_id ? shortId(wo.manufacturing_order_id) : '-'}
+                                                {wo.manufacturing_order_id ? shortId(wo.manufacturing_order_id) : '—'}
                                             </td>
                                         </tr>
                                     );
@@ -744,16 +736,16 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             const runLabel = run.run_number ?? run.run_code ?? `#${idx + 1}`;
                                             const recipeName = run.recipe_name
                                                 ?? recipes.find(r => String(r.id) === String(run.recipe_id))?.name
-                                                ?? (run.recipe_id ? shortId(run.recipe_id) : '-');
+                                                ?? (run.recipe_id ? shortId(run.recipe_id) : '—');
                                             const shadeColors = run.shade_result ? SHADE_COLORS[run.shade_result] : null;
                                             return (
                                                 <tr key={run.id} style={classic
-                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f5f3ee' }
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
                                                     : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontWeight: 'bold' } : { padding: '6px 10px', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>{runLabel}</td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{recipeName}</td>
                                                     <td style={classic ? { padding: '2px 6px', textAlign: 'right' } : { padding: '6px 10px', textAlign: 'right', color: '#334155', fontFamily: modernFont }}>
-                                                        {run.substrate_qty != null ? run.substrate_qty : '-'}
+                                                        {run.substrate_qty != null ? run.substrate_qty : '—'}
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{run.machine_name ?? '-'}</td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
@@ -787,7 +779,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                                 {run.shade_result}
                                                             </span>
                                                         ) : (
-                                                            <span style={{ color: classic ? '#999' : '#94a3b8' }}>-</span>
+                                                            <Dash classic={classic} />
                                                         )}
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontSize: 10 } : { padding: '6px 10px', whiteSpace: 'nowrap', fontSize: 12, color: '#64748b', fontFamily: modernFont }}>
@@ -930,7 +922,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         <tbody>
                                             {completeForm.chemicals.map((row, idx) => (
                                                 <tr key={idx} style={classic
-                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f5f3ee' }
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
                                                     : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <select

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { layoutRectOf, layoutScroll } from './uiScale';
 
 /**
@@ -142,6 +142,12 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     // An open order with no work order cut for it. Amber, not red: nothing is
     // broken, someone just has to release it before the floor can touch it.
     NOT_RELEASED: 'amber',
+    // Derived (MO/WO lists): a PENDING order whose earlier routing steps are not
+    // finished. Gray — it is not started and not broken, just not its turn.
+    BLOCKED: 'gray',
+    // Lot quality_status beyond REJECTED: still usable keeps its warning colour,
+    // disposed is terminal and out of every picker.
+    REJECT_USABLE: 'amber', DISPOSED: 'gray',
 };
 
 const FAMILY_SOLID: Record<StatusFamily, string> = {
@@ -1247,8 +1253,32 @@ function compareValues(a: any, b: any): number {
 }
 
 /**
+ * The header-click transition, shared by client-side and server-side sorting:
+ * unsorted -> asc -> desc -> unsorted, and a click on a different column starts
+ * that column at asc. Pure, so a view whose sort state lives somewhere other than
+ * local state (DataContext, a URL param) gets the same behaviour as useSortable.
+ */
+export function nextSortState(prev: SortState, key: string): SortState {
+    if (prev?.key !== key) return { key, dir: 1 };
+    return prev.dir === 1 ? { key, dir: -1 } : null;
+}
+
+/**
+ * Sort state for a list the SERVER sorts — the view holds one page, so a column
+ * header has to change a query param rather than reorder the rows in memory.
+ * Sorting a page client-side puts the wrong rows on page 1 entirely, so reach for
+ * this (not useSortable) whenever the rows arrive windowed.
+ */
+export function useServerSort(initial: SortState = null) {
+    const [sort, setSort] = useState<SortState>(initial);
+    const toggleSort = useCallback((key: string) => setSort(prev => nextSortState(prev, key)), []);
+    return { sort, setSort, toggleSort };
+}
+
+/**
  * Sort rows client-side by a column key. `columns` maps key -> accessor.
  * toggle() cycles asc -> desc -> off per column. Empty values sort last in both directions.
+ * Only correct when the view holds the WHOLE set — for a windowed list use useServerSort.
  */
 export function useSortable<T>(rows: T[], columns: Record<string, (row: T) => any>, initialSort: SortState = null) {
     const [sort, setSort] = useState<SortState>(initialSort);
@@ -1264,11 +1294,7 @@ export function useSortable<T>(rows: T[], columns: Record<string, (row: T) => an
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rows, sort]);
 
-    const toggle = (key: string) => setSort(prev =>
-        prev?.key !== key ? { key, dir: 1 }
-        : prev.dir === 1 ? { key, dir: -1 }
-        : null
-    );
+    const toggle = (key: string) => setSort(prev => nextSortState(prev, key));
 
     return { sorted, sort, toggle };
 }

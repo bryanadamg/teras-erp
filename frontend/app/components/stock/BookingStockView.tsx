@@ -5,10 +5,10 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, SortMark, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField } from '../shared/shellTheme';
+import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, pageFillStyle } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
-import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption } from '../shared/listViewTheme';
+import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra, TableEmpty } from '../shared/listViewTheme';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -187,12 +187,7 @@ export default function BookingStockView() {
     const xpBevel: React.CSSProperties = sharedXpBevel();
     const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
     const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
-    const xpTableHeader: React.CSSProperties = {
-        ...lvThead(true),
-        borderRight: '1px solid #b0aa9c',
-        fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
-        padding: '3px 8px', position: 'sticky', top: 0, whiteSpace: 'nowrap', userSelect: 'none',
-    };
+    const xpTableHeader: React.CSSProperties = lvThSticky(true, { borderRight: '1px solid #b0aa9c' });
     const xpSep: React.CSSProperties = { width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0 };
 
     const colLine: React.CSSProperties = { borderRight: '1px solid #d8d4c8' };
@@ -200,7 +195,7 @@ export default function BookingStockView() {
     const numCellM: React.CSSProperties = { whiteSpace: 'nowrap' };
 
     return (
-        <div className={classic ? 'fade-in' : 'fade-in p-2'} style={classic ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 } : undefined}>
+        <div className={classic ? 'fade-in' : 'fade-in p-2'} style={classic ? pageFillStyle : undefined}>
             <div style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 } : undefined} className={classic ? undefined : 'card shadow-sm'}>
                 <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header d-flex align-items-center justify-content-between py-2'}>
                     <span className={classic ? undefined : 'fw-semibold'}>
@@ -230,13 +225,13 @@ export default function BookingStockView() {
                     <table style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined} className={classic ? undefined : 'table table-sm table-hover align-middle mb-0'}>
                         <thead className={classic ? undefined : 'table-light'}>
                             <tr>
+                                <th style={classic ? { ...xpTableHeader, width: LV_EXPANDER_COL_W } : { width: LV_EXPANDER_COL_W }} />
                                 {COLS.map(c => (
-                                    <th key={c.key} role={classic ? undefined : 'button'}
-                                        style={classic ? { ...xpTableHeader, textAlign: c.align || 'left', cursor: 'pointer' } : undefined}
-                                        className={classic ? undefined : `user-select-none ${c.align === 'right' ? 'text-end' : ''}`}
-                                        onClick={() => toggle(c.key)} title={classic ? 'Sort' : undefined}>
-                                        {c.label}<SortMark sort={sort} colKey={c.key} />
-                                    </th>
+                                    <SortableTh key={c.key} sort={sort} colKey={c.key} onSort={toggle}
+                                        style={classic ? { ...xpTableHeader, textAlign: c.align || 'left' } : undefined}
+                                        className={classic ? undefined : (c.align === 'right' ? 'text-end' : undefined)}>
+                                        {c.label}
+                                    </SortableTh>
                                 ))}
                             </tr>
                         </thead>
@@ -246,7 +241,7 @@ export default function BookingStockView() {
                                 const isOpen = expanded.has(k);
                                 const variant = variantLabel(r.attribute_value_ids);
                                 const h = healthOf(r.qty_net_free);
-                                const zebra = i % 2 === 0 ? '#ffffff' : '#f5f3ee';
+                                const zebra = lvZebra(true, i);
                                 return (
                                     <Fragment key={k}>
                                         <tr onClick={() => toggleRow(k)} title={classic ? 'Click for MO breakdown' : undefined}
@@ -254,13 +249,15 @@ export default function BookingStockView() {
                                                 ? { background: isOpen ? rowStateBg('expanded', true) : (h === HEALTH.short ? h.tint : zebra), borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }
                                                 : { cursor: 'pointer' }}
                                             className={classic ? undefined : (h === HEALTH.short ? 'table-danger' : undefined)}>
-                                            <td style={classic ? { padding: '4px 8px 4px 5px', fontFamily: xpFont, borderLeft: `3px solid ${h.color}` } : { borderLeft: `3px solid ${h.color}` }}>
-                                                <i className={classic ? `bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}` : `bi ${isOpen ? 'bi-caret-down-fill' : 'bi-caret-right-fill'} me-1 text-muted small`}
-                                                    style={classic ? { fontSize: 8, marginRight: 5, color: '#888' } : undefined} />
+                                            {/* The health stripe rides the row's leftmost cell, which is now the
+                                                chevron column. */}
+                                            <ExpanderCell classic={classic} expanded={isOpen} onToggle={() => toggleRow(k)} label="MO breakdown"
+                                                tdStyle={{ borderLeft: `3px solid ${h.color}`, fontFamily: classic ? xpFont : undefined }} />
+                                            <td style={classic ? { padding: '4px 8px', fontFamily: xpFont } : undefined}>
                                                 {classic ? (
                                                     <>
                                                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{r.item_name}</span>
-                                                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', marginLeft: 18 }}>{r.item_code}</div>
+                                                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{r.item_code}</div>
                                                     </>
                                                 ) : (
                                                     <>
@@ -301,7 +298,7 @@ export default function BookingStockView() {
                                         </tr>
                                         {isOpen && (
                                             <tr>
-                                                <td colSpan={COLS.length} style={classic ? { padding: 0 } : undefined} className={classic ? undefined : 'p-0'}>
+                                                <td colSpan={COLS.length + 1} style={classic ? { padding: 0 } : undefined} className={classic ? undefined : 'p-0'}>
                                                     {renderDetail(r)}
                                                 </td>
                                             </tr>
@@ -310,16 +307,14 @@ export default function BookingStockView() {
                                 );
                             })}
                             {!loading && sorted.length === 0 && (
-                                <tr>
-                                    <td colSpan={COLS.length} style={classic ? { textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-center text-muted py-4'}>
-                                        No components are currently demanded by ongoing MOs.
-                                    </td>
-                                </tr>
+                                <TableEmpty colSpan={COLS.length + 1} classic={classic}
+                                    message="No components are currently demanded by ongoing MOs." />
                             )}
+                            {/* Skeleton in both themes — the modern branch used to show a bare
+                                "Loading..." line, which reads as a row rather than as a wait. */}
                             {loading && (
-                                classic
-                                    ? <TableSkeleton rows={8} cols={skel.cols ?? COLS.length} classic rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                                    : <tr><td colSpan={COLS.length} className="text-center text-muted py-4">Loading...</td></tr>
+                                <TableSkeleton rows={8} cols={skel.cols ?? COLS.length + 1} classic={classic}
+                                    rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             )}
                         </tbody>
                     </table>

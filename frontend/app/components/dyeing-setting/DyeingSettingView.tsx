@@ -8,6 +8,7 @@ import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
 import { xpFont } from '../shared/xpTheme';
+import { pageFillStyle } from '../shared/shellTheme';
 
 // ── XP Style Constants ────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -84,19 +85,13 @@ export default function DyeingSettingView() {
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div style={classic ? {
-            display: 'flex',
-            flexDirection: 'column',
-            height: 'calc(var(--app-vh) - 80px)',
-            minHeight: 0,
+            ...pageFillStyle,
             fontFamily: xpFont,
             border: '2px solid',
             borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
             background: '#ece9d8',
         } : {
-            display: 'flex',
-            flexDirection: 'column',
-            height: 'calc(var(--app-vh) - 80px)',
-            minHeight: 0,
+            ...pageFillStyle,
             fontFamily: modernFont,
             border: '1px solid #dbe1ea',
             borderRadius: 9,

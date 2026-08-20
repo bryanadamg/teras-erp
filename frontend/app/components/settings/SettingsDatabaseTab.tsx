@@ -13,6 +13,7 @@ import {
 } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import ModalWrapper from '../shared/ModalWrapper';
+import { lvZebra } from '../shared/listViewTheme';
 
 const xpDangerBtn: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, padding: '3px 20px',
@@ -469,7 +470,7 @@ export default function SettingsDatabaseTab() {
                                 {snapshots.map((s, i) => (
                                     <tr
                                         key={i}
-                                        style={classic ? { background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}
+                                        style={classic ? { background: lvZebra(true, i), borderBottom: '1px solid #c0bdb5' } : undefined}
                                     >
                                         <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}><CodeChip code={s.name} classic={classic} /></td>
                                         <td style={classic ? tdBase : undefined}>{tzDateTime(s.created_at)}</td>

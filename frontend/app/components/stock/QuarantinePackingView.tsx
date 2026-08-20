@@ -12,6 +12,7 @@ import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, SearchField, 
 import {
     lvTh, lvThead, lvTd, lvRow, lvBtn, lvInput, lvLabel, lvSep,
     lvSubTh, lvSubTd, lvSubTable, lvSubCaption, lvSubRow, LV_XP_FONT, LV_MODERN_FONT,
+    ExpanderCell, LV_EXPANDER_COL_W, LV_CHECK_COL_W, RowCheckbox, SelectAllCheckbox,
 } from '../shared/listViewTheme';
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
@@ -55,31 +56,6 @@ const fmtQty = (n: number) =>
  * on the node. Module-level (not nested in the view) so React keeps the same
  * element across renders instead of remounting it on every keystroke elsewhere.
  */
-function TriCheckbox({ checked, indeterminate, onChange, disabled, title }: {
-    checked: boolean;
-    indeterminate?: boolean;
-    onChange: (next: boolean) => void;
-    disabled?: boolean;
-    title?: string;
-}) {
-    const ref = useRef<HTMLInputElement>(null);
-    useEffect(() => {
-        if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
-    }, [indeterminate, checked]);
-    return (
-        <input
-            ref={ref}
-            type="checkbox"
-            checked={checked}
-            disabled={disabled}
-            title={title}
-            onChange={e => onChange(e.target.checked)}
-            onClick={e => e.stopPropagation()}
-            style={{ margin: 0, verticalAlign: 'middle', cursor: disabled ? 'default' : 'pointer' }}
-        />
-    );
-}
-
 type Lot = {
     batch_id: string | null;
     batch_number: string | null;
@@ -435,7 +411,7 @@ export default function QuarantinePackingView() {
         );
     };
 
-    const COL_COUNT = 9;
+    const COL_COUNT = 10;
     const LOT_COL_COUNT = 7;   // 6 data columns + the select checkbox
 
     // ── Decided-day banding ───────────────────────────────────────────────────
@@ -559,15 +535,16 @@ export default function QuarantinePackingView() {
             <table style={lvSubTable(classic)}>
                 <thead>
                     <tr>
-                        <th style={{ ...lotTh, width: 28, textAlign: 'center' }}>
-                            <TriCheckbox
-                                checked={allChosen}
-                                indeterminate={chosen.length > 0}
+                        <th style={{ ...lotTh, width: LV_CHECK_COL_W, textAlign: 'center' }}>
+                            <SelectAllCheckbox
+                                classic={classic}
+                                allSelected={allChosen}
+                                someSelected={chosen.length > 0}
                                 disabled={pickDisabled || !groupIds.length}
                                 title={groupIds.length
                                     ? 'Select every lot of this MO that is still open'
                                     : 'No selectable lots — all are packed or un-lotted'}
-                                onChange={on => setSelection(groupIds, on)}
+                                onChange={() => setSelection(groupIds, !allChosen)}
                             />
                         </th>
                         <th style={lotTh}>Lot</th>
@@ -581,6 +558,7 @@ export default function QuarantinePackingView() {
                 {lotSections(g).map(sec => {
                     const secIds = selectableIds(sec.lots);
                     const secChosen = secIds.filter(id => selectedLots.has(id));
+                    const secAllChosen = secIds.length > 0 && secChosen.length === secIds.length;
                     return (
                 <tbody key={sec.key}>
                     <tr>
@@ -588,12 +566,13 @@ export default function QuarantinePackingView() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 {/* QC works the hold area a day at a time, so the band
                                     is the selection grain the floor actually asks for. */}
-                                <TriCheckbox
-                                    checked={secIds.length > 0 && secChosen.length === secIds.length}
-                                    indeterminate={secChosen.length > 0}
+                                <SelectAllCheckbox
+                                    classic={classic}
+                                    allSelected={secAllChosen}
+                                    someSelected={secChosen.length > 0}
                                     disabled={pickDisabled || !secIds.length}
                                     title={secIds.length ? `Select the ${secIds.length} open lot${secIds.length === 1 ? '' : 's'} in this band` : 'No selectable lots in this band'}
-                                    onChange={on => setSelection(secIds, on)}
+                                    onChange={() => setSelection(secIds, !secAllChosen)}
                                 />
                                 <i className={`bi ${sec.awaiting ? 'bi-hourglass-split' : 'bi-calendar2-check'}`} style={{ fontSize: 10 }} />
                                 <span>{sec.label}</span>
@@ -625,8 +604,10 @@ export default function QuarantinePackingView() {
                             // the checked highlight — both semantic, both via lvSubRow.
                             style={{
                                 ...lvSubRow(classic, i, {
+                                    // Chosen = selected, so it takes the app-wide selection
+                                    // fill; amber here read as a warning instead.
                                     fill: locked ? (classic ? '#f0efe9' : '#f6f7f9')
-                                        : isChosen ? (classic ? '#fffbe6' : '#fffdf2')
+                                        : isChosen ? rowStateBg('selected', classic)
                                         : undefined,
                                 }),
                                 ...(locked ? { color: '#8a8a8a' } : {}),
@@ -634,10 +615,12 @@ export default function QuarantinePackingView() {
                         >
                             <td style={{ ...lotTd, textAlign: 'center' }}>
                                 {selectable ? (
-                                    <TriCheckbox
+                                    <RowCheckbox
+                                        classic={classic}
                                         checked={isChosen}
                                         disabled={pickDisabled}
-                                        onChange={on => setSelection([l.batch_id as string], on)}
+                                        label={l.batch_number || 'lot'}
+                                        onChange={() => setSelection([l.batch_id as string], !isChosen)}
                                     />
                                 ) : (
                                     <span style={{ color: '#ccc' }}>—</span>
@@ -777,6 +760,7 @@ export default function QuarantinePackingView() {
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                 <thead style={lvThead(classic, true)}>
                     <tr>
+                        <th style={{ ...lvTh(classic), width: LV_EXPANDER_COL_W }} />
                         <th style={lvTh(classic)}>Manufacturing Order</th>
                         <th style={lvTh(classic)}>Item</th>
                         <th style={{ ...lvTh(classic), width: 150 }}>Colour</th>
@@ -811,14 +795,13 @@ export default function QuarantinePackingView() {
                                         ...(open ? { background: rowStateBg('expanded', classic) } : {}),
                                     }}
                                 >
+                                    <ExpanderCell classic={classic} expanded={open} onToggle={() => toggleRow(g.key, g.lots)} label="lots" />
                                     <td style={lvTd(classic)}>
-                                        <i className={`bi ${open ? 'bi-caret-down-fill' : 'bi-caret-right-fill'}`}
-                                            style={{ fontSize: 8, marginRight: 5, color: '#888' }} />
                                         {g.mo_code
                                             ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
                                             : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}
                                         {g.mo_status && <StatusChip status={g.mo_status} style={{ marginLeft: 6 }} tint />}
-                                        <div style={{ fontSize: 10, color: '#666', marginLeft: 18 }}>
+                                        <div style={{ fontSize: 10, color: '#666' }}>
                                             {[g.production_run_code, g.sales_order_code].filter(Boolean).join(' · ') || ' '}
                                         </div>
                                     </td>

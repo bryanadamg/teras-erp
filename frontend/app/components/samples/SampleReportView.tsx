@@ -3,14 +3,16 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { isoDate } from '../shared/format';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { ShellWindow, ShellTitleBar, xpToolbar as sharedXpToolbar, ToolbarButton } from '../shared/shellTheme';
 import {
     lvTh, lvThead, lvRow, lvBtn, lvInput, lvLabel, lvSep, LvSectionCaption, LV_XP_FONT, LV_MODERN_FONT,
+    SortableTh,
 } from '../shared/listViewTheme';
 import {
-    StatusChip, TableBlockSkeleton, XPStatusBar, XPEmptyState, useSortable, SortMark,
+    StatusChip, TableBlockSkeleton, XPStatusBar, XPEmptyState, useSortable,
     familyColor, familyTint, xpPanel, type StatusFamily,
 } from '../shared/xpTheme';
 
@@ -29,7 +31,7 @@ import {
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = isoDate;   // calendar-field formatting: toISOString() would shift the range by a day
 const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); };
 
 type Preset = 'month' | 'last30' | 'quarter' | 'year';
@@ -288,13 +290,9 @@ export default function SampleReportView() {
 
     // ── Variant table ────────────────────────────────────────────────────────
     const Th = ({ colKey, label, width, align }: { colKey: string; label: string; width?: number; align?: 'right' }) => (
-        <th
-            style={{ ...lvTh(classic), width, textAlign: align, cursor: 'pointer', userSelect: 'none' }}
-            onClick={() => toggle(colKey)}
-            title="Sort"
-        >
-            {label}<SortMark sort={sort} colKey={colKey} />
-        </th>
+        <SortableTh sort={sort} colKey={colKey} onSort={toggle} style={{ ...lvTh(classic), width, textAlign: align }}>
+            {label}
+        </SortableTh>
     );
 
     const countCell = (n: number, tone: string) => (

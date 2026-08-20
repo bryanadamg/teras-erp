@@ -30,6 +30,16 @@ export interface EntitySearchConfig {
     seed?: any[];
     /** Cache key for resolve(); combos key their option value off attribute_value_id. */
     idKey?: string;
+    /**
+     * Whether this picker is actually on screen. Defaults to true. Pass the owning
+     * modal's open flag for a picker that lives inside one: the priming fetch below
+     * otherwise fires on page mount for a dropdown nobody can see, which on the
+     * Sales Orders page meant two extra requests competing for the browser's six
+     * connection slots against the fetches the visible table was waiting on.
+     * Turning it off never discards the resolve cache, so a value selected earlier
+     * still resolves its name after the picker closes.
+     */
+    enabled?: boolean;
 }
 
 export interface EntitySearchResult {
@@ -52,7 +62,7 @@ const apiBase = () => {
 export function useEntitySearch(config: EntitySearchConfig): EntitySearchResult {
     const {
         path, params, pageSizeParam = 'limit', pageSize = 50,
-        debounceMs = 300, seed, idKey = 'id',
+        debounceMs = 300, seed, idKey = 'id', enabled = true,
     } = config;
     const { authFetch } = useData();
     const [results, setResults] = useState<any[]>([]);
@@ -104,14 +114,16 @@ export function useEntitySearch(config: EntitySearchConfig): EntitySearchResult 
         timer.current = setTimeout(() => fetchResults(term), debounceMs);
     }, [fetchResults, debounceMs]);
 
-    // Prime the first page on mount; drop the debounce and any in-flight request on unmount.
+    // Prime the first page once enabled; drop the debounce and any in-flight request
+    // on unmount (or when the owning picker closes mid-search).
     useEffect(() => {
+        if (!enabled) return;
         fetchResults();
         return () => {
             if (timer.current) clearTimeout(timer.current);
             inFlight.current?.abort();
         };
-    }, [fetchResults]);
+    }, [fetchResults, enabled]);
 
     useEffect(() => { merge(results); }, [results, merge]);
     useEffect(() => { if (seed?.length) merge(seed); }, [seed, merge]);
@@ -128,6 +140,8 @@ export function useEntitySearch(config: EntitySearchConfig): EntitySearchResult 
 interface PresetOptions {
     debounceMs?: number;
     seed?: any[];
+    /** False while the owning modal/dropdown is closed — see EntitySearchConfig.enabled. */
+    enabled?: boolean;
 }
 
 const FINISHED_GOODS = { finished_goods: 'true' };

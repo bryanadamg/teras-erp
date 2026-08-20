@@ -13,7 +13,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
@@ -746,7 +746,7 @@ export default function WorkOrderPanel({
                                                 onClick={canLog(wo) ? (e) => toggleStatusMenu(wo.id, e) : undefined}
                                                 style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: canLog(wo) ? 'pointer' : 'default', justifySelf: 'start' }}
                                             >
-                                                <span style={statusChipStyle(wo.status)}>{(wo.status || 'PENDING').replace('_', ' ')}</span>
+                                                <StatusChip status={wo.status || 'PENDING'} />
                                                 {hasStaging && (
                                                     <i className={`bi ${wo.staging_status === 'STAGED' ? 'bi-box-seam-fill' : 'bi-box-seam'}`}
                                                         title={stagingLabel}

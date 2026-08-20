@@ -52,7 +52,7 @@ export default function BagLabelCard({
     const mesin = completion?.work_center_name || workOrder?.work_center_name || null;
     const tgl = completion?.created_at
         ? tzFmt(completion.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')
-        : new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        : tzFmt(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID');
 
     const gridLbl: React.CSSProperties = { background: '#f0f0f0', border: '1px solid #bbb', padding: '3px 6px', fontSize: '9px', color: '#333', fontWeight: 'bold', whiteSpace: 'nowrap' };
     const gridVal: React.CSSProperties = { border: '1px solid #bbb', padding: '3px 6px', fontSize: '11px', color: '#000' };

@@ -6,8 +6,8 @@ import { FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, LV_STICKY_THEAD } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 // Column defs for the expanded row's material table. Module-level so the loading
@@ -113,7 +113,7 @@ export default function ProductionRunsTab({
     const skel = useTableSkeletonMetrics('production-runs', listBodyRef, (productionRuns?.length ?? 0) > 0);
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
-    const { getLocationName, getAttributeValueName, formatDate, getStatusBadge } = helpers;
+    const { getLocationName, getAttributeValueName, formatDate } = helpers;
 
     const [expandedPRs, setExpandedPRs] = useState<Record<string, boolean>>({});
     const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
@@ -312,14 +312,14 @@ export default function ProductionRunsTab({
                         fontSize: classic ? '11px' : undefined,
                         background: classic ? '#fff' : undefined,
                     }} className={classic ? '' : 'table table-hover align-middle mb-0'}>
-                        <thead>
+                        <thead style={LV_STICKY_THEAD}>
                             <tr style={{
                                 background: classic ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)' : undefined,
                                 fontSize: classic ? '10px' : '9pt',
                             }} className={classic ? '' : 'table-light'}>
                                 {(() => {
                                     const colWidths: Record<string, string | undefined> = {
-                                        '': '22px',
+                                        '': `${LV_EXPANDER_COL_W}px`,
                                         'Code': '210px',
                                         'BOM / Style': undefined, // flexes
                                         'MOs': '48px',
@@ -352,7 +352,7 @@ export default function ProductionRunsTab({
                                 const total = mos.length;
                                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                                 const rowBg = classic
-                                    ? (rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
+                                    ? lvZebra(true, rowIdx)
                                     : undefined;
                                 const tdStyle: React.CSSProperties = classic ? {
                                     border: '1px solid #c0bdb5', padding: '4px 8px', color: '#000', verticalAlign: 'middle',
@@ -372,12 +372,7 @@ export default function ProductionRunsTab({
                                 return (
                                     <React.Fragment key={pr.id}>
                                     <tr style={{ background: isExpanded ? rowStateBg('expanded', classic) : rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
-                                        <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                            <i
-                                                className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}
-                                                style={{ color: hasShortfall && isExpanded ? '#c00000' : '#555' }}
-                                            ></i>
-                                        </td>
+                                        <ExpanderCell classic={classic} expanded={isExpanded} onToggle={() => togglePR(pr.id)} tdStyle={tdStyle} tone={hasShortfall ? 'alert' : 'default'} label="material requirements" />
                                         <td style={tdStyle}>
                                             <CodeChip code={pr.code} classic={classic} style={{ fontWeight: 'bold' }} />
                                             {pr.sales_order_id && (
@@ -428,11 +423,7 @@ export default function ProductionRunsTab({
                                             <div style={{ fontSize: 9, color: '#666' }}>{done}/{total} done</div>
                                         </td>
                                         <td style={tdStyle}>
-                                            {classic ? (
-                                                <span style={statusChipStyle(pr.status)}>{(pr.status || 'PENDING').replace('_', ' ')}</span>
-                                            ) : (
-                                                <span className={`badge ${getStatusBadge(pr.status)} extra-small`}>{pr.status}</span>
-                                            )}
+                                            <StatusChip status={pr.status || 'PENDING'} />
                                         </td>
                                         <td style={{ ...tdStyle, textAlign: 'center' }} title={!mstat && prStatusLoading ? 'Loading material status...' : !mstat ? 'Material status unavailable' : statusTotal === 0 ? 'No components' : `${statusShort} short / ${statusSuff} sufficient`}>
                                             {!mstat && prStatusLoading ? (

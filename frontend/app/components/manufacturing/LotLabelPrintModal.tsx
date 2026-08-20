@@ -75,7 +75,7 @@ export default function LotLabelPrintModal({
         const kg = Number(lot.remaining ?? 0);
         const tgl = lot.created_at
             ? tzFmt(lot.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')
-            : new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            : tzFmt(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID');
         return (
             <div key={lot.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ fontFamily: 'Arial, sans-serif', color: '#000', lineHeight: 1.3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>

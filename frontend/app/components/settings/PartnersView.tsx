@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead } from '../shared/listViewTheme';
+import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead, LV_STICKY_THEAD, useRowSelection, RowCheckbox, SelectAllCheckbox, lvZebra } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
@@ -55,7 +55,6 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
     const [newPartner, setNewPartner] = useState({ name: '', address: '', contact_person: '', phone: '', fax: '', email: '', type, active: true });
     const [deletingPartner, setDeletingPartner] = useState<Partner | null>(null);
     const { uiStyle: currentStyle } = useTheme();
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(140);
 
@@ -72,11 +71,6 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
         params: { type },
         onError: m => showToast(m, 'danger'),
     });
-
-    // A selection is page-scoped, so it can't survive a page or filter change.
-    useEffect(() => {
-        setSelectedIds(new Set());
-    }, [searchTerm, page]);
 
     /** Reload the current page after a mutation the parent performed. */
     const afterMutation = async (result: any) => {
@@ -104,9 +98,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
         flexShrink: 0,
     };
     const xpThCell: React.CSSProperties = lvTh(true);
-    const xpTableHeader: React.CSSProperties = {
-        ...lvThead(true)
-    };
+    const xpTableHeader: React.CSSProperties = lvThead(true, true);
     const tdBase: React.CSSProperties = lvTd(true);
     const xpLabel: React.CSSProperties = lvLabel(true);
 
@@ -115,34 +107,17 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const skel = useTableSkeletonMetrics('partners', listBodyRef, pagedPartners.length > 0);
 
-    const allSelected = pagedPartners.length > 0 && selectedIds.size === pagedPartners.length;
-    const someSelected = selectedIds.size > 0;
-
-    const toggleSelect = (id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id); else next.add(id);
-            return next;
-        });
-    };
-
-    const toggleSelectAll = () => {
-        if (allSelected) {
-            setSelectedIds(new Set());
-        } else {
-            // Page-scoped: only the loaded rows exist client-side now.
-            setSelectedIds(new Set(pagedPartners.map(p => p.id)));
-        }
-    };
+    // Page-scoped: only the loaded rows exist client-side now.
+    const sel = useRowSelection<any>(pagedPartners, (p: any) => p.id);
 
     const confirmBulkDelete = () => {
-        const ids = Array.from(selectedIds);
+        const ids = sel.keys;
         if (onBulkDelete) {
             afterMutation(onBulkDelete(ids));
         } else {
             afterMutation(Promise.all(ids.map(id => onDelete(id))));
         }
-        setSelectedIds(new Set());
+        sel.clear();
         setShowBulkDeleteConfirm(false);
     };
 
@@ -215,11 +190,11 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                 </div>
 
                 {/* ── Bulk action bar ── */}
-                {canManage && someSelected && (
+                {canManage && sel.count > 0 && (
                     classic ? (
                         <div style={xpToolbar({ background: '#fff8e1', borderBottom: '1px solid #e0c060' })}>
                             <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#665500', fontWeight: 'bold' }}>
-                                {selectedIds.size} selected
+                                {sel.count} selected
                             </span>
                             <div style={xpSep}></div>
                             <button
@@ -230,16 +205,16 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                             </button>
                             <button
                                 style={xpBtn()}
-                                onClick={() => setSelectedIds(new Set())}
+                                onClick={sel.clear}
                             >Clear</button>
                         </div>
                     ) : (
                         <div className="px-3 py-2 border-bottom d-flex align-items-center gap-3" style={{ background: '#fff8e1' }}>
-                            <span className="small fw-bold" style={{ color: '#665500' }}>{selectedIds.size} selected</span>
+                            <span className="small fw-bold" style={{ color: '#665500' }}>{sel.count} selected</span>
                             <button className="btn btn-sm btn-danger" onClick={() => setShowBulkDeleteConfirm(true)}>
                                 <i className="bi bi-trash me-1"></i>Delete Selected
                             </button>
-                            <button className="btn btn-sm btn-link text-muted p-0" onClick={() => setSelectedIds(new Set())}>Clear</button>
+                            <button className="btn btn-sm btn-link text-muted p-0" onClick={sel.clear}>Clear</button>
                         </div>
                     )
                 )}
@@ -254,17 +229,10 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                             style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}
                         >
-                            <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
+                            <thead style={classic ? xpTableHeader : LV_STICKY_THEAD} className={classic ? '' : 'table-light'}>
                                 <tr>
                                     <th style={classic ? { ...xpThCell, width: '28px', textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-3'}>
-                                        <input
-                                            type="checkbox"
-                                            checked={allSelected}
-                                            ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                                            onChange={toggleSelectAll}
-                                            title="Select all"
-                                            style={classic ? { cursor: 'pointer' } : undefined}
-                                        />
+                                        <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} title="Select all" />
                                     </th>
                                     <th style={classic ? { ...xpThCell, width: '30%' } : undefined} className={classic ? '' : 'ps-2'}>Name</th>
                                     <th style={classic ? xpThCell : undefined}>Address</th>
@@ -276,16 +244,10 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                                 {pagedPartners.map((p, rowIndex) => (
                                     <tr
                                         key={p.id}
-                                        style={classic ? { background: selectedIds.has(p.id) ? '#e8f0f8' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}
-                                        className={classic ? '' : selectedIds.has(p.id) ? 'table-active' : ''}
+                                        style={classic ? { background: sel.isSelected(p) ? rowStateBg('selected', true) : lvZebra(true, rowIndex), borderBottom: '1px solid #c0bdb5' } : { background: sel.isSelected(p) ? rowStateBg('selected', false) : undefined }}
                                     >
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-3'}>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedIds.has(p.id)}
-                                                onChange={() => toggleSelect(p.id)}
-                                                style={classic ? { cursor: 'pointer' } : undefined}
-                                            />
+                                            <RowCheckbox classic={classic} checked={sel.isSelected(p)} onChange={() => sel.toggle(p)} label={p.name} />
                                         </td>
                                         <td style={classic ? { ...tdBase, fontWeight: 'bold' } : undefined} className={classic ? '' : 'ps-2 fw-bold'}>
                                             {p.name}
@@ -464,7 +426,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
             <ModalWrapper
                 isOpen={showBulkDeleteConfirm}
                 onClose={() => setShowBulkDeleteConfirm(false)}
-                title={<><i className="bi bi-trash me-1"></i> Delete {selectedIds.size} {typeLabel}{selectedIds.size !== 1 ? 's' : ''}</>}
+                title={<><i className="bi bi-trash me-1"></i> Delete {sel.count} {typeLabel}{sel.count !== 1 ? 's' : ''}</>}
                 variant="danger"
                 size="sm"
                 footer={
@@ -485,7 +447,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                 }
             >
                 <p style={classic ? { fontFamily: xpFont, fontSize: '11px', margin: 0 } : undefined} className={classic ? '' : 'mb-0'}>
-                    Delete <strong>{selectedIds.size} {typeLabel.toLowerCase()}{selectedIds.size !== 1 ? 's' : ''}</strong>? This action cannot be undone.
+                    Delete <strong>{sel.count} {typeLabel.toLowerCase()}{sel.count !== 1 ? 's' : ''}</strong>? This action cannot be undone.
                 </p>
             </ModalWrapper>
 

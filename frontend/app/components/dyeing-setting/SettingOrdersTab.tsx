@@ -6,7 +6,9 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip, xpFont, ListSkeleton } from '../shared/xpTheme';
+import { CodeChip, xpFont, ListSkeleton, StatusChip } from '../shared/xpTheme';
+import { orDash, fmtQtyFixed } from '../shared/format';
+import { lvThBanded, lvTd, lvTdRuled, lvZebra, LV_STICKY_THEAD } from '../shared/listViewTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -107,39 +109,7 @@ const EMPTY_COMPLETE: CompleteForm = {
 const SO_WO_PAGE_SIZE = 20;
 const SO_RUN_PAGE_SIZE = 20;
 
-const fmtNum = (v: any, decimals = 2) => {
-    if (v == null || v === '') return '—';
-    const n = parseFloat(v);
-    return isNaN(n) ? '—' : n.toFixed(decimals);
-};
-
-const statusChip = (status: string, classic: boolean) => {
-    const base: React.CSSProperties = classic ? {
-        display: 'inline-block', fontFamily: xpFont, fontSize: 9, fontWeight: 'bold',
-        padding: '1px 6px', border: '1px solid',
-    } : {
-        display: 'inline-block', fontFamily: modernFont, fontSize: 10, fontWeight: 700,
-        padding: '2px 8px', border: '1px solid', borderRadius: 6,
-    };
-    switch (status) {
-        case 'COMPLETED':
-            return classic
-                ? <span style={{ ...base, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>
-                : <span style={{ ...base, background: '#dcfce7', borderColor: '#86efac', color: '#15803d' }}>COMPLETED</span>;
-        case 'IN_PROGRESS':
-            return classic
-                ? <span style={{ ...base, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>
-                : <span style={{ ...base, background: '#eff6ff', borderColor: '#bfd3f5', color: '#1d4ed8' }}>IN PROGRESS</span>;
-        case 'CANCELLED':
-            return classic
-                ? <span style={{ ...base, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>
-                : <span style={{ ...base, background: '#fee2e2', borderColor: '#fca5a5', color: '#b91c1c' }}>CANCELLED</span>;
-        default:
-            return classic
-                ? <span style={{ ...base, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>
-                : <span style={{ ...base, background: '#f1f5f9', borderColor: '#cbd3df', color: '#64748b' }}>PENDING</span>;
-    }
-};
+const fmtNum = (v: any, decimals = 2) => orDash(v, x => fmtQtyFixed(x, decimals));
 
 export default function SettingOrdersTab({ items, authFetch }: Props) {
     const { uiStyle } = useTheme();
@@ -275,24 +245,12 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     };
 
     // ── Styles ────────────────────────────────────────────────────────────────
-    const thStyle: React.CSSProperties = classic ? {
-        background: 'linear-gradient(to bottom, #fff 0%, #d4d0c8 100%)',
-        border: '1px solid #808080', padding: '2px 6px',
-        fontFamily: xpFont, fontSize: 10, fontWeight: 'bold',
-        whiteSpace: 'nowrap', textAlign: 'left',
-    } : {
-        background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
-        fontSize: 11, fontWeight: 700, padding: '6px 10px',
-        borderBottom: '1.5px solid #cbd3df', fontFamily: modernFont,
-        whiteSpace: 'nowrap', textAlign: 'left',
-    };
-    const tdStyle: React.CSSProperties = classic ? {
-        border: '1px solid #c0bdb5', padding: '2px 6px',
-        fontFamily: xpFont, fontSize: 10, verticalAlign: 'middle',
-    } : {
-        color: '#334155', fontSize: 13, padding: '6px 10px',
-        borderBottom: '1px solid #e6eaf1', fontFamily: modernFont, verticalAlign: 'middle',
-    };
+    const thStyle: React.CSSProperties = classic
+        ? lvThBanded(true, { border: '1px solid #808080' })
+        : lvThBanded(false);
+    const tdStyle: React.CSSProperties = classic
+        ? { ...lvTd(true), border: '1px solid #c0bdb5' }
+        : lvTdRuled(false);
 
     const inputStyle = (width?: number): React.CSSProperties => ({
         ...xpInput(classic), width: width ?? '100%',
@@ -361,7 +319,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                     />
                                 )}
                                 {wo.status && (
-                                    <div style={{ marginTop: 2 }}>{statusChip(wo.status, classic)}</div>
+                                    <div style={{ marginTop: 2 }}><StatusChip status={wo.status || 'PENDING'} /></div>
                                 )}
                             </div>
                         );
@@ -459,15 +417,18 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                         )}
 
                         {/* Runs table */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+                        <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
                             {runs.length === 0 ? (
                                 <div style={{ padding: 12, color: classic ? '#888' : '#64748b', fontSize: 10, fontStyle: 'italic', textAlign: 'center' }}>
                                     No setting runs yet.
                                 </div>
                             ) : (
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', ...(classic ? {} : { border: '1px solid #dbe1ea', borderRadius: 9, overflow: 'hidden' }) }}>
-                                        <thead>
+                                <div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', ...(classic ? {} : { border: '1px solid #dbe1ea', borderRadius: 9 }) }}>
+                                        {/* No `overflow: hidden` on the table: it would make the table
+                                            its own (unscrollable) container and the sticky header
+                                            would have nothing to pin against. */}
+                                        <thead style={LV_STICKY_THEAD}>
                                             <tr>
                                                 {[
                                                     'Run #', 'Substrate Qty', 'Machine', 'Temp (C)',
@@ -484,7 +445,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                             {pagedRuns.map((run: any, idx: number) => (
                                                 <tr
                                                     key={run.id}
-                                                    style={{ background: idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc') }}
+                                                    style={{ background: lvZebra(classic, idx) }}
                                                 >
                                                     <td style={tdStyle}>{run.run_number ?? idx + 1}</td>
                                                     <td style={tdStyle}>{fmtNum(run.substrate_qty)}</td>
@@ -493,7 +454,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                     <td style={tdStyle}>{fmtNum(run.speed_mpm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.width_cm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.overfeed_pct, 2)}</td>
-                                                    <td style={tdStyle}>{statusChip(run.status || 'PENDING', classic)}</td>
+                                                    <td style={tdStyle}><StatusChip status={run.status || 'PENDING'} /></td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_width_cm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_gsm, 2)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_shrinkage_pct, 2)}</td>

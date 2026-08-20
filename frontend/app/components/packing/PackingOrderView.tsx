@@ -10,7 +10,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, RowCheckbox, lvPickerRow, lvThSticky } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -27,11 +27,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
 const xpFont = LV_XP_FONT;
 const xpInput: React.CSSProperties = lvInput(true);
 const xpSelect: React.CSSProperties = { ...xpInput, height: 22 };
-const xpTableHeader: React.CSSProperties = {
-    ...lvTh(true),
-    ...lvThead(true),
-    position: 'sticky', top: 0,
-};
+const xpTableHeader: React.CSSProperties = lvThSticky(true);
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
 // Title-bar "create" button — same style as SalesOrderView / PartnersView / SampleRequestView.
@@ -416,9 +412,8 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     style={{ ...rowStyle(idx), ...(isExpanded ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
                                     onClick={() => setExpandedId(prev => prev === String(po.id) ? null : String(po.id))}
                                 >
-                                    <td style={{ ...td, padding: '3px 4px', textAlign: 'center' }}>
-                                        <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>{isExpanded ? '▼' : '►'}</span>
-                                    </td>
+                                    <ExpanderCell classic={CLASSIC} expanded={isExpanded} tdStyle={td} label="packing order detail"
+                                        onToggle={() => setExpandedId(prev => prev === String(po.id) ? null : String(po.id))} />
                                     <td style={td}><CodeChip code={po.code} classic={CLASSIC} tone="accent" style={{ fontWeight: 'bold' }} /></td>
                                     <td style={td}>
                                         <div>{po.item_name || it?.name || po.item_id}</div>
@@ -429,7 +424,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <td style={{ ...td, textAlign: 'right' }}>{num(po.qty_target).toLocaleString()} {po.item_uom || it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
-                                    <td style={td}>{po.created_at ? tzDate(po.created_at) : '-'}</td>
+                                    <td style={td}>{po.created_at ? tzDate(po.created_at) : '—'}</td>
                                     <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                         {/* Pack is the row's primary action — inline, same shape as
                                             "log production output" on the WO list, not buried in the menu. */}
@@ -1391,13 +1386,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 const id = String(b.id);
                                                 const on = selSet.has(id);
                                                 return (
-                                                    <label key={id} style={{
-                                                        display: 'flex', alignItems: 'flex-start', gap: 5, padding: '3px 5px',
-                                                        fontSize: 10, cursor: 'pointer', borderBottom: '1px solid #eceae2',
-                                                        background: on ? '#e6f0ff' : 'transparent',
-                                                    }}>
-                                                        <input type="checkbox" style={{ marginTop: 1 }} checked={on}
-                                                            onChange={e => toggleLot(id, e.target.checked)} />
+                                                    <label key={id} style={{ ...lvPickerRow(CLASSIC, on), fontSize: 10 }}>
+                                                        <RowCheckbox classic={CLASSIC} checked={on} label={b.batch_number || 'lot'}
+                                                            onChange={() => toggleLot(id, !on)} />
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                                                 <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{b.batch_number}</span>

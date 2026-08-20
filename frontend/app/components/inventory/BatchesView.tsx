@@ -10,8 +10,8 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton, ExpandedRowPanel, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
   { value: 'active', label: 'Active' },
@@ -21,6 +21,8 @@ const LOT_STATUS_FILTERS = [
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
+import { ExpanderCell, SortableTh, lvZebra, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
+import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
@@ -409,10 +411,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
   const isDepleted = (b: Batch) => (b.remaining ?? 0) <= 0;
 
-  const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
+  const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '—';
 
   // Client-side sort of the current page (list is server-paginated). Mirrors the
-  // WO table: click a header to toggle asc → desc → off, SortMark shows the arrow.
+  // WO table: click a header to toggle asc → desc → off shows the arrow.
   const sortCols = React.useMemo(() => ({
     lot:       (b: Batch) => b.batch_number,
     product:   (b: Batch) => batchItemCode(b),
@@ -506,6 +508,28 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   // Product — item code on line 1, then what the lot actually IS as chips: size
   // (from the lot's stamped bom_size_snapshot), combo and shade (from the producing
   // MO's variant attributes). Same identity vocabulary as the staging/completion
+  // One chip for the lot's quality grade in both themes. The vocabulary comes
+  // from rejectDisplay so a rejected lot reads the same here as on the
+  // completion log that rejected it.
+  const qualityChip = (b: any) => {
+    const label = rejectGradeLabel(b.quality_status);
+    if (!label) return null;
+    return (
+      <StatusChip
+        status={b.quality_status}
+        label={label}
+        tint
+        style={{ marginLeft: 5 }}
+        title={b.quality_status === 'REJECT_USABLE'
+          ? 'Rejected but still usable — out of availability planning, still offered in consumption pickers'
+          : undefined}
+      />
+    );
+  };
+
+  // Product — item code on line 1, then what the lot actually IS as chips: size
+  // (from the lot's stamped bom_size_snapshot), combo and shade (from the producing
+  // MO's variant attributes). Same identity vocabulary as the staging/completion
   // lot pickers — see components/shared/LotChips.tsx for the label rules.
   const productCell = (b: Batch) => {
     const sz = lotSizeLabel(b);
@@ -550,14 +574,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const notesCell = (b: Batch) => (
     b.notes
       ? <span title={b.notes} style={{ display: 'block', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.notes}</span>
-      : '-'
+      : EMPTY_DASH
   );
 
   // Remaining — value with the green (or gray, if depleted) status dot pinned to
   // the far right so every row's dot aligns in a column.
   const remainingCell = (b: Batch) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-      <span>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</span>
+      <span>{b.remaining != null ? Number(b.remaining).toFixed(2) : '—'}</span>
       <span style={{
         display: 'inline-block', width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
         background: isDepleted(b) ? '#b8b8b8' : '#3a9b3a',
@@ -784,7 +808,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
   const xpTd = (alt: boolean): React.CSSProperties => classic ? {
     border: '1px solid #c8c8c8', padding: '2px 6px',
-    background: alt ? '#f0f0f8' : '#ffffff', verticalAlign: 'middle',
+    background: lvZebra(true, alt ? 1 : 0), verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
   const colSpan = 11; // Chevron, Lot Number, Product, Origin, MO/PR, Location, Remaining, Ends, Notes, Created, Actions
@@ -793,7 +817,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const ROW_H = classic ? 40 : 44;
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
+    <div className="fade-in" style={pageFillStyle}>
       {classic ? (
         <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* ── Title bar ── */}
@@ -802,12 +826,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           </div>
           {/* ── Filter/search bar + actions ── */}
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
-            <input
-              style={{ ...xpInput, width: 240 }}
-              placeholder="Search lot, item, WO/MO/PR, SO..."
-              value={searchInput}
-              onChange={e => setSearch(e.target.value)}
-            />
+            <SearchField classic value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={240} />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Item:</span>
             <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
@@ -842,48 +861,36 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               <thead>
                 <tr>
                   <th style={{ ...xpTh, width: 20 }}></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">WO/MO/PR<SortMark sort={sort} colKey="mopr" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
-                  <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
-                  <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('created')} title="Sort">Created<SortMark sort={sort} colKey="created" /></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={xpTh}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={xpTh}>Product</SortableTh>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={xpTh}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="mopr" onSort={toggleSort} style={xpTh}>WO/MO/PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={xpTh}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Ends</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={xpTh}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={xpTh}>Created</SortableTh>
                   <th style={xpTh}></th>
                 </tr>
               </thead>
               <tbody ref={listBodyRef}>
                 {loading && <TableSkeleton rows={8} cols={skel.cols ?? colSpan} classic tdStyle={xpTd(false)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
                 {!loading && batches.length === 0 && (
-                  <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
+                  <TableEmpty colSpan={colSpan} classic tdStyle={xpTd(false)} message="No lots found." />
                 )}
                 {sortedBatches.map((b, i) => (
                   <>
                     <tr
                       key={b.id}
-                      style={{ background: expandedRows[b.id] ? rowStateBg('expanded', true) : i % 2 === 1 ? '#f0f0f8' : '#ffffff', cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined, height: ROW_H }}
+                      style={{ background: expandedRows[b.id] ? rowStateBg('expanded', true) : lvZebra(true, i), cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined, height: ROW_H }}
                       onClick={() => toggleExpand(b)}
                       title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
-                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'center', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>
-                        <span style={{ fontSize: 10, color: '#555' }}>{expandedRows[b.id] ? '▼' : '►'}</span>
-                      </td>
+                      <ExpanderCell classic expanded={!!expandedRows[b.id]} onToggle={() => toggleExpand(b)} label="lot lineage"
+                        tdStyle={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }} />
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>
                         <strong>{b.batch_number}</strong>
-                        {b.quality_status === 'REJECTED' && (
-                          <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fbe4e4', padding: '0 3px' }}>REJECTED</span>
-                        )}
-                        {b.quality_status === 'REJECT_USABLE' && (
-                          <span
-                            style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#663300', border: '1px solid #d9b06a', background: '#fdf3e0', padding: '0 3px' }}
-                            title="Rejected but still usable — out of availability planning, still offered in consumption pickers"
-                          >REJECT · USABLE</span>
-                        )}
-                        {b.quality_status === 'DISPOSED' && (
-                          <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', border: '1px solid #aaa', background: '#eee', padding: '0 3px' }}>DISPOSED</span>
-                        )}
+                        {qualityChip(b)}
                       </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{productCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{originCell(b)}</td>
@@ -930,13 +937,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           </div>
           {/* ── Filter/search bar + actions ── */}
           <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
-            <input
-              className="form-control form-control-sm"
-              style={{ width: 260 }}
-              placeholder="Search lot, item, WO/MO/PR, SO..."
-              value={searchInput}
-              onChange={e => setSearch(e.target.value)}
-            />
+            <SearchField classic={false} value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={260} />
             <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
@@ -969,21 +970,21 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
                   <th style={{ width: 24 }}></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">WO/MO/PR<SortMark sort={sort} colKey="mopr" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
-                  <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
-                  <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('created')} title="Sort">Created<SortMark sort={sort} colKey="created" /></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort}>Product</SortableTh>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="mopr" onSort={toggleSort}>WO/MO/PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} className="text-end">Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} className="text-end">Ends</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort}>Created</SortableTh>
                   <th></th>
                 </tr>
               </thead>
               <tbody ref={listBodyRef}>
                 {loading && <TableSkeleton rows={8} cols={skel.cols ?? colSpan} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
-                {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
+                {!loading && batches.length === 0 && <TableEmpty colSpan={colSpan} classic={false} message="No lots found." />}
                 {sortedBatches.map(b => (
                   <>
                     <tr
@@ -992,19 +993,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       onClick={() => toggleExpand(b)}
                       title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
-                      <td className="text-center text-muted">
-                        <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 11 }} />
-                      </td>
+                      <ExpanderCell classic={false} expanded={!!expandedRows[b.id]} onToggle={() => toggleExpand(b)} label="lot lineage" />
                       <td>
                         <strong>{b.batch_number}</strong>
-                        {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}
-                        {b.quality_status === 'REJECT_USABLE' && (
-                          <span
-                            className="badge bg-warning text-dark ms-1"
-                            title="Rejected but still usable — out of availability planning, still offered in consumption pickers"
-                          >REJECT · USABLE</span>
-                        )}
-                        {b.quality_status === 'DISPOSED' && <span className="badge bg-secondary ms-1">DISPOSED</span>}
+                        {qualityChip(b)}
                       </td>
                       <td>{productCell(b)}</td>
                       <td>{originCell(b)}</td>

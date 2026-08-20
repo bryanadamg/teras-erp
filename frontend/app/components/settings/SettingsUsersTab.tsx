@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg, StatusChip } from '../shared/xpTheme';
 import { SearchField, ToolbarCount, FilterChipBar } from '../shared/shellTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
@@ -16,6 +16,7 @@ import UserFormModal, { UserFormPayload } from './UserFormModal';
 import EffectivePermissions, { effectivePermissionList } from './EffectivePermissions';
 import PermissionBreakdown from './PermissionBreakdown';
 import { API_BASE } from '../shared/apiBase';
+import { lvZebra } from '../shared/listViewTheme';
 
 const USERS_PAGE_SIZE = 10;
 
@@ -265,7 +266,7 @@ export default function SettingsUsersTab({
                                     <Fragment key={user.id}>
                                     <tr
                                         style={classic
-                                            ? { background: isExpanded ? rowStateBg('expanded', true) : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 }
+                                            ? { background: isExpanded ? rowStateBg('expanded', true) : lvZebra(true, rowIndex), borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 }
                                             : { background: isExpanded ? rowStateBg('expanded', false) : undefined, opacity: user.is_active ? 1 : 0.6 }}
                                     >
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-4'}>
@@ -281,10 +282,10 @@ export default function SettingsUsersTab({
                                         <td style={classic ? tdBase : undefined}>
                                             {classic ? (
                                                 <span style={{ display: 'inline-block', width: 'fit-content', maxWidth: '100%', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>
-                                                    {user.role?.name || '-'}
+                                                    {user.role?.name || '—'}
                                                 </span>
                                             ) : (
-                                                <span className="badge bg-secondary" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{user.role?.name || '-'}</span>
+                                                <span className="badge bg-secondary" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{user.role?.name || '—'}</span>
                                             )}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>
@@ -300,19 +301,7 @@ export default function SettingsUsersTab({
                                             {formatLastLogin(user.last_login_at)}
                                         </td>
                                         <td style={classic ? tdBase : undefined}>
-                                            {user.is_active ? (
-                                                classic ? (
-                                                    <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>Active</span>
-                                                ) : (
-                                                    <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>Active</span>
-                                                )
-                                            ) : (
-                                                classic ? (
-                                                    <span style={{ background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>Inactive</span>
-                                                ) : (
-                                                    <span className="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25" style={{fontSize: '0.65rem'}}>Inactive</span>
-                                                )
-                                            )}
+                                            <StatusChip status={user.is_active ? 'ACTIVE' : 'INACTIVE'} tint />
                                         </td>
                                         <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
                                             {classic ? (

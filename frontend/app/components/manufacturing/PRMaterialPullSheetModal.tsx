@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
 import { CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useTimezone } from '../../context/TimezoneContext';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -117,6 +118,8 @@ export default function PRMaterialPullSheetModal({
         </table>
     );
 
+    const { formatCustom: tzFmt } = useTimezone();
+
     const documentContent = (
         <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.4 }}>
 
@@ -133,7 +136,7 @@ export default function PRMaterialPullSheetModal({
                 <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', color: '#000' }}>MATERIAL PULL SHEET</div>
                     <div style={{ fontSize: '8px', color: '#333', marginTop: '2px' }}>
-                        Tanggal: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        Tanggal: {tzFmt(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')}
                     </div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '8px', color: '#555' }}>
@@ -185,7 +188,7 @@ export default function PRMaterialPullSheetModal({
             <div style={{ marginTop: '16px', borderTop: '1px solid #ccc', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div style={{ fontSize: '7px', color: '#555' }}>
                     <div>No. PR: {pr.code}</div>
-                    <div>Printed: {new Date().toLocaleString('id-ID')}</div>
+                    <div>Printed: {tzFmt(new Date(), { dateStyle: 'short', timeStyle: 'short' }, 'id-ID')}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '40px' }}>
                     <div style={{ textAlign: 'center' }}>

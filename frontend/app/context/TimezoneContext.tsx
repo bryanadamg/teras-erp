@@ -13,6 +13,10 @@ interface TimezoneContextType {
     // Escape hatch for call sites that need a specific locale/option combo
     // (e.g. 'id-ID' short-month labels) while still respecting `timezone`.
     formatCustom: (value: string | Date, opts: Intl.DateTimeFormatOptions, locale?: string | string[]) => string;
+    // Today as YYYY-MM-DD in `timezone`, for seeding an <input type="date">.
+    // `new Date().toISOString().slice(0,10)` is the trap this replaces: that is
+    // UTC, so any evening in UTC+7 seeds the picker with yesterday.
+    todayInput: () => string;
 }
 
 const STORAGE_KEY = 'display_timezone';
@@ -87,8 +91,12 @@ export function TimezoneProvider({ children }: { children: React.ReactNode }) {
     const formatCustom = useCallback((value: string | Date, opts: Intl.DateTimeFormatOptions, locale?: string | string[]) =>
         parseUTC(value).toLocaleString(locale, safeOpts(opts)), [safeOpts]);
 
+    // 'en-CA' renders as YYYY-MM-DD, which is what <input type="date"> wants.
+    const todayInput = useCallback(() =>
+        new Date().toLocaleDateString('en-CA', safeOpts({ year: 'numeric', month: '2-digit', day: '2-digit' })), [safeOpts]);
+
     return (
-        <TimezoneContext.Provider value={{ timezone, setTimezone, formatDate, formatTime, formatDateTime, formatCustom }}>
+        <TimezoneContext.Provider value={{ timezone, setTimezone, formatDate, formatTime, formatDateTime, formatCustom, todayInput }}>
             {children}
         </TimezoneContext.Provider>
     );
@@ -101,6 +109,7 @@ const defaultCtx: TimezoneContextType = {
     formatTime: (v) => parseUTC(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     formatDateTime: (v) => { const d = parseUTC(v); return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`; },
     formatCustom: (v, opts, locale) => parseUTC(v).toLocaleString(locale, opts),
+    todayInput: () => new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }),
 };
 
 export const useTimezone = (): TimezoneContextType => {

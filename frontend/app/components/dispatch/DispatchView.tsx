@@ -10,13 +10,14 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
-    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg,
+    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg,
 } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, EMPTY_DASH } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { Tabs } from '../shared/Tabs';
+import { qtyFmt, toNum as num } from '../shared/format';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
@@ -39,8 +40,7 @@ const subTd: React.CSSProperties = lvSubTd(true);
 const subTable: React.CSSProperties = lvSubTable(true);
 const xpLabel: React.CSSProperties = lvLabel(true);
 
-const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
-const fmtQty = (v: any) => num(v).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+const fmtQty = qtyFmt(2, 'id-ID');   // the deck feeds a printed Surat Jalan
 const PAGE_SIZE = 20;
 // '' = no status filter; the bar renders it as the leading "All" segment.
 const SHIPMENT_STATUS_FILTERS = [
@@ -80,7 +80,6 @@ export default function DispatchView() {
     const [editing, setEditing] = useState<any | null>(null);     // shipment header edit
     const [verifying, setVerifying] = useState<any | null>(null);
     const [printShp, setPrintShp] = useState<any | null>(null);
-    const [selected, setSelected] = useState<Record<string, boolean>>({});
 
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(180);
@@ -117,7 +116,10 @@ export default function DispatchView() {
         await Promise.all([loadDeck(), loadShipments()]);
     }, [loadDeck, loadShipments]);
 
-    const selectedDeck = useMemo(() => deck.filter(d => selected[String(d.id)]), [deck, selected]);
+    // Keeps the pick-list rows themselves — staging posts their ids and the header
+    // count sums their cartons.
+    const sel = useRowSelection<any>(deck, d => String(d.id));
+    const selectedDeck = sel.items;
     // One Surat Jalan addresses one customer — the backend rejects a mixed set, so
     // the button is disabled rather than letting the user find out on submit.
     const mixedCustomers = useMemo(
@@ -137,7 +139,7 @@ export default function DispatchView() {
         }
         const shp = await res.json();
         setStaging(null);
-        setSelected({});
+        sel.clear();
         await refreshAll();
         setTab('shipments');
         showToast(`Staged ${shp.code} — Surat Jalan ${shp.delivery_note_number}`, 'success');
@@ -219,7 +221,10 @@ export default function DispatchView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: 11 }}>
                     <thead>
                         <tr>
-                            <th style={{ ...xpTableHeader, width: 30 }} />
+                            <th style={{ ...xpTableHeader, width: LV_CHECK_COL_W, textAlign: 'center' }}>
+                                <SelectAllCheckbox classic allSelected={sel.allPageSelected} someSelected={sel.someSelected}
+                                    disabled={!sel.pageEligibleCount} onChange={sel.togglePage} />
+                            </th>
                             <th style={xpTableHeader}>Pick List</th>
                             <th style={xpTableHeader}>SO</th>
                             <th style={xpTableHeader}>Customer PO</th>
@@ -238,21 +243,17 @@ export default function DispatchView() {
                             </td></tr>
                         ))}
                         {deck.map((d, i) => (
-                            <tr key={String(d.id)} style={rowStyle(i)}>
+                            <tr key={String(d.id)} style={{ ...rowStyle(i), ...(sel.isSelected(d) ? { background: rowStateBg('selected', true) } : {}) }}>
                                 <td style={{ ...td, textAlign: 'center' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={!!selected[String(d.id)]}
-                                        onChange={e => setSelected(s => ({ ...s, [String(d.id)]: e.target.checked }))}
-                                    />
+                                    <RowCheckbox classic checked={sel.isSelected(d)} onChange={() => sel.toggle(d)} label={`pick list ${d.code}`} />
                                 </td>
-                                <td style={{ ...td, fontFamily: CODE_FONT }}>{d.code}</td>
-                                <td style={td}>{d.sales_order_code || '-'}</td>
-                                <td style={td}>{d.customer_po_ref || '-'}</td>
-                                <td style={td}>{d.customer_name || '-'}</td>
+                                <td style={td}><CodeChip code={d.code} classic tone="accent" /></td>
+                                <td style={td}>{d.sales_order_code || '—'}</td>
+                                <td style={td}>{d.customer_po_ref || '—'}</td>
+                                <td style={td}>{d.customer_name || '—'}</td>
                                 <td style={{ ...td, textAlign: 'right' }}>{d.carton_count}</td>
                                 <td style={{ ...td, textAlign: 'right' }}>{fmtQty(d.total_qty)}</td>
-                                <td style={td}>{d.picked_at ? tzDate(d.picked_at) : '-'}</td>
+                                <td style={td}>{d.picked_at ? tzDate(d.picked_at) : '—'}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -309,16 +310,16 @@ export default function DispatchView() {
                                         style={{ ...rowStyle(i), ...(open ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
                                         onClick={() => setExpandedId(open ? null : String(shp.id))}
                                     >
-                                        <td style={{ ...td, fontFamily: CODE_FONT }}>{shp.code}</td>
-                                        <td style={{ ...td, fontFamily: CODE_FONT }}>{shp.delivery_note_number || '-'}</td>
-                                        <td style={td}>{shp.customer_name || '-'}</td>
-                                        <td style={td}>{shp.vehicle_plate || '-'}</td>
+                                        <td style={td}><CodeChip code={shp.code} classic tone="accent" /></td>
+                                        <td style={td}>{shp.delivery_note_number ? <CodeChip code={shp.delivery_note_number} classic /> : '—'}</td>
+                                        <td style={td}>{shp.customer_name || '—'}</td>
+                                        <td style={td}>{shp.vehicle_plate || '—'}</td>
                                         <td style={{ ...td, textAlign: 'right' }}>{shp.carton_count}</td>
                                         <td style={td}><StatusChip status={shp.status} /></td>
                                         <td style={td}>
                                             {shp.verified_by_name
                                                 ? `${shp.verified_by_name}${shp.verified_with_discrepancy ? ' (discrepancy)' : ''}`
-                                                : '-'}
+                                                : EMPTY_DASH}
                                         </td>
                                         <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                             {canVerify && shp.status === 'STAGED' && (
@@ -491,13 +492,13 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
                         {(shp.pick_lists || []).flatMap((pl: any) =>
                             (pl.lines || []).map((l: any) => (
                                 <tr key={`${pl.id}-${l.id}`}>
-                                    <td style={{ ...subTd, fontFamily: CODE_FONT }}>{pl.code}</td>
-                                    <td style={subTd}>{pl.sales_order_code || '-'}</td>
-                                    <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '-'}</td>
+                                    <td style={subTd}><CodeChip code={pl.code} classic tier={2} /></td>
+                                    <td style={subTd}>{pl.sales_order_code || '—'}</td>
+                                    <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '—'}</td>
                                     <td style={subTd}>
-                                        {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : '-'}
+                                        {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : '—'}
                                     </td>
-                                    <td style={{ ...subTd, fontFamily: CODE_FONT }}>{l.batch_number || '-'}</td>
+                                    <td style={subTd}>{l.batch_number ? <CodeChip code={l.batch_number} classic tier={2} /> : '—'}</td>
                                     <td style={{ ...subTd, textAlign: 'right' }}>{fmtQty(l.qty_picked)} {l.item_uom || ''}</td>
                                 </tr>
                             )))}
@@ -510,11 +511,12 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
 
 // ── Stage: capture the loading-deck facts and mint the Surat Jalan ─────────
 function StageModal({ picks, onClose, onSubmit }: any) {
+    const { todayInput } = useTimezone();
     const [carrier, setCarrier] = useState('');
     const [vehicle, setVehicle] = useState('');
     const [driver, setDriver] = useState('');
     const [dn, setDn] = useState('');
-    const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [date, setDate] = useState(todayInput);
     const [notes, setNotes] = useState('');
 
     const cartons = picks.reduce((s: number, p: any) => s + num(p.carton_count), 0);
@@ -644,12 +646,9 @@ function EditShipmentModal({ shp, deck, authFetch, showToast, onClose, onSaved }
                     <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid #b0a898', padding: 6, background: '#fff' }}>
                         {candidates.map((c: any) => (
                             <label key={String(c.id)} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '2px 0' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={!!members[String(c.id)]}
-                                    onChange={e => setMembers(m => ({ ...m, [String(c.id)]: e.target.checked }))}
-                                />
-                                <span style={{ fontFamily: CODE_FONT }}>{c.code}</span>
+                                <RowCheckbox classic checked={!!members[String(c.id)]} label={`pick list ${c.code}`}
+                                    onChange={() => setMembers(m => ({ ...m, [String(c.id)]: !m[String(c.id)] }))} />
+                                <CodeChip code={c.code} classic tier={2} />
                                 <span style={{ color: '#555' }}>{c.sales_order_code} · {c.carton_count} ctn</span>
                             </label>
                         ))}
@@ -696,7 +695,7 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                         <thead>
                             <tr>
-                                <th style={{ ...xpTableHeader, width: 30 }} />
+                                <th style={{ ...xpTableHeader, width: LV_CHECK_COL_W, textAlign: 'center' }} />
                                 <th style={xpTableHeader}>Carton</th>
                                 <th style={xpTableHeader}>Item</th>
                                 <th style={xpTableHeader}>Colour</th>
@@ -707,12 +706,14 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                             {cartons.map((c: any, i: number) => (
                                 <tr key={String(c.id)} style={rowStyle(i)}>
                                     <td style={{ ...td, textAlign: 'center' }}>
-                                        <input type="checkbox" checked={!!ticked[String(c.id)]}
-                                            onChange={e => setTicked(t => ({ ...t, [String(c.id)]: e.target.checked }))} />
+                                        {/* Ticked one carton at a time by design — a select-all
+                                            would defeat the second count. */}
+                                        <RowCheckbox classic checked={!!ticked[String(c.id)]} label={`carton ${c.batch_number}`}
+                                            onChange={() => setTicked(t => ({ ...t, [String(c.id)]: !t[String(c.id)] }))} />
                                     </td>
-                                    <td style={{ ...td, fontFamily: CODE_FONT }}>{c.batch_number}</td>
+                                    <td style={td}><CodeChip code={c.batch_number} classic tier={2} /></td>
                                     <td style={td}>{c.item_name}</td>
-                                    <td style={td}>{c.color_name || '-'}</td>
+                                    <td style={td}>{c.color_name || '—'}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>{fmtQty(c.qty_picked)} {c.item_uom || ''}</td>
                                 </tr>
                             ))}

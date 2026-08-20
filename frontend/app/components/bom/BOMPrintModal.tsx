@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
 import { CODE_FONT, xpFont } from '../shared/xpTheme';
+import { useTimezone } from '../../context/TimezoneContext';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -80,6 +81,8 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
         </tr>
     );
 
+    const { formatCustom: tzFmt } = useTimezone();
+
     const documentContent = (
         <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '9pt', color: '#000', lineHeight: 1.4 }}>
 
@@ -98,7 +101,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
                 <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 15, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Bill of Materials</div>
                     <div style={{ fontFamily: CODE_FONT, fontSize: 11, color: '#0000cc', marginTop: 2 }}>{bom.code}</div>
-                    <div style={{ fontSize: '7.5pt', color: '#555', marginTop: 2 }}>Printed: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                    <div style={{ fontSize: '7.5pt', color: '#555', marginTop: 2 }}>Printed: {tzFmt(new Date(), { day: '2-digit', month: 'short', year: 'numeric' }, 'id-ID')}</div>
                     {settings.headerNote && <div style={{ fontSize: '7.5pt', color: '#333', marginTop: 2, fontStyle: 'italic' }}>{settings.headerNote}</div>}
                 </div>
             </div>
@@ -325,7 +328,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
             <div style={{ marginTop: 16, borderTop: '1px solid #ccc', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '7.5pt', color: '#555' }}>
                 <div>
                     <div>BOM: {bom.code} · Item: {bom.item_code}</div>
-                    <div>Printed: {new Date().toLocaleString('id-ID')}</div>
+                    <div>Printed: {tzFmt(new Date(), { dateStyle: 'short', timeStyle: 'short' }, 'id-ID')}</div>
                 </div>
                 {settings.showSignatureLine && (
                     <div style={{ textAlign: 'center', width: 150 }}>

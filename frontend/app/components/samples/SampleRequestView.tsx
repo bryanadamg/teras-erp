@@ -18,7 +18,7 @@ import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
-import { lvThead } from '../shared/listViewTheme';
+import { lvThead, LV_STICKY_THEAD, ExpanderCell, LV_EXPANDER_COL_W, lvTh, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 // Request classification, chosen at create time. Values are the `Sample Category`
 // system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
@@ -304,29 +304,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       flexShrink: 0,
   };
 
-  const xpTableHeader: React.CSSProperties = {
-      ...lvThead(true),
-      fontSize: '10px',
-      fontWeight: 'bold',
-      color: '#000000',
-  };
+  const xpTableHeader: React.CSSProperties = lvThead(true, true);
 
-  const xpThCell: React.CSSProperties = {
-      padding: '3px 6px',
-      borderRight: '1px solid #b0aaa0',
-      textAlign: 'left' as const,
-      whiteSpace: 'nowrap' as const,
-      fontFamily: xpFont,
-  };
+  const xpThCell: React.CSSProperties = lvTh(true);
 
-  const tdBase: React.CSSProperties = {
-      padding: '4px 6px',
-      borderRight: '1px solid #c0bdb5',
-      borderBottom: '1px solid #d0cdc8',
-      verticalAlign: 'middle' as const,
-      fontFamily: xpFont,
-      fontSize: '11px',
-  };
+  const tdBase: React.CSSProperties = lvTdRuled(true);
 
   const today = new Date().toISOString().split('T')[0];
   const emptyForm = () => ({
@@ -1445,15 +1427,19 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                className={classic ? '' : 'card-body p-0'}
                // scrollbarGutter: reserve the vertical scrollbar's space always, so expanding a
                // row (which toggles the scrollbar) can't reflow the table's auto-width columns.
-               style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}
+               // `overflow: auto` (not overflowY) with no inner `.table-responsive`: a nested
+               // overflow wrapper is its own scroll container, and a sticky header inside one
+               // pins to a box that never scrolls vertically -- i.e. not at all.
+               style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable' }}
            >
-               <div className="table-responsive">
+               <div>
                    <table
                        className={classic ? '' : 'table table-hover align-middle mb-0'}
                        style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}
                    >
-                       <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
+                       <thead style={classic ? xpTableHeader : LV_STICKY_THEAD} className={classic ? '' : 'table-light'}>
                            <tr>
+                               <th style={classic ? { ...xpThCell, width: LV_EXPANDER_COL_W } : { width: LV_EXPANDER_COL_W }} />
                                <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-4'}>Request Code</th>
                                <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Category</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Customer</th>
@@ -1475,30 +1461,16 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        background: s.id === highlightId ? rowStateBg('highlighted', classic)
                                            : expandedIds.has(s.id) ? rowStateBg('expanded', classic)
                                            : s.is_unread ? (classic ? '#dde8fb' : '#f0f7ff')
-                                           : classic ? (rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee') : undefined,
+                                           : classic ? lvZebra(true, rowIndex) : undefined,
                                        borderBottom: classic ? '1px solid #c0bdb5' : undefined,
                                        cursor: 'pointer',
                                        outline: s.id === highlightId ? '2px solid #f0a000' : undefined,
                                    }}
                                >
+                                   <ExpanderCell classic={classic} expanded={expandedIds.has(s.id)} onToggle={() => toggleExpand(s.id)} label="sample detail"
+                                       tdStyle={classic ? tdBase : undefined} />
                                    <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}>
                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                           {classic ? (
-                                               <button
-                                                   onClick={e => { e.stopPropagation(); toggleExpand(s.id); }}
-                                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontFamily: xpFont, fontSize: 10, color: '#333' }}
-                                               >
-                                                   {expandedIds.has(s.id) ? '▼' : '▶'}
-                                               </button>
-                                           ) : (
-                                               <button
-                                                   className="btn btn-link p-0 text-muted"
-                                                   style={{ fontSize: 10, lineHeight: 1 }}
-                                                   onClick={e => { e.stopPropagation(); toggleExpand(s.id); }}
-                                               >
-                                                   <i className={`bi bi-chevron-${expandedIds.has(s.id) ? 'down' : 'right'}`}></i>
-                                               </button>
-                                           )}
                                            <div>
                                                {/* Unread rows keep their extra weight — that is a state
                                                    marker on top of the tier-1 code, not a second style. */}
@@ -1701,9 +1673,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                </span>,
                                                isApproved ? (
                                                    <div style={{ textAlign: 'center' as const }}>
-                                                       {classic
-                                                           ? <div style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: xpFont }}>Approved</div>
-                                                           : <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>}
+                                                       <StatusChip status="APPROVED" label="Approved" tint />
                                                        {c.approval_notes && <div className={classic ? '' : 'text-muted fst-italic'} style={classic ? { fontSize: 9, color: '#555', fontFamily: xpFont, fontStyle: 'italic', marginTop: 1 } : { fontSize: 9 }}>{c.approval_notes}</div>}
                                                    </div>
                                                ) : isRejected ? (
@@ -1762,7 +1732,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            { label: 'Customer Art.', value: s.customer_article_code || '—' },
                                            { label: 'Internal Art.', value: s.internal_article_code || '—' },
                                            { label: 'Width', value: s.width || '—' },
-                                           { label: 'Request Date', value: s.request_date ? new Date(s.request_date).toLocaleDateString() : '—' },
+                                           { label: 'Request Date', value: s.request_date ? tzDate(s.request_date) : '—' },
                                        ]},
                                        { title: '② Materials & Weight', fields: [
                                            { label: 'Main Mat.', value: s.main_material || '—' },
@@ -1777,7 +1747,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        { title: '③ Logistics', fields: [
                                            { label: 'Quantity', value: s.quantity || '—' },
                                            { label: 'Sample Size', value: s.sample_size || '—' },
-                                           { label: 'Est. Complete', value: s.estimated_completion_date ? new Date(s.estimated_completion_date).toLocaleDateString() : '—' },
+                                           { label: 'Est. Complete', value: s.estimated_completion_date ? tzDate(s.estimated_completion_date) : '—' },
                                            ...(s.completion_description ? [{ label: 'Completion', value: s.completion_description, full: true }] : []),
                                            ...(s.notes ? [{ label: 'Notes', value: s.notes, full: true }] : []),
                                        ]},
@@ -1812,7 +1782,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                expanding a row can't reflow the auto-width columns (e.g. Specs badges). */}
                                            {/* Rail + edge rules go on the cell, not a wrapper: the panel inside is
                                                absolutely positioned, so it can't carry the frame itself. */}
-                                           <td colSpan={8} style={{
+                                           <td colSpan={9} style={{
                                                padding: 0, position: 'relative', height: 300,
                                                background: '#fff',
                                                ...expandedRowFrame(classic),
@@ -1838,11 +1808,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                </React.Fragment>
                            ))}
                            {pageSamples.length === 0 && (dataLoading.samples ? (
-                               <TableSkeleton rows={8} cols={skel.cols ?? 8} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                               <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                            ) : (
                                <tr>
                                    <td
-                                       colSpan={8}
+                                       colSpan={9}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#555', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >

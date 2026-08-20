@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont } from './xpTheme';
+import { xpFont, modernFont, SortMark, SortState } from './xpTheme';
 
 // Shared dual-theme (classic XP / modern) style helpers for master-data list views
 // (Color Library, Combo Library, Colors variant, …). xpTheme's xpBtn/xpInput are
@@ -66,11 +66,35 @@ export const lvThead = (classic: boolean, sticky = false): React.CSSProperties =
     ...(sticky ? { position: 'sticky' as const, top: 0, zIndex: 1 } : {}),
 });
 
+// A header cell that paints its own band. In modern `lvTh` already carries the
+// band; in classic the gradient lives on the row (`lvThead`), so a cell that must
+// look right on its own — sticky headers, and any table whose `<thead>` styling
+// is applied per-cell — needs both. Ten views wrote this pair out by hand, four
+// of them with a different padding than the other six.
+export const lvThBanded = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
+    ({ ...lvTh(classic), ...lvThead(classic), ...extra });
+
+// Pin-only header row, for `<thead>`s that already get their band elsewhere —
+// Bootstrap's `.table-light` in the modern branch, or a classic gradient written
+// on the `<tr>`/`<th>`. Sticky must sit on the row-group that owns the band or the
+// body rows scroll through a transparent header.
+export const LV_STICKY_THEAD: React.CSSProperties = { position: 'sticky', top: 0, zIndex: 5 };
+
+// Same, pinned to the top of the table's own scroll pane. `zIndex` keeps it over
+// chips and sticky first columns.
+export const lvThSticky = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
+    ({ ...lvThBanded(classic), position: 'sticky', top: 0, zIndex: 5, ...extra });
+
 export const lvTd = (classic: boolean): React.CSSProperties => (classic ? {
     padding: '4px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle', fontFamily: LV_XP_FONT, fontSize: 11,
 } : {
     padding: '6px 10px', verticalAlign: 'middle', fontFamily: LV_MODERN_FONT, fontSize: 13, color: '#334155',
 });
+
+// Body cell with a horizontal rule under it, for lists that separate rows on the
+// cell instead of on the row (they don't use `lvRow`).
+export const lvTdRuled = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
+    ({ ...lvTd(classic), borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #e6eaf1', ...extra });
 
 // ── Sub-tables (mini-tables inside an expanded row) ───────────────────────────
 // A different job from lvTh/lvTd, which dress the *main* list. A table nested
@@ -152,10 +176,377 @@ export const lvSubCaption = (classic: boolean): React.CSSProperties => ({
 export const lvSep = (classic: boolean): React.CSSProperties =>
     ({ width: 1, height: 20, background: classic ? '#a0988c' : '#dbe1ea', margin: '0 2px' });
 
+// The zebra stripe on its own, for rows that compose their background out of
+// several states (selected / expanded / QC-tinted / stripe) and so cannot take
+// `lvRow` wholesale. ~24 rows wrote this ternary inline, and they had drifted:
+// the lot list striped bluish `#f0f0f8` and sales orders used `#fafafa` in modern
+// where every other list used `#f8fafc`.
+export const lvZebra = (classic: boolean, idx: number): string =>
+    idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc');
+
 // Row background stripe (zebra), dual-theme + border.
-export const lvRow = (classic: boolean, idx: number): React.CSSProperties => (classic
-    ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }
-    : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' });
+export const lvRow = (classic: boolean, idx: number): React.CSSProperties => ({
+    background: lvZebra(classic, idx),
+    borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e6eaf1',
+});
+
+// ── Empty value ──────────────────────────────────────────────────────────────
+// The placeholder for a cell with no value. The app had settled on an em dash in
+// ~280 places and a plain hyphen in ~69 — often in neighbouring columns of the
+// same table, where the hyphen reads as a minus sign next to a quantity.
+export const EMPTY_DASH = '\u2014';
+
+export function Dash({ classic = true, style }: { classic?: boolean; style?: React.CSSProperties }) {
+    return <span style={{ color: classic ? '#999' : '#94a3b8', ...style }}>{EMPTY_DASH}</span>;
+}
+
+// ── Empty list row ───────────────────────────────────────────────────────────
+// "Nothing here" inside a table body. Twenty-odd lists wrote their own version of
+// this cell and drifted on all of it: padding 8 / 16 / 20 / 24px, colour #555 /
+// #666 / #888 / .text-muted, italic or not. Pair with `TableSkeleton` — skeleton
+// while the first fetch is in flight, this once it has resolved empty, so "no
+// data yet" never flashes as "there is no data".
+//
+// `tdStyle` takes the list's own cell style (its borders/gridlines); the
+// alignment, padding and muted italic come from here.
+export function TableEmpty({ colSpan, classic, message, icon, tdStyle }: {
+    colSpan: number;
+    classic: boolean;
+    message: React.ReactNode;
+    icon?: string;
+    tdStyle?: React.CSSProperties;
+}) {
+    return (
+        <tr>
+            <td
+                colSpan={colSpan}
+                style={{
+                    ...tdStyle,
+                    textAlign: 'center', padding: '20px 8px', fontStyle: 'italic',
+                    color: classic ? '#666' : '#64748b',
+                    fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT,
+                    fontSize: classic ? 11 : 13,
+                }}
+            >
+                {icon && <i className={`bi ${icon}`} style={{ display: 'block', fontSize: 18, opacity: 0.45, marginBottom: 6 }} aria-hidden="true" />}
+                {message}
+            </td>
+        </tr>
+    );
+}
+
+// ── Sortable column header ────────────────────────────────────────────────────
+// `useSortable`/`useServerSort` give the state and `SortMark` the arrow, but the
+// header cell itself was hand-written 45 times across 6 lists — each repeating
+// `cursor: 'pointer'` + `title="Sort"` + `onClick={() => toggleSort(key)}` +
+// `<SortMark/>`, and only some of them adding `userSelect: 'none'` (without it a
+// double-click on the label selects the text instead of sorting twice).
+//
+// `style`/`className` stay per-call because the header chrome is still
+// per-table (see lvTh); this owns only the sort behaviour and its affordances.
+//
+// A null/absent `colKey` renders a plain, inert header — so a table whose
+// columns come from a config array (weaving output report, work-order list,
+// booking stock) keeps ONE component call instead of branching the whole cell on
+// `c.sortKey ? <th sortable> : <th>`.
+export function SortableTh({ sort, colKey, onSort, children, style, className, title, colSpan }: {
+    sort?: SortState;
+    colKey?: string | null;
+    onSort?: (key: string) => void;
+    children?: React.ReactNode;
+    style?: React.CSSProperties;
+    className?: string;
+    title?: string;
+    colSpan?: number;
+}) {
+    if (!colKey || !onSort) {
+        return <th className={className} colSpan={colSpan} title={title} style={style}>{children}</th>;
+    }
+    const key = colKey;
+    const dir = sort?.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none';
+    return (
+        <th
+            className={className}
+            colSpan={colSpan}
+            title={title ?? 'Sort'}
+            aria-sort={dir as React.AriaAttributes['aria-sort']}
+            style={{ ...style, cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => onSort(key)}
+        >
+            {children}<SortMark sort={sort ?? null} colKey={key} />
+        </th>
+    );
+}
+
+// ── Row multi-select ──────────────────────────────────────────────────────────
+// The checkbox half of a bulk-action list. Six views grew their own copy of this
+// and drifted on all three axes: the state shape (`Set<id>` / `Record<key,row>`),
+// the "all selected" test (`size === rows.length`, which is wrong the moment a
+// selection outlives a page), and the checkbox chrome (bare input vs
+// `form-check-input`, 28/32/40px columns).
+//
+// `useRowSelection` keeps the ROW OBJECT, not just its id, because every bulk
+// action downstream needs the row (print a WO card, move a stock line) and a
+// selection that survives paging can no longer look it up in the visible page.
+// Select-all is deliberately page-scoped — ticking 4000 filtered rows in one
+// click is never what the user meant — while individually selected rows on other
+// pages stay selected.
+export const LV_CHECK_COL_W = 28;
+
+export const lvCheckTd = (classic: boolean, base: React.CSSProperties = {}): React.CSSProperties => ({
+    ...lvTd(classic),
+    ...base,
+    width: LV_CHECK_COL_W, textAlign: 'center', padding: '3px 4px', verticalAlign: 'middle',
+});
+
+export interface RowSelection<T> {
+    /** key → row, for the bulk action and the row's own `checked` test. */
+    selected: Record<string, T>;
+    keys: string[];
+    items: T[];
+    entries: [string, T][];
+    count: number;
+    isSelected: (row: T) => boolean;
+    isSelectedKey: (key: string) => boolean;
+    toggle: (row: T) => void;
+    /** For rows handed to a memoised child that only knows the id. */
+    toggleKey: (key: string) => void;
+    deselectKey: (key: string) => void;
+    /** Header checkbox: adds/removes every eligible row on the current page. */
+    togglePage: () => void;
+    allPageSelected: boolean;
+    /** Some — but not all — of this page is selected: the indeterminate state. */
+    someSelected: boolean;
+    /** Eligible rows on this page; 0 means the header checkbox has nothing to do. */
+    pageEligibleCount: number;
+    clear: () => void;
+}
+
+export function useRowSelection<T>(
+    rows: T[],
+    keyOf: (row: T) => string,
+    opts: { selectable?: (row: T) => boolean } = {},
+): RowSelection<T> {
+    const [selected, setSelected] = React.useState<Record<string, T>>({});
+    const { selectable } = opts;
+    const eligible = selectable ? rows.filter(selectable) : rows;
+
+    const isSelectedKey = (key: string) => !!selected[key];
+    const isSelected = (row: T) => isSelectedKey(keyOf(row));
+
+    const setRow = (row: T, on: boolean) => setSelected(prev => {
+        const next = { ...prev };
+        const k = keyOf(row);
+        if (on) next[k] = row; else delete next[k];
+        return next;
+    });
+
+    const allPageSelected = eligible.length > 0 && eligible.every(r => !!selected[keyOf(r)]);
+    const anyPageSelected = eligible.some(r => !!selected[keyOf(r)]);
+
+    return {
+        selected,
+        keys: Object.keys(selected),
+        items: Object.values(selected),
+        entries: Object.entries(selected) as [string, T][],
+        count: Object.keys(selected).length,
+        isSelected,
+        isSelectedKey,
+        toggle: (row: T) => setRow(row, !isSelected(row)),
+        toggleKey: (key: string) => {
+            const row = rows.find(r => keyOf(r) === key);
+            if (row) setRow(row, !isSelectedKey(key));
+        },
+        deselectKey: (key: string) => setSelected(prev => { const n = { ...prev }; delete n[key]; return n; }),
+        togglePage: () => setSelected(prev => {
+            const next = { ...prev };
+            if (allPageSelected) { for (const r of eligible) delete next[keyOf(r)]; }
+            else { for (const r of eligible) next[keyOf(r)] = r; }
+            return next;
+        }),
+        allPageSelected,
+        someSelected: anyPageSelected && !allPageSelected,
+        pageEligibleCount: eligible.length,
+        clear: () => setSelected({}),
+    };
+}
+
+// Row of a checkbox PICKER list — the lot pickers in the WO completion, WO
+// staging and packing-log modals, which are `<label>` stacks rather than tables.
+// Three files had byte-identical copies of this style object. Deliberately a
+// lighter fill than a data row's `rowStateBg('selected')`: these lists are 10px
+// dense and sit inside a form, where the full selection blue reads as an error.
+export const lvPickerRow = (classic: boolean, on: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'flex-start', gap: 5, padding: '3px 5px', cursor: 'pointer',
+    borderBottom: `1px solid ${classic ? '#eceae2' : '#eef2f7'}`,
+    background: on ? (classic ? '#e6f0ff' : '#eff6ff') : 'transparent',
+});
+
+const checkboxStyle = (classic: boolean, enabled: boolean): React.CSSProperties =>
+    ({ margin: 0, cursor: enabled ? 'pointer' : 'not-allowed', verticalAlign: 'middle' });
+
+// The hover ring lives in globals.css (`.lv-check`), not in the style object: an
+// inline style can't express `:hover`, and every call site is a bare `<input>`
+// with no wrapper to hang a mouseenter on. Both themes get a branch there.
+const checkboxClass = (classic: boolean) => (classic ? 'lv-check' : 'form-check-input lv-check');
+
+export function RowCheckbox({ classic, checked, onChange, disabled, title, label }: {
+    classic: boolean; checked: boolean; onChange: () => void;
+    disabled?: boolean; title?: string; label?: string;
+}) {
+    return (
+        <input
+            type="checkbox"
+            className={checkboxClass(classic)}
+            style={checkboxStyle(classic, !disabled)}
+            checked={checked}
+            disabled={disabled}
+            title={title}
+            aria-label={label ? `Select ${label}` : 'Select row'}
+            onChange={onChange}
+            // The row around it is usually clickable (expand / open): a tick must
+            // never also fire that.
+            onClick={e => e.stopPropagation()}
+        />
+    );
+}
+
+/** Header checkbox. Owns the `indeterminate` ref-poke: four views each derived
+ *  the partial state from their own `someSelected` expression, and Stock On-Hand
+ *  had no partial state at all — its header read as fully unchecked with half
+ *  the page ticked. */
+export function SelectAllCheckbox({ classic, allSelected, someSelected, onChange, disabled, title }: {
+    classic: boolean; allSelected: boolean; someSelected: boolean; onChange: () => void;
+    disabled?: boolean; title?: string;
+}) {
+    return (
+        <input
+            type="checkbox"
+            className={checkboxClass(classic)}
+            style={checkboxStyle(classic, !disabled)}
+            checked={allSelected}
+            disabled={disabled}
+            ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+            onChange={onChange}
+            title={title ?? (allSelected ? 'Clear selection on this page' : 'Select every row on this page')}
+            aria-label={allSelected ? 'Clear selection on this page' : 'Select every row on this page'}
+        />
+    );
+}
+
+/** `<td>` + row checkbox, geometry fixed like ExpanderCell. */
+export function RowCheckboxCell({ tdStyle, tdClassName, ...cb }: React.ComponentProps<typeof RowCheckbox> & { tdStyle?: React.CSSProperties; tdClassName?: string }) {
+    return (
+        <td style={lvCheckTd(cb.classic, tdStyle)} className={tdClassName}>
+            <RowCheckbox {...cb} />
+        </td>
+    );
+}
+
+/** `<th>` + select-all checkbox. */
+export function SelectAllCell({ tdStyle, tdClassName, ...cb }: React.ComponentProps<typeof SelectAllCheckbox> & { tdStyle?: React.CSSProperties; tdClassName?: string }) {
+    return (
+        <th style={lvCheckTd(cb.classic, tdStyle)} className={tdClassName}>
+            <SelectAllCheckbox {...cb} />
+        </th>
+    );
+}
+
+// ── Row-detail disclosure ─────────────────────────────────────────────────────
+// One expander for every list row that opens a detail panel below itself. This
+// used to be hand-written at ~17 call sites in five different glyphs (thin
+// chevron, solid caret, and the literals `►`, `▶`, `▼`) at 8–11px in five
+// colours, so no two lists disclosed a row the same way and none of them was
+// keyboard-reachable or announced its state.
+//
+// Chevron-right/down ONLY. The solid `bi-caret-*-fill` is deliberately NOT
+// used here: it means *tree hierarchy* (RoutingView, PermissionsPicker,
+// CategoriesView, TreeSelect), which is a different affordance from "this row
+// has a detail panel". Up/down chevrons mean a card/section fold, also not this.
+//
+// COLUMN ORDER IS FIXED. A list's leading control columns are, in this order:
+//
+//     [ checkbox (LV_CHECK_COL_W, only if the list has bulk actions) ]
+//     [ chevron  (LV_EXPANDER_COL_W, only if the row expands)        ]
+//     [ first data column — the row's code/identity                  ]
+//
+// The chevron gets its OWN column; never park it inside a data cell. Four
+// Engineering lists each picked a different arrangement of the same three
+// things (checkbox→chevron-in-code-cell, chevron→code, code→chevron-in-second-
+// cell, checkbox→chevron→code) so no two tables had their controls in the same
+// place. Pair `ExpanderCell` with `rowStateBg('expanded', classic)` on the row —
+// the two halves of the same convention. `ExpandToggle` on its own is for a
+// non-table disclosure, not for smuggling the glyph back into a data cell.
+export const LV_EXPANDER_COL_W = 22;
+
+// `base` is the caller's own cell style (their `tdBase`/`xpTd` with its borders
+// and font). It is spread BEFORE the column geometry so the width/alignment of
+// the expander column can never drift, while the table keeps its own gridlines.
+export const lvExpanderTd = (classic: boolean, base: React.CSSProperties = {}): React.CSSProperties => ({
+    ...lvTd(classic),
+    ...base,
+    width: LV_EXPANDER_COL_W, textAlign: 'center', padding: '3px 4px', verticalAlign: 'middle',
+});
+
+export interface ExpandToggleProps {
+    expanded: boolean;
+    classic: boolean;
+    /** Same handler the row's onClick uses. Always pass it: the button stops
+     *  propagation, so a row-clickable table does not toggle twice, and the
+     *  expander becomes tab-reachable instead of mouse-only. */
+    onToggle: () => void;
+    /** What is being disclosed, for the screen-reader label ("Show lot lineage"). */
+    label?: string;
+    /** id of the panel element, for aria-controls. */
+    panelId?: string;
+    /** `alert` recolours the open glyph when the panel holds a problem
+     *  (a Production Run with a material shortfall). */
+    tone?: 'default' | 'alert';
+    style?: React.CSSProperties;
+}
+
+export function ExpandToggle({ expanded, classic, onToggle, label = 'details', panelId, tone = 'default', style }: ExpandToggleProps) {
+    const color = tone === 'alert' && expanded ? '#c00000' : (classic ? '#0058e6' : '#64748b');
+    return (
+        <button
+            type="button"
+            // The row itself is usually clickable too; without this the click
+            // would toggle twice and land back where it started.
+            onClick={e => { e.stopPropagation(); onToggle(); }}
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            title={`${expanded ? 'Hide' : 'Show'} ${label}`}
+            aria-label={`${expanded ? 'Hide' : 'Show'} ${label}`}
+            className="lv-chev-btn"
+            style={{
+                background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, color, flexShrink: 0, ...style,
+            }}
+        >
+            {/* Always the right-chevron glyph; "down" is a 90° CSS rotation of it
+                (globals.css `.lv-chev`), so hovering can preview the open state
+                and spring back when the pointer leaves without a click. Swapping
+                bi-chevron-right→bi-chevron-down would have no state to animate
+                between. */}
+            <i
+                className={`bi bi-chevron-right lv-chev${expanded ? ' lv-chev-open' : ''}`}
+                style={{ fontSize: 9 }}
+                aria-hidden="true"
+            />
+        </button>
+    );
+}
+
+/** The dedicated first column: geometry + toggle in one, so a list only ever
+ *  writes `<ExpanderCell … />` instead of a `<td>` wrapping an `<i>`. */
+export function ExpanderCell({ tdStyle, tdClassName, ...toggle }: ExpandToggleProps & { tdStyle?: React.CSSProperties; tdClassName?: string }) {
+    return (
+        <td style={lvExpanderTd(toggle.classic, tdStyle)} className={tdClassName}>
+            <ExpandToggle {...toggle} />
+        </td>
+    );
+}
 
 // ── Section caption ───────────────────────────────────────────────────────────
 // Small uppercase band that names a table/panel inside a view that stacks more

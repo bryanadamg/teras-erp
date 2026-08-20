@@ -55,7 +55,7 @@ export default function KartuKerjaCardDyeing({
                     <div style={{ fontSize: '12px', fontFamily: CODE_FONT, fontWeight: 'bold' }}>{parentMO?.code || workOrder.mo_code || '—'}</div>
                     {displayCompany && <div style={{ fontSize: '8px', color: '#555', fontWeight: 'bold' }}>{displayCompany}</div>}
                     <div style={{ fontSize: '8px', color: '#666' }}>
-                        {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {tzFmt(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')}
                         {settings.headerDepartment ? ` · ${settings.headerDepartment}` : ''}
                     </div>
                 </div>

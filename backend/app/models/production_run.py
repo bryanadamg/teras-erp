@@ -56,7 +56,9 @@ class ProductionRun(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     bom_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("boms.id"), nullable=True)
-    sales_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True)
+    # Indexed: the sales-order list joins on this for every row's PR chips, and the
+    # duplicate-PR guard (GET /sales-orders/{id}/pr-coverage) filters on it per click.
+    sales_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True, index=True)
     location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
     source_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)

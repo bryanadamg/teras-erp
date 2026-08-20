@@ -6,9 +6,10 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import {
-    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
+    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
+} from '../shared/listViewTheme';
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
 
@@ -91,8 +92,8 @@ export default function ComboLibraryView({
         <div style={embedded
             ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
             : classic
-            ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            ? { ...pageFillStyle, fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { ...pageFillStyle, fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
             {/* Title bar (hidden when embedded under a tab shell) */}
             {!embedded && (
@@ -130,7 +131,7 @@ export default function ComboLibraryView({
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 160 }}>Code</th>
                             <th style={lvTh(classic)}>Name</th>
@@ -144,9 +145,7 @@ export default function ComboLibraryView({
                         {combos.length === 0 && (loading ? (
                             <TableSkeleton rows={8} cols={skel.cols ?? 6} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={6} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                No combos found.
-                            </td></tr>
+                            <TableEmpty colSpan={6} classic={classic} tdStyle={lvTd(classic)} message="No combos found." />
                         ))}
                         {combos.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>

@@ -3,6 +3,7 @@ import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { CodeChip, CODE_FONT, colorHexFor } from '../shared/xpTheme';
+import { qtyFmt } from '../shared/format';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -80,7 +81,7 @@ const DECISION: Record<string, { label: string; bg: string; fg: string; bd: stri
     DECOUPLED: { label: 'Pooled separately', bg: '#faf5ff', fg: '#7e22ce', bd: '#e9d5ff' },
 };
 
-const num = (v: number) => (Math.round((v || 0) * 100) / 100).toLocaleString();
+const num = qtyFmt(2);
 
 // One palette per chip kind, so a size never reads as a shade at a glance.
 const CHIP_TONE: Record<string, { bg: string; fg: string; bd: string }> = {

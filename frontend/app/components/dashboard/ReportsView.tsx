@@ -6,12 +6,13 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, SortMark, CodeChip,
+    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, CodeChip,
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption } from '../shared/shellTheme';
-import { lvThead } from '../shared/listViewTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
+import { lvThead, SortableTh, lvZebra, Dash } from '../shared/listViewTheme';
+import { qtyFmt } from '../shared/format';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
 
@@ -39,7 +40,9 @@ const shortRef = (id: string) => {
     return looksUuid ? id.slice(0, 8) + '…' : id;
 };
 
-const fmtQty = (n: number) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
+// Ledger movements carry the rawest numbers in the app — 4dp so a small
+// correction entry is not rounded away.
+const fmtQty = qtyFmt(4);
 const fmtDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -393,7 +396,7 @@ export default function ReportsView(_props: any) {
         const up = e.qty_change >= 0;
         const pkg = pkgDelta(e);
         return classic ? (
-            <tr key={e.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #e0ddd3' }}>
+            <tr key={e.id} style={{ background: lvZebra(true, i), borderBottom: '1px solid #e0ddd3' }}>
                 <td style={{ ...xpCell, whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: '11px', color: '#000' }}>{tzDate(e.created_at)}</div>
                     <div style={{ fontSize: '10px', color: '#777' }}>{tzTime(e.created_at)}</div>
@@ -412,7 +415,7 @@ export default function ReportsView(_props: any) {
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     {e.item_category_name
                         ? <span title={e.item_category_name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>{e.item_category_name}</span>
-                        : <span style={{ fontSize: '10px', color: '#aaa' }}>-</span>}
+                        : <Dash classic={classic} />}
                 </td>
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
@@ -429,7 +432,7 @@ export default function ReportsView(_props: any) {
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     {e.batch_number
                         ? <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00' }}>{e.batch_number}</span>
-                        : <span style={{ fontSize: '10px', color: '#aaa' }}>-</span>}
+                        : <Dash classic={classic} />}
                 </td>
                 <td style={{ ...xpCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: up ? '#1a5e1a' : '#c00000' }}>
@@ -466,7 +469,7 @@ export default function ReportsView(_props: any) {
                 <td>
                     {e.item_category_name
                         ? <span title={e.item_category_name} className="badge bg-info-subtle text-info-emphasis d-inline-block text-truncate mw-100 align-bottom">{e.item_category_name}</span>
-                        : <span className="text-muted">-</span>}
+                        : <Dash classic={classic} />}
                 </td>
                 <td>
                     <div className="d-flex flex-wrap gap-1">
@@ -476,7 +479,7 @@ export default function ReportsView(_props: any) {
                         <span className="badge bg-primary-subtle text-primary-emphasis">{getLocName(e)}</span>
                     </div>
                 </td>
-                <td>{e.batch_number ? <span className="badge bg-warning text-dark">{e.batch_number}</span> : <span className="text-muted">-</span>}</td>
+                <td>{e.batch_number ? <span className="badge bg-warning text-dark">{e.batch_number}</span> : <Dash classic={classic} />}</td>
                 <td className="text-end" style={{ whiteSpace: 'nowrap' }}>
                     <span className={`fw-bold ${up ? 'text-success' : 'text-danger'}`}>
                         <i className={`bi ${up ? 'bi-caret-up-fill' : 'bi-caret-down-fill'} me-1`} style={{ fontSize: 10 }} />
@@ -519,12 +522,12 @@ export default function ReportsView(_props: any) {
             <table className={classic ? undefined : 'table table-hover table-bordered align-middle mb-0'} style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined}>
                 <thead className={classic ? undefined : 'table-light'} style={classic ? undefined : { position: 'sticky', top: 0, zIndex: 1 }}>
                     <tr>
-                        <th className={classic ? undefined : 'ps-4'} style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
-                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
-                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('category')}>Category<SortMark sort={sort} colKey="category" /></th>
-                        <th style={classic ? { ...th, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('location')}>{t('locations')}<SortMark sort={sort} colKey="location" /></th>
+                        <SortableTh sort={sort} colKey="date" onSort={toggle} style={classic ? th : undefined} className={classic ? undefined : 'ps-4'}>{t('date')}</SortableTh>
+                        <SortableTh sort={sort} colKey="item" onSort={toggle} style={classic ? th : undefined}>Item</SortableTh>
+                        <SortableTh sort={sort} colKey="category" onSort={toggle} style={classic ? th : undefined}>Category</SortableTh>
+                        <SortableTh sort={sort} colKey="location" onSort={toggle} style={classic ? th : undefined}>{t('locations')}</SortableTh>
                         <th style={classic ? th : undefined}>Lot</th>
-                        <th className={classic ? undefined : 'text-end'} style={classic ? { ...th, textAlign: 'right', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggle('qty')}>Movement<SortMark sort={sort} colKey="qty" /></th>
+                        <SortableTh sort={sort} colKey="qty" onSort={toggle} className={classic ? undefined : 'text-end'} style={classic ? { ...th, textAlign: 'right' } : undefined}>Movement</SortableTh>
                         <th className={classic ? undefined : 'pe-4'} style={classic ? { ...th, borderRight: 'none' } : undefined}>Source</th>
                     </tr>
                 </thead>
@@ -541,8 +544,8 @@ export default function ReportsView(_props: any) {
 
     return (
         <>
-        <div className={classic ? 'fade-in print-container' : 'card fade-in border-0 shadow-sm print-container'} style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' }}>
-            <div style={classic ? sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }) : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div className={classic ? 'fade-in print-container' : 'card fade-in border-0 shadow-sm print-container'} style={pageFillStyle}>
+            <div style={classic ? sharedXpBevel(flexFillStyle) : flexFillStyle}>
                 {classic ? (
                     <div style={titleBar} className="no-print">
                         <span><i className="bi bi-journal-text" style={{ marginRight: 6 }} />{t('stock_ledger')}</span>

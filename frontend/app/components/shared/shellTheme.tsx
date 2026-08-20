@@ -344,9 +344,31 @@ export function SegmentedBar({ classic, actions, style }: {
 
 export type ShellFill = 'page' | 'flex' | false;
 
+// The standing height convention for a top-level list route: fill the viewport
+// below the app chrome and let the table inside own the scrolling.
+//
+// `--app-vh` — never `100vh`. On mobile Safari/Chrome `100vh` counts the URL bar
+// that is not actually there, so the page ran taller than the window and the
+// pager fell off the bottom; layout.tsx keeps `--app-vh` in sync with the real
+// viewport. `minHeight: 0` is load-bearing too: without it a flex child with an
+// overflowing table refuses to shrink and the scroll pane collapses.
+//
+// Twelve views wrote this object out by hand rather than going through
+// ShellWindow; `pageFillStyle`/`flexFillStyle` let those keep their own JSX while
+// still reading the convention from one place.
+export const pageFillStyle: React.CSSProperties =
+    { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 };
+
+export const flexFillStyle: React.CSSProperties =
+    { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
+
+/** Inner scroll region: the table's own pane inside a page-filled shell. */
+export const scrollAreaStyle: React.CSSProperties =
+    { flex: 1, minHeight: 0, overflow: 'auto' };
+
 const fillStyleFor = (fill: ShellFill): React.CSSProperties =>
-    fill === 'page' ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0 }
-    : fill === 'flex' ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }
+    fill === 'page' ? pageFillStyle
+    : fill === 'flex' ? flexFillStyle
     : {};
 
 /**
