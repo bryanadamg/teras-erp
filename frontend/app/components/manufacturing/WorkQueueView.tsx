@@ -143,6 +143,8 @@ const DATE_SOURCE_LABEL: Record<string, string> = {
     created: 'not scheduled',
 };
 
+const ellipsis: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
 const shortDate = (iso: string | null) => {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -465,11 +467,27 @@ export default function WorkQueueView() {
             {MaterialPanel}
 
             <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#ffffff' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: font, fontSize: classic ? 11 : 13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontFamily: font, fontSize: classic ? 11 : 13 }}>
+                    {/* Fixed widths, independent of row content — otherwise switching center-type/verdict
+                        filters (which change what each row's cells contain) reflows column widths. */}
+                    <colgroup>
+                        <col style={{ width: 28 }} />
+                        <col style={{ width: 34 }} />
+                        <col style={{ width: 110 }} />
+                        <col style={{ width: 220 }} />
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 110 }} />
+                        <col style={{ width: 55 }} />
+                        <col style={{ width: 170 }} />
+                        <col style={{ width: 60 }} />
+                        <col style={{ width: 60 }} />
+                        <col style={{ width: 95 }} />
+                        <col style={{ width: 150 }} />
+                    </colgroup>
                     <thead style={lvThead(classic, true)}>
                         <tr>
-                            <th style={{ ...lvTh(classic), width: 28 }}></th>
-                            <th style={{ ...lvTh(classic), width: 34, textAlign: 'right' }}>#</th>
+                            <th style={lvTh(classic)}></th>
+                            <th style={{ ...lvTh(classic), textAlign: 'right' }}>#</th>
                             <th style={lvTh(classic)}>Work Order</th>
                             <th style={lvTh(classic)}>Order / Item</th>
                             <th style={lvTh(classic)}>Colour</th>
@@ -478,8 +496,8 @@ export default function WorkQueueView() {
                             <th style={lvTh(classic)}>Gating Material</th>
                             <th style={{ ...lvTh(classic), textAlign: 'right' }}>Need</th>
                             <th style={{ ...lvTh(classic), textAlign: 'right' }}>Have</th>
-                            <th style={{ ...lvTh(classic), width: 108 }}>Scheduled</th>
-                            <th style={{ ...lvTh(classic), width: 160 }}>Verdict</th>
+                            <th style={lvTh(classic)}>Scheduled</th>
+                            <th style={lvTh(classic)}>Verdict</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -515,11 +533,11 @@ export default function WorkQueueView() {
                                         <td style={{ ...lvTd(classic), textAlign: 'right', color: '#888' }}>
                                             {(page - 1) * PAGE_SIZE + i + 1}
                                         </td>
-                                        <td style={lvTd(classic)}>
+                                        <td style={{ ...lvTd(classic), overflow: 'hidden' }}>
                                             {r.is_released ? (
                                                 <>
-                                                    <CodeChip code={r.work_order_code || '—'} classic={classic} />
-                                                    <div style={{ fontSize: classic ? 10 : 11, color: '#666' }}>{r.work_order_name}</div>
+                                                    <div style={ellipsis}><CodeChip code={r.work_order_code || '—'} classic={classic} /></div>
+                                                    <div style={{ ...ellipsis, fontSize: classic ? 10 : 11, color: '#666' }}>{r.work_order_name}</div>
                                                 </>
                                             ) : (
                                                 <>
@@ -527,24 +545,24 @@ export default function WorkQueueView() {
                                                         fontSize: classic ? 10 : 11, fontWeight: 'bold',
                                                         color: statusColor('NOT_RELEASED'),
                                                     }}>NO WORK ORDER</span>
-                                                    <div style={{ fontSize: classic ? 9 : 10, color: '#888' }}>
+                                                    <div style={{ ...ellipsis, fontSize: classic ? 9 : 10, color: '#888' }}>
                                                         {HINT_LABEL[r.release_hint_source] || r.release_hint_source}
                                                     </div>
                                                 </>
                                             )}
                                         </td>
-                                        <td style={lvTd(classic)}>
-                                            <CodeChip code={r.mo_code || '—'} classic={classic} tier={2} />
-                                            <div style={{ fontSize: classic ? 10 : 11, color: '#666' }}>
+                                        <td style={{ ...lvTd(classic), overflow: 'hidden' }}>
+                                            <div style={ellipsis}><CodeChip code={r.mo_code || '—'} classic={classic} tier={2} /></div>
+                                            <div style={{ ...ellipsis, fontSize: classic ? 10 : 11, color: '#666' }}>
                                                 {r.item_code} {r.item_name ? `· ${r.item_name}` : ''}
                                             </div>
                                         </td>
-                                        <td style={lvTd(classic)}>{r.color_name || '—'}</td>
-                                        <td style={lvTd(classic)}>
+                                        <td style={{ ...lvTd(classic), ...ellipsis }}>{r.color_name || '—'}</td>
+                                        <td style={{ ...lvTd(classic), overflow: 'hidden' }}>
                                             <WorkCenterChip type={r.work_center_type} name={r.work_center_name} />
                                         </td>
                                         <td style={{ ...lvTd(classic), textAlign: 'right' }}>{num(r.qty)}</td>
-                                        <td style={lvTd(classic)}>
+                                        <td style={{ ...lvTd(classic), ...ellipsis }}>
                                             {r.substrate_item_code || '—'}
                                             {r.chemical_shortfall_count > 0 && (
                                                 <span
