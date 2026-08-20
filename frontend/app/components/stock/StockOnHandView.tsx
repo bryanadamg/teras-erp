@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { SortMark, SortState, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { SortMark, useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
@@ -59,13 +59,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     // for anyone reading the table as available stock.
     const [hideRejected, setHideRejected] = useState(false);
     // Sort is a server param (the grid only holds one page), so the column-header
-    // toggle drives this state instead of useSortable's in-memory comparator.
-    const [sort, setSort] = useState<SortState>(null);
-    const toggleSort = (key: string) => setSort(prev =>
-        prev?.key !== key ? { key, dir: 1 }
-        : prev.dir === 1 ? { key, dir: -1 }
-        : null
-    );
+    // toggle drives query state instead of useSortable's in-memory comparator.
+    const { sort, toggleSort } = useServerSort();
 
     // Transfer modal state
     const [transferTarget, setTransferTarget] = useState<any>(null);

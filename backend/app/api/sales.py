@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, delete as sa_delete, update as sa_update
+from sqlalchemy import select, func, or_, nullslast, delete as sa_delete, update as sa_update
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_async_db
@@ -210,11 +210,25 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
 
     return so_refreshed
 
+# Sortable columns the SO list header exposes, keyed by the client's column key.
+# Sorting has to happen here, in the same statement as the window: the list is
+# paginated, so ordering one page in the browser only rearranges the 50 rows the
+# server already chose and page 1 keeps showing the wrong rows.
+_SO_SORT_MAP = {
+    "po": SalesOrder.po_number,
+    "customer": SalesOrder.customer_name,
+    "date": SalesOrder.order_date,
+    "status": SalesOrder.status,
+}
+
+
 @router.get("", response_model=PaginatedSalesOrderResponse)
 async def get_sales_orders(
     status: Optional[str] = None,
     search: Optional[str] = None,
     customer: Optional[str] = None,
+    sort_by: Optional[str] = Query(None, description=" | ".join(_SO_SORT_MAP)),
+    sort_dir: str = Query("asc", description="asc | desc"),
     window: PageWindow = Depends(PageParams()),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("sales_order.view", "sales_order.create_pr", "production_run.view", "production_run.create")),
@@ -242,9 +256,19 @@ async def get_sales_orders(
 
     total = (await db.execute(count_query)).scalar() or 0
 
+    sort_col = _SO_SORT_MAP.get(sort_by or "")
+    if sort_col is not None:
+        descending = (sort_dir or "").lower().startswith("d")
+        order = [nullslast(sort_col.desc() if descending else sort_col.asc())]
+    else:
+        order = [SalesOrder.created_at.desc()]
+    # Deterministic tiebreak: without it OFFSET/LIMIT can repeat or skip rows between
+    # pages whenever the sort key ties (every row of one status, same order date, …).
+    order.append(SalesOrder.id.asc())
+
     # `size=0` (or legacy `limit=0`) means "no cap" — the table-print export needs
     # every row matching the active filter, not just the page on screen.
-    result = await db.execute(window.apply(query.order_by(SalesOrder.created_at.desc())))
+    result = await db.execute(window.apply(query.order_by(*order)))
     orders = result.scalars().all()
 
     for so in orders:

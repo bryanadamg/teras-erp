@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { nextSortState, SortMark, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
@@ -33,9 +33,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [printLoading, setPrintLoading] = useState(false);
   const { uiStyle: currentStyle } = useTheme();
   const {
-      companyProfile, uoms, authFetch, itemIndex, loading: dataLoading, soStatusCounts,
+      companyProfile, uoms, authFetch, itemIndex, loading: dataLoading, soStatusCounts, soQuery,
       pagination: { soPage, setSoPage, soTotal, pageSize: soPageSize },
-      filters: { soSearch: searchTerm, setSoSearch: setSearchTerm, soCustomerSearch: customerSearch, setSoCustomerSearch: setCustomerSearch, soStatusFilter: statusFilter, setSoStatusFilter: setStatusFilter },
+      filters: { soSearch: searchTerm, setSoSearch: setSearchTerm, soCustomerSearch: customerSearch, setSoCustomerSearch: setCustomerSearch, soStatusFilter: statusFilter, setSoStatusFilter: setStatusFilter, soSort, setSoSort },
   } = useData();
   const { hasPermission, hasAnyPermission } = useUser();
   const canManage = hasAnyPermission('sales_order.create', 'sales_order.edit', 'sales_order.delete', 'sales_order.close');
@@ -924,17 +924,13 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   // echoes* (DataContext debounces the committed value it actually queries with).
   // Re-filtering on the echo blanked the table for the length of the debounce while
   // the Pager still reported the full server total.
-  const soSortCols = useMemo(() => ({
-      po:       (so: any) => so.po_number,
-      customer: (so: any) => so.customer_name,
-      date:     (so: any) => so.order_date,
-      status:   (so: any) => so.status,
-  }), []);
-  // Filtering/pagination now happen server-side (DataContext fetches the
-  // committed/debounced search+status+page); sorting stays client-side over
-  // just the current page's ~50 rows.
-  const { sorted: sortedOrders, sort: soSort, toggle: toggleSOSort } = useSortable(salesOrders, soSortCols);
-  const pageOrders = sortedOrders;
+  // Filtering, pagination AND sorting all happen server-side. Sorting used to run
+  // client-side over the loaded page, which only reordered the 50 rows the server
+  // had already picked — clicking "Customer" sorted those 50, not all 62 orders, so
+  // page 1 never showed the actual first rows in that order. The header now drives a
+  // `sort_by`/`sort_dir` query param (see _SO_SORT_MAP) and the keys below match it.
+  const toggleSOSort = (key: string) => setSoSort(nextSortState(soSort, key));
+  const pageOrders = salesOrders;
 
   // Skeleton sizing: measure one real row so the placeholders shown on the next
   // load are exactly as tall as the rows that replace them.
@@ -946,12 +942,10 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const handleOpenTablePrint = async () => {
       setPrintLoading(true);
       try {
-          const params = new URLSearchParams();
-          if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter);
-          if (searchTerm) params.set('search', searchTerm);
-          if (customerSearch) params.set('customer', customerSearch);
-          params.set('limit', '0');
-          const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders?${params.toString()}`);
+          // Same filters AND sort as the screen, every matching row (not just this
+          // page) — the shared builder keeps the printout in the order the user is
+          // actually looking at.
+          const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders?${soQuery(1, { uncapped: true })}`);
           if (res.ok) {
               const d = await res.json();
               setPrintOrders(d.items || []);
