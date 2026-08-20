@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { lvThead, lvThBanded, lvZebra, Dash } from '../shared/listViewTheme';
+import { lvThead, lvThBanded, LV_STICKY_THEAD, lvZebra, Dash } from '../shared/listViewTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -440,7 +440,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             : <div style={{ padding: '8px', color: classic ? '#666' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing work orders found.</div>
                     ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
-                            <thead>
+                            <thead style={LV_STICKY_THEAD}>
                                 <tr style={classic
                                     ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
                                     : {}}>

@@ -7,7 +7,7 @@ import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, LV_STICKY_THEAD } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
 // Column defs for the expanded row's material table. Module-level so the loading
@@ -312,7 +312,7 @@ export default function ProductionRunsTab({
                         fontSize: classic ? '11px' : undefined,
                         background: classic ? '#fff' : undefined,
                     }} className={classic ? '' : 'table table-hover align-middle mb-0'}>
-                        <thead>
+                        <thead style={LV_STICKY_THEAD}>
                             <tr style={{
                                 background: classic ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)' : undefined,
                                 fontSize: classic ? '10px' : '9pt',

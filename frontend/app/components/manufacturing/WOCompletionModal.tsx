@@ -9,7 +9,7 @@ import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
 import { ProgressBar, LegendPanel, CodeChip, xpFont } from '../shared/xpTheme';
-import { RowCheckbox, lvPickerRow } from '../shared/listViewTheme';
+import { RowCheckbox, lvPickerRow, LV_STICKY_THEAD } from '../shared/listViewTheme';
 import { LotChips } from '../shared/LotChips';
 import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
@@ -832,7 +832,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             >
                                 <div style={{ maxHeight: 140, overflowY: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, fontFamily: xpFont }}>
-                                        <thead>
+                                        <thead style={LV_STICKY_THEAD}>
                                             <tr style={{ background: '#dddbd0' }}>
                                                 <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
                                                 <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Pkg</th>

@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
-import { lvThead, lvZebra, Dash } from '../shared/listViewTheme';
+import { lvThead, LV_STICKY_THEAD, lvZebra, Dash } from '../shared/listViewTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
   const itemOptions = (selectItems ?? items);
@@ -99,7 +99,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
 
   const balanceTable = (
       <table style={classic ? { width: '100%', borderCollapse: 'collapse' } : undefined} className={classic ? undefined : 'table table-hover align-middle mb-0'}>
-          <thead className={classic ? undefined : 'table-light'}>
+          <thead className={classic ? undefined : 'table-light'} style={classic ? LV_STICKY_THEAD : undefined}>
               <tr>
                   <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined} className={classic ? undefined : 'ps-4'}>{t('item_code')}</th>
                   <th style={classic ? { ...xpTableHeader, padding: '3px 8px' } : undefined}>{t('attributes')}</th>

@@ -99,7 +99,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
 
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 60 }}>Swatch</th>
                             <th style={lvTh(classic)}>Color</th>

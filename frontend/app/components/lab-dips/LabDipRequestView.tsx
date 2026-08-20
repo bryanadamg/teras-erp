@@ -555,7 +555,7 @@ export default function LabDipRequestView({
             {/* Table */}
             <div style={{ flex: 1, background: '#fff', overflowY: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: LV_EXPANDER_COL_W }} />
                             <SortableTh sort={sort} colKey="code" onSort={toggleSort} style={{ ...lvTh(classic), width: 140 }}>Request Code</SortableTh>

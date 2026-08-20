@@ -136,7 +136,7 @@ export default function AttributesLibraryView({
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 200 }}>Name</th>
                             <th style={{ ...lvTh(classic), width: 140 }}>Role</th>

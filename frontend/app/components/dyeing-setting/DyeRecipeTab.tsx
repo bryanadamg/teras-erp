@@ -639,7 +639,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             {/* Table */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic)}>
+                    <thead style={lvThead(classic, true)}>
                         <tr>
                             <th style={{ ...lvTh(classic), width: 30 }}></th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Code</th>

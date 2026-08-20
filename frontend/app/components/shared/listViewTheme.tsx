@@ -74,6 +74,12 @@ export const lvThead = (classic: boolean, sticky = false): React.CSSProperties =
 export const lvThBanded = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
     ({ ...lvTh(classic), ...lvThead(classic), ...extra });
 
+// Pin-only header row, for `<thead>`s that already get their band elsewhere —
+// Bootstrap's `.table-light` in the modern branch, or a classic gradient written
+// on the `<tr>`/`<th>`. Sticky must sit on the row-group that owns the band or the
+// body rows scroll through a transparent header.
+export const LV_STICKY_THEAD: React.CSSProperties = { position: 'sticky', top: 0, zIndex: 5 };
+
 // Same, pinned to the top of the table's own scroll pane. `zIndex` keeps it over
 // chips and sticky first columns.
 export const lvThSticky = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>

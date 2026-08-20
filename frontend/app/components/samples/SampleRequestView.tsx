@@ -18,7 +18,7 @@ import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
-import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, lvTh, lvTdRuled, lvZebra } from '../shared/listViewTheme';
+import { lvThead, LV_STICKY_THEAD, ExpanderCell, LV_EXPANDER_COL_W, lvTh, lvTdRuled, lvZebra } from '../shared/listViewTheme';
 
 // Request classification, chosen at create time. Values are the `Sample Category`
 // system attribute (system_role='sample_category') — New Sample / Re Sample / Yardage
@@ -304,7 +304,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       flexShrink: 0,
   };
 
-  const xpTableHeader: React.CSSProperties = lvThead(true);
+  const xpTableHeader: React.CSSProperties = lvThead(true, true);
 
   const xpThCell: React.CSSProperties = lvTh(true);
 
@@ -1427,14 +1427,17 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                className={classic ? '' : 'card-body p-0'}
                // scrollbarGutter: reserve the vertical scrollbar's space always, so expanding a
                // row (which toggles the scrollbar) can't reflow the table's auto-width columns.
-               style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}
+               // `overflow: auto` (not overflowY) with no inner `.table-responsive`: a nested
+               // overflow wrapper is its own scroll container, and a sticky header inside one
+               // pins to a box that never scrolls vertically -- i.e. not at all.
+               style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable' }}
            >
-               <div className="table-responsive">
+               <div>
                    <table
                        className={classic ? '' : 'table table-hover align-middle mb-0'}
                        style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}
                    >
-                       <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
+                       <thead style={classic ? xpTableHeader : LV_STICKY_THEAD} className={classic ? '' : 'table-light'}>
                            <tr>
                                <th style={classic ? { ...xpThCell, width: LV_EXPANDER_COL_W } : { width: LV_EXPANDER_COL_W }} />
                                <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-4'}>Request Code</th>

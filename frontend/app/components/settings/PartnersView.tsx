@@ -10,7 +10,7 @@ import { useUser } from '../../context/UserContext';
 import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead, useRowSelection, RowCheckbox, SelectAllCheckbox, lvZebra } from '../shared/listViewTheme';
+import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead, LV_STICKY_THEAD, useRowSelection, RowCheckbox, SelectAllCheckbox, lvZebra } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
@@ -98,7 +98,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
         flexShrink: 0,
     };
     const xpThCell: React.CSSProperties = lvTh(true);
-    const xpTableHeader: React.CSSProperties = lvThead(true);
+    const xpTableHeader: React.CSSProperties = lvThead(true, true);
     const tdBase: React.CSSProperties = lvTd(true);
     const xpLabel: React.CSSProperties = lvLabel(true);
 
@@ -229,7 +229,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                             style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}
                         >
-                            <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
+                            <thead style={classic ? xpTableHeader : LV_STICKY_THEAD} className={classic ? '' : 'table-light'}>
                                 <tr>
                                     <th style={classic ? { ...xpThCell, width: '28px', textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-3'}>
                                         <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} title="Select all" />

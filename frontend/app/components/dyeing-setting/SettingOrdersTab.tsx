@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
 import { CodeChip, xpFont, ListSkeleton, StatusChip } from '../shared/xpTheme';
 import { orDash, fmtQtyFixed } from '../shared/format';
-import { lvThBanded, lvTd, lvTdRuled, lvZebra } from '../shared/listViewTheme';
+import { lvThBanded, lvTd, lvTdRuled, lvZebra, LV_STICKY_THEAD } from '../shared/listViewTheme';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -417,15 +417,18 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                         )}
 
                         {/* Runs table */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+                        <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
                             {runs.length === 0 ? (
                                 <div style={{ padding: 12, color: classic ? '#888' : '#64748b', fontSize: 10, fontStyle: 'italic', textAlign: 'center' }}>
                                     No setting runs yet.
                                 </div>
                             ) : (
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', ...(classic ? {} : { border: '1px solid #dbe1ea', borderRadius: 9, overflow: 'hidden' }) }}>
-                                        <thead>
+                                <div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', ...(classic ? {} : { border: '1px solid #dbe1ea', borderRadius: 9 }) }}>
+                                        {/* No `overflow: hidden` on the table: it would make the table
+                                            its own (unscrollable) container and the sticky header
+                                            would have nothing to pin against. */}
+                                        <thead style={LV_STICKY_THEAD}>
                                             <tr>
                                                 {[
                                                     'Run #', 'Substrate Qty', 'Machine', 'Temp (C)',

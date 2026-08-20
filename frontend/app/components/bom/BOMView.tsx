@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
+import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton, SearchField } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
@@ -930,13 +930,16 @@ export default function BOMView({
                     )}
 
                     {/* Table body — flex:1 fills space between toolbar and pager */}
-                    <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                        <div className={classic ? '' : 'table-responsive'}>
+                    {/* `overflow: auto` here, and no `.table-responsive` inside: a nested overflow
+                        wrapper is its own scroll container, so a sticky header in it pins to a box
+                        that never scrolls vertically. */}
+                    <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                        <div>
                             <table
                                 className={classic ? '' : 'table table-hover align-middle mb-0'}
                                 style={classic ? { width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: '11px', background: '#fff' } : undefined}
                             >
-                                <thead>
+                                <thead style={LV_STICKY_THEAD}>
                                     <tr style={classic ? { ...lvThead(true), fontSize: '10px', fontWeight: 'bold', color: '#000', letterSpacing: '0.2px' } : undefined} className={classic ? '' : 'table-light'}>
                                         <th style={classic ? { width: LV_CHECK_COL_W, padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: LV_CHECK_COL_W }} className={classic ? '' : 'ps-3'}>
                                             <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} />

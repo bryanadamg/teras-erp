@@ -438,7 +438,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           {/* Table */}
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={lvThead(classic)}>
+                  <thead style={lvThead(classic, true)}>
                       <tr>
                           <th style={{ ...lvTh(classic), width: 100, paddingLeft: classic ? 10 : 14 }}>Code</th>
                           <th style={lvTh(classic)}>{t('station_name')}</th>
@@ -584,7 +584,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           {/* Table */}
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={lvThead(classic)}>
+                  <thead style={lvThead(classic, true)}>
                       <tr>
                           <th style={{ ...lvTh(classic), width: 100, paddingLeft: classic ? 10 : 14 }}>Code</th>
                           <th style={lvTh(classic)}>{t('operation_name')}</th>

@@ -8,7 +8,7 @@ import {
     xpFont, familyColor, FormSection, FieldLabel, XPActionButton,
     SectionTitle as SecTitle, ModalFooterActions,
 } from '../shared/xpTheme';
-import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { lvInput, lvTh, lvTd, lvRow, LV_STICKY_THEAD } from '../shared/listViewTheme';
 import {
     WorkingDaysSection, HolidayCalendarSection, useNationalHolidays,
 } from '../shared/productionCalendar';
@@ -233,7 +233,7 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
 
                     <div style={{ maxHeight: 190, overflow: 'auto', border: classic ? '1px solid #808080' : '1px solid #dbe1ea', background: '#fff' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
+                            <thead style={LV_STICKY_THEAD}>
                                 <tr style={classic ? { background: '#d4d0c8' } : undefined}>
                                     <th style={{ ...lvTh(classic), width: 110 }}>{t('date')}</th>
                                     <th style={lvTh(classic)}>{t('note')}</th>
