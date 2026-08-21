@@ -58,6 +58,11 @@ async def _populate_fulfilment(db: AsyncSession, orders: list) -> None:
             line.qty_packed = f.get("packed", 0.0)
             line.qty_packed_available = f.get("packed_available", 0.0)
             line.qty_dispatched = f.get("dispatched", 0.0)
+            # The denominator the four above are measured against, in their own
+            # unit. `line.qty` is in yards and must never be the divisor — see
+            # so_fulfilment_service.ordered_qty_in_stock_uom. None = undrawable.
+            line.qty_ordered_base = f.get("ordered_base")
+            line.base_uom = f.get("base_uom", "")
 
 
 def _populate_line(line: SalesOrderLine) -> None:

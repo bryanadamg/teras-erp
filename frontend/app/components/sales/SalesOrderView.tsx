@@ -829,17 +829,26 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   // --- Per-line fulfilment (derived server-side by so_fulfilment_service) ---
   // made >= packed >= in-stock/shipped, so the three are drawn as nested stages on
   // one track rather than stacked segments — they are not additive.
+  //
+  // The denominator is `qty_ordered_base`, NOT `line.qty`: the four numbers are in
+  // the item's stock UoM (kg for most FG) while `qty` is the yardage the order was
+  // keyed in. Dividing by `qty` showed an 11 kg shipment of a 10 kg order as
+  // "11 / 10000" — 0.1% instead of complete. `qty_ordered_base` is null when the
+  // item is stocked by weight but has no weight-per-yard on its master; that is
+  // unknown, not zero, so the bar is withheld rather than drawn empty.
   const lineFulfilment = (line: any) => {
-      const ordered = Number(line.qty) || 0;
+      const base = line.qty_ordered_base;
+      const ordered = base == null ? null : Number(base) || 0;
+      const uom = line.base_uom || '';
       const made = Number(line.qty_made) || 0;
       const packed = Number(line.qty_packed) || 0;
       const available = Number(line.qty_packed_available) || 0;
       const shipped = Number(line.qty_dispatched) || 0;
-      const pct = (v: number) => (ordered > 0 ? Math.min(100, Math.round((v / ordered) * 100)) : 0);
-      return { ordered, made, packed, available, shipped, pct,
+      const pct = (v: number) => (ordered && ordered > 0 ? Math.min(100, Math.round((v / ordered) * 100)) : 0);
+      return { ordered, uom, made, packed, available, shipped, pct,
           // Shippable = cartons actually in stock. Dispatched stock has left, so a
           // shipped line reads complete off `shipped`, not off what remains.
-          isReady: ordered > 0 && (available >= ordered - 0.0001 || shipped >= ordered - 0.0001) };
+          isReady: !!ordered && ordered > 0 && (available >= ordered - 0.0001 || shipped >= ordered - 0.0001) };
   };
 
   const isLineLate = (line: any) => {
@@ -856,8 +865,18 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
   const fulfilmentCell = (line: any) => {
       const f = lineFulfilment(line);
+      if (f.ordered == null) {
+          // Weight-stocked item with no weight-per-yard: say so instead of drawing
+          // a 0% bar, since the fix is to fill in the item master.
+          return (
+              <span title={t('so_no_weight_hint')} style={{ fontFamily:xpFont, fontSize:'9px', color:'#8a6d00', display:'inline-flex', alignItems:'center', gap:3 }}>
+                  <i className="bi bi-exclamation-triangle" style={{ fontSize:'8px' }}></i>{t('so_no_weight')}
+              </span>
+          );
+      }
       if (f.ordered <= 0) return <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>;
-      const title = `Made ${fmtQty(f.made)} · Packed ${fmtQty(f.packed)} · In stock ${fmtQty(f.available)} · Shipped ${fmtQty(f.shipped)} — of ${fmtQty(f.ordered)} ordered`;
+      const u = f.uom ? ` ${f.uom}` : '';
+      const title = `Made ${fmtQty(f.made)} · Packed ${fmtQty(f.packed)} · In stock ${fmtQty(f.available)} · Shipped ${fmtQty(f.shipped)} — of ${fmtQty(f.ordered)}${u} ordered`;
       // shipped/packed/made nest (shipped<=packed<=made), so drawn as one stacked
       // bar: green=shipped, blue=packed-not-yet-shipped, gray=made-not-yet-packed.
       const shippedPct = f.pct(f.shipped);
@@ -873,10 +892,10 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
               />
               <div style={{ fontFamily:xpFont, fontSize:'9px', color: f.isReady ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
                   {f.shipped > 0
-                      ? `${fmtQty(f.shipped)} shipped`
+                      ? `${fmtQty(f.shipped)}${u} shipped`
                       : f.packed > 0
-                          ? `${fmtQty(f.available)} packed`
-                          : f.made > 0 ? `${fmtQty(f.made)} made` : 'not started'}
+                          ? `${fmtQty(f.available)}${u} packed`
+                          : f.made > 0 ? `${fmtQty(f.made)}${u} made` : 'not started'}
               </div>
           </div>
       );
@@ -1665,7 +1684,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Alt Unit</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
-                               <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty. READY needs packed cartons in stock.">Fulfilment</th>
+                               <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty, measured in the item's stocking unit (not the ordered yardage). READY needs packed cartons in stock.">Fulfilment</th>
                                <SortableTh sort={soSort} colKey="status" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '80px' } : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '75px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>

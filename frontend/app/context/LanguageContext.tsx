@@ -273,6 +273,9 @@ const translations = {
         'machines_to_update': 'Machines that will be updated',
         'no_machines_in_group': 'No machines under this group yet',
         'apply_to': 'Apply to',
+        // Sales order fulfilment
+        'so_no_weight': 'no weight',
+        'so_no_weight_hint': 'This item is stocked by weight but has no weight per yard on its item master, so the ordered yardage cannot be converted. Set Weight per unit on the item to see fulfilment progress.',
         // Headers
         'powered_by': 'Powered by',
     },
@@ -533,6 +536,9 @@ const translations = {
         'machines_to_update': 'Mesin yang akan diperbarui',
         'no_machines_in_group': 'Belum ada mesin di grup ini',
         'apply_to': 'Terapkan ke',
+        // Sales order fulfilment
+        'so_no_weight': 'tanpa berat',
+        'so_no_weight_hint': 'Barang ini disimpan dalam satuan berat tetapi tidak punya berat per yard di master barang, jadi yardage pesanan tidak bisa dikonversi. Isi Berat per unit di barang untuk melihat progres pemenuhan.',
         // Headers
         'powered_by': 'Ditenagai oleh',
     }

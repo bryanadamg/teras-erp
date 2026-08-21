@@ -1709,6 +1709,12 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     qty_packed: float = 0
     qty_packed_available: float = 0
     qty_dispatched: float = 0
+    # `qty` is in yards; the four numbers above are in the item's stock UoM
+    # (`base_uom`). Progress must be measured against this, not against `qty`.
+    # None when the item is stocked by weight but carries no weight-per-yard —
+    # render that as unknown, never as 0%.
+    qty_ordered_base: float | None = None
+    base_uom: str | None = None
 
     class Config:
         from_attributes = True

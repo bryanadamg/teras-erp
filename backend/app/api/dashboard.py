@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.db.session import get_db, get_async_db
-from app.services import kpi_service
+from app.services import kpi_service, so_fulfilment_service
 from app.api.auth import get_current_user
 from app.models.auth import User
 from app.models.stock_balance import StockBalance
@@ -148,6 +148,13 @@ async def get_dashboard_summary(
         )
         avail_by_item = {row[0]: float(row[1] or 0) for row in avail_result.all()}
 
+    # Ordered qty in each item's stock UoM — `StockBalance.qty` is in that unit
+    # while `line.qty` is in yards, so comparing them raw made every kg-stocked
+    # line read as short. See so_fulfilment_service.ordered_qty_in_stock_uom.
+    ordered_base = await so_fulfilment_service.ordered_base_map(
+        db, [line.id for lines in lines_by_so.values() for line in lines]
+    )
+
     ready_so_count = 0
     short_so_count = 0
     short_orders: list = []
@@ -158,7 +165,10 @@ async def get_dashboard_summary(
         short_lines = 0
         for line in lines:
             available = avail_by_item.get(line.item_id, 0.0)
-            if available < float(line.qty):
+            needed = ordered_base.get(str(line.id))
+            # Unknown requirement counts as short: an unmeasurable line is not
+            # evidence the order is ready to ship.
+            if needed is None or available < needed:
                 short_lines += 1
         if short_lines == 0:
             ready_so_count += 1
