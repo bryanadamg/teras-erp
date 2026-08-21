@@ -15,6 +15,23 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-21
+
+### Added
+- Weaving runs can be paused and resumed: a loom carries several work orders at once, and parking one no longer charges its idle days against that run's efficiency. Each pause is stored as an interval (`weaving_run_pauses`) with reason and actor, so the floor can answer "which day did this WO slip, and why"
+- Mounted beams in the work-center monitor carry their own item column and identity chips (size / combo / shade), so a beam is identifiable without opening it
+- The browser tab is named after the current page (`<page> · <app name>`), so several open Terras tabs stay tellable apart
+
+### Changed
+- A weaving run closes with the work it tracks: completing or cancelling its work order, closing its MO, or deleting the WO now stops the run instead of leaving it accruing elapsed days against work nobody is doing. `DELIVERED` deliberately does not close a run (planned qty met, order still open)
+- App icons redesigned on the XP blue theme — hexagon outline with an inset cube depth facet behind the T — and all PWA/apple icon assets regenerated to match
+
+### Fixed
+- Sales-order fulfilment is measured in the item's stock UoM instead of the ordered yardage. Most finished goods stock in kg while the SO form authors yards, so an 11 kg dispatch against a 10,000 yd order read as 0.1% shipped and the order could never reach READY or SENT. Lines with no honest conversion report "unknown" rather than silently reading as satisfied
+- Production Run quantities seed from the server-derived base UoM instead of the SO's yardage, matching the fulfilment fix above
+- Production Runs and Manufacturing Orders fetch their lists on mount, so arriving via `router.push` no longer leaves the page stuck on a skeleton
+- Added the standard `mobile-web-app-capable` meta tag alongside the apple-prefixed one, silencing the install warning on non-iOS browsers
+
 ## [0.4.0] - 2026-08-20
 
 ### Added
