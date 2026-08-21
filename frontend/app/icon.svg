@@ -19,6 +19,9 @@
   <!-- Rounded square background -->
   <rect width="256" height="256" rx="60" fill="url(#bg)" stroke="#003080" stroke-width="4"/>
 
+  <!-- Cube depth: one facet spanning top+right catches the light (drawn as a single shape so the shared edge leaves no seam); left face stays flat -->
+  <path d="M128 40L210 85L210 175L128 220L128 120L46 85Z" fill="white" fill-opacity="0.16"/>
+
   <!-- Outer cube outline (hexagon) -->
   <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
 
