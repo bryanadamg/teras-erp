@@ -39,6 +39,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Standard counterpart to appleWebApp.capable above — Next's metadata API doesn't emit this one yet */}
+        <meta name="mobile-web-app-capable" content="yes" />
         {/* Interface scale, applied before first paint so the UI never flashes
             at full size and then snaps down. ThemeContext owns the value after
             hydration; the scale list here mirrors UI_SCALES there. */}
