@@ -4,10 +4,10 @@
       <stop offset="0" stop-color="#0058e6"/>
       <stop offset="1" stop-color="#08a5ff"/>
     </linearGradient>
-    <!-- Carves the T away from the cube outline, leaving a slice of background between them -->
+    <!-- Carves the T's crossbar free of the cube outline; each end tapers downward independently, mirroring the old upward taper without reaching into the stem -->
     <mask id="slice" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
       <rect width="256" height="256" fill="white"/>
-      <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" fill="none" stroke="black" stroke-width="30" stroke-linejoin="round"/>
+      <path d="M46 55V100L95 127M210 55V100L161 127" fill="none" stroke="black" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"/>
     </mask>
     <!-- Blurs then re-thresholds the masked T so every corner the carve produces comes out filleted -->
     <filter id="roundT" x="-30%" y="-30%" width="160%" height="160%">
@@ -29,8 +29,8 @@
   <!-- The "T" inside, sliced free of the cube outline, corners rounded off after the carve -->
   <g filter="url(#roundT)">
     <g mask="url(#slice)">
-      <path d="M54 85H202" stroke="white" stroke-width="16" stroke-linecap="round"/>
-      <path d="M128 89V212" stroke="white" stroke-width="20" stroke-linecap="round"/>
+      <path d="M54 100H202" stroke="white" stroke-width="16" stroke-linecap="round"/>
+      <path d="M128 104V212" stroke="white" stroke-width="20" stroke-linecap="round"/>
     </g>
   </g>
 </svg>
