@@ -85,6 +85,24 @@ export default function SalesOrdersPage() {
             labdip_variant_code?: string;
         }> = [];
         let missingBomCount = 0;
+        const unweighedItems = new Set<string>();
+
+        // Seed the PR in the produced item's own base UoM, never in the SO's ordered
+        // yardage. `qty_ordered_base` is derived per line server-side (qty_kg, else
+        // Item.weight_per_unit — see so_fulfilment_service.ordered_qty_in_stock_uom),
+        // so it is right whatever the item's uom is: kg lines come back as kg, yard
+        // and pcs lines pass straight through. It replaces a client-side
+        // `items.find(b.item_id)` lookup that read `undefined` for any item outside
+        // the 50-row paginated `items` window — the kg branch then never fired and the
+        // PR was seeded in raw yards, 20-200x too large for kg-stocked cloth.
+        //
+        // `null` means the item has no weight and no operator-entered qty_kg, so there
+        // is no honest number to plan against. Return it as-is and let the caller drop
+        // the whole group rather than substitute 0 or the yardage.
+        const pickQty = (l: any): number | null =>
+            l.qty_ordered_base === null || l.qty_ordered_base === undefined
+                ? null
+                : parseFloat(l.qty_ordered_base) || 0;
 
         for (const [, groupLines] of attrGroupMap) {
             const firstLine = groupLines[0];
@@ -126,16 +144,19 @@ export default function SalesOrdersPage() {
                 continue;
             }
 
-            const bomItem = items.find((it: any) => it.id === matchingBOM!.item_id);
-            const useKg = (bomItem?.uom || '').toLowerCase() === 'kg';
-            const pickQty = (l: any) => useKg ? (parseFloat(l.qty_kg) || 0) : (parseFloat(l.qty) || 0);
+            // A group is planned as one unit (one root MO), so one unweighed line
+            // poisons all of it — summing the rest would silently under-order.
+            if (groupLines.some((l: any) => pickQty(l) === null)) {
+                unweighedItems.add(firstLine.item_code || firstLine.item_name || 'item');
+                continue;
+            }
 
             const linesWithSize = groupLines.filter((l: any) => !!l.bom_size_id);
 
             if (linesWithSize.length > 0) {
                 const uncoveredSizes = linesWithSize
                     .filter((l: any) => !coveredSizeIds.has(String(l.bom_size_id)))
-                    .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: pickQty(l) }));
+                    .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: pickQty(l)! }));
                 if (uncoveredSizes.length > 0) {
                     entries.push({
                         bom_id: matchingBOM.id,
@@ -154,7 +175,7 @@ export default function SalesOrdersPage() {
                     return entryAttrs === sortedLineAttrs && String(e.color_id || '') === String(lineColorId || '') && String(e.labdip_variant_code || '') === String(lineLabdip || '');
                 });
                 if (!covered) {
-                    const totalQty = groupLines.reduce((acc: number, l: any) => acc + pickQty(l), 0);
+                    const totalQty = groupLines.reduce((acc: number, l: any) => acc + pickQty(l)!, 0);
                     entries.push({
                         bom_id: matchingBOM.id,
                         total_qty: totalQty,
@@ -167,10 +188,20 @@ export default function SalesOrdersPage() {
             }
         }
 
+        // Warn whether or not anything else made it through — a partially seeded PR
+        // that quietly omits an item is worse than one the user knows is incomplete.
+        if (unweighedItems.size > 0) {
+            const names = [...unweighedItems].join(', ');
+            showToast(
+                `Skipped ${names}: no weight per unit on the item, so the order quantity can't be converted to kg. Set it on the item master (or enter Kg on the SO line) and retry.`,
+                'warning'
+            );
+        }
+
         if (entries.length === 0) {
             if (missingBomCount > 0) {
                 showToast(`${missingBomCount} item(s) have no matching BOM. Please create recipes first.`, 'warning');
-            } else {
+            } else if (unweighedItems.size === 0) {
                 showToast('All items already have a Production Run.', 'info');
             }
             return;
