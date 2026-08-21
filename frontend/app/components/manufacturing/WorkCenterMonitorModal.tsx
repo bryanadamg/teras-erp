@@ -991,15 +991,16 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                         {mounts.map((m, idx) => (
                                             <React.Fragment key={m.id}>
                                             <tr style={lvRow(cls, idx)}>
-                                                {/* Beam number on line 1; what the warp IS (size, combo,
-                                                    shade) as identity chips on line 2 — two BM- beams off
-                                                    the same item differ only by those, and the supervisor
-                                                    is matching this list against the physical loom.
-                                                    Same LotChips every lot picker uses. */}
+                                                {/* Beam number on line 1; what the warp IS on line 2, as the
+                                                    same LotChips every lot picker uses. `showItem` leads that
+                                                    row with the beam's item code: a beam rarely carries a
+                                                    size, combo or shade, so the article is usually the only
+                                                    thing that tells the supervisor which warp is up — and the
+                                                    table has no item column of its own. */}
                                                 <td style={{ ...lvTd(cls), color: BLUE }}>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                                                         <span style={{ fontWeight: 'bold' }}>{m.beam_number || '—'}</span>
-                                                        <LotChips batch={m} rounded={!cls} />
+                                                        <LotChips batch={m} rounded={!cls} showItem />
                                                     </div>
                                                 </td>
                                                 <td style={lvTd(cls)}>{m.ends ?? '—'}</td>
