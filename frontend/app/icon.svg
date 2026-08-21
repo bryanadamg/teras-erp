@@ -4,19 +4,33 @@
       <stop offset="0" stop-color="#0058e6"/>
       <stop offset="1" stop-color="#08a5ff"/>
     </linearGradient>
+    <!-- Carves the T away from the cube outline, leaving a slice of background between them -->
+    <mask id="slice" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
+      <rect width="256" height="256" fill="white"/>
+      <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" fill="none" stroke="black" stroke-width="30" stroke-linejoin="round"/>
+    </mask>
+    <!-- Blurs then re-thresholds the masked T so every corner the carve produces comes out filleted -->
+    <filter id="roundT" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 25 -12" result="round"/>
+    </filter>
   </defs>
-  {/* Rounded Square Background */}
-  <rect width="256" height="256" rx="60" fill="url(#bg)" stroke="#003080" stroke-width="4"/>
-  
-  {/* Outer Cube Outline (Hexagon) */}
-  <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-  
-  {/* The "T" inside */}
-  <path d="M54 85H202" stroke="white" stroke-width="16" stroke-linecap="round"/>
-  {/* Vertical stem: Thinned to 16. Radius is 8. 220-8=212 */}
-  <path d="M128 89V212" stroke="white" stroke-width="20" stroke-linecap="round"/>
 
-  {/* Cube internal depth lines (subtle) */}
+  <!-- Rounded square background -->
+  <rect width="256" height="256" rx="60" fill="url(#bg)" stroke="#003080" stroke-width="4"/>
+
+  <!-- Cube internal depth lines (subtle) -->
   <path d="M128 120L210 85" stroke="white" stroke-width="8" stroke-opacity="0.2" stroke-linecap="round"/>
   <path d="M128 120L46 85" stroke="white" stroke-width="8" stroke-opacity="0.2" stroke-linecap="round"/>
+
+  <!-- Outer cube outline (hexagon) -->
+  <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- The "T" inside, sliced free of the cube outline, corners rounded off after the carve -->
+  <g filter="url(#roundT)">
+    <g mask="url(#slice)">
+      <path d="M54 85H202" stroke="white" stroke-width="16" stroke-linecap="round"/>
+      <path d="M128 89V212" stroke="white" stroke-width="20" stroke-linecap="round"/>
+    </g>
+  </g>
 </svg>
