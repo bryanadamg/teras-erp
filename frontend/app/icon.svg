@@ -19,8 +19,8 @@
   <!-- Rounded square background -->
   <rect width="256" height="256" rx="60" fill="url(#bg)" stroke="#003080" stroke-width="4"/>
 
-  <!-- Cube depth: one facet spanning top+right catches the light (drawn as a single shape so the shared edge leaves no seam); left face stays flat -->
-  <path d="M128 40L210 85L210 175L128 220L128 120L46 85Z" fill="white" fill-opacity="0.16"/>
+  <!-- Cube depth: one facet spanning top+right catches the light, inset from the outline with its own rounded corners so it reads as a floating shape rather than a shaded region of the hexagon; left face stays flat -->
+  <path d="M76.29 88.28L115.71 66.72Q128 60 140.29 66.72L179.71 88.28Q192 95 192 109L192 151Q192 165 179.71 171.72L140.29 193.28Q128 200 128 186L128 122L76.9 100.44Q64 95 76.29 88.28Z" fill="white" fill-opacity="0.16"/>
 
   <!-- Outer cube outline (hexagon) -->
   <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
