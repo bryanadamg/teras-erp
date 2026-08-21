@@ -19,11 +19,12 @@
   <!-- Rounded square background -->
   <rect width="256" height="256" rx="60" fill="url(#bg)" stroke="#003080" stroke-width="4"/>
 
-  <!-- Cube depth: one facet spanning top+right catches the light, inset from the outline with its own rounded corners so it reads as a floating shape rather than a shaded region of the hexagon; left face stays flat -->
-  <path d="M76.29 88.28L115.71 66.72Q128 60 140.29 66.72L179.71 88.28Q192 95 192 109L192 151Q192 165 179.71 171.72L140.29 193.28Q128 200 128 186L128 122L76.9 100.44Q64 95 76.29 88.28Z" fill="white" fill-opacity="0.16"/>
+  <!-- Cube depth: two floating facets (above and to the right of the T), each inset with rounded corners and clear of both the outline and the T glyph -->
+  <path d="M94.8 78.16L120.97 63.84Q128 60 135.03 63.84L161.2 78.16Q168.23 82 160.23 82L95.77 82Q87.77 82 94.8 78.16Z" fill="white" fill-opacity="0.16"/>
+  <path d="M148 177.06L148 130Q148 118 160 118L180 118Q192 118 192 130L192 153Q192 165 181.47 170.76L158.53 183.3Q148 189.06 148 177.06Z" fill="white" fill-opacity="0.16"/>
 
-  <!-- Outer cube outline (hexagon) -->
-  <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Outer cube outline (hexagon), corners drawn as curves rather than sharp vertex joins -->
+  <path d="M113.97 47.7Q128 40 142.03 47.7L195.97 77.3Q210 85 210 101L210 159Q210 175 195.97 182.7L142.03 212.3Q128 220 113.97 212.3L60.03 182.7Q46 175 46 159L46 101Q46 85 60.03 77.3Z" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
 
   <!-- The "T" inside, sliced free of the cube outline, corners rounded off after the carve -->
   <g filter="url(#roundT)">
