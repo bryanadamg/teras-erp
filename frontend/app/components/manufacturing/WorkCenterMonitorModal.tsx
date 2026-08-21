@@ -16,6 +16,7 @@ import {
     xpSelect, xpPanel, SectionTitle, CodeChip,
 } from '../shared/xpTheme';
 import { LvTabBar, LvTab, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { LotChips } from '../shared/LotChips';
 import { WorkingDaysSection, HolidayCalendarSection, useNationalHolidays } from '../shared/productionCalendar';
 
 // Measurement accents from the shared five-family palette — see DESIGN.md's one
@@ -990,7 +991,17 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                         {mounts.map((m, idx) => (
                                             <React.Fragment key={m.id}>
                                             <tr style={lvRow(cls, idx)}>
-                                                <td style={{ ...lvTd(cls), fontWeight: 'bold', color: BLUE }}>{m.beam_number || '—'}</td>
+                                                {/* Beam number on line 1; what the warp IS (size, combo,
+                                                    shade) as identity chips on line 2 — two BM- beams off
+                                                    the same item differ only by those, and the supervisor
+                                                    is matching this list against the physical loom.
+                                                    Same LotChips every lot picker uses. */}
+                                                <td style={{ ...lvTd(cls), color: BLUE }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                                                        <span style={{ fontWeight: 'bold' }}>{m.beam_number || '—'}</span>
+                                                        <LotChips batch={m} rounded={!cls} />
+                                                    </div>
+                                                </td>
                                                 <td style={lvTd(cls)}>{m.ends ?? '—'}</td>
                                                 <td style={{ ...lvTd(cls), textAlign: 'right' }}>{fmt(m.remaining, 1)} kg</td>
                                                 <td style={{ ...lvTd(cls), color: '#666' }}>

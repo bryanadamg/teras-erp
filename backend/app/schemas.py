@@ -929,6 +929,18 @@ class BeamMountResponse(BaseModel):
     ends: int | None = None
     qty_mounted: float = 0.0
     remaining: float = 0.0       # live batch balance at the loom
+    # Lot identity of the beam itself — same fields LotChips renders on every batch
+    # picker. A BM- number alone doesn't say what warp is up: two beams off the same
+    # item differ only by size, combo and shade, and the supervisor reading the loom's
+    # beam list is matching it against the physical warp. Plain dicts, not
+    # BatchVariantAttr: that model is declared far below this one and these rows are
+    # built server-side, so there's nothing to validate.
+    bom_size_snapshot: dict | None = None
+    variant_attributes: list[dict] | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    labdip_variant_code: str | None = None
     source_wo_id: UUID | None = None
     mounted_at: datetime | None = None
     mounted_by: str | None = None
