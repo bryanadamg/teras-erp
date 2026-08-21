@@ -55,6 +55,8 @@ const translations = {
         'administration': 'Administration',
         'print_designer': 'Print Layouts',
         'settings': 'Settings',
+        'scanner': 'Scanner',
+        'login': 'Login',
         'account_settings': 'Account Settings',
 
         // Dashboard
@@ -323,6 +325,8 @@ const translations = {
         'administration': 'Administrasi',
         'print_designer': 'Tata Letak Cetak',
         'settings': 'Pengaturan',
+        'scanner': 'Pemindai',
+        'login': 'Masuk',
         'account_settings': 'Pengaturan Akun',
 
         // Dashboard

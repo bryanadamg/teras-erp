@@ -1,7 +1,7 @@
 // Single source of truth for the app's navigation taxonomy.
 // Consumed by:
 //  - Sidebar.tsx         → section headers + nav items (permission-gated)
-//  - MainLayout.tsx      → page titles for /sections/* routes + route-chunk prefetch
+//  - MainLayout.tsx      → page + browser-tab titles (routeTitle) + route-chunk prefetch
 //  - SectionHomeView.tsx → section meta (label/icon/accent) + quick links
 // Add a page here and every consumer picks it up — do not hand-edit their lists.
 
@@ -134,10 +134,34 @@ export const NAV_SECTIONS: NavSection[] = [
 export const navLabel = (t: (k: string) => string, entry: { label: string; i18nKey?: string }) =>
     entry.i18nKey && t(entry.i18nKey) !== entry.i18nKey ? t(entry.i18nKey) : entry.label;
 
-/** Section-home page titles, keyed by section slug. */
-export const SECTION_LABELS: Record<string, string> = Object.fromEntries(
-    NAV_SECTIONS.map(s => [s.key, s.label])
-);
+/**
+ * Route slug → the nav entry that names it, covering leaves and section homes
+ * plus the handful of pages with no sidebar leaf of their own (reached from the
+ * header, QUICK SCAN, a redirect or a typed URL).
+ */
+const ROUTE_ENTRIES: Record<string, { label: string; i18nKey?: string }> = Object.fromEntries([
+    ...NAV_SECTIONS.flatMap(s => s.items.map(i => [i.tab, i] as const)),
+    ...NAV_SECTIONS.map(s => [`sections-${s.key}`, s] as const),
+    ['dashboard', { label: 'Dashboard', i18nKey: 'dashboard' }] as const,
+    ['settings', { label: 'Settings', i18nKey: 'settings' }] as const,
+    ['scanner', { label: 'Scanner', i18nKey: 'scanner' }] as const,
+    ['stock', { label: 'Stock Entry', i18nKey: 'stock_adjustment' }] as const,
+    ['login', { label: 'Login', i18nKey: 'login' }] as const,
+]);
+
+/**
+ * Human label for a route slug — translation first, then the taxonomy's English
+ * label, then the slug title-cased. Shared by the header heading and the browser
+ * tab title (useDocumentTitle) so the two can never drift.
+ */
+export function routeTitle(activeTab: string, t: (key: string) => string): string {
+    const entry = ROUTE_ENTRIES[activeTab];
+    // i18n key from the taxonomy when it declares one, else the slug's own key
+    // (work-queue → work_queue) — several leaves are translated without an i18nKey.
+    const key = entry?.i18nKey || activeTab.replace(/-/g, '_');
+    if (t(key) !== key) return t(key);
+    return entry?.label || activeTab.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 /**
  * Route slug → the permissions that open it, ANY of which is enough.
