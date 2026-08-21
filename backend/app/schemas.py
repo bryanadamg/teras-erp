@@ -3225,6 +3225,20 @@ class WeavingRunResponse(BaseModel):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class WeavingRunPauseRequest(BaseModel):
+    """Park a run. `reason` is what the floor answers "why did this WO slip" with."""
+    reason: str | None = None
+
+class WeavingRunPauseResponse(BaseModel):
+    id: UUID
+    run_id: UUID
+    paused_on: date
+    resumed_on: date | None = None
+    reason: str | None = None
+    paused_by: str | None = None
+    resumed_by: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
 class WorkCenterHolidayCreate(BaseModel):
     holiday_date: date
     note: str | None = None

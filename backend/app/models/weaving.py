@@ -42,7 +42,10 @@ class WeavingRun(Base):
     target_efficiency_pct: Mapped[float] = mapped_column(Numeric(6, 2), default=50)
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    status: Mapped[str] = mapped_column(String(16), default="RUNNING", index=True)  # RUNNING / STOPPED / DONE
+    # RUNNING / PAUSED / STOPPED / DONE. PAUSED is still an *active* run — the warp is
+    # up and the order is open, it is only parked while another WO on the same loom is
+    # prioritised, so it keeps its card and its efficiency (see WeavingRunPause).
+    status: Mapped[str] = mapped_column(String(16), default="RUNNING", index=True)
     actual_qty_override: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
@@ -50,6 +53,37 @@ class WeavingRun(Base):
     work_center: Mapped["WorkCenter"] = relationship("WorkCenter", lazy="noload")
     mo: Mapped["ManufacturingOrder"] = relationship("ManufacturingOrder", lazy="noload")
     work_order: Mapped[Optional["WorkOrder"]] = relationship("WorkOrder", lazy="noload")
+    pauses: Mapped[list["WeavingRunPause"]] = relationship(
+        "WeavingRunPause", lazy="noload", cascade="all, delete-orphan",
+        order_by="WeavingRunPause.paused_on",
+    )
+
+
+class WeavingRunPause(Base):
+    """One stretch of calendar during which a run was parked, not woven.
+
+    A loom carries several WOs at once and the floor reprioritises: push one order,
+    park the others. Those parked days must not count against the parked run's
+    efficiency, so each pause is stored as an interval and its working days are
+    subtracted from elapsed (weaving_service.paused_working_days).
+
+    Intervals rather than a running counter on the run: a run is parked and resumed
+    many times over its life, a mis-clicked resume is undone by deleting the row, and
+    the floor gets a real answer to "why did this WO slip" — which day, and why.
+    `resumed_on` NULL means still parked.
+    """
+    __tablename__ = "weaving_run_pauses"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("weaving_runs.id", ondelete="CASCADE"), index=True
+    )
+    paused_on: Mapped[date] = mapped_column(Date)
+    resumed_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    paused_by: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    resumed_by: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class WorkCenterHoliday(Base):

@@ -7,7 +7,8 @@ Faithful to the client's formula:
   efficiency_pct         = actual_kg / theoretical_100_kg * 100   (e.g. 50/129.6 = 38.5%)
 
 A "working day" runs 24h (continuous 3-shift weaving). The production calendar
-(working_weekdays + holidays, per machine) decides which calendar days count.
+(working_weekdays + holidays, per machine) decides which calendar days count, and
+WeavingRunPause intervals take back the days a parked run was not being woven.
 """
 from datetime import date, timedelta
 from math import ceil
@@ -20,6 +21,13 @@ from app.models.manufacturing import MOCompletion
 
 MINUTES_PER_DAY = 24 * 60
 _MAX_PROJECT_DAYS = 3650  # 10y guard against runaway walks
+
+# An open run on a loom. PAUSED belongs here with RUNNING: the warp is up, the order
+# is open and the run still owns its share of that MO's logged output — it is only
+# parked while another WO on the same loom is prioritised. Filtering it out would free
+# its WO to be started a second time and let the loom fall back to STAGED with its
+# prep buttons re-armed under a mounted warp.
+ACTIVE_RUN_STATUSES = ("RUNNING", "PAUSED")
 
 
 # ── Loom prep state machine ──────────────────────────────────────────────────
@@ -114,6 +122,35 @@ def count_working_days(weekdays, holidays, start: date, end: date) -> int:
             n += 1
         d += timedelta(days=1)
     return n
+
+
+def paused_working_days(pauses, weekdays, holidays, window_end: date) -> int:
+    """Working days lost to pauses, per this machine's calendar.
+
+    A loom carries several WOs at once and the floor reprioritises: push one order,
+    park the others. A parked run must stop accruing elapsed working days, else its
+    efficiency decays for days it was deliberately not being woven.
+
+    Each interval excludes [paused_on, resumed_on - 1] — resuming on a day means that
+    day is worked again. An open interval (resumed_on is None) runs to `window_end`.
+    Days that were not working days anyway are never double-counted, since the same
+    calendar filter does the counting.
+    """
+    total = 0
+    for p in pauses or []:
+        start = p.paused_on
+        if start is None or start > window_end:
+            continue
+        end = (p.resumed_on - timedelta(days=1)) if p.resumed_on else window_end
+        if end > window_end:
+            end = window_end
+        total += count_working_days(weekdays, holidays, start, end)
+    return total
+
+
+def is_paused(pauses) -> bool:
+    """True while any interval is still open — the run is parked right now."""
+    return any(p.resumed_on is None for p in (pauses or []))
 
 
 def add_working_days(weekdays, holidays, start: date, n: int) -> Optional[date]:
@@ -231,8 +268,14 @@ def lateness(projected: Optional[date], wo_target: Optional[date], plan_target: 
     }
 
 
-def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date) -> dict:
-    """All displayed numbers for one run. Pure — caller supplies actual_kg + calendar."""
+def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date,
+                        pauses=None) -> dict:
+    """All displayed numbers for one run. Pure — caller supplies actual_kg + calendar.
+
+    `pauses` are the run's WeavingRunPause intervals; the days they cover are removed
+    from `elapsed_working_days`, so a parked WO holds the efficiency it earned while
+    it was actually on the loom.
+    """
     lines = int(run.lines or 0)
     rate = float(run.rate_per_line_g_min or 0)
     eff_target = float(run.target_efficiency_pct or 0)
@@ -244,6 +287,10 @@ def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date) 
     if window_end > today:
         window_end = today
     elapsed = count_working_days(weekdays, holidays, run.start_date, window_end)
+    paused = paused_working_days(pauses, weekdays, holidays, window_end)
+    # Never below zero: a pause opened before the run's start_date would otherwise
+    # subtract days the run never had.
+    elapsed = max(0, elapsed - paused)
 
     theoretical_100 = t100_day * elapsed
     efficiency_pct = (actual_kg / theoretical_100 * 100.0) if theoretical_100 > 0 else None
@@ -256,6 +303,8 @@ def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date) 
         "target_100_per_day_kg": round(t100_day, 3),
         "target_eff_per_day_kg": round(t_eff_day, 3),
         "elapsed_working_days": elapsed,
+        "paused_working_days": paused,
+        "is_paused": is_paused(pauses),
         "theoretical_100_kg": round(theoretical_100, 3),
         "actual_kg": round(actual_kg, 3),
         "efficiency_pct": round(efficiency_pct, 1) if efficiency_pct is not None else None,

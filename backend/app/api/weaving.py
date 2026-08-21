@@ -8,7 +8,7 @@ from math import ceil
 import uuid
 
 from app.db.session import get_async_db
-from app.models.weaving import WeavingRun, WorkCenterHoliday
+from app.models.weaving import WeavingRun, WeavingRunPause, WorkCenterHoliday
 from app.models.routing import WorkCenter
 from app.models.manufacturing import ManufacturingOrder
 from app.models.work_order import WorkOrder
@@ -21,7 +21,7 @@ from app.api.auth import get_current_user, require_permission, require_any_permi
 from app.schemas import (
     WeavingRunCreate, WeavingRunUpdate, WeavingRunResponse,
     WorkCenterHolidayCreate, WorkCenterHolidayResponse, WorkCenterCalendarUpdate,
-    WorkCenterGroupCalendarUpdate, LoomPrepUpdate,
+    WorkCenterGroupCalendarUpdate, LoomPrepUpdate, WeavingRunPauseRequest,
 )
 from app.services import (
     audit_service, weaving_service, id_holidays, work_center_service, stock_service,
@@ -32,6 +32,8 @@ from app.core.ws_manager import manager
 router = APIRouter()
 
 DEFAULT_WEEKDAYS = [0, 1, 2, 3, 4]
+
+ACTIVE_RUN_STATUSES = weaving_service.ACTIVE_RUN_STATUSES
 
 
 async def _load_calendar(db: AsyncSession, wc: WorkCenter):
@@ -60,6 +62,22 @@ async def _run_actual_kg(db: AsyncSession, run: WeavingRun) -> float:
     )
 
 
+async def _pauses_by_run(db: AsyncSession, run_ids) -> dict:
+    """Pause intervals keyed by run id, in one query for the whole grid."""
+    ids = list(run_ids)
+    if not ids:
+        return {}
+    res = await db.execute(
+        select(WeavingRunPause)
+        .where(WeavingRunPause.run_id.in_(ids))
+        .order_by(WeavingRunPause.paused_on)
+    )
+    out: dict = {}
+    for p in res.scalars().all():
+        out.setdefault(p.run_id, []).append(p)
+    return out
+
+
 CLOSED_MO_STATUSES = ("COMPLETED", "CANCELLED")
 
 
@@ -67,7 +85,8 @@ async def _loom_status(db: AsyncSession, wc: WorkCenter) -> str:
     """Derived prep state of one loom — same definition as the monitor grid."""
     has_run = bool((await db.execute(
         select(WeavingRun.id)
-        .where(WeavingRun.work_center_id == wc.id, WeavingRun.status == "RUNNING")
+        .where(WeavingRun.work_center_id == wc.id,
+               WeavingRun.status.in_(ACTIVE_RUN_STATUSES))
         .limit(1)
     )).first())
     pcs = await beam_service.mounted_pcs(db, wc.id)
@@ -201,7 +220,7 @@ async def work_center_candidate_wos(
         r[0] for r in (await db.execute(
             select(WeavingRun.work_order_id)
             .where(WeavingRun.work_center_id == wc_id)
-            .where(WeavingRun.status == "RUNNING")
+            .where(WeavingRun.status.in_(ACTIVE_RUN_STATUSES))
             .where(WeavingRun.work_order_id.is_not(None))
         )).all()
     }
@@ -263,12 +282,13 @@ async def create_weaving_run(
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
     # Parallel runs are the point, double-counting the same order is not: the same WO
-    # (or, WO-less, the same MO) may only be RUNNING once on a machine, else two runs
-    # would each claim the whole of that order's logged output.
+    # (or, WO-less, the same MO) may only be active once on a machine, else two runs
+    # would each claim the whole of that order's logged output. A PAUSED run counts —
+    # the order is parked, not finished; resume it instead of starting a second one.
     dup_q = (
         select(WeavingRun.id)
         .where(WeavingRun.work_center_id == wc.id)
-        .where(WeavingRun.status == "RUNNING")
+        .where(WeavingRun.status.in_(ACTIVE_RUN_STATUSES))
     )
     if wo:
         dup_q = dup_q.where(WeavingRun.work_order_id == wo.id)
@@ -334,6 +354,16 @@ async def update_weaving_run(
         raise HTTPException(status_code=404, detail="Weaving run not found")
 
     data = payload.model_dump(exclude_unset=True)
+    # PAUSED is not a plain column write — it owns a WeavingRunPause interval, and a
+    # status set from here would leave that interval missing (or stuck open), silently
+    # corrupting elapsed working days. Editing a paused run's lines/rate stays fine;
+    # only crossing into or out of PAUSED has to go through the dedicated endpoints.
+    new_status = str(data.get("status") or "").upper() or run.status
+    if new_status != run.status and "PAUSED" in (new_status, run.status):
+        raise HTTPException(
+            status_code=422,
+            detail="Use /pause and /resume to change a run's paused state",
+        )
     for field, value in data.items():
         setattr(run, field, value)
     await db.commit()
@@ -347,6 +377,93 @@ async def update_weaving_run(
     return run
 
 
+async def _open_pause(db: AsyncSession, run_id) -> Optional[WeavingRunPause]:
+    """The run's un-resumed pause interval, if it is parked right now."""
+    res = await db.execute(
+        select(WeavingRunPause)
+        .where(WeavingRunPause.run_id == run_id, WeavingRunPause.resumed_on.is_(None))
+        .order_by(WeavingRunPause.paused_on.desc())
+    )
+    return res.scalars().first()
+
+
+@router.post("/weaving-runs/{run_id}/pause", response_model=WeavingRunResponse)
+async def pause_weaving_run(
+    run_id: str,
+    payload: WeavingRunPauseRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('weaving_monitor.stop')),
+):
+    """Park a run without closing it.
+
+    A loom runs several WOs at once and the floor reprioritises — push one order, park
+    the rest. From today the parked run stops accruing elapsed working days, so it
+    holds the efficiency it earned on the loom instead of decaying for days nobody
+    ever meant to weave it. Its projected completion date keeps sliding, which is the
+    honest cost of the decision.
+    """
+    res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
+    run = res.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Weaving run not found")
+    if run.status != "RUNNING":
+        raise HTTPException(
+            status_code=422, detail=f"Only a running run can be paused (it is {run.status})",
+        )
+
+    run.status = "PAUSED"
+    db.add(WeavingRunPause(
+        run_id=run.id,
+        paused_on=date.today(),
+        reason=(payload.reason or None),
+        paused_by=current_user.username,
+    ))
+    await db.commit()
+    await db.refresh(run)
+
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "weaving_run", str(run.id),
+        details=f"Paused weaving run{f': {payload.reason}' if payload.reason else ''}",
+        changes={"status": "PAUSED", "reason": payload.reason},
+    )
+    await manager.broadcast({"type": "weaving_run", "action": "pause", "work_center_id": str(run.work_center_id)})
+    return run
+
+
+@router.post("/weaving-runs/{run_id}/resume", response_model=WeavingRunResponse)
+async def resume_weaving_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('weaving_monitor.stop')),
+):
+    """Put a parked run back on the loom. Today counts as woven again."""
+    res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
+    run = res.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Weaving run not found")
+    if run.status != "PAUSED":
+        raise HTTPException(
+            status_code=422, detail=f"Only a paused run can be resumed (it is {run.status})",
+        )
+
+    run.status = "RUNNING"
+    pause = await _open_pause(db, run.id)
+    if pause:
+        # Resuming today means today is worked again, so the interval closes on today
+        # and paused_working_days excludes up to yesterday.
+        pause.resumed_on = date.today()
+        pause.resumed_by = current_user.username
+    await db.commit()
+    await db.refresh(run)
+
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "weaving_run", str(run.id),
+        details="Resumed weaving run", changes={"status": "RUNNING"},
+    )
+    await manager.broadcast({"type": "weaving_run", "action": "resume", "work_center_id": str(run.work_center_id)})
+    return run
+
+
 @router.post("/weaving-runs/{run_id}/stop", response_model=WeavingRunResponse)
 async def stop_weaving_run(
     run_id: str,
@@ -357,9 +474,17 @@ async def stop_weaving_run(
     run = res.scalars().first()
     if not run:
         raise HTTPException(status_code=404, detail="Weaving run not found")
+    was_paused = run.status == "PAUSED"
     run.status = "DONE"
     if not run.end_date:
         run.end_date = date.today()
+    # Stopping a parked run ends the pause with it. Left open, the interval would keep
+    # reporting the closed run as paused in the history table.
+    if was_paused:
+        pause = await _open_pause(db, run.id)
+        if pause:
+            pause.resumed_on = run.end_date
+            pause.resumed_by = current_user.username
     await db.commit()
     await db.refresh(run)
 
@@ -436,7 +561,13 @@ async def set_loom_prep(
 
 # ── Monitor grid (all weaving machines, at a glance) ────────────────────────
 
-def _run_card(run: WeavingRun, metrics: dict, projection: Optional[dict]) -> dict:
+def _paused_since(pauses) -> Optional[date]:
+    """Date the run was parked, for the card's "paused since" line."""
+    return next((p.paused_on for p in (pauses or []) if p.resumed_on is None), None)
+
+
+def _run_card(run: WeavingRun, metrics: dict, projection: Optional[dict],
+              pauses=None) -> dict:
     """One run as the grid and the modal both read it.
 
     The completion dates are flattened onto the card (not left inside `projection`)
@@ -445,6 +576,7 @@ def _run_card(run: WeavingRun, metrics: dict, projection: Optional[dict]) -> dic
     mo = run.mo
     wo = run.work_order
     proj = projection or {}
+    paused_on = _paused_since(pauses)
     return {
         "id": str(run.id),
         "work_order_id": str(run.work_order_id) if run.work_order_id else None,
@@ -461,7 +593,9 @@ def _run_card(run: WeavingRun, metrics: dict, projection: Optional[dict]) -> dic
         **{k: metrics[k] for k in (
             "efficiency_pct", "target_efficiency_pct", "on_target", "actual_kg",
             "theoretical_100_kg", "actual_daily_rate_kg", "elapsed_working_days", "lines",
+            "paused_working_days", "is_paused",
         )},
+        "paused_on": paused_on,
         # The three dates + the warning, straight on the card.
         "wo_target_end_date": proj.get("wo_target_end_date"),
         "target_completion_date": proj.get("target_completion_date"),
@@ -476,19 +610,22 @@ def _run_card(run: WeavingRun, metrics: dict, projection: Optional[dict]) -> dic
 
 
 def _machine_payload(wc: WorkCenter, runs: list, actuals: dict, weekdays, holidays,
-                     today: date, projections: dict) -> dict:
+                     today: date, projections: dict, pauses_by_run: dict) -> dict:
     """A loom card. `active_runs` is a LIST — one loom commonly runs two combos at
     once — and `active_run` stays as the first of them for callers that only show one.
     """
     cards = []
     for run in runs:
-        m = weaving_service.compute_run_metrics(run, actuals.get(run.id, 0.0), weekdays, holidays, today)
-        cards.append(_run_card(run, m, projections.get(run.id)))
+        pauses = pauses_by_run.get(run.id, [])
+        m = weaving_service.compute_run_metrics(
+            run, actuals.get(run.id, 0.0), weekdays, holidays, today, pauses=pauses)
+        cards.append(_run_card(run, m, projections.get(run.id), pauses))
     return {
         "id": str(wc.id), "code": wc.code, "name": wc.name, "center_type": wc.center_type,
         "active_runs": cards,
         "active_run": cards[0] if cards else None,
         "late_runs": sum(1 for c in cards if c["is_late"]),
+        "paused_runs": sum(1 for c in cards if c["is_paused"]),
     }
 
 
@@ -544,10 +681,10 @@ async def weaving_monitor(
     for wc_id, hdate in hol_res.all():
         holidays_by_wc.setdefault(wc_id, []).append(hdate)
 
-    # Batch the active RUNNING runs per machine in one query instead of one query
-    # per machine. ALL of them, not the newest: a loom weaving the same item for two
-    # combos has one run per WO, and hiding the second made the grid under-report
-    # what the floor is actually doing.
+    # Batch the active runs per machine in one query instead of one query per machine.
+    # ALL of them, not the newest: a loom weaving the same item for two combos has one
+    # run per WO, and hiding the second made the grid under-report what the floor is
+    # actually doing. PAUSED runs are included — parked, not gone (ACTIVE_RUN_STATUSES).
     run_res = await db.execute(
         select(WeavingRun)
         .options(
@@ -556,7 +693,7 @@ async def weaving_monitor(
             MO_VARIANT_LOADS,
         )
         .where(WeavingRun.work_center_id.in_(machine_ids))
-        .where(WeavingRun.status == "RUNNING")
+        .where(WeavingRun.status.in_(ACTIVE_RUN_STATUSES))
         .order_by(WeavingRun.work_center_id, WeavingRun.created_at.desc())
     )
     runs_by_wc: dict = {}
@@ -568,6 +705,7 @@ async def weaving_monitor(
     # Actuals once per run, then reused by both the per-run metrics and the
     # projection rollup below.
     actuals = {run.id: await _run_actual_kg(db, run) for run in all_active_runs}
+    pauses_by_run = await _pauses_by_run(db, [r.id for r in all_active_runs])
     projections = await _project_runs(db, all_active_runs, today, actuals)
 
     # Warp up on each loom. A beam is a machine resource shared by every WO that
@@ -610,7 +748,8 @@ async def weaving_monitor(
         weekdays = wc.working_weekdays if wc.working_weekdays else DEFAULT_WEEKDAYS
         holidays = holidays_by_wc.get(wc.id, [])
         runs = runs_by_wc.get(wc.id, [])
-        payload = _machine_payload(wc, runs, actuals, weekdays, holidays, today, projections)
+        payload = _machine_payload(wc, runs, actuals, weekdays, holidays, today,
+                                   projections, pauses_by_run)
         beams = beams_by_wc.get(wc.id, [])
         payload["beam_slots"] = max(1, int(wc.beam_slots or 1))
         payload["mounted_beams"] = beams
@@ -642,9 +781,12 @@ async def weaving_monitor(
             groups.append({"id": m["group_id"], "code": m["group_code"], "name": m["group_name"]})
     groups.sort(key=lambda g: (g["code"] or ""))
 
-    # "running" counts LOOMS with something on them, not runs — it sits next to the
-    # machine total in the header. Runs and late runs are counted separately.
-    running = sum(1 for m in out if m["active_runs"])
+    # "running" counts LOOMS actually weaving something, not runs — it sits next to
+    # the machine total in the header. A loom whose every run is parked does NOT count
+    # here even though its card still reads RUNNING: loom_status answers "is the warp
+    # up and prep spent" (which gates the prep buttons), this answers "is cloth coming
+    # off it". Runs, paused runs and late runs are counted separately.
+    running = sum(1 for m in out if any(not c["is_paused"] for c in m["active_runs"]))
     run_cards = [c for m in out for c in m["active_runs"]]
     effs = [c["efficiency_pct"] for c in run_cards if c["efficiency_pct"] is not None]
     avg_eff = round(sum(effs) / len(effs), 1) if effs else None
@@ -653,6 +795,7 @@ async def weaving_monitor(
         "avg_efficiency_pct": avg_eff,
         "active_runs": len(run_cards),
         "late_runs": sum(1 for c in run_cards if c["is_late"]),
+        "paused_runs": sum(1 for c in run_cards if c["is_paused"]),
     }
 
 
@@ -667,9 +810,10 @@ async def id_national_holidays(
 # ── Performance report ───────────────────────────────────────────────────────
 
 async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, today: date,
-                       projection: Optional[dict] = None) -> dict:
+                       projection: Optional[dict] = None, pauses=None) -> dict:
     actual = await _run_actual_kg(db, run)
-    metrics = weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today)
+    metrics = weaving_service.compute_run_metrics(
+        run, actual, weekdays, holidays, today, pauses=pauses)
     mo = run.mo
     wo = run.work_order
     proj = projection or {}
@@ -699,6 +843,15 @@ async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, to
         "status": run.status,
         "actual_qty_override": float(run.actual_qty_override) if run.actual_qty_override is not None else None,
         "notes": run.notes,
+        "paused_on": _paused_since(pauses),
+        # Full interval history: the modal answers "which days, and why" for a slip.
+        "pause_history": [
+            {
+                "id": str(p.id), "paused_on": p.paused_on, "resumed_on": p.resumed_on,
+                "reason": p.reason, "paused_by": p.paused_by, "resumed_by": p.resumed_by,
+            }
+            for p in (pauses or [])
+        ],
         **metrics,
     }
 
@@ -725,17 +878,21 @@ async def work_center_performance(
     )
     runs = res.scalars().all()
 
-    # Every RUNNING run, not the newest one: a loom carries one run per WO.
-    active = [r for r in runs if r.status == "RUNNING"]
+    # Every active run, not the newest one: a loom carries one run per WO. PAUSED ones
+    # belong here — the modal is where they get resumed.
+    active = [r for r in runs if r.status in ACTIVE_RUN_STATUSES]
     projections = await _project_runs(db, active, today)
+    pauses_by_run = await _pauses_by_run(db, [r.id for r in runs])
     active_payloads = [
-        await _run_payload(db, r, weekdays, holidays, today, projections.get(r.id))
+        await _run_payload(db, r, weekdays, holidays, today, projections.get(r.id),
+                           pauses_by_run.get(r.id, []))
         for r in active
     ]
     active_ids = {r.id for r in active}
 
     history = [
-        await _run_payload(db, r, weekdays, holidays, today)
+        await _run_payload(db, r, weekdays, holidays, today,
+                           pauses=pauses_by_run.get(r.id, []))
         for r in runs if r.id not in active_ids
     ]
 
@@ -771,8 +928,13 @@ async def _project_runs(db: AsyncSession, runs: list, today: date, actual_by_run
     weaving_service.lateness.
 
     An MO can be woven on several looms at once, so a run's projection combines every
-    RUNNING run of the same MO. Everything that walk needs is loaded in batch; doing
+    active run of the same MO. Everything that walk needs is loaded in batch; doing
     it per run with its own queries is what made the old `_project_mo` an N+1.
+
+    A PAUSED run still projects, at the rate it achieved before it was parked. The
+    reality walk starts from today, so its completion date slides a day for every day
+    it stays parked — which is the honest cost of deprioritising it, and exactly the
+    signal a planner needs. Freezing its date instead would hide the slip.
     """
     runs = [r for r in runs if r is not None]
     if not runs:
@@ -783,11 +945,16 @@ async def _project_runs(db: AsyncSession, runs: list, today: date, actual_by_run
     # Sibling runs of the same MOs (possibly on other looms), unioned with the runs
     # asked about so a caller may pass a run that is no longer RUNNING.
     sib_res = await db.execute(
-        select(WeavingRun).where(WeavingRun.mo_id.in_(mo_ids)).where(WeavingRun.status == "RUNNING")
+        select(WeavingRun).where(WeavingRun.mo_id.in_(mo_ids))
+        .where(WeavingRun.status.in_(ACTIVE_RUN_STATUSES))
     )
     all_runs = {r.id: r for r in sib_res.scalars().all()}
     for r in runs:
         all_runs.setdefault(r.id, r)
+
+    # Pause intervals for every run in the rollup, batched — the per-run metrics below
+    # need them or a parked run's achieved rate would be diluted by its parked days.
+    pauses_by_run = await _pauses_by_run(db, all_runs.keys())
 
     wc_ids = {r.work_center_id for r in all_runs.values()}
     wcs = {
@@ -830,8 +997,9 @@ async def _project_runs(db: AsyncSession, runs: list, today: date, actual_by_run
         if actual is None:
             actual = await _run_actual_kg(db, run)
             cache[run.id] = actual
-        metrics[run.id] = (weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today),
-                           weekdays, holidays, wc)
+        metrics[run.id] = (weaving_service.compute_run_metrics(
+            run, actual, weekdays, holidays, today, pauses=pauses_by_run.get(run.id, [])),
+            weekdays, holidays, wc)
 
     # Roll the per-run numbers up per MO once, then hand the same rollup to every run
     # of that MO — two runs of one MO must never report different completion dates.

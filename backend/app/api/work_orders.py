@@ -1350,7 +1350,8 @@ async def get_loom_beam_status(
     # one call, so its buttons and the loom card can't disagree about the state.
     has_run = bool((await db.execute(
         select(WeavingRun.id)
-        .where(WeavingRun.work_center_id == wc.id, WeavingRun.status == "RUNNING")
+        .where(WeavingRun.work_center_id == wc.id,
+               WeavingRun.status.in_(weaving_service.ACTIVE_RUN_STATUSES))
         .limit(1)
     )).first())
     loom_status = weaving_service.derive_loom_status(
