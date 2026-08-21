@@ -7,7 +7,8 @@ Faithful to the client's formula:
   efficiency_pct         = actual_kg / theoretical_100_kg * 100   (e.g. 50/129.6 = 38.5%)
 
 A "working day" runs 24h (continuous 3-shift weaving). The production calendar
-(working_weekdays + holidays, per machine) decides which calendar days count.
+(working_weekdays + holidays, per machine) decides which calendar days count, and
+WeavingRunPause intervals take back the days a parked run was not being woven.
 """
 from datetime import date, timedelta
 from math import ceil
@@ -17,9 +18,22 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.manufacturing import MOCompletion
+from app.models.weaving import WeavingRun, WeavingRunPause
 
 MINUTES_PER_DAY = 24 * 60
 _MAX_PROJECT_DAYS = 3650  # 10y guard against runaway walks
+
+# An open run on a loom. PAUSED belongs here with RUNNING: the warp is up, the order
+# is open and the run still owns its share of that MO's logged output — it is only
+# parked while another WO on the same loom is prioritised. Filtering it out would free
+# its WO to be started a second time and let the loom fall back to STAGED with its
+# prep buttons re-armed under a mounted warp.
+ACTIVE_RUN_STATUSES = ("RUNNING", "PAUSED")
+
+# Order states whose arrival closes a loom run. Notably NOT `DELIVERED`: on an MO that
+# means "planned qty met, order still open" (this codebase's SAP DLV vs TECO split),
+# and a loom may legitimately keep weaving past the planned quantity.
+CLOSING_WO_STATUSES = ("COMPLETED", "CANCELLED")
 
 
 # ── Loom prep state machine ──────────────────────────────────────────────────
@@ -116,6 +130,35 @@ def count_working_days(weekdays, holidays, start: date, end: date) -> int:
     return n
 
 
+def paused_working_days(pauses, weekdays, holidays, window_end: date) -> int:
+    """Working days lost to pauses, per this machine's calendar.
+
+    A loom carries several WOs at once and the floor reprioritises: push one order,
+    park the others. A parked run must stop accruing elapsed working days, else its
+    efficiency decays for days it was deliberately not being woven.
+
+    Each interval excludes [paused_on, resumed_on - 1] — resuming on a day means that
+    day is worked again. An open interval (resumed_on is None) runs to `window_end`.
+    Days that were not working days anyway are never double-counted, since the same
+    calendar filter does the counting.
+    """
+    total = 0
+    for p in pauses or []:
+        start = p.paused_on
+        if start is None or start > window_end:
+            continue
+        end = (p.resumed_on - timedelta(days=1)) if p.resumed_on else window_end
+        if end > window_end:
+            end = window_end
+        total += count_working_days(weekdays, holidays, start, end)
+    return total
+
+
+def is_paused(pauses) -> bool:
+    """True while any interval is still open — the run is parked right now."""
+    return any(p.resumed_on is None for p in (pauses or []))
+
+
 def add_working_days(weekdays, holidays, start: date, n: int) -> Optional[date]:
     """Return the date of the n-th working day counting from `start` (inclusive).
 
@@ -166,6 +209,86 @@ def walk_to_target(machines: list, target: float, start_date: date, initial: flo
                 return d
         d += timedelta(days=1)
     return None
+
+
+# ── Stopping runs ────────────────────────────────────────────────────────────
+
+async def open_pause(db: AsyncSession, run_id):
+    """The run's un-resumed pause interval, if it is parked right now."""
+    res = await db.execute(
+        select(WeavingRunPause)
+        .where(WeavingRunPause.run_id == run_id, WeavingRunPause.resumed_on.is_(None))
+        .order_by(WeavingRunPause.paused_on.desc())
+    )
+    return res.scalars().first()
+
+
+async def stop_run(db: AsyncSession, run, username: Optional[str] = None) -> None:
+    """Close one run: DONE, stamp end_date, and close any open pause interval.
+
+    The pause part is why this is a function and not two lines at each call site — a
+    parked run stopped with its interval left open would report as paused forever in
+    the history table. The caller commits.
+
+    Nothing here touches the work center: prep_status was already cleared when the run
+    started, so a stopped loom re-derives its warp state (STAGED / IDLE) on its own.
+    """
+    was_paused = run.status == "PAUSED"
+    run.status = "DONE"
+    if not run.end_date:
+        run.end_date = date.today()
+    if was_paused:
+        pause = await open_pause(db, run.id)
+        if pause:
+            pause.resumed_on = run.end_date
+            pause.resumed_by = username
+
+
+async def stop_runs(db: AsyncSession, work_order_id=None, mo_id=None,
+                    username: Optional[str] = None) -> list:
+    """Close every ACTIVE run of a work order (or of an MO) and return them.
+
+    The automatic counterpart to the Stop button: a WO that is completed, cancelled or
+    deleted is no longer being woven, and a run left RUNNING would keep accruing
+    elapsed working days against an order nobody is working — the same distortion
+    pausing exists to prevent, arrived at by neglect instead of choice.
+
+    Pass `mo_id` for the MO-level closes: closing an MO does not cascade to its work
+    orders in this codebase, and it also catches WO-less runs (a loom started against
+    an MO directly), which a work_order_id filter would miss.
+    """
+    if work_order_id is None and mo_id is None:
+        raise ValueError("stop_runs needs a work_order_id or an mo_id")
+    q = select(WeavingRun).where(WeavingRun.status.in_(ACTIVE_RUN_STATUSES))
+    if work_order_id is not None:
+        q = q.where(WeavingRun.work_order_id == work_order_id)
+    else:
+        q = q.where(WeavingRun.mo_id == mo_id)
+    runs = list((await db.execute(q)).scalars().all())
+    for run in runs:
+        await stop_run(db, run, username=username)
+    return runs
+
+
+async def audit_and_broadcast_stops(db: AsyncSession, user_id, runs: list, reason: str) -> None:
+    """Log + push the runs an automatic close stopped. Call AFTER db.commit().
+
+    Same entity_type and event shape as the manual Stop button, so the monitor's live
+    refresh and the audit trail don't care which one closed the run. Imports are local:
+    audit_service and the WS manager sit above this module in the import graph.
+    """
+    if not runs:
+        return
+    from app.services import audit_service
+    from app.core.ws_manager import manager
+
+    for run in runs:
+        await audit_service.log_activity(
+            db, user_id, "UPDATE", "weaving_run", str(run.id),
+            details=f"Auto-stopped: {reason}",
+        )
+    for wc_id in {str(r.work_center_id) for r in runs}:
+        await manager.broadcast({"type": "weaving_run", "action": "stop", "work_center_id": wc_id})
 
 
 # ── Actual output ────────────────────────────────────────────────────────────
@@ -231,8 +354,14 @@ def lateness(projected: Optional[date], wo_target: Optional[date], plan_target: 
     }
 
 
-def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date) -> dict:
-    """All displayed numbers for one run. Pure — caller supplies actual_kg + calendar."""
+def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date,
+                        pauses=None) -> dict:
+    """All displayed numbers for one run. Pure — caller supplies actual_kg + calendar.
+
+    `pauses` are the run's WeavingRunPause intervals; the days they cover are removed
+    from `elapsed_working_days`, so a parked WO holds the efficiency it earned while
+    it was actually on the loom.
+    """
     lines = int(run.lines or 0)
     rate = float(run.rate_per_line_g_min or 0)
     eff_target = float(run.target_efficiency_pct or 0)
@@ -244,6 +373,10 @@ def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date) 
     if window_end > today:
         window_end = today
     elapsed = count_working_days(weekdays, holidays, run.start_date, window_end)
+    paused = paused_working_days(pauses, weekdays, holidays, window_end)
+    # Never below zero: a pause opened before the run's start_date would otherwise
+    # subtract days the run never had.
+    elapsed = max(0, elapsed - paused)
 
     theoretical_100 = t100_day * elapsed
     efficiency_pct = (actual_kg / theoretical_100 * 100.0) if theoretical_100 > 0 else None
@@ -256,6 +389,8 @@ def compute_run_metrics(run, actual_kg: float, weekdays, holidays, today: date) 
         "target_100_per_day_kg": round(t100_day, 3),
         "target_eff_per_day_kg": round(t_eff_day, 3),
         "elapsed_working_days": elapsed,
+        "paused_working_days": paused,
+        "is_paused": is_paused(pauses),
         "theoretical_100_kg": round(theoretical_100, 3),
         "actual_kg": round(actual_kg, 3),
         "efficiency_pct": round(efficiency_pct, 1) if efficiency_pct is not None else None,

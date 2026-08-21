@@ -120,6 +120,11 @@ async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder, exclude_pl_id=
     exclude_pl_id drops one pick list's own lines from the "picked" sum — used
     when editing a DRAFT so it doesn't count its own not-yet-saved allocation
     against itself.
+
+    "Ordered" is the line qty restated in the item's stock UoM, since that is the
+    unit `qty_picked` is in. Subtracting picked kilograms from ordered yards let a
+    10 kg order suggest cartons until the store was empty — one live pick list
+    had 40 000 picked against it.
     """
     query = (
         select(PickListLine.sales_order_line_id, func.coalesce(func.sum(PickListLine.qty_picked), 0))
@@ -131,10 +136,19 @@ async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder, exclude_pl_id=
         query = query.filter(PickList.id != exclude_pl_id)
     picked = await db.execute(query)
     picked_map = {str(sol_id): float(qty) for sol_id, qty in picked.all()}
-    return {
-        str(line.id): max(0.0, float(line.qty) - picked_map.get(str(line.id), 0.0))
-        for line in so.lines
-    }
+    ordered_map = await so_fulfilment_service.ordered_base_map(
+        db, [line.id for line in so.lines]
+    )
+    remaining = {}
+    for line in so.lines:
+        ordered = ordered_map.get(str(line.id))
+        # No derivable ordered qty means no safe suggestion: seed nothing rather
+        # than guess, so a missing item weight can't over-pick the store.
+        remaining[str(line.id)] = (
+            0.0 if ordered is None
+            else max(0.0, ordered - picked_map.get(str(line.id), 0.0))
+        )
+    return remaining
 
 
 async def _suggest_lines(db: AsyncSession, pl: PickList, so: SalesOrder) -> list[PickListLine]:

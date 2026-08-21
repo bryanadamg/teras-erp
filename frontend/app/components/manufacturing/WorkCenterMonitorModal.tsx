@@ -16,6 +16,7 @@ import {
     xpSelect, xpPanel, SectionTitle, CodeChip,
 } from '../shared/xpTheme';
 import { LvTabBar, LvTab, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { LotChips } from '../shared/LotChips';
 import { WorkingDaysSection, HolidayCalendarSection, useNationalHolidays } from '../shared/productionCalendar';
 
 // Measurement accents from the shared five-family palette — see DESIGN.md's one
@@ -265,6 +266,23 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const stopRun = async (runId: string) => {
         const res = await authFetch(`${apiBase}/weaving-runs/${runId}/stop`, { method: 'POST' });
         if (res.ok) load();
+    };
+    // Park / un-park a run. Pausing keeps the run and its earned efficiency but stops
+    // it accruing elapsed working days, so reprioritising the loom onto one WO does
+    // not punish the WOs that were set aside.
+    const pauseRun = async (runId: string) => {
+        const res = await authFetch(`${apiBase}/weaving-runs/${runId}/pause`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: null }),
+        });
+        if (res.ok) load();
+        else showToast((await res.json().catch(() => null))?.detail || t('pause_failed'), 'danger');
+    };
+    const resumeRun = async (runId: string) => {
+        const res = await authFetch(`${apiBase}/weaving-runs/${runId}/resume`, { method: 'POST' });
+        if (res.ok) load();
+        else showToast((await res.json().catch(() => null))?.detail || t('resume_failed'), 'danger');
     };
     const saveOverride = async (runId: string) => {
         const body: any = { actual_qty_override: overrideVal === '' ? null : parseFloat(overrideVal) };
@@ -521,8 +539,23 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                     {run.is_late && (
                         <StatusChip status="CANCELLED" label={`${t('behind_schedule')} ${run.days_late}d`} tint />
                     )}
+                    {run.is_paused && (
+                        <StatusChip
+                            status="PAUSED"
+                            label={`${t('paused')}${run.paused_on ? ` · ${fmtDate(run.paused_on)}` : ''}`}
+                            title={`${t('paused_days_excluded')}: ${run.paused_working_days ?? 0}`}
+                            tint
+                        />
+                    )}
                     {canManage && (
-                        <span style={{ marginLeft: 'auto' }}>
+                        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+                            {/* Park vs close. Pause keeps the run and its earned efficiency
+                                and is the reprioritise action; Stop closes the run for good. */}
+                            {run.is_paused ? (
+                                <XPActionButton classic={cls} tone="primary" icon="bi-play-fill" label={t('resume_run')} onClick={() => resumeRun(run.id)} />
+                            ) : (
+                                <XPActionButton classic={cls} tone="warning" icon="bi-pause-fill" label={t('pause_run')} onClick={() => pauseRun(run.id)} />
+                            )}
                             <XPActionButton classic={cls} tone="danger" icon="bi-stop-fill" label={t('stop_run')} onClick={() => stopRun(run.id)} />
                         </span>
                     )}
@@ -626,6 +659,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         <Stat label={t('target_100_day')} value={fmt(run.target_100_per_day_kg, 2)} unit="kg" />
                         <Stat label={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%/day`} value={fmt(run.target_eff_per_day_kg, 2)} unit="kg" accent={BLUE} />
                         <Stat label={t('elapsed_days')} value={run.elapsed_working_days} />
+                        {/* Only worth the tile once days have actually been given back —
+                            it is the answer to "why is elapsed lower than the calendar". */}
+                        {(run.paused_working_days ?? 0) > 0 && (
+                            <Stat label={t('paused_days_excluded')} value={run.paused_working_days} accent={AMBER} />
+                        )}
                         <Stat label={t('theoretical_100')} value={fmt(run.theoretical_100_kg, 2)} unit="kg" />
                     </div>
                 </FormSection>
@@ -943,6 +981,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     <thead>
                                         <tr style={cls ? { background: '#d4d0c8' } : undefined}>
                                             <th style={lvTh(cls)}>{t('lot')}</th>
+                                            <th style={lvTh(cls)}>{t('item')}</th>
                                             <th style={lvTh(cls)}>{t('ends')}</th>
                                             <th style={{ ...lvTh(cls), textAlign: 'right' }}>{t('remaining')}</th>
                                             <th style={lvTh(cls)}>{t('mounted')}</th>
@@ -954,6 +993,17 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                             <React.Fragment key={m.id}>
                                             <tr style={lvRow(cls, idx)}>
                                                 <td style={{ ...lvTd(cls), fontWeight: 'bold', color: BLUE }}>{m.beam_number || '—'}</td>
+                                                {/* The article gets its own column: a beam usually carries no
+                                                    size, combo or shade at all, so its item code is the only
+                                                    thing that says which warp is up. The identity chips ride
+                                                    beside it for the beams whose producing MO did carry them
+                                                    — same shape as the run-history Item column above. */}
+                                                <td style={lvTd(cls)}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+                                                        <span title={m.item_name || undefined}>{m.item_code || '—'}</span>
+                                                        <LotChips batch={m} rounded={!cls} />
+                                                    </div>
+                                                </td>
                                                 <td style={lvTd(cls)}>{m.ends ?? '—'}</td>
                                                 <td style={{ ...lvTd(cls), textAlign: 'right' }}>{fmt(m.remaining, 1)} kg</td>
                                                 <td style={{ ...lvTd(cls), color: '#666' }}>
@@ -981,7 +1031,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                             </tr>
                                             {unmountingId === m.id && (
                                                 <tr>
-                                                    <td colSpan={5} style={{ padding: cls ? '4px 2px' : '4px 0' }}>
+                                                    <td colSpan={6} style={{ padding: cls ? '4px 2px' : '4px 0' }}>
                                                         <ExpandedRowPanel classic={cls}>
                                                             <ExpandedRowPanelBody classic={cls}>
                                                                 <div style={{

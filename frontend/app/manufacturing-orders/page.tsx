@@ -17,8 +17,19 @@ export default function ManufacturingOrdersPage() {
         operations, workCenters, partners,
         locations, stockBalance, companyProfile,
         fetchData, refreshManufacturing, authFetch,
-        pagination,
+        pagination, loading,
     } = useData();
+
+    // Same mount-time gap as /production-runs: DataContext's untargeted fetch reads
+    // window.location.pathname but doesn't depend on it, so a router.push onto this
+    // route fetches nothing and the table sits on its skeleton. Mount-only and
+    // unloaded-only so sidebar entry (already hover-prefetched) costs nothing extra.
+    const loadingRef = useRef(loading);
+    loadingRef.current = loading;
+    useEffect(() => {
+        if (loadingRef.current.manufacturingOrders) fetchData('manufacturing-orders');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Guard against the wrong-MO flash: the global manufacturingOrders is SHARED
     // with the Work Orders page (which loads ALL levels via all_levels=true) and is

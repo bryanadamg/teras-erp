@@ -377,11 +377,23 @@ async def update_work_order_status(
     # Starting a WEAVING WO no longer touches the warp: beams are mounted on the
     # machine and stay lotted for their whole life there, shared by every WO that
     # runs on the loom. Nothing to merge — see services/beam_service.py.
+
+    # A closed WO is not being woven any more, so its loom run closes with it —
+    # otherwise the run keeps accruing elapsed working days against an order nobody
+    # is working, which is exactly the distortion pausing exists to prevent.
+    # DELIVERED is deliberately not a close (qty met, order still open).
+    stopped = []
+    if status in weaving_service.CLOSING_WO_STATUSES:
+        stopped = await weaving_service.stop_runs(
+            db, work_order_id=wo.id, username=current_user.username,
+        )
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "WorkOrder", wo_id,
         details=f"Status -> {status}"
     )
+    await weaving_service.audit_and_broadcast_stops(
+        db, current_user.id, stopped, f"work order {status.lower()}")
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status})
 
     result = await db.execute(
@@ -1326,12 +1338,32 @@ def _mount_out(mount: BeamMount, remaining: float) -> BeamMountResponse:
         ends=(b.ends if b and b.ends else (it.ends if it else None)),
         qty_mounted=float(mount.qty_mounted or 0),
         remaining=remaining,
+        bom_size_snapshot=getattr(b, "bom_size_snapshot", None),
+        variant_attributes=getattr(b, "variant_attributes", None),
+        color_code=getattr(b, "color_code", None),
+        color_name=getattr(b, "color_name", None),
+        color_hex=getattr(b, "color_hex", None),
+        labdip_variant_code=getattr(b, "labdip_variant_code", None),
         source_wo_id=mount.source_wo_id,
         mounted_at=mount.mounted_at,
         mounted_by=mount.mounted_by,
         dismounted_at=mount.dismounted_at,
         dismounted_by=mount.dismounted_by,
     )
+
+
+async def _mounts_out(db: AsyncSession, pairs: list[tuple[BeamMount, float]]) -> list[BeamMountResponse]:
+    """Mounts as API rows, with every beam's lot identity resolved in one pass.
+
+    Through the same two resolvers every lot picker uses, so a beam on the loom is
+    labelled exactly like the same beam in the picker that mounted it. Both are
+    grouped queries over the whole list — no N+1 per mount.
+    """
+    batches = [m.batch for m, _ in pairs if m.batch is not None]
+    if batches:
+        await _resolve_batch_origins(db, batches)
+        await _resolve_batch_variants(db, batches)
+    return [_mount_out(m, q) for m, q in pairs]
 
 
 @router.get("/work-centers/{wc_id}/beam-mounts", response_model=LoomBeamStatus)
@@ -1350,7 +1382,8 @@ async def get_loom_beam_status(
     # one call, so its buttons and the loom card can't disagree about the state.
     has_run = bool((await db.execute(
         select(WeavingRun.id)
-        .where(WeavingRun.work_center_id == wc.id, WeavingRun.status == "RUNNING")
+        .where(WeavingRun.work_center_id == wc.id,
+               WeavingRun.status.in_(weaving_service.ACTIVE_RUN_STATUSES))
         .limit(1)
     )).first())
     loom_status = weaving_service.derive_loom_status(
@@ -1362,7 +1395,7 @@ async def get_loom_beam_status(
         beam_slots=max(1, int(wc.beam_slots or 1)),
         mounted_pcs=mounted_pcs,
         total_remaining=sum(q for _, q in mounts),
-        mounts=[_mount_out(m, q) for m, q in mounts],
+        mounts=await _mounts_out(db, mounts),
         loom_status=loom_status,
         next_loom_step=weaving_service.next_loom_step(loom_status),
         prep_status=wc.prep_status,
@@ -1401,8 +1434,8 @@ async def mount_beam_on_loom(
 
     for m, q in await beam_service.active_mounts(db, wc.id):
         if str(m.id) == str(mount.id):
-            return _mount_out(m, q)
-    return _mount_out(mount, 0.0)
+            return (await _mounts_out(db, [(m, q)]))[0]
+    return (await _mounts_out(db, [(mount, 0.0)]))[0]
 
 
 @router.post("/beam-mounts/{mount_id}/dismount", response_model=BeamMountResponse)
@@ -1445,7 +1478,7 @@ async def dismount_beam_from_loom(
     )
     await manager.broadcast({"type": "STOCK_UPDATE"})
     await manager.broadcast({"type": "WORK_ORDER_UPDATE"})
-    return _mount_out(fresh or mount, remaining)
+    return (await _mounts_out(db, [(fresh or mount, remaining)]))[0]
 
 
 @router.get("/work-orders/{wo_id}/beam-mounts", response_model=LoomBeamStatus)
@@ -1475,6 +1508,12 @@ async def delete_work_order(
         raise HTTPException(status_code=404, detail="Work Order not found")
     _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
     label = wo.code or wo.name
+    # WeavingRun.work_order_id is ON DELETE SET NULL, so a run would survive the delete
+    # orphaned at MO grain and keep accruing days against a WO that no longer exists.
+    # Close it here, while the link is still there to find it by.
+    stopped = await weaving_service.stop_runs(
+        db, work_order_id=wo.id, username=current_user.username,
+    )
     await db.delete(wo)
     await db.commit()
     await audit_service.log_activity(
@@ -1482,4 +1521,8 @@ async def delete_work_order(
         entity_type="WORK_ORDER", entity_id=wo_id,
         details=f"Deleted Work Order '{label}'"
     )
+    # Safe after commit: the session runs expire_on_commit=False, so the stopped runs
+    # still hold their loaded ids (a lazy refresh here would raise MissingGreenlet).
+    await weaving_service.audit_and_broadcast_stops(
+        db, current_user.id, stopped, f"work order '{label}' deleted")
     return {"status": "success"}

@@ -55,6 +55,8 @@ const translations = {
         'administration': 'Administration',
         'print_designer': 'Print Layouts',
         'settings': 'Settings',
+        'scanner': 'Scanner',
+        'login': 'Login',
         'account_settings': 'Account Settings',
 
         // Dashboard
@@ -178,6 +180,12 @@ const translations = {
         'no_active_run': 'No active run on this machine.',
         'start_run': 'Start Run',
         'stop_run': 'Stop',
+        'pause_run': 'Pause',
+        'resume_run': 'Resume',
+        'paused': 'Paused',
+        'paused_days_excluded': 'Paused days excluded',
+        'pause_failed': 'Could not pause this run.',
+        'resume_failed': 'Could not resume this run.',
         'manufacturing_order': 'Manufacturing Order',
         'lines': 'Lines',
         'rate_per_line': 'g/min/line',
@@ -267,6 +275,9 @@ const translations = {
         'machines_to_update': 'Machines that will be updated',
         'no_machines_in_group': 'No machines under this group yet',
         'apply_to': 'Apply to',
+        // Sales order fulfilment
+        'so_no_weight': 'no weight',
+        'so_no_weight_hint': 'This item is stocked by weight but has no weight per yard on its item master, so the ordered yardage cannot be converted. Set Weight per unit on the item to see fulfilment progress.',
         // Headers
         'powered_by': 'Powered by',
     },
@@ -314,6 +325,8 @@ const translations = {
         'administration': 'Administrasi',
         'print_designer': 'Tata Letak Cetak',
         'settings': 'Pengaturan',
+        'scanner': 'Pemindai',
+        'login': 'Masuk',
         'account_settings': 'Pengaturan Akun',
 
         // Dashboard
@@ -435,6 +448,12 @@ const translations = {
         'no_active_run': 'Tidak ada run aktif di mesin ini.',
         'start_run': 'Mulai Run',
         'stop_run': 'Stop',
+        'pause_run': 'Jeda',
+        'resume_run': 'Lanjut',
+        'paused': 'Dijeda',
+        'paused_days_excluded': 'Hari jeda tidak dihitung',
+        'pause_failed': 'Run ini tidak dapat dijeda.',
+        'resume_failed': 'Run ini tidak dapat dilanjutkan.',
         'manufacturing_order': 'Manufacturing Order',
         'lines': 'Line',
         'rate_per_line': 'gr/menit/line',
@@ -521,6 +540,9 @@ const translations = {
         'machines_to_update': 'Mesin yang akan diperbarui',
         'no_machines_in_group': 'Belum ada mesin di grup ini',
         'apply_to': 'Terapkan ke',
+        // Sales order fulfilment
+        'so_no_weight': 'tanpa berat',
+        'so_no_weight_hint': 'Barang ini disimpan dalam satuan berat tetapi tidak punya berat per yard di master barang, jadi yardage pesanan tidak bisa dikonversi. Isi Berat per unit di barang untuk melihat progres pemenuhan.',
         // Headers
         'powered_by': 'Ditenagai oleh',
     }

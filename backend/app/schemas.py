@@ -929,6 +929,18 @@ class BeamMountResponse(BaseModel):
     ends: int | None = None
     qty_mounted: float = 0.0
     remaining: float = 0.0       # live batch balance at the loom
+    # Lot identity of the beam itself — same fields LotChips renders on every batch
+    # picker. A BM- number alone doesn't say what warp is up: two beams off the same
+    # item differ only by size, combo and shade, and the supervisor reading the loom's
+    # beam list is matching it against the physical warp. Plain dicts, not
+    # BatchVariantAttr: that model is declared far below this one and these rows are
+    # built server-side, so there's nothing to validate.
+    bom_size_snapshot: dict | None = None
+    variant_attributes: list[dict] | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    labdip_variant_code: str | None = None
     source_wo_id: UUID | None = None
     mounted_at: datetime | None = None
     mounted_by: str | None = None
@@ -1709,6 +1721,12 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     qty_packed: float = 0
     qty_packed_available: float = 0
     qty_dispatched: float = 0
+    # `qty` is in yards; the four numbers above are in the item's stock UoM
+    # (`base_uom`). Progress must be measured against this, not against `qty`.
+    # None when the item is stocked by weight but carries no weight-per-yard —
+    # render that as unknown, never as 0%.
+    qty_ordered_base: float | None = None
+    base_uom: str | None = None
 
     class Config:
         from_attributes = True
@@ -3223,6 +3241,20 @@ class WeavingRunResponse(BaseModel):
     actual_qty_override: float | None = None
     notes: str | None = None
     created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class WeavingRunPauseRequest(BaseModel):
+    """Park a run. `reason` is what the floor answers "why did this WO slip" with."""
+    reason: str | None = None
+
+class WeavingRunPauseResponse(BaseModel):
+    id: UUID
+    run_id: UUID
+    paused_on: date
+    resumed_on: date | None = None
+    reason: str | None = None
+    paused_by: str | None = None
+    resumed_by: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 class WorkCenterHolidayCreate(BaseModel):

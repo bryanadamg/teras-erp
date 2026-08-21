@@ -1,13 +1,17 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { docsSidebar } from './docsContent';
+import { docsSidebar, getPageBySlug } from './docsContent';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
 
     const currentSlug = pathname.split('/docs/')[1] ?? 'overview';
+    // MainLayout deliberately leaves the tab title to us — the article name is
+    // more useful on a help tab than a flat "Docs".
+    useDocumentTitle(`${getPageBySlug(currentSlug)?.title ?? 'Docs'} — Docs`);
 
     return (
         <div style={{

@@ -325,7 +325,10 @@ export default function WeavingMonitorView() {
     };
 
     const RunBody = ({ run, index = 0, total = 1 }: { run: any; index?: number; total?: number }) => {
-        const effColor = run.on_target ? GREEN : RED;
+        // A parked run's % is a record of days already woven, not a live reading, so it
+        // drops out of the green/red judgement instead of sitting there accusing a loom
+        // of underperforming on work nobody asked it to do.
+        const effColor = run.is_paused ? '#888' : run.on_target ? GREEN : RED;
         return (
             <>
                 <div style={{ fontSize: cls ? 10 : 12, color: '#555', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -343,6 +346,19 @@ export default function WeavingMonitorView() {
                     {run.wo_code && <b style={{ color: BLUE }}>{run.wo_code} · </b>}
                     <b>{run.mo_code}</b>{run.item_code ? ` · ${run.item_code}` : ''}
                 </div>
+                {/* Parked, not finished. The badge has to be on the card and not just
+                    in the modal: the whole point of pausing is that the reader stops
+                    reading this run's efficiency as a live judgement of the loom. */}
+                {run.is_paused && (
+                    <div style={{ marginBottom: 4 }}>
+                        <StatusChip
+                            status="PAUSED"
+                            label={run.paused_on ? `${t('paused')} · ${fmtDate(run.paused_on)}` : t('paused')}
+                            title={`${t('paused_days_excluded')}: ${run.paused_working_days ?? 0}`}
+                            tint
+                        />
+                    </div>
+                )}
                 <div style={{ marginBottom: 4 }}><RunVariant run={run} /></div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: cls ? 24 : 26, fontWeight: 'bold', color: effColor, lineHeight: 1 }}>

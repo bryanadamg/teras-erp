@@ -12,7 +12,8 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
 import AppLoadBar from './AppLoadBar';
 import BootShell from './BootShell';
-import { SECTION_LABELS, PREFETCH_ROUTES, ROUTE_PERMISSIONS } from './navConfig';
+import { routeTitle, PREFETCH_ROUTES, ROUTE_PERMISSIONS } from './navConfig';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import AccessDenied from './AccessDenied';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
     const isMobile = useIsMobile();
+
+    // Route identity and its label, resolved above the early returns below so the
+    // browser tab title is stamped on every route — login and the mobile shell
+    // included. Users run several Terras tabs at once, so "Terras ERP" alone on
+    // all of them tells them nothing about which tab holds what.
+    const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
+    const pageTitle = routeTitle(activeTab, t);
+    // Docs pages own their own title (their layout knows the article name), so
+    // they opt out here rather than get overwritten by the section label.
+    useDocumentTitle(pathname?.startsWith('/docs') ? null : pageTitle, appName);
 
     useEffect(() => {
         setMounted(true);
@@ -82,9 +93,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     // Protect all other routes
     if (!currentUser) return null;
 
-    // Map pathname to activeTab for Sidebar highlighting
-    const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
-
     // Route guard — hiding a sidebar leaf never stopped a typed URL, so the route
     // itself is checked against the same navConfig permissions the sidebar uses.
     // Routes absent from ROUTE_PERMISSIONS (dashboard, scanner, settings, the
@@ -99,13 +107,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     if (isMobile) {
         return <MobileShell appName={appName}>{pageBody}</MobileShell>;
     }
-
-    // Page title: prefer i18n label, fall back to the URL slug.
-    // Section-home routes (/sections/<key>) have no i18n key — labels come from navConfig.
-    const tabKey = activeTab.replace(/-/g, '_');
-    const pageTitle = activeTab.startsWith('sections-')
-        ? (SECTION_LABELS[activeTab.slice('sections-'.length)] || activeTab.replace(/-/g, ' '))
-        : (t(tabKey) !== tabKey ? t(tabKey) : activeTab.replace(/-/g, ' '));
 
     const handleSetActiveTab = (tab: string) => {
         const route = tab === 'dashboard' ? '/' : `/${tab}`;

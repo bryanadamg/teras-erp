@@ -88,6 +88,10 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     DRAFT: 'gray', CLOSED: 'gray',
     PENDING: 'gray',
     PARTIAL: 'amber', RECEIVING: 'amber', ON_HOLD: 'amber',
+    // A weaving run parked while another WO on the same loom is prioritised. Amber
+    // like ON_HOLD: open work, deliberately not moving — not a failure (red) and not
+    // in flight (blue).
+    PAUSED: 'amber',
     CONFIRMED: 'blue', IN_PROGRESS: 'blue', READY: 'blue', SENT: 'blue',
     IN_PRODUCTION: 'blue', STAGED: 'blue',
     // Loom prep walk (weaving monitor): STAGED (warp up) → DRAW_IN → TUNING → the

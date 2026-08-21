@@ -17,7 +17,7 @@ export default function ProductionRunsPage() {
         operations, workCenters, partners,
         locations, stockBalance, companyProfile,
         fetchData, refreshManufacturing, authFetch,
-        pagination,
+        pagination, loading,
     } = useData();
     const { woPage, woTotal, prPage, prTotal, setPrPage, setWoPage, pageSize } = pagination;
     const { showToast } = useToast();
@@ -29,6 +29,27 @@ export default function ProductionRunsPage() {
     const [initialPRFilter, setInitialPRFilter] = useState<string>('');
     const consumedSOIdRef = useRef<string | null>(null);
     const consumedPRFilterRef = useRef<string | null>(null);
+
+    // Own our data on mount. DataContext's only untargeted fetch keys off
+    // window.location.pathname but has no pathname dependency, and DataProvider sits
+    // above the router so it never remounts — so a client-side router.push to this
+    // route fetches nothing. Sidebar entry is covered by handleTabHover(tab); arriving
+    // from the SO page's "Create Production Run" button is not, which left the PR
+    // table on its skeleton forever (loading.productionRuns never goes false).
+    //
+    // Mount-only, and only when the slice is unloaded. Both conditions are load-bearing:
+    // firing unconditionally would re-pull the 1.4 MB PR payload on every visit (the
+    // cost e49ce47 removed from the SO page), and re-running on `loading` changes would
+    // fire a second, differently-keyed fetch on every page/filter change — the dedupe
+    // is keyed on target+window, so that one would NOT collapse. At mount all three
+    // cases are right: already loaded → skip; hover-prefetch still in flight → dedupes
+    // onto it; never fetched → this is the only thing that fills the table.
+    const loadingRef = useRef(loading);
+    loadingRef.current = loading;
+    useEffect(() => {
+        if (loadingRef.current.productionRuns) fetchData('production-runs');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         const prCode = searchParams.get('pr');
