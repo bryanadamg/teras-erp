@@ -981,6 +981,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     <thead>
                                         <tr style={cls ? { background: '#d4d0c8' } : undefined}>
                                             <th style={lvTh(cls)}>{t('lot')}</th>
+                                            <th style={lvTh(cls)}>{t('item')}</th>
                                             <th style={lvTh(cls)}>{t('ends')}</th>
                                             <th style={{ ...lvTh(cls), textAlign: 'right' }}>{t('remaining')}</th>
                                             <th style={lvTh(cls)}>{t('mounted')}</th>
@@ -991,16 +992,16 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                         {mounts.map((m, idx) => (
                                             <React.Fragment key={m.id}>
                                             <tr style={lvRow(cls, idx)}>
-                                                {/* Beam number on line 1; what the warp IS on line 2, as the
-                                                    same LotChips every lot picker uses. `showItem` leads that
-                                                    row with the beam's item code: a beam rarely carries a
-                                                    size, combo or shade, so the article is usually the only
-                                                    thing that tells the supervisor which warp is up — and the
-                                                    table has no item column of its own. */}
-                                                <td style={{ ...lvTd(cls), color: BLUE }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                                                        <span style={{ fontWeight: 'bold' }}>{m.beam_number || '—'}</span>
-                                                        <LotChips batch={m} rounded={!cls} showItem />
+                                                <td style={{ ...lvTd(cls), fontWeight: 'bold', color: BLUE }}>{m.beam_number || '—'}</td>
+                                                {/* The article gets its own column: a beam usually carries no
+                                                    size, combo or shade at all, so its item code is the only
+                                                    thing that says which warp is up. The identity chips ride
+                                                    beside it for the beams whose producing MO did carry them
+                                                    — same shape as the run-history Item column above. */}
+                                                <td style={lvTd(cls)}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+                                                        <span title={m.item_name || undefined}>{m.item_code || '—'}</span>
+                                                        <LotChips batch={m} rounded={!cls} />
                                                     </div>
                                                 </td>
                                                 <td style={lvTd(cls)}>{m.ends ?? '—'}</td>
@@ -1030,7 +1031,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                             </tr>
                                             {unmountingId === m.id && (
                                                 <tr>
-                                                    <td colSpan={5} style={{ padding: cls ? '4px 2px' : '4px 0' }}>
+                                                    <td colSpan={6} style={{ padding: cls ? '4px 2px' : '4px 0' }}>
                                                         <ExpandedRowPanel classic={cls}>
                                                             <ExpandedRowPanelBody classic={cls}>
                                                                 <div style={{

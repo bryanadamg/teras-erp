@@ -20,8 +20,6 @@ export interface LotVariantAttr {
 }
 
 export interface LotLike {
-    item_code?: string | null;
-    item_name?: string | null;
     bom_size_snapshot?: { size_name?: string | null; label?: string | null } | null;
     variant_attributes?: LotVariantAttr[] | null;
     color_code?: string | null;
@@ -129,16 +127,15 @@ export function LotChipRow({ children, style }: { children: React.ReactNode; sty
 }
 
 /**
- * Identity chips for one lot: item, size, combo, shade, then (optionally) the other
+ * Identity chips for one lot: size, combo, shade, then (optionally) the other
  * variant attributes, location and producing order. Renders nothing when the lot
  * carries no identity at all, so callers can drop it in unconditionally.
  */
 export function LotChips({
-    batch, rounded, showItem, showLocation, showOrder, showQty, qtyUnit = 'kg', showOtherAttrs = true,
+    batch, rounded, showLocation, showOrder, showQty, qtyUnit = 'kg', showOtherAttrs = true,
 }: {
     batch: LotLike;
     rounded?: boolean;
-    showItem?: boolean;
     showLocation?: boolean;
     showOrder?: boolean;
     showQty?: number | null;
@@ -154,18 +151,6 @@ export function LotChips({
         : [];
 
     const chips: React.ReactNode[] = [];
-    // The article itself, leading the row. Opt-in, because most pickers already name
-    // the item in a column of their own — but a warp beam usually carries no size,
-    // combo or shade at all, so on a loom's beam list the item code is the only thing
-    // that says what warp is up. Neutral code tone on purpose: it is the context the
-    // identity chips hang off, not an identity axis competing with them.
-    if (showItem && batch.item_code) {
-        chips.push(
-            <LotChip key="item" tone="order" rounded={rounded} mono title={batch.item_name || batch.item_code}>
-                {batch.item_code}
-            </LotChip>,
-        );
-    }
     if (showQty != null) {
         chips.push(
             <LotChip key="qty" tone="qty" rounded={rounded} title="Quantity remaining">
