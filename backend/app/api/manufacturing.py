@@ -13,7 +13,7 @@ from app.models.location import Location
 from app.models.color import Color
 from app.services import (
     stock_service, audit_service, kpi_service, beam_service, mrp_service,
-    work_center_service, so_fulfilment_service, reject_service,
+    work_center_service, so_fulfilment_service, reject_service, weaving_service,
 )
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
@@ -940,6 +940,16 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
 
     mo.status = status
 
+    # Closing an MO does not cascade to its work orders in this codebase, so the loom
+    # runs have to be closed from here too — by mo_id, which also catches runs started
+    # against the MO directly with no WO. DELIVERED is not a close: the plan qty is met
+    # but the order stays open and the loom may legitimately still be weaving.
+    stopped_runs = []
+    if status in weaving_service.CLOSING_WO_STATUSES:
+        stopped_runs = await weaving_service.stop_runs(
+            db, mo_id=mo.id, username=current_user.username,
+        )
+
     # SO status is derived, never assigned here: finishing production does not make
     # an order shippable — packed cartons in stock do. so_fulfilment_service owns
     # every transition (see its module docstring).
@@ -954,6 +964,8 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
     await db.commit()
 
     await audit_service.log_activity(db, current_user.id, "UPDATE_STATUS", "ManufacturingOrder", mo_id, f"{previous_status} -> {status}")
+    await weaving_service.audit_and_broadcast_stops(
+        db, current_user.id, stopped_runs, f"MO {status.lower()}")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": status, "code": mo.code})
 
     try:
@@ -1623,6 +1635,7 @@ async def add_mo_completion(
                 )
 
     # Auto-complete WO if cumulative logged qty reaches WO target
+    stopped_runs = []
     if wo and wo.qty:
         wo_total_result = await db.execute(
             select(func.sum(MOCompletion.qty_completed))
@@ -1636,12 +1649,19 @@ async def add_mo_completion(
         if wo_total >= float(wo.qty) and wo.status != "COMPLETED":
             wo.status = "COMPLETED"
             wo.actual_end_date = datetime.utcnow()
+            # The loom that just finished this WO stops with it, so the monitor card
+            # clears instead of accruing days against a finished order.
+            stopped_runs = await weaving_service.stop_runs(
+                db, work_order_id=wo.id, username=current_user.username,
+            )
 
     await db.commit()
     completion_log_detail = f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})"
     if wo_machine_assigned:
         completion_log_detail += f" | Machine '{wo_machine_assigned}' assigned to WO {wo.code or wo.name}"
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, completion_log_detail)
+    await weaving_service.audit_and_broadcast_stops(
+        db, current_user.id, stopped_runs, "work order completed (target qty reached)")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
 
     try:
@@ -1872,11 +1892,18 @@ async def complete_manufacturing_order_with_batches(
     mo.status = "COMPLETED"
     mo.actual_end_date = datetime.utcnow()
 
+    # Closing the MO closes its loom runs — see update_manufacturing_order_status.
+    stopped_runs = await weaving_service.stop_runs(
+        db, mo_id=mo.id, username=current_user.username,
+    )
+
     if mo.sales_order_id and mo.parent_mo_id is None:
         await so_fulfilment_service.recompute_so_status(db, mo.sales_order_id)
 
     await db.commit()
     await audit_service.log_activity(db, current_user.id, "COMPLETE", "ManufacturingOrder", mo_id, f"Completed with batch tracking")
+    await weaving_service.audit_and_broadcast_stops(
+        db, current_user.id, stopped_runs, "MO completed")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": "COMPLETED", "code": mo.code})
 
     try:

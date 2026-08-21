@@ -377,11 +377,23 @@ async def update_work_order_status(
     # Starting a WEAVING WO no longer touches the warp: beams are mounted on the
     # machine and stay lotted for their whole life there, shared by every WO that
     # runs on the loom. Nothing to merge — see services/beam_service.py.
+
+    # A closed WO is not being woven any more, so its loom run closes with it —
+    # otherwise the run keeps accruing elapsed working days against an order nobody
+    # is working, which is exactly the distortion pausing exists to prevent.
+    # DELIVERED is deliberately not a close (qty met, order still open).
+    stopped = []
+    if status in weaving_service.CLOSING_WO_STATUSES:
+        stopped = await weaving_service.stop_runs(
+            db, work_order_id=wo.id, username=current_user.username,
+        )
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "WorkOrder", wo_id,
         details=f"Status -> {status}"
     )
+    await weaving_service.audit_and_broadcast_stops(
+        db, current_user.id, stopped, f"work order {status.lower()}")
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status})
 
     result = await db.execute(
@@ -1476,6 +1488,12 @@ async def delete_work_order(
         raise HTTPException(status_code=404, detail="Work Order not found")
     _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
     label = wo.code or wo.name
+    # WeavingRun.work_order_id is ON DELETE SET NULL, so a run would survive the delete
+    # orphaned at MO grain and keep accruing days against a WO that no longer exists.
+    # Close it here, while the link is still there to find it by.
+    stopped = await weaving_service.stop_runs(
+        db, work_order_id=wo.id, username=current_user.username,
+    )
     await db.delete(wo)
     await db.commit()
     await audit_service.log_activity(
@@ -1483,4 +1501,8 @@ async def delete_work_order(
         entity_type="WORK_ORDER", entity_id=wo_id,
         details=f"Deleted Work Order '{label}'"
     )
+    # Safe after commit: the session runs expire_on_commit=False, so the stopped runs
+    # still hold their loaded ids (a lazy refresh here would raise MissingGreenlet).
+    await weaving_service.audit_and_broadcast_stops(
+        db, current_user.id, stopped, f"work order '{label}' deleted")
     return {"status": "success"}

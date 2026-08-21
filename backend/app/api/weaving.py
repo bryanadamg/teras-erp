@@ -377,16 +377,6 @@ async def update_weaving_run(
     return run
 
 
-async def _open_pause(db: AsyncSession, run_id) -> Optional[WeavingRunPause]:
-    """The run's un-resumed pause interval, if it is parked right now."""
-    res = await db.execute(
-        select(WeavingRunPause)
-        .where(WeavingRunPause.run_id == run_id, WeavingRunPause.resumed_on.is_(None))
-        .order_by(WeavingRunPause.paused_on.desc())
-    )
-    return res.scalars().first()
-
-
 @router.post("/weaving-runs/{run_id}/pause", response_model=WeavingRunResponse)
 async def pause_weaving_run(
     run_id: str,
@@ -447,7 +437,7 @@ async def resume_weaving_run(
         )
 
     run.status = "RUNNING"
-    pause = await _open_pause(db, run.id)
+    pause = await weaving_service.open_pause(db, run.id)
     if pause:
         # Resuming today means today is worked again, so the interval closes on today
         # and paused_working_days excludes up to yesterday.
@@ -474,17 +464,7 @@ async def stop_weaving_run(
     run = res.scalars().first()
     if not run:
         raise HTTPException(status_code=404, detail="Weaving run not found")
-    was_paused = run.status == "PAUSED"
-    run.status = "DONE"
-    if not run.end_date:
-        run.end_date = date.today()
-    # Stopping a parked run ends the pause with it. Left open, the interval would keep
-    # reporting the closed run as paused in the history table.
-    if was_paused:
-        pause = await _open_pause(db, run.id)
-        if pause:
-            pause.resumed_on = run.end_date
-            pause.resumed_by = current_user.username
+    await weaving_service.stop_run(db, run, username=current_user.username)
     await db.commit()
     await db.refresh(run)
 

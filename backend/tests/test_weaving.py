@@ -160,6 +160,69 @@ def test_fully_paused_run_reports_no_efficiency_rather_than_zero():
     assert metrics["on_target"] is None
 
 
+def test_closing_statuses_exclude_delivered():
+    """DELIVERED means "plan qty met, order still open" — the loom may still be weaving.
+
+    Only an explicit close stops a run. Pinned because folding DELIVERED in here would
+    silently stop runs on every MO that hits its planned quantity.
+    """
+    assert "COMPLETED" in weaving_service.CLOSING_WO_STATUSES
+    assert "CANCELLED" in weaving_service.CLOSING_WO_STATUSES
+    assert "DELIVERED" not in weaving_service.CLOSING_WO_STATUSES
+    assert "IN_PROGRESS" not in weaving_service.CLOSING_WO_STATUSES
+
+
+def test_stop_run_closes_the_open_pause_interval():
+    """Stopping a parked run must close its interval, or it reports paused forever."""
+    import asyncio
+    from types import SimpleNamespace as NS
+
+    run = NS(status="PAUSED", end_date=None, id="r1")
+    pause = _pause("2026-03-09")
+
+    async def fake_open_pause(db, run_id):
+        return pause
+
+    real = weaving_service.open_pause
+    weaving_service.open_pause = fake_open_pause
+    try:
+        asyncio.run(weaving_service.stop_run(None, run, username="tester"))
+    finally:
+        weaving_service.open_pause = real
+
+    assert run.status == "DONE"
+    assert run.end_date == date.today()
+    assert pause.resumed_on == run.end_date
+    assert pause.resumed_by == "tester"
+
+
+def test_stop_run_leaves_an_unpaused_run_alone_apart_from_closing_it():
+    import asyncio
+    from types import SimpleNamespace as NS
+
+    run = NS(status="RUNNING", end_date=None, id="r2")
+    asyncio.run(weaving_service.stop_run(None, run, username="tester"))
+    assert run.status == "DONE" and run.end_date == date.today()
+
+
+def test_stop_run_keeps_an_existing_end_date():
+    """A run already stamped with an end date keeps it — don't rewrite history."""
+    import asyncio
+    from types import SimpleNamespace as NS
+
+    run = NS(status="RUNNING", end_date=date(2026, 3, 10), id="r3")
+    asyncio.run(weaving_service.stop_run(None, run, username="tester"))
+    assert run.end_date == date(2026, 3, 10)
+
+
+def test_stop_runs_requires_a_target():
+    import asyncio
+    import pytest
+
+    with pytest.raises(ValueError):
+        asyncio.run(weaving_service.stop_runs(None, username="tester"))
+
+
 def test_at_most_one_open_pause_per_run(db_session):
     """The DB, not just the API, refuses a second open pause on one run.
 
