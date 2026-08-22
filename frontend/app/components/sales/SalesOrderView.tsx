@@ -20,7 +20,10 @@ import { lvThead, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/l
 
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
 // resized — it is the floor the table refuses to squeeze past before scrolling.
-const SO_TABLE_MIN_WIDTH = 1442;
+// Must be >= the sum of every declared <th> width below (currently 1482), or the
+// browser honours width:100% and squeezes the columns instead of overflowing into
+// the horizontal scroller. Raise this whenever a column is added or widened.
+const SO_TABLE_MIN_WIDTH = 1500;
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO }: any) {
   const { showToast } = useToast();
@@ -1726,7 +1729,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Alt Unit</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
-                               <th style={classic ? { ...xpThCell, width: '100px' } : undefined} title="Work-order steps completed on the manufacturing orders behind this line, and the step running now. Same reading as the production lineage panel.">MO Progress</th>
+                               <th style={classic ? { ...xpThCell, width: '110px' } : undefined} title="Work-order steps completed on the manufacturing orders behind this line, and the step running now. Same reading as the production lineage panel.">MO Progress</th>
                                <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty, measured in the item's stocking unit (not the ordered yardage). READY needs packed cartons in stock.">Fulfilment</th>
                                <SortableTh sort={soSort} colKey="status" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '80px' } : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '75px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
