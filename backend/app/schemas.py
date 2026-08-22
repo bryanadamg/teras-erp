@@ -1696,6 +1696,43 @@ class BatchVariantAttr(BaseModel):
     hex: Optional[str] = None
     system_role: Optional[str] = None   # 'combo' | 'color' | 'material' | ...
 
+class SOLineMOStep(BaseModel):
+    """One work-order step of an MO pegged to a sales-order line."""
+    code: str | None = None
+    name: str | None = None
+    # The shop-floor word for the step: work-center type (WEAVING, DYEING), or
+    # the machine name when the type is the meaningless GENERAL default.
+    stage: str | None = None
+    status: str
+    sequence: int | None = None
+
+class SOLineMO(BaseModel):
+    mo_id: str
+    mo_code: str | None = None
+    mo_status: str | None = None
+    steps_done: int = 0
+    steps_total: int = 0
+    pct: int = 0
+    current_stage: str | None = None
+    current_stage_running: bool = False
+    steps: list[SOLineMOStep] = []
+
+class SOLineMOProgress(BaseModel):
+    """How far the production behind one SO line has got, in work-order steps.
+
+    Derived by so_fulfilment_service.mo_progress_map and pegged to the line the
+    same way `qty_made` is. `mo_count` > 1 when several root MOs answer the same
+    line — the counts pool, since steps are counted rather than measured.
+    """
+    mo_count: int = 0
+    mo_code: str | None = None
+    steps_done: int = 0
+    steps_total: int = 0
+    pct: int = 0
+    current_stage: str | None = None
+    current_stage_running: bool = False
+    mos: list[SOLineMO] = []
+
 class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
     attribute_value_ids: list[UUID] = []
@@ -1727,6 +1764,10 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     # render that as unknown, never as 0%.
     qty_ordered_base: float | None = None
     base_uom: str | None = None
+    # Work-order step progress of the MOs behind this line. Populated by the list
+    # endpoint only (_populate_mo_progress); None means no MO exists for the line
+    # yet, which the table renders as an em dash rather than an empty bar.
+    mo_progress: SOLineMOProgress | None = None
 
     class Config:
         from_attributes = True

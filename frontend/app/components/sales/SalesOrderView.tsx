@@ -20,7 +20,7 @@ import { lvThead, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/l
 
 // Sum of the twelve <th> widths below. Keep in step when a column is added or
 // resized — it is the floor the table refuses to squeeze past before scrolling.
-const SO_TABLE_MIN_WIDTH = 1342;
+const SO_TABLE_MIN_WIDTH = 1442;
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO }: any) {
   const { showToast } = useToast();
@@ -901,6 +901,48 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       );
   };
 
+  // --- Per-line MO progress (derived server-side by so_fulfilment_service) ---
+  // Work-order steps completed on the root MOs pegged to this line, so the shop
+  // floor's "where is this?" is answerable off the table instead of only from the
+  // lineage modal. Same peg as the fulfilment numbers to its right, and the same
+  // step arithmetic the lineage panel draws, so the three never disagree.
+  const moProgressCell = (line: any) => {
+      const mp = line.mo_progress;
+      // No MO yet is not 0% done — say nothing rather than draw an empty bar.
+      if (!mp || !mp.mo_count) {
+          return <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }} title="No manufacturing order for this line yet">—</span>;
+      }
+      const mos: any[] = mp.mos || [];
+      const stepLine = (st: any) => `  ${st.status === 'COMPLETED' ? '✓' : st.status === 'IN_PROGRESS' ? '▶' : '·'} ${st.stage || st.name || st.code || ''}`;
+      const title = mos.map((m: any) => {
+          const head = `${m.mo_code} (${m.mo_status}) — ${m.steps_done}/${m.steps_total} steps`;
+          return [head, ...(m.steps || []).map(stepLine)].join('\n');
+      }).join('\n');
+      return (
+          <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:88 }} title={title}>
+              <div style={{ display:'flex', alignItems:'center', gap:3, flexWrap:'wrap' as const }}>
+                  <CodeChip code={mp.mo_code} classic={classic} link
+                      style={{ fontSize:'9px', padding:'0 4px' }}
+                      onClick={() => goToMO(mp.mo_code)} />
+                  {mp.mo_count > 1 && (
+                      <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#666' }}>+{mp.mo_count - 1}</span>
+                  )}
+              </div>
+              {/* Blue while running, green at 100 — the STATUS_FAMILY reading of
+                  IN_PROGRESS vs COMPLETED, matching lineageProgressBar. */}
+              <ProgressBar pct={mp.pct} tone={mp.pct >= 100 ? 'green' : 'blue'} height={6} />
+              <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.pct >= 100 ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
+                  {mp.steps_total > 0 ? `${mp.steps_done}/${mp.steps_total} steps` : `${mp.pct}%`}
+              </div>
+              {mp.current_stage && (
+                  <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.current_stage_running ? (classic ? '#00327d' : '#0058e6') : '#999', fontWeight: mp.current_stage_running ? 'bold' : undefined, whiteSpace:'nowrap' as const, overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {mp.current_stage_running ? 'now' : 'next'}: {mp.current_stage}
+                  </div>
+              )}
+          </div>
+      );
+  };
+
   const handlePrintSO = (so: any) => {
       setPrintingSO(so);
   };
@@ -1665,7 +1707,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    otherwise sticky headers bind to the inner wrapper and never stick */}
                <div className="table-responsive" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
                    {/* minWidth is what makes the horizontal scroll actually engage: at
-                       width:100% alone the browser squeezes the twelve columns to fit
+                       width:100% alone the browser squeezes the thirteen columns to fit
                        instead of overflowing, and the narrow ones become unreadable. */}
                    <table
                        className={classic ? '' : 'table table-hover align-middle mb-0'}
@@ -1684,6 +1726,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Alt Unit</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
+                               <th style={classic ? { ...xpThCell, width: '100px' } : undefined} title="Work-order steps completed on the manufacturing orders behind this line, and the step running now. Same reading as the production lineage panel.">MO Progress</th>
                                <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty, measured in the item's stocking unit (not the ordered yardage). READY needs packed cartons in stock.">Fulfilment</th>
                                <SortableTh sort={soSort} colKey="status" onSort={toggleSOSort} style={classic ? { ...xpThCell, width: '80px' } : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '75px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
@@ -1773,7 +1816,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            <td style={soTd()} className={classic ? '' : 'ps-3'}>{poCellContent}</td>
                                            <td style={soTd()}>{so.customer_name}</td>
                                            <td style={soTd({ fontSize:'10px' })} className={classic ? '' : 'small'}>{tzDate(so.order_date)}</td>
-                                           <td colSpan={7} style={classic ? { ...tdBase, background:rowBg, borderBottom:'1px solid #c0bdb5', color:'#aaa', fontStyle:'italic', fontSize:'10px' } : { background:rowBg, padding:'6px 10px', borderBottom:'1px solid #dee2e6', color:'#aaa', fontStyle:'italic', fontSize:'0.78rem' }}>No lines</td>
+                                           <td colSpan={8} style={classic ? { ...tdBase, background:rowBg, borderBottom:'1px solid #c0bdb5', color:'#aaa', fontStyle:'italic', fontSize:'10px' } : { background:rowBg, padding:'6px 10px', borderBottom:'1px solid #dee2e6', color:'#aaa', fontStyle:'italic', fontSize:'0.78rem' }}>No lines</td>
                                            <td style={soTd()}>{statusCellContent}</td>
                                            <td style={soTd({ textAlign:'right' as const, borderRight:'none' })} className={classic ? '' : 'pe-3 text-end'}>{actionsCellContent}</td>
                                        </tr>
@@ -1899,6 +1942,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                )}
                                            </td>
 
+                                           {/* MO progress */}
+                                           <td style={lineTd(isFirst, isLast)}>{moProgressCell(line)}</td>
+
                                            {/* Fulfilment */}
                                            <td style={lineTd(isFirst, isLast)}>{fulfilmentCell(line)}</td>
 
@@ -1913,11 +1959,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                });
                            })}
                            {pageOrders.length === 0 && (dataLoading.salesOrders ? (
-                               <TableSkeleton rows={8} cols={skel.cols ?? 12} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                               <TableSkeleton rows={8} cols={skel.cols ?? 13} classic={classic} tdStyle={tdBase} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                            ) : (
                                <tr>
                                    <td
-                                       colSpan={12}
+                                       colSpan={13}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
