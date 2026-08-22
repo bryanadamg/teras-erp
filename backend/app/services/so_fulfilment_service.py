@@ -26,7 +26,7 @@ is split pro-rata rather than double-counted.
 
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.batch import Batch
 from app.models.item import Item
@@ -35,6 +35,7 @@ from app.models.packing import PackingCompletion, PackingOrder
 from app.models.pick_list import PickList, PickListLine
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.stock_balance import StockBalance
+from app.models.work_order import WorkOrder
 
 EPS = 1e-6
 
@@ -159,19 +160,36 @@ async def ordered_base_map(db: AsyncSession, line_ids: list) -> dict:
     }
 
 
-async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
-    """{str(so_line_id): {made, packed, packed_available, dispatched}} for these SOs.
+# --- Line -> production peg ------------------------------------------------
+#
+# Shared by `made` (fulfilment_map) and by `mo_progress_map`. Neither
+# `ManufacturingOrder` nor `PRBomEntry` carries a `sales_order_line_id`, so a root
+# MO is matched to its line on (so, item, bom, bom_size, color) with nulls on the
+# *line* treated as wildcards. The two callers must peg identically: the SO table
+# draws the MO-progress column immediately left of the fulfilment bar, and they
+# would contradict each other if one decided an MO belonged to a different line.
 
-    Four grouped aggregates for the whole set — no per-order or per-line queries,
-    so this stays flat when called for a full page of sales orders.
+
+def _root_mo_filter() -> tuple:
+    """The MOs that count as "produced for this SO line".
+
+    Root only (`parent_mo_id IS NULL`): sub-assembly and shared-component MOs are
+    reached through their root, and counting them would peg the same output twice.
     """
-    so_ids = [i for i in so_ids if i]
-    if not so_ids:
-        return {}
+    return (
+        ManufacturingOrder.parent_mo_id.is_(None),
+        ManufacturingOrder.is_shared_component == False,  # noqa: E712 - SQL boolean
+        ManufacturingOrder.status != "CANCELLED",
+    )
 
-    # Item columns ride along so the denominator is resolved in the same query;
-    # positional indices 0..6 below are load-bearing for the `made` matching.
-    line_rows = (
+
+async def _line_rows(db: AsyncSession, so_ids: list) -> list:
+    """Every line of these SOs, with the Item columns the denominator needs.
+
+    Positional indices are load-bearing: 1..5 for `_mo_claimants`, 6..10 for
+    `ordered_qty_in_stock_uom`. One query for the whole page, never per order.
+    """
+    return (
         await db.execute(
             select(
                 SalesOrderLine.id,
@@ -190,6 +208,36 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
             .filter(SalesOrderLine.sales_order_id.in_(so_ids))
         )
     ).all()
+
+
+def _mo_claimants(line_rows: list, mo_so_id, mo_item, mo_bom, mo_size, mo_color) -> list:
+    """The `_line_rows` rows a root MO could belong to.
+
+    A null on the line is a wildcard: legacy rows predate bom_id/color_id on the
+    SO line. Lines on one SO differ by item, so this resolves uniquely in practice.
+    """
+    return [
+        r
+        for r in line_rows
+        if r[1] == mo_so_id
+        and r[2] == mo_item
+        and (r[3] is None or r[3] == mo_bom)
+        and (r[4] is None or r[4] == mo_size)
+        and (r[5] is None or r[5] == mo_color)
+    ]
+
+
+async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
+    """{str(so_line_id): {made, packed, packed_available, dispatched}} for these SOs.
+
+    Four grouped aggregates for the whole set — no per-order or per-line queries,
+    so this stays flat when called for a full page of sales orders.
+    """
+    so_ids = [i for i in so_ids if i]
+    if not so_ids:
+        return {}
+
+    line_rows = await _line_rows(db, so_ids)
     if not line_rows:
         return {}
 
@@ -278,9 +326,7 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
             )
             .filter(
                 ManufacturingOrder.sales_order_id.in_(so_ids),
-                ManufacturingOrder.parent_mo_id.is_(None),
-                ManufacturingOrder.is_shared_component == False,  # noqa: E712
-                ManufacturingOrder.status != "CANCELLED",
+                *_root_mo_filter(),
             )
             .group_by(
                 ManufacturingOrder.sales_order_id,
@@ -296,17 +342,7 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
         produced = _f(produced)
         if produced <= 0:
             continue
-        # Lines of the same SO this MO group could belong to. A null on the line
-        # is a wildcard: legacy rows predate bom_id/color_id on the SO line.
-        claimants = [
-            r
-            for r in line_rows
-            if r[1] == mo_so_id
-            and r[2] == mo_item
-            and (r[3] is None or r[3] == mo_bom)
-            and (r[4] is None or r[4] == mo_size)
-            and (r[5] is None or r[5] == mo_color)
-        ]
+        claimants = _mo_claimants(line_rows, mo_so_id, mo_item, mo_bom, mo_size, mo_color)
         if not claimants:
             continue
         if len(claimants) == 1:
@@ -324,6 +360,168 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
                 out[str(r[0])]["made"] += produced * (_f(r[6]) / total)
 
     return out
+
+
+# --- MO progress (the SO table's "where is this on the floor?" column) -----
+#
+# Deliberately NOT folded into `fulfilment_map`: that runs on every MO completion,
+# packing completion and shipment dispatch via `recompute_so_status`, and none of
+# those need the work-order join. Only the SO list endpoint calls this.
+
+_WO_DONE = "COMPLETED"
+_WO_RUNNING = "IN_PROGRESS"
+# An MO with no work orders at all can only be read off its own status; DELIVERED
+# means the planned qty was met and the order merely isn't closed yet.
+_MO_DONE = ("COMPLETED", "DELIVERED")
+
+
+def _stage_label(wo) -> str | None:
+    """What to call the step a WO represents, shortest useful name first.
+
+    `center_type` is the shop-floor word for the step (WEAVING, DYEING), so it
+    wins — except GENERAL, which is the model default and says nothing, so those
+    fall through to the machine's own name.
+    """
+    if wo is None:
+        return None
+    wc = wo.work_center
+    if wc is not None:
+        ct = (wc.center_type or "").strip()
+        if ct and ct != "GENERAL":
+            return ct
+        if wc.name:
+            return wc.name
+    return wo.name
+
+
+def _mo_progress_node(mo) -> dict:
+    """One root MO's step progress. Mirrors the lineage panel's reading exactly.
+
+    Cancelled WOs leave the denominator (a scrapped step is not outstanding work),
+    and `current_stage` is the running step, or the next one waiting if nothing is
+    running — the answer to "where is this right now?" either way.
+    """
+    wos = sorted(
+        (w for w in (mo.work_orders or []) if w.status != "CANCELLED"),
+        key=lambda w: (w.sequence if w.sequence is not None else 0),
+    )
+    done = sum(1 for w in wos if w.status == _WO_DONE)
+    total = len(wos)
+    if total:
+        pct = round(done / total * 100)
+    else:
+        pct = 100 if mo.status in _MO_DONE else 0
+    current = next((w for w in wos if w.status == _WO_RUNNING), None) or next(
+        (w for w in wos if w.status not in (_WO_DONE, _WO_RUNNING)), None
+    )
+    return {
+        "mo_id": str(mo.id),
+        "mo_code": mo.code,
+        "mo_status": mo.status,
+        "steps_done": done,
+        "steps_total": total,
+        "pct": pct,
+        "current_stage": _stage_label(current),
+        "current_stage_running": bool(current is not None and current.status == _WO_RUNNING),
+        "steps": [
+            {
+                "code": w.code,
+                "name": w.name,
+                "stage": _stage_label(w),
+                "status": w.status,
+                "sequence": w.sequence,
+            }
+            for w in wos
+        ],
+    }
+
+
+def _aggregate_mo_progress(nodes: list) -> dict:
+    """Roll several MOs pegged to the same line into one cell.
+
+    Steps are counted, not summed in a unit, so pooling them across MOs is honest
+    (unlike `made`, which has to split pro-rata). An MO-less line never reaches
+    here — it gets no cell at all rather than a 0% bar.
+    """
+    total = sum(n["steps_total"] for n in nodes)
+    done = sum(n["steps_done"] for n in nodes)
+    if total:
+        pct = round(done / total * 100)
+    else:
+        # Every pegged MO is work-orderless: average their status-derived reading.
+        pct = round(sum(n["pct"] for n in nodes) / len(nodes))
+    lead = next((n for n in nodes if n["current_stage_running"]), None) or next(
+        (n for n in nodes if n["current_stage"]), None
+    )
+    return {
+        "mo_count": len(nodes),
+        "mo_code": (lead or nodes[0])["mo_code"],
+        "steps_done": done,
+        "steps_total": total,
+        "pct": pct,
+        "current_stage": lead["current_stage"] if lead else None,
+        "current_stage_running": bool(lead and lead["current_stage_running"]),
+        "mos": nodes,
+    }
+
+
+async def mo_progress_map(db: AsyncSession, so_ids: list) -> dict:
+    """{str(so_line_id): mo progress} — omitted entirely for lines with no MO.
+
+    Two queries for the whole page (lines, then root MOs with their WOs), pegged
+    with `_mo_claimants` so this and the `made` number beside it always agree on
+    which line an MO belongs to. An ambiguous MO (two lines, same item + recipe +
+    size + shade) is reported against every claimant: step counts are not
+    additive, so there is nothing to split.
+    """
+    so_ids = [i for i in so_ids if i]
+    if not so_ids:
+        return {}
+
+    line_rows = await _line_rows(db, so_ids)
+    if not line_rows:
+        return {}
+
+    mos = (
+        (
+            await db.execute(
+                select(ManufacturingOrder)
+                .options(
+                    selectinload(ManufacturingOrder.work_orders).joinedload(
+                        WorkOrder.work_center
+                    )
+                )
+                .filter(
+                    ManufacturingOrder.sales_order_id.in_(so_ids),
+                    *_root_mo_filter(),
+                )
+                .order_by(ManufacturingOrder.created_at)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    if not mos:
+        return {}
+
+    by_line: dict = {}
+    for mo in mos:
+        claimants = _mo_claimants(
+            line_rows,
+            mo.sales_order_id,
+            mo.item_id,
+            mo.bom_id,
+            mo.bom_size_id,
+            mo.color_id,
+        )
+        if not claimants:
+            continue
+        node = _mo_progress_node(mo)
+        for r in claimants:
+            by_line.setdefault(str(r[0]), []).append(node)
+
+    return {line_id: _aggregate_mo_progress(nodes) for line_id, nodes in by_line.items()}
 
 
 def derive_status(lines: list, fulfilment: dict) -> str:

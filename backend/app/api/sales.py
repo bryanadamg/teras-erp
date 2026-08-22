@@ -65,6 +65,23 @@ async def _populate_fulfilment(db: AsyncSession, orders: list) -> None:
             line.base_uom = f.get("base_uom", "")
 
 
+async def _populate_mo_progress(db: AsyncSession, orders: list) -> None:
+    """Attach work-order step progress of the MOs behind every line.
+
+    List endpoint only — this is the one caller that needs the work-order join, so
+    the recompute paths (every MO completion, packing, dispatch) don't pay for it.
+    `mo_progress` must be declared on SalesOrderLineResponse or response_model
+    drops it silently. Lines with no MO are left None, not zeroed: "not planned
+    yet" and "planned but 0% done" are different answers on the shop floor.
+    """
+    if not orders:
+        return
+    progress = await so_fulfilment_service.mo_progress_map(db, [o.id for o in orders])
+    for so in orders:
+        for line in so.lines:
+            line.mo_progress = progress.get(str(line.id))
+
+
 def _populate_line(line: SalesOrderLine) -> None:
     """Fill response-only fields on a SO line from its eager-loaded relations."""
     line.attribute_value_ids = [v.id for v in line.attribute_values]
@@ -282,6 +299,7 @@ async def get_sales_orders(
     await _populate_fulfilment(db, list(orders))
     await _populate_variant_attrs(db, list(orders))
     await _populate_production_runs(db, list(orders))
+    await _populate_mo_progress(db, list(orders))
 
     # Unfiltered, all-time counts for the status-bar summary ("X total / Y
     # pending / Z delivered") — deliberately not scoped to the active filter,
