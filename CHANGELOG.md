@@ -15,6 +15,17 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-22
+
+### Added
+- Sales Orders list shows how far production has actually got on each line: a per-line work-order step column (`3/5 · DYEING`) next to the fulfilment bar, expandable to the individual steps with their work-center stage and status. Root MOs are pegged to a line the same way `qty_made` already was, so the two columns can never disagree, and several MOs answering one line pool their counts
+
+### Changed
+- Dispatch is one table instead of a Deck tab and a Shipments tab. The Deck tab was a picker wearing a list's clothes — un-staged pick lists and the shipments they became were the same work seen twice, and the loader was flipping tabs to reconstruct it. Both grains now share nine columns under one status chip bar (`On Deck` is a client-side pseudo-status), with deck rows marked by a left tick and closed off by a divider
+
+### Fixed
+- Sales-order table columns hold their pinned widths and the table scrolls horizontally, instead of the new MO-progress column squeezing every other column narrower
+
 ## [0.5.0] - 2026-08-21
 
 ### Added
