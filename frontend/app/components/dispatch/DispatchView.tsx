@@ -16,7 +16,6 @@ import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubT
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
-import { Tabs } from '../shared/Tabs';
 import { qtyFmt, toNum as num } from '../shared/format';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
 
@@ -27,8 +26,9 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
 const xpFont = LV_XP_FONT;
 const xpInput: React.CSSProperties = lvInput(true);
 const xpTableHeader: React.CSSProperties = { ...lvTh(true), ...lvThead(true), position: 'sticky', top: 0 };
-const DECK_COLS = 8;
-const SHP_COLS = 8;
+// One grid now carries both grains. Nine columns:
+// checkbox · Document · Reference · Customer · Vehicle · Cartons · Status · Checked by · menu
+const COLS = 9;
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
@@ -42,12 +42,26 @@ const xpLabel: React.CSSProperties = lvLabel(true);
 
 const fmtQty = qtyFmt(2, 'id-ID');   // the deck feeds a printed Surat Jalan
 const PAGE_SIZE = 20;
-// '' = no status filter; the bar renders it as the leading "All" segment.
-const SHIPMENT_STATUS_FILTERS = [
+// The chip bar is what replaced the tab strip. '' = no filter (deck block pinned
+// above the shipments); DECK is a *client-side* pseudo-status — no shipment row
+// ever has it — that shows the un-staged pick lists on their own. Every other
+// segment is a real Shipment.status and hides the deck block.
+const DECK_FILTER = 'DECK';
+const STATUS_FILTERS = [
     { value: '', label: 'All' },
+    { value: DECK_FILTER, label: 'On Deck' },
     { value: 'STAGED' }, { value: 'VERIFIED' }, { value: 'DISPATCHED' }, { value: 'CANCELLED' },
 ];
-type DispatchTab = 'deck' | 'shipments';
+
+// Deck rows wear a left tick so the two grains stay tellable apart without a
+// second header, and a divider closes the block off from the shipments below.
+const deckMark: React.CSSProperties = { borderLeft: '3px solid #c98a2e' };
+const dividerTd: React.CSSProperties = {
+    padding: 0, height: 3, background: '#ded9cd',
+    borderTop: '1px solid #8a8578', borderBottom: '1px solid #ffffff',
+};
+// Customer PO under the SO code — their reference, ours above it.
+const subRef: React.CSSProperties = { fontSize: 10, color: '#666666', marginTop: 1 };
 
 /**
  * Loading deck — the second half of the outbound flow.
@@ -57,9 +71,16 @@ type DispatchTab = 'deck' | 'shipments';
  * printout goes out with the goods, a *different* person counts the cartons
  * against it and verifies, and only then does dispatch post goods issue.
  *
- * The two tabs are two people. Deck is the loader's screen, Shipments is where
- * the checker works — but they are one page because they are one physical spot
- * in the warehouse, and the checker needs to see what is still un-staged.
+ * One table, two grains. This used to be two tabs — a Deck tab and a Shipments
+ * tab — but the Deck tab was a picker masquerading as a list: eight columns whose
+ * rows had no actions of their own, existing only to feed a checkbox selection.
+ * Merged, the Status column carries the whole flow in one place
+ * (PICKED -> STAGED -> VERIFIED -> DISPATCHED), which is what the loader and the
+ * checker were each flipping tabs to reconstruct.
+ *
+ * Deck rows keep their real `PICKED` status rather than a made-up "ON DECK" —
+ * that is what they are, and the chip already reads amber for it. "On Deck" is a
+ * filter label only.
  */
 export default function DispatchView() {
     const { partners, attributes, companyProfile, itemIndex, authFetch } = useData();
@@ -71,11 +92,15 @@ export default function DispatchView() {
     const canVerify = hasPermission('shipment.verify');
     const canDispatch = hasPermission('sales.manage') || hasPermission('shipment.dispatch');
 
-    const [tab, setTab] = useState<DispatchTab>('deck');
     const [deck, setDeck] = useState<any[]>([]);
     const [deckLoading, setDeckLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('');
+    // One expansion at a time across both grains, so the key carries its type:
+    // `pl:<id>` or `shp:<id>`.
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    // Deck rows arrive as a rollup only — `/shipments/stageable` deliberately stays
+    // cheap — so their cartons are fetched on first expand and then kept.
+    const [deckDetail, setDeckDetail] = useState<Record<string, any>>({});
     const [staging, setStaging] = useState<any[] | null>(null);   // pick lists chosen to stage
     const [editing, setEditing] = useState<any | null>(null);     // shipment header edit
     const [verifying, setVerifying] = useState<any | null>(null);
@@ -105,7 +130,9 @@ export default function DispatchView() {
         endpoint: `${API_BASE}/shipments`,
         authFetch,
         pageSize: PAGE_SIZE,
-        params: { status: statusFilter },
+        // DECK filters the deck block client-side, so the shipment query stays
+        // unfiltered — flipping to that segment and back costs no refetch.
+        params: { status: statusFilter === DECK_FILTER ? '' : statusFilter },
     });
 
     const skel = useTableSkeletonMetrics('shipments', listBodyRef, shipments.length > 0);
@@ -116,9 +143,27 @@ export default function DispatchView() {
         await Promise.all([loadDeck(), loadShipments()]);
     }, [loadDeck, loadShipments]);
 
+    // Which half of the merged grid this filter segment shows.
+    const showDeck = statusFilter === '' || statusFilter === DECK_FILTER;
+    const showShipments = statusFilter !== DECK_FILTER;
+
+    // The search box is server-backed for the shipments; the deck block is a local
+    // array, so it filters here — otherwise a search would silently ignore half the
+    // table. Matches the echoed input rather than the debounced value: the deck is
+    // already in memory, so there is nothing to wait for.
+    const deckRows = useMemo(() => {
+        if (!showDeck) return [];
+        const q = searchInput.trim().toLowerCase();
+        if (!q) return deck;
+        return deck.filter(d => [d.code, d.sales_order_code, d.customer_po_ref, d.customer_name]
+            .some(v => String(v || '').toLowerCase().includes(q)));
+    }, [deck, showDeck, searchInput]);
+
     // Keeps the pick-list rows themselves — staging posts their ids and the header
-    // count sums their cartons.
-    const sel = useRowSelection<any>(deck, d => String(d.id));
+    // count sums their cartons. Fed the *visible* rows so select-all takes what is
+    // on screen; anything selected and then filtered away stays in the selection,
+    // which is why the count and a Clear button are always on show below.
+    const sel = useRowSelection<any>(deckRows, d => String(d.id));
     const selectedDeck = sel.items;
     // One Surat Jalan addresses one customer — the backend rejects a mixed set, so
     // the button is disabled rather than letting the user find out on submit.
@@ -126,6 +171,22 @@ export default function DispatchView() {
         () => new Set(selectedDeck.map(d => d.customer_name || '')).size > 1,
         [selectedDeck],
     );
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { sel.clear(); }, [statusFilter]);
+
+    const toggleExpand = (key: string) => setExpandedId(prev => (prev === key ? null : key));
+
+    // Deck cartons on demand. `/shipments/stageable` returns a rollup only, and
+    // `GET /pick-lists/{id}` already decorates lines with item, colour and batch.
+    const loadDeckDetail = useCallback(async (plId: any) => {
+        const k = String(plId);
+        if (deckDetail[k]) return;
+        const res = await authFetch(`${API_BASE}/pick-lists/${k}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setDeckDetail(prev => ({ ...prev, [k]: data }));
+    }, [authFetch, deckDetail]);
 
     const doStage = async (form: any) => {
         const res = await authFetch(`${API_BASE}/shipments`, {
@@ -141,7 +202,9 @@ export default function DispatchView() {
         setStaging(null);
         sel.clear();
         await refreshAll();
-        setTab('shipments');
+        // Clear any filter that would hide the row that was just minted, and open it.
+        setStatusFilter('');
+        setExpandedId(`shp:${shp.id}`);
         showToast(`Staged ${shp.code} — Surat Jalan ${shp.delivery_note_number}`, 'success');
         setPrintShp(shp);
     };
@@ -192,78 +255,12 @@ export default function DispatchView() {
 
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-    // ── Deck tab ───────────────────────────────────────────────────────────
-    const deckTab = (
-        <>
-            <div style={{ ...xpToolbar(), gap: 8 }}>
-                <span style={{ fontSize: 11 }}>
-                    {selectedDeck.length > 0
-                        ? `${selectedDeck.length} pick list(s) selected · ${selectedDeck.reduce((s, d) => s + num(d.carton_count), 0)} carton(s)`
-                        : 'Select the pick lists loaded onto this vehicle'}
-                </span>
-                <div style={{ flex: 1 }} />
-                {mixedCustomers && (
-                    <span style={{ fontSize: 11, color: '#8e0000' }}>
-                        One Surat Jalan = one customer
-                    </span>
-                )}
-                {canManage && (
-                    <button
-                        style={xpBtnGreen()}
-                        disabled={selectedDeck.length === 0 || mixedCustomers}
-                        onClick={() => setStaging(selectedDeck)}
-                    >
-                        Stage on Deck
-                    </button>
-                )}
-            </div>
-            <div style={{ flex: 1, overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: 11 }}>
-                    <thead>
-                        <tr>
-                            <th style={{ ...xpTableHeader, width: LV_CHECK_COL_W, textAlign: 'center' }}>
-                                <SelectAllCheckbox classic allSelected={sel.allPageSelected} someSelected={sel.someSelected}
-                                    disabled={!sel.pageEligibleCount} onChange={sel.togglePage} />
-                            </th>
-                            <th style={xpTableHeader}>Pick List</th>
-                            <th style={xpTableHeader}>SO</th>
-                            <th style={xpTableHeader}>Customer PO</th>
-                            <th style={xpTableHeader}>Customer</th>
-                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
-                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty</th>
-                            <th style={xpTableHeader}>Picked</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {deck.length === 0 && (deckLoading ? (
-                            <TableSkeleton rows={5} cols={skel.cols ?? DECK_COLS} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
-                        ) : (
-                            <tr><td colSpan={DECK_COLS} style={{ padding: 0 }}>
-                                <XPEmptyState icon="bi-truck" message="Deck is clear. Pick lists appear here once the floor has confirmed every carton." />
-                            </td></tr>
-                        ))}
-                        {deck.map((d, i) => (
-                            <tr key={String(d.id)} style={{ ...rowStyle(i), ...(sel.isSelected(d) ? { background: rowStateBg('selected', true) } : {}) }}>
-                                <td style={{ ...td, textAlign: 'center' }}>
-                                    <RowCheckbox classic checked={sel.isSelected(d)} onChange={() => sel.toggle(d)} label={`pick list ${d.code}`} />
-                                </td>
-                                <td style={td}><CodeChip code={d.code} classic tone="accent" /></td>
-                                <td style={td}>{d.sales_order_code || '—'}</td>
-                                <td style={td}>{d.customer_po_ref || '—'}</td>
-                                <td style={td}>{d.customer_name || '—'}</td>
-                                <td style={{ ...td, textAlign: 'right' }}>{d.carton_count}</td>
-                                <td style={{ ...td, textAlign: 'right' }}>{fmtQty(d.total_qty)}</td>
-                                <td style={td}>{d.picked_at ? tzDate(d.picked_at) : '—'}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </>
-    );
+    // ── The one grid ─────────────────────────────────────────
+    const bothBlocks = showDeck && showShipments && deckRows.length > 0;
+    const nothingYet = deckRows.length === 0 && (!showShipments || shipments.length === 0);
+    const stillLoading = (showDeck && deckLoading) || (showShipments && loading);
 
-    // ── Shipments tab ──────────────────────────────────────────────────────
-    const shipmentsTab = (
+    const body = (
         <>
             <div style={{ ...xpToolbar(), gap: 6 }}>
                 <SearchField
@@ -274,18 +271,48 @@ export default function DispatchView() {
                 />
                 <FilterChipBar
                     classic
-                    options={SHIPMENT_STATUS_FILTERS}
+                    options={STATUS_FILTERS}
                     value={statusFilter}
                     onChange={setStatusFilter}
                 />
-                <ToolbarCount classic right>{total} shipment(s)</ToolbarCount>
+                <ToolbarCount classic right>
+                    {statusFilter === DECK_FILTER ? `${deckRows.length} on deck` : `${total} shipment(s)`}
+                </ToolbarCount>
             </div>
+
+            {/* Contextual strip — only on screen with a live selection, so the resting
+                toolbar stays a search box and a filter bar rather than carrying both
+                states side by side. */}
+            {selectedDeck.length > 0 && (
+                <div style={{ ...xpToolbar(), gap: 8, background: rowStateBg('selected', true) }}>
+                    <span style={{ fontSize: 11 }}>
+                        {`${selectedDeck.length} pick list(s) selected · ${selectedDeck.reduce((t, d) => t + num(d.carton_count), 0)} carton(s)`}
+                    </span>
+                    <div style={{ flex: 1 }} />
+                    {mixedCustomers && (
+                        <span style={{ fontSize: 11, color: '#8e0000' }}>
+                            One Surat Jalan = one customer
+                        </span>
+                    )}
+                    {canManage && (
+                        <button style={xpBtnGreen()} disabled={mixedCustomers} onClick={() => setStaging(selectedDeck)}>
+                            Stage on Deck
+                        </button>
+                    )}
+                    <button style={xpBtn()} onClick={sel.clear}>Clear</button>
+                </div>
+            )}
+
             <div style={{ flex: 1, overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, fontSize: 11 }}>
                     <thead>
                         <tr>
-                            <th style={xpTableHeader}>Shipment</th>
-                            <th style={xpTableHeader}>Surat Jalan</th>
+                            <th style={{ ...xpTableHeader, width: LV_CHECK_COL_W, textAlign: 'center' }}>
+                                <SelectAllCheckbox classic allSelected={sel.allPageSelected} someSelected={sel.someSelected}
+                                    disabled={!sel.pageEligibleCount} onChange={sel.togglePage} />
+                            </th>
+                            <th style={xpTableHeader}>Document</th>
+                            <th style={xpTableHeader}>Reference</th>
                             <th style={xpTableHeader}>Customer</th>
                             <th style={xpTableHeader}>Vehicle</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
@@ -295,25 +322,81 @@ export default function DispatchView() {
                         </tr>
                     </thead>
                     <tbody ref={listBodyRef}>
-                        {shipments.length === 0 && (loading ? (
-                            <TableSkeleton rows={6} cols={skel.cols ?? SHP_COLS} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                        {nothingYet && (stillLoading ? (
+                            <TableSkeleton rows={6} cols={skel.cols ?? COLS} classic tdStyle={td} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <tr><td colSpan={SHP_COLS} style={{ padding: 0 }}>
-                                <XPEmptyState icon="bi-truck" message="No shipments yet. Stage pick lists from the Deck tab to raise a Surat Jalan." />
+                            <tr><td colSpan={COLS} style={{ padding: 0 }}>
+                                <XPEmptyState icon="bi-truck" message={statusFilter === DECK_FILTER
+                                    ? 'Deck is clear. Pick lists appear here once the floor has confirmed every carton.'
+                                    : 'Nothing here yet. Pick lists land on the deck once the floor has confirmed every carton — select them to raise a Surat Jalan.'} />
                             </td></tr>
                         ))}
-                        {shipments.map((shp, i) => {
-                            const open = expandedId === String(shp.id);
+
+                        {/* Deck block: pinned above the shipments and deliberately outside
+                            the pager — it is a short work queue, and paging it would hide
+                            work rather than tidy it. */}
+                        {deckRows.map((d, i) => {
+                            const key = `pl:${d.id}`;
+                            const open = expandedId === key;
+                            const picked = sel.isSelected(d);
                             return (
-                                <React.Fragment key={String(shp.id)}>
+                                <React.Fragment key={key}>
                                     <tr
-                                        style={{ ...rowStyle(i), ...(open ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
-                                        onClick={() => setExpandedId(open ? null : String(shp.id))}
+                                        style={{
+                                            ...rowStyle(i),
+                                            ...(open ? { background: rowStateBg('expanded', true) }
+                                                : picked ? { background: rowStateBg('selected', true) } : {}),
+                                            cursor: 'pointer',
+                                        }}
+                                        onClick={() => { toggleExpand(key); if (!open) loadDeckDetail(d.id); }}
                                     >
+                                        <td style={{ ...td, ...deckMark, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                            <RowCheckbox classic checked={picked} onChange={() => sel.toggle(d)} label={`pick list ${d.code}`} />
+                                        </td>
+                                        <td style={td}><CodeChip code={d.code} classic tone="accent" /></td>
+                                        <td style={td}>
+                                            {d.sales_order_code || EMPTY_DASH}
+                                            {d.customer_po_ref && <div style={subRef}>{d.customer_po_ref}</div>}
+                                        </td>
+                                        <td style={td}>{d.customer_name || EMPTY_DASH}</td>
+                                        <td style={td}>{EMPTY_DASH}</td>
+                                        <td style={{ ...td, textAlign: 'right' }}>{d.carton_count}</td>
+                                        <td style={td}><StatusChip status="PICKED" /></td>
+                                        <td style={td}>{EMPTY_DASH}</td>
+                                        <td style={td} />
+                                    </tr>
+                                    {open && (
+                                        <tr>
+                                            <td colSpan={COLS} style={{ padding: 0 }}>
+                                                <ExpandedRowPanel classic>
+                                                    <DeckDetail row={d} pl={deckDetail[String(d.id)]} tzDate={tzDate} itemIndex={itemIndex} />
+                                                </ExpandedRowPanel>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+
+                        {bothBlocks && <tr><td colSpan={COLS} style={dividerTd} /></tr>}
+
+                        {showShipments && shipments.map((shp, i) => {
+                            const key = `shp:${shp.id}`;
+                            const open = expandedId === key;
+                            // Zebra runs on through the deck block instead of restarting, so
+                            // the stripe reads as one list rather than two stacked ones.
+                            const zebra = rowStyle(i + deckRows.length);
+                            return (
+                                <React.Fragment key={key}>
+                                    <tr
+                                        style={{ ...zebra, ...(open ? { background: rowStateBg('expanded', true) } : {}), cursor: 'pointer' }}
+                                        onClick={() => toggleExpand(key)}
+                                    >
+                                        <td style={td} />
                                         <td style={td}><CodeChip code={shp.code} classic tone="accent" /></td>
-                                        <td style={td}>{shp.delivery_note_number ? <CodeChip code={shp.delivery_note_number} classic /> : '—'}</td>
-                                        <td style={td}>{shp.customer_name || '—'}</td>
-                                        <td style={td}>{shp.vehicle_plate || '—'}</td>
+                                        <td style={td}>{shp.delivery_note_number ? <CodeChip code={shp.delivery_note_number} classic /> : EMPTY_DASH}</td>
+                                        <td style={td}>{shp.customer_name || EMPTY_DASH}</td>
+                                        <td style={td}>{shp.vehicle_plate || EMPTY_DASH}</td>
                                         <td style={{ ...td, textAlign: 'right' }}>{shp.carton_count}</td>
                                         <td style={td}><StatusChip status={shp.status} /></td>
                                         <td style={td}>
@@ -324,36 +407,20 @@ export default function DispatchView() {
                                         <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                             {canVerify && shp.status === 'STAGED' && (
                                                 <span style={{ marginRight: 2 }}>
-                                                    <XPActionButton
-                                                        classic
-                                                        tone="success"
-                                                        icon="bi-check2-square"
-                                                        title="Verify Load"
-                                                        onClick={() => setVerifying(shp)}
-                                                    />
+                                                    <XPActionButton classic tone="success" icon="bi-check2-square" title="Verify Load" onClick={() => setVerifying(shp)} />
                                                 </span>
                                             )}
                                             <span style={{ marginRight: 2 }}>
-                                                <XPActionButton
-                                                    classic
-                                                    tone="neutral"
-                                                    icon="bi-printer"
-                                                    title="Print Surat Jalan"
-                                                    onClick={() => setPrintShp(shp)}
-                                                />
+                                                <XPActionButton classic tone="neutral" icon="bi-printer" title="Print Surat Jalan" onClick={() => setPrintShp(shp)} />
                                             </span>
                                             <MenuTriggerButton classic onClick={e => menuToggle(String(shp.id), e)} />
                                         </td>
                                     </tr>
                                     {open && (
                                         <tr>
-                                            <td colSpan={SHP_COLS} style={{ padding: 0 }}>
+                                            <td colSpan={COLS} style={{ padding: 0 }}>
                                                 <ExpandedRowPanel classic>
-                                                    <ShipmentDetail
-                                                        shp={shp}
-                                                        tzDateTime={tzDateTime}
-                                                        itemIndex={itemIndex}
-                                                    />
+                                                    <ShipmentDetail shp={shp} tzDateTime={tzDateTime} itemIndex={itemIndex} />
                                                 </ExpandedRowPanel>
                                             </td>
                                         </tr>
@@ -364,7 +431,7 @@ export default function DispatchView() {
                     </tbody>
                 </table>
             </div>
-            <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+            {showShipments && <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />}
         </>
     );
 
@@ -373,16 +440,7 @@ export default function DispatchView() {
     return (
         <ShellWindow classic fill="page" className="fade-in" style={{ fontFamily: xpFont }}>
             <ShellTitleBar classic icon="bi-truck" title="Dispatch & Loading Deck" />
-            <Tabs<DispatchTab>
-                classic
-                activeKey={tab}
-                onChange={setTab}
-                tabs={[
-                    { key: 'deck' as const, label: `Deck${deck.length ? ` (${deck.length})` : ''}`, icon: 'bi-box-arrow-right' },
-                    { key: 'shipments' as const, label: 'Shipments', icon: 'bi-truck' },
-                ]}
-            />
-            {tab === 'deck' ? deckTab : shipmentsTab}
+            {body}
 
             <XPStatusBar right={`${deck.length} waiting · ${total} shipment(s)`}>
                 Loading deck
@@ -504,6 +562,65 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
                             )))}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    );
+}
+
+// ── Expanded deck row: what this pick list would put on a truck ───────────
+// The row itself is a rollup, so the cartons are fetched on first expand. Same
+// two-pane shape as ShipmentDetail — a loader reads them the same way.
+function DeckDetail({ row, pl, tzDate, itemIndex }: any) {
+    const info = (k: string, v: any) => (
+        <div style={{ display: 'flex', gap: 6, fontSize: 11 }}>
+            <span style={{ ...xpLabel, minWidth: 110 }}>{k}</span>
+            <span>{v ?? EMPTY_DASH}</span>
+        </div>
+    );
+    const lines = pl?.lines || [];
+    return (
+        <div style={{ display: 'flex', gap: 20, padding: '8px 12px', fontFamily: xpFont }}>
+            <div style={{ minWidth: 260 }}>
+                {info('Sales order', row.sales_order_code)}
+                {info('Customer PO', row.customer_po_ref)}
+                {info('Customer', row.customer_name)}
+                {info('Cartons', row.carton_count)}
+                {info('Total qty', fmtQty(row.total_qty))}
+                {info('Picked', row.picked_at ? tzDate(row.picked_at) : null)}
+                {info('QC', row.qc_passed ? 'Passed' : 'Not passed')}
+            </div>
+            <div style={{ flex: 1 }}>
+                {!pl ? (
+                    <div style={{ fontSize: 11, color: '#555555' }}>Loading cartons…</div>
+                ) : (
+                    <table style={subTable}>
+                        <thead>
+                            <tr>
+                                <th style={subTh}>Item</th>
+                                <th style={subTh}>Colour</th>
+                                <th style={subTh}>Carton</th>
+                                <th style={{ ...subTh, textAlign: 'right' }}>Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {lines.map((l: any) => (
+                                <tr key={String(l.id)}>
+                                    <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || EMPTY_DASH}</td>
+                                    <td style={subTd}>
+                                        {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : EMPTY_DASH}
+                                    </td>
+                                    <td style={subTd}>{l.batch_number ? <CodeChip code={l.batch_number} classic tier={2} /> : EMPTY_DASH}</td>
+                                    <td style={{ ...subTd, textAlign: 'right' }}>
+                                        {fmtQty(l.qty_picked)} {l.item_uom || itemIndex?.[String(l.item_id)]?.uom || ''}
+                                    </td>
+                                </tr>
+                            ))}
+                            {lines.length === 0 && (
+                                <tr><td colSpan={4} style={{ ...subTd, color: '#555555' }}>No cartons on this pick list.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                )}
             </div>
         </div>
     );
