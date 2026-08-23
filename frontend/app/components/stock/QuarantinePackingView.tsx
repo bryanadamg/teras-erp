@@ -798,10 +798,12 @@ export default function QuarantinePackingView() {
                                 >
                                     <ExpanderCell classic={classic} expanded={open} onToggle={() => toggleRow(g.key, g.lots)} label="lots" />
                                     <td style={lvTd(classic)}>
-                                        {g.mo_code
-                                            ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
-                                            : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}
-                                        {g.mo_status && <StatusChip status={g.mo_status} style={{ marginLeft: 6 }} tint />}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            {g.mo_code
+                                                ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
+                                                : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}
+                                            {g.mo_status && <StatusChip status={g.mo_status} style={{ marginLeft: 'auto' }} tint />}
+                                        </div>
                                         {(g.production_run_code || g.sales_order_code) ? (
                                             <OriginChipRow style={{ marginTop: 2 }}>
                                                 {g.production_run_code && <OriginChip kind="pr" code={g.production_run_code} classic={classic} />}
