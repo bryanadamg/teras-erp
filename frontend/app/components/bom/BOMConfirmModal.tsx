@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { CodeChip, xpFont } from '../shared/xpTheme';
+import { CodeChip, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 
 /**
  * Save-time confirmation for the BOM Designer.
@@ -173,7 +173,7 @@ const PlanNode = memo(({ node }: { node: BOMPlanNode }) => {
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                             {node.operations.map(op => (
-                                <span key={op.sequence} style={{
+                                <span key={op.sequence} style={{ borderRadius: CHIP_RADIUS,
                                     fontSize: 9, border: '1px solid #c8d4e4', background: '#eef4fc',
                                     padding: '0 4px', color: '#003060',
                                 }}>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { statusColor, statusTint, xpFont } from './xpTheme';
+import { statusColor, statusTint, xpFont, CHIP_RADIUS } from './xpTheme';
 import { xpBevel as sharedXpBevel, SearchField, FilterChipBar } from './shellTheme';
 import { lvThead } from './listViewTheme';
 
@@ -211,7 +211,7 @@ export default function CalendarView({
                                 const name = getItemName(wo.item_id);
                                 return (
                                     <div key={wo.id} className="text-start text-truncate w-100"
-                                        style={{ ...chipStyle(wo.status), borderRadius: 3, padding: '2px 6px', cursor: onMOClick ? 'pointer' : 'default' }}
+                                        style={{ ...chipStyle(wo.status), borderRadius: CHIP_RADIUS, padding: '2px 6px', cursor: onMOClick ? 'pointer' : 'default' }}
                                         title={`${wo.code}${name ? ': ' + name : ''}`}
                                         onClick={onMOClick ? () => onMOClick(wo.id) : undefined}>
                                         <div className="text-truncate fw-bold" style={{ fontSize: '0.65rem', lineHeight: '1.3' }}>{wo.code}</div>

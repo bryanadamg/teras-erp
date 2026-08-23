@@ -55,7 +55,7 @@ export function CodeChip({ code, classic, tier = 1, tone = 'default', link = fal
                     color: '#0058e6',
                     background: '#e8f0fe',
                     border: '1px solid #b0c8f8',
-                    borderRadius: classic ? 2 : 4,
+                    borderRadius: CODE_CHIP_RADIUS,
                     padding: '0 5px',
                     cursor: 'pointer',
                     display: 'inline-block',
@@ -208,16 +208,90 @@ export const familyTint = (family: StatusFamily) => FAMILY_TINT[family];
 // render their own badge shape but want the shared per-status palette.
 export const statusTint = (status?: string) => FAMILY_TINT[familyOf(status)];
 
+// ── Chip geometry ─────────────────────────────────────────────────────────────
+// ONE corner radius for every small tinted badge in the app — status chips, count
+// pills, variant/colour/combo chips, qty chips, tag chips, permission chips. Views
+// used to pick their own: modern radii of 3, 4, 5, 6, 8, 10 and 999 were all in
+// use, classic was 0 or 2, and ~60 chips set none at all — so two chips in the SAME
+// table cell rendered one square and one pill. Radius encodes nothing here, so the
+// drift was pure noise.
+//
+// Deliberately NOT theme-aware: a `classic ? a : b` radius is what produced the
+// drift in the first place (every view re-picked both halves), and 1-2px of corner
+// is invisible against XP chrome. One number, both themes. Import it; never
+// hand-write a chip radius.
+export const CHIP_RADIUS = 3;
+
+export const CODE_CHIP_RADIUS = CHIP_RADIUS;
+
+// StatusChip is the XP-flavoured chip used in BOTH themes (it always renders on
+// xpFont), so it takes the classic geometry in both rather than threading a
+// `classic` flag through its ~100 call sites. 2px vs 4px at 9px type is invisible;
+// what matters is that no chip is square while its neighbour is a pill.
 export const statusChipStyle = (status?: string, extra: React.CSSProperties = {}, tint = false): React.CSSProperties => {
     const c = tint ? FAMILY_TINT[familyOf(status)] : FAMILY_CHIP[familyOf(status)];
     return {
         display: 'inline-block', fontSize: 9, fontWeight: 'bold',
-        padding: '1px 6px', borderRadius: 0, border: '1px solid',
+        padding: '1px 6px', borderRadius: CHIP_RADIUS, border: '1px solid',
         fontFamily: xpFont, whiteSpace: 'nowrap',
         background: c.background, borderColor: c.borderColor, color: c.color,
         ...extra,
     };
 };
+
+// THE chip primitive. Any small bordered+tinted inline badge goes through this so
+// geometry (radius, padding, gap, border, nowrap) lives in one place and only the
+// palette varies per call site. Pass `tone` for the palette (background/borderColor/
+// color — from statusTint, workCenterChipStyle, or a literal), `icon` for a leading
+// bootstrap-icon class, `swatch` for a colour dot, `onRemove` for a pick-list "x".
+// Don't re-roll a chip span in a view; if a variant is missing, add it here.
+export function Chip({
+    children, classic, tone, icon, swatch, title, onRemove, onClick, bold, size = 'sm', style,
+}: {
+    children: React.ReactNode;
+    classic?: boolean;
+    tone?: { background?: string; borderColor?: string; color?: string };
+    icon?: string;
+    swatch?: string | null;
+    title?: string;
+    onRemove?: () => void;
+    onClick?: () => void;
+    bold?: boolean;
+    size?: 'xs' | 'sm' | 'md';
+    style?: React.CSSProperties;
+}) {
+    const fs = size === 'xs' ? (classic ? 9 : 9.5) : size === 'md' ? (classic ? 11 : 12) : (classic ? 10 : 11);
+    return (
+        <span
+            title={title}
+            onClick={onClick}
+            style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                background: tone?.background ?? (classic ? '#f0ede4' : '#eef1f4'),
+                border: '1px solid',
+                borderColor: tone?.borderColor ?? (classic ? '#b0a898' : '#dee2e6'),
+                color: tone?.color ?? (classic ? '#333' : '#495057'),
+                borderRadius: CHIP_RADIUS,
+                padding: size === 'md' ? '1px 7px' : '1px 6px',
+                fontFamily: classic ? xpFont : modernFont,
+                fontSize: fs,
+                fontWeight: bold ? 700 : 400,
+                lineHeight: 1.45,
+                whiteSpace: 'nowrap',
+                cursor: onClick ? 'pointer' : undefined,
+                ...style,
+            }}
+        >
+            {icon && <i className={`bi ${icon}`} style={{ fontSize: fs - 1.5, opacity: 0.8 }} />}
+            {swatch && <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: swatch, border: '1px solid rgba(0,0,0,0.25)' }} />}
+            {children}
+            {onRemove && (
+                <button type="button" onClick={e => { e.stopPropagation(); onRemove(); }} title="Remove"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontWeight: 'bold', lineHeight: 1, padding: 0, marginLeft: 1, fontSize: fs + 2 }}>×</button>
+            )}
+        </span>
+    );
+}
 
 export function StatusChip({ status, label, style, tint, title }: { status: string; label?: string; style?: React.CSSProperties; tint?: boolean; title?: string }) {
     return (
@@ -241,9 +315,7 @@ export function StatusCountPill({ status, count, label, classic, title }: {
             style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: classic ? '0 6px' : '1px 9px',
-                // Squared-off in classic to sit right against XP chrome; fully rounded
-                // in modern. Both still read as one bounded pill.
-                borderRadius: classic ? 2 : 999,
+                borderRadius: CHIP_RADIUS,
                 border: '1px solid', borderColor: c.borderColor,
                 background: c.background, color: c.color,
                 fontFamily: classic ? xpFont : modernFont,
@@ -316,8 +388,8 @@ export function ColorSwatchChip({ label, classic, hex: hexOverride, onRemove }: 
     const hex = hexOverride ?? colorHexFor(label);
     return (
         <span style={classic
-            ? { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', fontFamily: xpFont, whiteSpace: 'nowrap' }
-            : { display: 'inline-flex', alignItems: 'center', gap: 5, background: '#eef1f6', border: '1px solid #cbd3df', color: '#334155', fontSize: 12, borderRadius: 5, padding: '2px 8px', fontFamily: modernFont, whiteSpace: 'nowrap' }}>
+            ? { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', borderRadius: CHIP_RADIUS, fontFamily: xpFont, whiteSpace: 'nowrap' }
+            : { display: 'inline-flex', alignItems: 'center', gap: 5, background: '#eef1f6', border: '1px solid #cbd3df', color: '#334155', fontSize: 12, borderRadius: CHIP_RADIUS, padding: '2px 8px', fontFamily: modernFont, whiteSpace: 'nowrap' }}>
             {hex && <span style={{ width: 10, height: 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
             {label}
             {onRemove && (
@@ -349,6 +421,7 @@ export function WorkCenterChip({ type, name, label }: { type?: string | null; na
         <span style={{
             ...workCenterChipStyle(type, name),
             display: 'inline-block', borderWidth: 1, borderStyle: 'solid',
+            borderRadius: CHIP_RADIUS,
             fontSize: 9, padding: '1px 6px', whiteSpace: 'nowrap',
             fontFamily: xpFont, fontWeight: 'bold', lineHeight: 1.5,
         }}>{text}</span>

@@ -6,8 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, CodeChip,
-} from '../shared/xpTheme';
+    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, CodeChip, CHIP_RADIUS } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
@@ -407,31 +406,31 @@ export default function ReportsView(_props: any) {
                     {e.attribute_value_ids?.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 2 }}>
                             {e.attribute_value_ids.map((vid: string) => (
-                                <span key={vid} style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontSize: '9px', color: '#333' }}>{getAttrName(vid)}</span>
+                                <span key={vid} style={{ borderRadius: CHIP_RADIUS, background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontSize: '9px', color: '#333' }}>{getAttrName(vid)}</span>
                             ))}
                         </div>
                     )}
                 </td>
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     {e.item_category_name
-                        ? <span title={e.item_category_name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>{e.item_category_name}</span>
+                        ? <span title={e.item_category_name} style={{ borderRadius: CHIP_RADIUS, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>{e.item_category_name}</span>
                         : <Dash classic={classic} />}
                 </td>
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                         {getWarehouseName(e) && (
-                            <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
+                            <span style={{ borderRadius: CHIP_RADIUS, background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
                                 {getWarehouseName(e)}
                             </span>
                         )}
-                        <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>
+                        <span style={{ borderRadius: CHIP_RADIUS, background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>
                             {getLocName(e)}
                         </span>
                     </div>
                 </td>
                 <td style={{ ...xpCell, fontSize: '11px' }}>
                     {e.batch_number
-                        ? <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00' }}>{e.batch_number}</span>
+                        ? <span style={{ borderRadius: CHIP_RADIUS, background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00' }}>{e.batch_number}</span>
                         : <Dash classic={classic} />}
                 </td>
                 <td style={{ ...xpCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -447,7 +446,7 @@ export default function ReportsView(_props: any) {
                     )}
                 </td>
                 <td style={{ ...xpCell, borderRight: 'none', whiteSpace: 'nowrap' }}>
-                    <span style={{ background: rm.classic.bg, border: `1px solid ${rm.classic.border}`, padding: '0 5px', fontSize: '10px', color: rm.classic.color }}>{rm.label}</span>
+                    <span style={{ borderRadius: CHIP_RADIUS, background: rm.classic.bg, border: `1px solid ${rm.classic.border}`, padding: '0 5px', fontSize: '10px', color: rm.classic.color }}>{rm.label}</span>
                     <span style={{ fontSize: '10px', color: '#999', marginLeft: 4 }} title={e.reference_id}>#{e.reference_label || shortRef(e.reference_id)}</span>
                 </td>
             </tr>

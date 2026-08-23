@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 import {
     xpTableHeader, xpThCell, tdBase,
     settingsStack, settingsHint, SETTINGS_FIELD_GAP,
@@ -332,7 +332,7 @@ export default function SettingsDatabaseTab() {
                     <FieldLabel classic={classic}>Current Connection</FieldLabel>
                     {classic ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: xpFont, fontSize: '11px', color: '#333' }}>
+                            <span style={{ borderRadius: CHIP_RADIUS, background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: xpFont, fontSize: '11px', color: '#333' }}>
                                 <i className="bi bi-link-45deg"></i>
                             </span>
                             <input style={xpInput({ flex: 1, fontFamily: CODE_FONT, background: '#f0ede6', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })} value={currentDbUrl} readOnly />

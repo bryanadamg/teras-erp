@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CHIP_RADIUS } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, lvZebra } from '../shared/listViewTheme';
 import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 
@@ -161,7 +161,7 @@ export default function AttributesLibraryView({
                                         <span style={{
                                             fontSize: classic ? 9 : 10, background: classic ? '#dce8ff' : '#dbeafe',
                                             border: `1px solid ${classic ? '#7fa8e0' : '#93c5fd'}`, color: classic ? '#003080' : '#1d4ed8',
-                                            padding: '1px 5px', borderRadius: classic ? 0 : 4,
+                                            padding: '1px 5px', borderRadius: CHIP_RADIUS,
                                         }}>{ROLE_LABELS[attr.system_role] || attr.system_role}</span>
                                     ) : <span style={{ color: '#aaa' }}>—</span>}
                                 </td>
@@ -296,7 +296,7 @@ export default function AttributesLibraryView({
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #7f9db9', minHeight: 32, padding: '4px 6px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                     {newValues.map((v, i) => (
-                                        <span key={i} style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '1px 6px', fontSize: 11 }}>{v}</span>
+                                        <span key={i} style={{ borderRadius: CHIP_RADIUS, background: '#dde8f5', border: '1px solid #7f9db9', padding: '1px 6px', fontSize: 11 }}>{v}</span>
                                     ))}
                                     {newValues.length === 0 && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>No values added</span>}
                                 </div>

@@ -11,7 +11,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import ProductionRunModal from './ProductionRunModal';
 import MOCreationPreview from './MOCreationPreview';
-import { xpFont, xpInput, xpLabel, ModalFooterActions } from '../shared/xpTheme';
+import { xpFont, xpInput, xpLabel, ModalFooterActions, CHIP_RADIUS } from '../shared/xpTheme';
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
@@ -378,10 +378,10 @@ export default function ManufacturingView({
                                   </div>
                                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                                       {attrNames.map((name: string, i: number) => (
-                                          <span key={i} style={{ fontSize: 10, padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 3, fontWeight: 700 }}>{name}</span>
+                                          <span key={i} style={{ fontSize: 10, padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>{name}</span>
                                       ))}
                                       {sizeLabel && (
-                                          <span style={{ fontSize: 10, padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 3, fontWeight: 700 }}>
+                                          <span style={{ fontSize: 10, padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
                                               <i className="bi bi-rulers me-1"></i>{sizeLabel}
                                           </span>
                                       )}

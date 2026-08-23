@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { xpFont, ExpandedRowPanel, ExpandedRowPanelBody } from '../shared/xpTheme';
+import { xpFont, ExpandedRowPanel, ExpandedRowPanelBody, CHIP_RADIUS } from '../shared/xpTheme';
 import { PermissionSectionTable, PermissionSectionRow } from '../shared/permissionChips';
 
 /** Tint per scope kind — matches the collapsed-row chip colors so the two views read as the same object. */
@@ -22,7 +22,7 @@ function ScopeChip({ label, kind, classic }: { label: string; kind: keyof typeof
             border: `1px solid ${t.border}`,
             color: t.fg,
             padding: '1px 6px',
-            borderRadius: classic ? 0 : 3,
+            borderRadius: CHIP_RADIUS,
             whiteSpace: 'nowrap',
         }}>{label}</span>
     );

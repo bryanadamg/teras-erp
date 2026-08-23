@@ -1,6 +1,6 @@
 'use client';
 
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 
 interface Permission { id: string; code: string; description: string }
 
@@ -39,7 +39,7 @@ export default function EffectivePermissions({
 
     if (isAdmin) {
         return classic ? (
-            <span style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>
+            <span style={{ borderRadius: CHIP_RADIUS, background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>
                 All Permissions
             </span>
         ) : (

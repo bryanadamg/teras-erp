@@ -5,7 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton } from '../shared/xpTheme';
+import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton, CHIP_RADIUS } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, FilterChipBar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
 import { useToast } from '../shared/Toast';
@@ -338,7 +338,7 @@ export default function WeavingMonitorView() {
                         <span style={{
                             display: 'inline-block', marginRight: 4, padding: '0 4px',
                             background: cls ? '#d4d0c8' : '#eceef0', color: '#555',
-                            fontSize: 9, fontWeight: 700, borderRadius: cls ? 0 : 3,
+                            fontSize: 9, fontWeight: 700, borderRadius: CHIP_RADIUS,
                         }}>
                             {index}/{total}
                         </span>
@@ -592,7 +592,7 @@ export default function WeavingMonitorView() {
                                     <span
                                         title={`${sec.belowTarget} ${t('below_target')}`}
                                         style={{
-                                            marginLeft: 5, padding: '0 4px', borderRadius: 8,
+                                            marginLeft: 5, padding: '0 4px', borderRadius: CHIP_RADIUS,
                                             background: RED, color: '#fff', fontSize: 9, fontWeight: 700,
                                         }}
                                     >

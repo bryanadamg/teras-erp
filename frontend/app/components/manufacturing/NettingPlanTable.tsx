@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { CodeChip, CODE_FONT, colorHexFor } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, colorHexFor, CHIP_RADIUS } from '../shared/xpTheme';
 import { qtyFmt } from '../shared/format';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
@@ -106,7 +106,7 @@ function IdentityChips({ chips, classic }: { chips?: NettingChip[]; classic: boo
                             background: classic ? '#e8e4d8' : t.bg,
                             color: classic ? '#333' : t.fg,
                             border: `1px solid ${classic ? '#b0aaa0' : t.bd}`,
-                            padding: '0 4px', borderRadius: classic ? 0 : 8, whiteSpace: 'nowrap',
+                            padding: '0 4px', borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap',
                         }}>
                         {swatch && <span style={{
                             width: 7, height: 7, background: swatch, flexShrink: 0,
@@ -223,7 +223,7 @@ export default function NettingPlanTable({
                                         <span style={{
                                             fontSize: 9, fontWeight: 600, background: d.bg, color: d.fg,
                                             border: `1px solid ${d.bd}`, padding: '1px 6px',
-                                            borderRadius: classic ? 0 : 10, whiteSpace: 'nowrap',
+                                            borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap',
                                         }}>{d.label}</span>
                                     </td>
                                     <td style={{ padding: '4px 6px', color: '#475569', whiteSpace: 'nowrap' }}>

@@ -12,7 +12,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, TableEmpty } from '../shared/listViewTheme';
 import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
@@ -525,7 +525,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                         if (v) { label = `${attr.name}: ${v.value}`; break; }
                                     }
                                     return (
-                                        <span key={vid} style={{
+                                        <span key={vid} style={{ borderRadius: CHIP_RADIUS,
                                             background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8',
                                             padding: '0 4px', fontSize: 9,
                                         }}>{label}</span>
@@ -564,7 +564,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                             <tr key={idx} style={lvSubRow(classic, idx)}>
                                                 <td style={{ ...subTd, color: '#666' }}>{idx + 1}</td>
                                                 <td style={subTd}>
-                                                    <span style={{
+                                                    <span style={{ borderRadius: CHIP_RADIUS,
                                                         background: typeColor(line.chemical_type, classic).bg,
                                                         color: typeColor(line.chemical_type, classic).fg,
                                                         padding: '0 4px', fontWeight: 'bold', fontSize: 8,

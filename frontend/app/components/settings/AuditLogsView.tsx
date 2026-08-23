@@ -5,7 +5,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT, lvThead } from '../shared/listViewTheme';
-import { StatusChip, CODE_FONT, xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT, xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, CHIP_RADIUS } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import Pager from '../shared/Pager';
 
@@ -44,7 +44,7 @@ const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
                         <StatusChip status={log.action} title={log.action.replace(/_/g, ' ')} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                     </td>
                     <td style={{ padding: '3px 8px', overflow: 'hidden' }} title={log.entity_id}>
-                        <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 5px', fontFamily: LV_XP_FONT, fontSize: '10px', color: '#333' }}>{formatEntityType(log.entity_type)}</span>
+                        <span style={{ borderRadius: CHIP_RADIUS, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 5px', fontFamily: LV_XP_FONT, fontSize: '10px', color: '#333' }}>{formatEntityType(log.entity_type)}</span>
                     </td>
                     <td style={{ padding: '3px 8px', fontFamily: LV_XP_FONT, fontSize: '11px', color: '#444' }}>
                         {log.details}

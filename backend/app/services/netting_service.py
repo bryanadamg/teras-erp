@@ -283,7 +283,7 @@ def _root_node(bom, qty: float, location, loc_names: dict, attr_ids=()) -> dict:
 
 
 def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detail: dict, loc_names: dict,
-                    attr_ids=()) -> dict:
+                    attr_ids=(), bom_size_id=None) -> dict:
     item = sub_bom.item
     if net <= 0:
         decision = "SKIP"
@@ -301,6 +301,7 @@ def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detai
         "required_other": detail["required_other"], "net_free": detail["net_free"],
         "net_qty": net, "decision": decision,
         "chips": [], "_attr_ids": list(attr_ids or []),
+        "_bom_size_id": str(bom_size_id) if bom_size_id else None,
     }
 
 
@@ -418,7 +419,27 @@ async def _active_sub_bom(db: AsyncSession, item_id, combo_value_ids=(), combo_a
     """Combo-aware component recipe pick — must be the SAME rule as MO creation
     (`mrp_service.active_sub_bom`) or the preview explodes a different tree than
     the run it is previewing."""
-    return await active_sub_bom(db, item_id, combo_value_ids, combo_attr_id, with_item=True)
+    return await active_sub_bom(db, item_id, combo_value_ids, combo_attr_id,
+                                with_item=True, with_sizes=True)
+
+
+def _resolve_sub_size(sub_bom, parent_bs):
+    """Map a parent's size row onto the sub-BOM's own size row — matched by shared
+    Size master, else by label. Mirrors create_consolidated_component_mos: only a
+    sub-BOM that is itself size-differentiated splits per size; an unsized/free one
+    pools across every parent size (the color-variant greige case)."""
+    if parent_bs is None or getattr(sub_bom, "size_mode", None) != "sized":
+        return None
+    if parent_bs.size_id:
+        for s in sub_bom.sizes:
+            if s.size_id and s.size_id == parent_bs.size_id:
+                return s
+    if parent_bs.label:
+        want = parent_bs.label.strip().lower()
+        for s in sub_bom.sizes:
+            if s.label and s.label.strip().lower() == want:
+                return s
+    return None
 
 
 async def preview_production_run(db, bom_entries, location, source_location, exclude_pr_id=None) -> list[dict]:
@@ -432,7 +453,9 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
     # Pass 1: root finished goods — netted against stock same as a component,
     # unless the entry's force_create bypasses it (stockpile override).
     root_loc = source_location.id if source_location else (location.id if location else None)
-    bom_ro_pairs = []
+    # (bom, net_qty, bom_size_id) per surviving root — the size id is threaded down
+    # because a sized sub-assembly splits per size in the create path.
+    root_gen: list[tuple] = []
     for entry in bom_entries:
         bom = (await db.execute(
             select(BOM).options(joinedload(BOM.item), selectinload(BOM.attribute_values))
@@ -440,8 +463,9 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         )).unique().scalars().first()
         if not bom:
             continue
-        # (bom_size_id, qty) — the size id is display-only (chips); netting keys on
-        # (item, variant) regardless of size, exactly as the create path does.
+        # (bom_size_id, qty). Netting keys on (item, variant) regardless of size,
+        # but the size identity is carried down so component *rows* split exactly
+        # where the create path splits component MOs.
         gross_specs: list[tuple] = []
         if getattr(entry, "sizes", None):
             gross_specs = [(getattr(s, "bom_size_id", None), float(s.qty))
@@ -459,7 +483,6 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
             else [str(v.id) for v in bom.attribute_values]
         )
 
-        net_qtys = []
         for bom_size_id, gross in gross_specs:
             if force:
                 detail = await _info_detail(avail, bom.item_id, root_attrs, entry_color_id)
@@ -472,21 +495,28 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
                 labdip_code=getattr(entry, "labdip_variant_code", None),
             ))
             if net > 0:
-                net_qtys.append(net)
-
-        if net_qtys:
-            bom_ro_pairs.append((bom, net_qtys))
+                root_gen.append((bom, net, bom_size_id))
 
     # Pass 2+: consolidate component demand level-by-level (breadth-first),
     # mirroring the multi-level pooling the create path now does — a shared
     # component's total demand across every branch is netted once, at every
     # depth, not just directly below the roots.
-    current_gen = [(bom, qty) for bom, root_qtys in bom_ro_pairs for qty in root_qtys]
+    current_gen = root_gen
     combo_attr_id = await _combo_attr_id(db)
     level = 1
     while current_gen:
+        # Parent size rows for this generation, so each parent's size identity can be
+        # mapped onto its sub-BOM's own size rows (same preload the create path does).
+        bs_ids = {sid for _, _, sid in current_gen if sid}
+        bs_by_id: dict = {}
+        if bs_ids:
+            bs_by_id = {
+                str(bs.id): bs for bs in (await db.execute(
+                    select(BOMSize).filter(BOMSize.id.in_(bs_ids))
+                )).scalars().all()
+            }
         demand: dict[tuple, dict] = {}
-        for bom, qty in current_gen:
+        for bom, qty, parent_size_id in current_gen:
             bom_lines = (await db.execute(
                 select(BOM).options(
                     selectinload(BOM.lines).selectinload(BOMLine.attribute_values)
@@ -509,18 +539,31 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
                 # the inherited line tag so the preview keys the same way the create
                 # path does (mrp_service._effective_combo) and pools across branches.
                 line_combo = _effective_combo(line_combo, sub_bom, combo_attr_id)
-                item_flag = (await db.execute(
-                    select(Item.is_decoupling_point).filter(Item.id == line.item_id)
-                )).scalar()
-                src = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
+                item_row = (await db.execute(
+                    select(Item.default_source_location_id, Item.is_decoupling_point)
+                    .filter(Item.id == line.item_id)
+                )).first()
+                # Same source chain as the create path: BOM-line override -> item-master
+                # default -> PR source. Display only (netting is plant-level).
+                src = (
+                    line.source_location_id
+                    or (item_row.default_source_location_id if item_row else None)
+                    or (source_location.id if source_location else (location.id if location else None))
+                )
                 comp_attrs = sorted(set(
                     [str(v.id) for v in sub_bom.attribute_values] + line_combo
                 ))
-                key = (str(line.item_id), str(sub_bom.id), tuple(line_combo))
+                # Size split: a size-differentiated sub-BOM gets one row per size, so
+                # the preview shows the same rows the create path creates MOs for.
+                sub_bs = _resolve_sub_size(sub_bom, bs_by_id.get(str(parent_size_id)) if parent_size_id else None)
+                size_key = str(sub_bs.id) if sub_bs is not None else None
+                key = (str(line.item_id), str(sub_bom.id), size_key, tuple(line_combo))
                 if key not in demand:
                     demand[key] = {"sub_bom": sub_bom, "src": src, "total": 0.0,
                                    "attrs": comp_attrs,
-                                   "decoupled": _line_decoupled(line, item_flag)}
+                                   "bom_size_id": sub_bs.id if sub_bs is not None else None,
+                                   "decoupled": _line_decoupled(
+                                       line, item_row.is_decoupling_point if item_row else False)}
                 demand[key]["total"] += (qty * float(line.percentage)) / 100
 
         next_gen = []
@@ -534,15 +577,15 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
             if data["decoupled"]:
                 detail = await _info_detail(avail, data["sub_bom"].item_id, data["attrs"])
                 node = _component_node(data["sub_bom"], level, data["src"], total, 0.0, detail, loc_names,
-                                       attr_ids=data["attrs"])
+                                       attr_ids=data["attrs"], bom_size_id=data["bom_size_id"])
                 node["decision"] = "DECOUPLED"
                 nodes.append(node)
                 continue
             net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total)
             nodes.append(_component_node(data["sub_bom"], level, data["src"], total, net, detail, loc_names,
-                                         attr_ids=data["attrs"]))
+                                         attr_ids=data["attrs"], bom_size_id=data["bom_size_id"]))
             if net > 0:
-                next_gen.append((data["sub_bom"], net))
+                next_gen.append((data["sub_bom"], net, data["bom_size_id"]))
         current_gen = next_gen
         level += 1
 
@@ -573,6 +616,8 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
             continue
         line_combo = _effective_combo(line_combo, sub_bom, combo_attr_id)
         gross = (parent_net * float(line.percentage)) / 100
+        # Nested-MO children inherit the MO's own source (create_mo_recursive passes
+        # source_location_id straight down — no line/item override there).
         sub_loc = source_location_id or location_id
         item_flag = (await db.execute(
             select(Item.is_decoupling_point).filter(Item.id == line.item_id)

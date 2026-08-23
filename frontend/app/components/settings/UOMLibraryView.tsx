@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead, ExpanderCell } from '../shared/listViewTheme';
-import { ExpandedRowPanel, rowStateBg } from '../shared/xpTheme';
+import { ExpandedRowPanel, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 interface Props {
@@ -117,7 +117,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                                                 <span style={{
                                                     marginLeft: 6, fontSize: classic ? 9 : 10, background: classic ? '#dce8ff' : '#dbeafe',
                                                     border: `1px solid ${classic ? '#7fa8e0' : '#93c5fd'}`, color: classic ? '#003080' : '#1d4ed8',
-                                                    padding: '1px 5px', borderRadius: classic ? 0 : 4,
+                                                    padding: '1px 5px', borderRadius: CHIP_RADIUS,
                                                 }}>SYSTEM</span>
                                             )}
                                         </td>

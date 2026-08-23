@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg, StatusChip } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
 import { SearchField, ToolbarCount, FilterChipBar } from '../shared/shellTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
@@ -281,7 +281,7 @@ export default function SettingsUsersTab({
                                         <td style={classic ? tdBase : undefined}>{user.full_name}</td>
                                         <td style={classic ? tdBase : undefined}>
                                             {classic ? (
-                                                <span style={{ display: 'inline-block', width: 'fit-content', maxWidth: '100%', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>
+                                                <span style={{ borderRadius: CHIP_RADIUS, display: 'inline-block', width: 'fit-content', maxWidth: '100%', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>
                                                     {user.role?.name || '—'}
                                                 </span>
                                             ) : (

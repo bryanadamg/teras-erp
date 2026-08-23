@@ -9,7 +9,7 @@ import { ShellWindow, ShellTitleBar, SearchField, ToolbarCount, ToolbarButton } 
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
-import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpFont } from '../shared/xpTheme';
+import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
 
 const WC_PAGE_SIZE = 20;
@@ -480,7 +480,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                           {level === 'GROUP' && <span style={{ marginLeft: 6, fontSize: classic ? 9 : 10, fontStyle: 'normal', color: '#666' }}>GROUP</span>}
                                       </td>
                                       <td style={lvTd(classic)}>
-                                          <span style={{ padding: '1px 6px', borderRadius: classic ? 2 : 6, fontSize: classic ? 10 : 11, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span>
+                                          <span style={{ padding: '1px 6px', borderRadius: CHIP_RADIUS, fontSize: classic ? 10 : 11, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span>
                                       </td>
                                       {LOC_FIELDS.map(field => {
                                           // Show what actually applies, italic when it comes from an
@@ -596,7 +596,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           <tr key={op.id} style={lvRow(classic, i)}>
                               <td style={{ ...lvTd(classic), paddingLeft: classic ? 10 : 14, fontWeight: 'bold', color: classic ? '#1a5e1a' : '#15803d' }}>
                                   {op.code}
-                                  {op.is_system && <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', background: '#ddd', border: '1px solid #aaa', borderRadius: 2, padding: '0 3px' }}>sys</span>}
+                                  {op.is_system && <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', background: '#ddd', border: '1px solid #aaa', borderRadius: CHIP_RADIUS, padding: '0 3px' }}>sys</span>}
                               </td>
                               <td style={lvTd(classic)}>{op.name}</td>
                               <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>

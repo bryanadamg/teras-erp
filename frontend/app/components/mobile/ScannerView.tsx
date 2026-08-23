@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { STATUS_COLORS, xpFont as XP_FONT } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont as XP_FONT, CHIP_RADIUS } from '../shared/xpTheme';
 
 interface MobileScannerViewProps {
     manufacturingOrders: any[];
@@ -584,7 +584,7 @@ export default function MobileScannerView({
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                                             <span style={{ fontWeight: 500 }}>{row.item_code}</span>
                                                             {row.is_substitute && (
-                                                                <span style={{ fontSize: 9, background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px', whiteSpace: 'nowrap' }}>
+                                                                <span style={{ borderRadius: CHIP_RADIUS, fontSize: 9, background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px', whiteSpace: 'nowrap' }}>
                                                                     SUB
                                                                 </span>
                                                             )}

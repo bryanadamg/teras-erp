@@ -7,7 +7,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
-import { PanelSkeleton, xpFont } from '../shared/xpTheme';
+import { PanelSkeleton, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 
 import TemplateRenderer from '../shared/printTemplate/TemplateRenderer';
 import { buildPrintContext } from '../shared/printTemplate/renderContext';
@@ -360,7 +360,7 @@ export default function PrintDesignerView() {
                         />
                     </div>
 
-                    <span style={{
+                    <span style={{ borderRadius: CHIP_RADIUS,
                         fontFamily: classic ? xpFont : undefined, fontSize: 10,
                         padding: '1px 6px',
                         border: '1px solid',

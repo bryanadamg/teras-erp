@@ -9,7 +9,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, RowCheckbox, lvPickerRow, lvThSticky } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -46,7 +46,7 @@ const xpFormLabel: React.CSSProperties = { fontFamily: xpFont, fontSize: 11, dis
 const uomChip: React.CSSProperties = {
     fontSize: 9, fontWeight: 'bold', letterSpacing: 0.3, textTransform: 'uppercase',
     color: '#31569e', background: '#e8f0fe', border: '1px solid #a8c0f0',
-    borderRadius: 2, padding: '0 5px', lineHeight: '14px',
+    borderRadius: CHIP_RADIUS, padding: '0 5px', lineHeight: '14px',
 };
 
 // Inline label button in the expanded row — same chrome as the WO list's
@@ -319,13 +319,13 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                             <td style={{ ...td, color: '#333' }}>
                                                                 {c.operator || '—'}
                                                                 {c.rejected && (
-                                                                    <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>
+                                                                    <span style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>
                                                                 )}
                                                                 {/* Partial reject: the entry stays live with its qty already
                                                                     trimmed, so the scrapped part only shows as its own marker. */}
                                                                 {!c.rejected && num(c.qty_rejected) > 0 && (
                                                                     <span title={c.reject_reason || 'Partially rejected'}
-                                                                        style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>
+                                                                        style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>
                                                                         -{num(c.qty_rejected).toFixed(2)} REJ
                                                                     </span>
                                                                 )}
@@ -1396,7 +1396,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                                 {/* What this log takes off the lot — the rest stays on it for
                                                                     the next pack event. FIFO, so later lots may draw 0. */}
                                                                 {on && (
-                                                                    <span style={{
+                                                                    <span style={{ borderRadius: CHIP_RADIUS,
                                                                         fontSize: 9, fontWeight: 'bold', color: takeByBatch[id] ? '#0a3e0a' : '#777',
                                                                         background: takeByBatch[id] ? '#d0f0d0' : '#eceae2',
                                                                         border: '1px solid #aca899', padding: '0 4px',
