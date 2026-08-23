@@ -15,6 +15,22 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-23
+
+### Added
+- Hovering anything with a `title` shows the app's own tooltip instead of the OS one — XP pale yellow in classic, a dark bubble in modern, with `role="tooltip"` and `aria-describedby` wired up. `GlobalTooltip` delegates from `document`, so the next `title=` anyone types is themed without them knowing the file exists. Rich or multi-line content uses `<Tooltip content>` directly
+- Text clipped to an ellipsis with no `title` of its own gets a hover showing it in full, which is the only affordance an ellipsis ever had
+- A `Chip` too narrow for its cell re-renders itself unclipped, in place, on hover — a badge does something better than a tooltip, so chips opt out of the global layer and own their popout
+
+### Changed
+- Colour chips show the colour code alone; the name moves to the tooltip, and only when it says something the code does not. In real data the two are near-identical ("318" / "318"), so the `{code} — {name}` label every view built was duplicated text that overflowed narrow cells
+- The MO progress bar on the sales-order table is itself the link to the MO. The code chip above it ate the column's width and truncated the code to noise ("PR-2026-08-00010-00…"); the code now lives in the hover and a multi-MO line carries its count on the steps line
+- Classic buttons, tab tops and toolbar controls all take one shared `BUTTON_RADIUS`, and every classic button carries the same `XP_BTN` hover/press motion instead of hand-rolled mouse-enter state per call site
+
+### Fixed
+- Long variant chips clip to the sales-order table's Item column instead of pushing it wider
+- The PR chip on the sales-order table is a shared `Chip`, so it pops out when clipped like every other badge — a hand-rolled span had no popout
+
 ## [0.7.0] - 2026-08-23
 
 ### Added
