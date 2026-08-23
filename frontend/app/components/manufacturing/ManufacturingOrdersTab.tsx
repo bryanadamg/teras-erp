@@ -1430,7 +1430,7 @@ export default function ManufacturingOrdersTab({
                         onClick={onClick}
                         style={{
                             fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
                             background: primary
                                 ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
                                 : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
@@ -1524,7 +1524,7 @@ export default function ManufacturingOrdersTab({
                         onClick={onClick}
                         style={{
                             fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
                             background: primary ? 'linear-gradient(to bottom, #b0e8b0, #70c870)' : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
                             border: '1px solid',
                             borderColor: primary ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a' : '#dfdfdf #808080 #808080 #dfdfdf',
@@ -1600,7 +1600,7 @@ export default function ManufacturingOrdersTab({
                         onClick={onClick}
                         style={{
                             fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
                             background: primary
                                 ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
                                 : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
@@ -1698,7 +1698,7 @@ export default function ManufacturingOrdersTab({
                         onClick={onClick}
                         style={{
                             fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
                             background: primary
                                 ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
                                 : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',

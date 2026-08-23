@@ -559,7 +559,7 @@ body {
 
 /* 10. User dropdown toggle button */
 .classic-header .dropdown .btn {
-  border-radius: 0 !important;
+  border-radius: 3px !important;
   background: linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%) !important;
   border: 1px solid #707070 !important;
   color: #000000 !important;
@@ -633,7 +633,7 @@ body {
   color: black;
   font-size: 11px;
   padding: 3px 8px;
-  border-radius: 0;
+  border-radius: 3px;
 }
 
 .classic-toolbar .btn:hover {
@@ -751,7 +751,7 @@ body {
   border-top-color: #ffffff !important;
   border-left-color: #ffffff !important;
   color: black !important;
-  border-radius: 0 !important;
+  border-radius: 3px !important;   /* matches BUTTON_RADIUS in xpTheme.tsx */
   font-size: 11px;
   box-shadow: none !important;
 }
@@ -780,7 +780,7 @@ body {
 .ui-style-classic .btn-close {
   background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat !important;
   border: 1px solid #808080 !important;
-  border-radius: 2px !important;
+  border-radius: 3px !important;
   opacity: 1 !important;
   padding: 0.25em !important;
   height: 1.5em;

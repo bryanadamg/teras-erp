@@ -665,7 +665,7 @@ export default function MobileScannerView({
                                                     setSubPickerIdx(null);
                                                     setSubQuery('');
                                                 }}
-                                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 2, fontFamily: XP_FONT, fontSize: 12, cursor: 'pointer', background: '#fff', border: '1px solid #7f9db9', borderRadius: 0 }}
+                                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 2, fontFamily: XP_FONT, fontSize: 12, cursor: 'pointer', background: '#fff', border: '1px solid #7f9db9', borderRadius: 3 }}
                                             >
                                                 <span style={{ fontWeight: 'bold' }}>{it.code}</span>
                                                 {it.name && it.name !== it.code && (

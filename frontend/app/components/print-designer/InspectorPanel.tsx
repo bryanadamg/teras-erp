@@ -306,7 +306,7 @@ export default function InspectorPanel({ layout, docType, selection, onChange, o
                             title="Add a cell"
                             style={{
                                 fontFamily: classic ? xpFont : undefined, fontSize: 10, lineHeight: 1,
-                                padding: '1px 4px', cursor: 'pointer', borderRadius: 0,
+                                padding: '1px 4px', cursor: 'pointer', borderRadius: 3,
                                 background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa',
                                 border: '1px solid', borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : '#ced4da',
                             }}
@@ -438,7 +438,7 @@ export default function InspectorPanel({ layout, docType, selection, onChange, o
                                         title="Add a field to this stack"
                                         style={{
                                             fontFamily: classic ? xpFont : undefined, fontSize: 10, lineHeight: 1,
-                                            padding: '1px 4px', cursor: 'pointer', borderRadius: 0,
+                                            padding: '1px 4px', cursor: 'pointer', borderRadius: 3,
                                             background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa',
                                             border: '1px solid', borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : '#ced4da',
                                         }}
@@ -491,7 +491,7 @@ export default function InspectorPanel({ layout, docType, selection, onChange, o
                             title="Add a row"
                             style={{
                                 fontFamily: classic ? xpFont : undefined, fontSize: 10, lineHeight: 1,
-                                padding: '1px 4px', cursor: 'pointer', borderRadius: 0,
+                                padding: '1px 4px', cursor: 'pointer', borderRadius: 3,
                                 background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa',
                                 border: '1px solid', borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : '#ced4da',
                             }}
@@ -760,7 +760,7 @@ export default function InspectorPanel({ layout, docType, selection, onChange, o
                                     title="Add a column"
                                     style={{
                                         fontFamily: classic ? xpFont : undefined, fontSize: 10, lineHeight: 1,
-                                        padding: '1px 4px', cursor: 'pointer', borderRadius: 0,
+                                        padding: '1px 4px', cursor: 'pointer', borderRadius: 3,
                                         background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa',
                                         border: '1px solid', borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : '#ced4da',
                                     }}
@@ -832,7 +832,7 @@ export default function InspectorPanel({ layout, docType, selection, onChange, o
                             title="Add a signature box"
                             style={{
                                 fontFamily: classic ? xpFont : undefined, fontSize: 10, lineHeight: 1,
-                                padding: '1px 4px', cursor: 'pointer', borderRadius: 0,
+                                padding: '1px 4px', cursor: 'pointer', borderRadius: 3,
                                 background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa',
                                 border: '1px solid', borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : '#ced4da',
                             }}
@@ -889,7 +889,7 @@ export default function InspectorPanel({ layout, docType, selection, onChange, o
                         })}
                         style={{
                             fontFamily: classic ? xpFont : undefined, fontSize: 10,
-                            padding: '1px 4px', cursor: 'pointer', borderRadius: 0,
+                            padding: '1px 4px', cursor: 'pointer', borderRadius: 3,
                             background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa',
                             border: '1px solid', borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : '#ced4da',
                         }}

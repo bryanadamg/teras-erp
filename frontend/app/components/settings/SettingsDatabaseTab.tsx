@@ -17,7 +17,7 @@ import { lvZebra } from '../shared/listViewTheme';
 
 const xpDangerBtn: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, padding: '3px 20px',
-    cursor: 'pointer', borderRadius: 0, border: '1px solid',
+    cursor: 'pointer', borderRadius: 3, border: '1px solid',
     background: 'linear-gradient(to bottom, #e08080, #c03030)',
     borderColor: '#e04040 #801010 #801010 #e04040',
     color: '#fff', fontWeight: 'bold',
@@ -25,7 +25,7 @@ const xpDangerBtn: React.CSSProperties = {
 
 const xpCancelBtn: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, padding: '3px 16px',
-    cursor: 'pointer', borderRadius: 0, border: '1px solid',
+    cursor: 'pointer', borderRadius: 3, border: '1px solid',
     borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',
 };

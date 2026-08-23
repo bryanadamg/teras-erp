@@ -409,7 +409,7 @@ export default function ManufacturingView({
                               <button
                                   type="button"
                                   onClick={() => setIsConfigOpen(true)}
-                                  style={{ fontFamily: xpFont, fontSize: 11, height: 24, padding: '0 7px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', borderRadius: 0, cursor: 'pointer', boxSizing: 'border-box' as const }}
+                                  style={{ fontFamily: xpFont, fontSize: 11, height: 24, padding: '0 7px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', borderRadius: 3, cursor: 'pointer', boxSizing: 'border-box' as const }}
                                   title="Configure code format"
                               ><i className="bi bi-gear-fill" style={{ fontSize: 10 }}></i></button>
                           </div>

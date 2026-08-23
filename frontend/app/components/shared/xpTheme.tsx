@@ -224,6 +224,13 @@ export const CHIP_RADIUS = 3;
 
 export const CODE_CHIP_RADIUS = CHIP_RADIUS;
 
+// Button corner radius — same single-constant rule as CHIP_RADIUS, for the
+// *interactive* primitives (toolbar buttons, xpBtn, modal footer actions, row
+// action buttons, the "..." trigger, toggle chips). XP buttons were themselves
+// slightly rounded while textboxes/panels/table chrome were square, so panels,
+// inputs and bevel windows deliberately keep `borderRadius: 0`.
+export const BUTTON_RADIUS = 3;
+
 // StatusChip is the XP-flavoured chip used in BOTH themes (it always renders on
 // xpFont), so it takes the classic geometry in both rather than threading a
 // `classic` flag through its ~100 call sites. 2px vs 4px at 9px type is invisible;
@@ -686,7 +693,7 @@ export function ProgressBar({
 export const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0,
+    borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: BUTTON_RADIUS,
     ...extra,
 });
 
@@ -751,7 +758,7 @@ export function ModalFooterActions({
                     onClick={onCancel}
                     style={{
                         fontFamily: xpFont, fontSize: 11, padding: '3px 16px', cursor: 'pointer',
-                        borderRadius: 0, border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                        borderRadius: BUTTON_RADIUS, border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                         background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',
                     }}
                 >
@@ -763,7 +770,7 @@ export function ModalFooterActions({
                     disabled={submitting || disabled}
                     style={{
                         fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '3px 20px', cursor: submitting || disabled ? 'default' : 'pointer',
-                        borderRadius: 0, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
+                        borderRadius: BUTTON_RADIUS, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
                         ...tone,
                     }}
                 >
@@ -907,7 +914,7 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
             className={classic ? '' : `btn btn-sm ${on ? c.cls : 'btn-outline-secondary'}`}
             style={classic ? {
                 fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
-                minWidth, padding: '2px 9px', borderRadius: 0,
+                minWidth, padding: '2px 9px', borderRadius: BUTTON_RADIUS,
                 cursor: disabled ? 'default' : 'pointer',
                 border: '1px solid',
                 borderColor: on ? c.border
@@ -1603,7 +1610,7 @@ export function MenuTriggerButton({ classic, onClick, title = 'More actions' }: 
                 className="xp-menu-trigger"
                 title={title}
                 onClick={onClick}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: BUTTON_RADIUS, cursor: 'pointer', color: '#555', fontSize: '12px' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
             >
@@ -1667,7 +1674,7 @@ export function XPActionButton({
                     fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px',
                     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
                     background: t.bg, border: `1px solid ${t.border}`, color: t.fg,
-                    display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 0,
+                    display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: BUTTON_RADIUS,
                 }}
             >
                 {iconEl}{label}
