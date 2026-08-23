@@ -522,6 +522,18 @@ export function colorHexFor(name?: string): string | null {
     return null;
 }
 
+// Colour code vs colour name: in real data they are near-identical ("318" / "318",
+// "HITAM MERAH CABAI" / "HITAM MERAH CABAI"), so the `{code} — {name}` label every
+// view used to build was mostly duplicated text that overflowed narrow cells. The
+// CODE is the display label everywhere; the name only survives on the tooltip, and
+// only when it actually says something the code does not.
+export const colorLabel = (code?: string | null, name?: string | null): string =>
+    (code || name || '').trim();
+export const colorTitle = (code?: string | null, name?: string | null): string => {
+    const c = (code || '').trim(), n = (name || '').trim();
+    return c && n && n.toLowerCase() !== c.toLowerCase() ? `${c} — ${n}` : (c || n);
+};
+
 // Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
 // `hex` overrides the derived lookup with a stored AttributeValue.hex, when known.
 // `onRemove` renders a small "x" for removable pick-lists (e.g. lab dip request colors).

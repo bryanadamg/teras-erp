@@ -5,6 +5,7 @@ import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
+import { colorLabel } from '../components/shared/xpTheme';
 
 export default function SalesOrdersPage() {
     const { items, attributes, salesOrders, partners, bomsLookup: boms, refreshSalesOrders, authFetch } = useData();
@@ -108,9 +109,7 @@ export default function SalesOrdersPage() {
             const firstLine = groupLines[0];
             const lineAttrIds: string[] = firstLine.attribute_value_ids || [];
             const lineColorId: string | undefined = firstLine.color_id || undefined;
-            const lineColorLabel: string | undefined = firstLine.color_code
-                ? `${firstLine.color_code}${firstLine.color_name ? ' — ' + firstLine.color_name : ''}`
-                : undefined;
+            const lineColorLabel: string | undefined = colorLabel(firstLine.color_code, firstLine.color_name) || undefined;
             const lineLabdip: string | undefined = firstLine.labdip_variant_code || undefined;
 
             // The recipe the user picked on the SO line wins. Deriving it from

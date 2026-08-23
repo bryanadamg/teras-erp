@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -640,10 +640,11 @@ export default function ManufacturingOrdersTab({
                         )}
                         {/* Color / pending-lab-dip status for color-type orders */}
                         {selectedNode.color_code && (
-                            <VariantChip kind="color" classic={classic} size="sm" title="Approved color"
+                            <VariantChip kind="color" classic={classic} size="sm"
+                                title={`Approved color: ${colorTitle(selectedNode.color_code, selectedNode.color_name)}`}
                                 swatch={selectedNode.color_hex || colorHexFor(selectedNode.color_name || selectedNode.color_code)}
                                 icon={selectedNode.color_hex ? undefined : 'bi-palette'}
-                            >{selectedNode.color_code}{selectedNode.color_name && selectedNode.color_name !== selectedNode.color_code ? ` — ${selectedNode.color_name}` : ''}</VariantChip>
+                            >{colorLabel(selectedNode.color_code, selectedNode.color_name)}</VariantChip>
                         )}
                         {!selectedNode.color_id && selectedNode.labdip_variant_code && (
                             <VariantChip kind="pending" classic={classic} size="sm"

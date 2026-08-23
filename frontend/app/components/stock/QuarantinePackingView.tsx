@@ -17,7 +17,7 @@ import {
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
     XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg, ToggleChip, ChipTone,
-    OriginChip, OriginChipRow,
+    OriginChip, OriginChipRow, colorLabel, colorTitle,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -817,7 +817,7 @@ export default function QuarantinePackingView() {
                                     </td>
                                     <td style={lvTd(classic)}>
                                         {g.color_name
-                                            ? <ColorSwatchChip classic={classic} label={g.color_code ? `${g.color_code} ${g.color_name}` : g.color_name} hex={g.color_hex} />
+                                            ? <ColorSwatchChip classic={classic} label={colorLabel(g.color_code, g.color_name)} title={`Color: ${colorTitle(g.color_code, g.color_name)}`} hex={g.color_hex} />
                                             : g.labdip_variant_code
                                                 ? <span style={{ fontSize: 10, color: '#9a6a00' }} title="Shade still awaiting lab-dip approval">{g.labdip_variant_code}</span>
                                                 : <span style={{ color: '#999', fontStyle: 'italic', fontSize: 10 }}>Greige</span>}

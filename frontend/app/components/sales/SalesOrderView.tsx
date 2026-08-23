@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel } from '../shared/xpTheme';
 
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
@@ -670,7 +670,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
               bom_size_id: l.bom_size_id || '',
               attribute_value_ids: l.attribute_value_ids || [],
               color_id: l.color_id || '',
-              color_label: l.color_code ? `${l.color_code}${l.color_name ? ' — ' + l.color_name : ''}` : '',
+              color_label: colorLabel(l.color_code, l.color_name),
               color_hex: l.color_hex || '',
               labdip_variant_code: l.labdip_variant_code || '',
               labdip_item_id: l.labdip_item_id || '',
@@ -811,7 +811,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
   const selectColor = (c: any) => {
       // Approved shade clears any pending lab dip selection (mutually exclusive).
-      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: `${c.code}${c.name ? ' — ' + c.name : ''}`, color_hex: c.hex || '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' }));
+      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: colorLabel(c.code, c.name), color_hex: c.hex || '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' }));
       setColorSearch('');
       setColorResults([]);
   };
@@ -1901,8 +1901,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                    {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize:'0.6rem'}}></i>}
                                                </div>
                                                {(() => {
-                                                   const colorLabel = line.color_code ? `${line.color_code}${line.color_name ? ' — ' + line.color_name : ''}` : null;
-                                                   const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], colorLabel, line.color_hex, line.labdip_variant_code);
+                                                   const lineColor = colorLabel(line.color_code, line.color_name) || null;
+                                                   const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], lineColor, line.color_hex, line.labdip_variant_code);
                                                    return (
                                                        <>
                                                            {plainIds.length > 0 && (
