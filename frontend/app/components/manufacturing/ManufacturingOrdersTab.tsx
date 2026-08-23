@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -703,8 +703,8 @@ export default function ManufacturingOrdersTab({
                             )}
                             <button
                                 title="Print this MO"
-                                className={classic ? '' : 'btn btn-sm btn-outline-secondary py-0 px-2'}
-                                style={classic ? { fontFamily: xpFont, fontSize: '10px', padding: '1px 8px', background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' } : { fontSize: '0.72rem' }}
+                                className={classic ? XP_BTN : 'btn btn-sm btn-outline-secondary py-0 px-2'}
+                                style={classic ? { fontFamily: xpFont, fontSize: '10px', padding: '1px 8px', background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000', borderRadius: BUTTON_RADIUS } : { fontSize: '0.72rem' }}
                                 onClick={() => handlePrintWO(selectedNode, true)}
                             >
                                 <i className="bi bi-printer me-1"></i>Print
@@ -1211,8 +1211,8 @@ export default function ManufacturingOrdersTab({
                                         default: { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' },
                                     };
                                     return (
-                                        <button key={label || title} onClick={onClick} title={title} style={{
-                                            fontFamily: xpFont, fontSize: '10px',
+                                        <button key={label || title} className={XP_BTN} onClick={onClick} title={title} style={{
+                                            fontFamily: xpFont, fontSize: '10px', borderRadius: BUTTON_RADIUS,
                                             padding: '2px 7px', cursor: 'pointer', border: '1px solid',
                                             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             ...schemes[colorScheme],

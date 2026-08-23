@@ -261,6 +261,12 @@ export const CODE_CHIP_RADIUS = CHIP_RADIUS;
 // inputs and bevel windows deliberately keep `borderRadius: 0`.
 export const BUTTON_RADIUS = 3;
 
+// The class that carries the shared button hover/press motion (see the BUTTONS
+// block in globals.css). Tag any classic button with it instead of hand-rolling
+// onMouseEnter/onMouseLeave state — it animates filter/transform/box-shadow only,
+// so it layers over whatever inline gradient face the button paints.
+export const XP_BTN = 'xp-btn';
+
 // StatusChip is the XP-flavoured chip used in BOTH themes (it always renders on
 // xpFont), so it takes the classic geometry in both rather than threading a
 // `classic` flag through its ~100 call sites. 2px vs 4px at 9px type is invisible;
@@ -844,6 +850,7 @@ export function ModalFooterActions({
             <>
                 <button
                     type="button"
+                    className={XP_BTN}
                     onClick={onCancel}
                     style={{
                         fontFamily: xpFont, fontSize: 11, padding: '3px 16px', cursor: 'pointer',
@@ -855,6 +862,7 @@ export function ModalFooterActions({
                 </button>
                 <button
                     type="button"
+                    className={XP_BTN}
                     onClick={onSubmit}
                     disabled={submitting || disabled}
                     style={{
@@ -1696,7 +1704,7 @@ export function MenuTriggerButton({ classic, onClick, title = 'More actions' }: 
     if (classic) {
         return (
             <Tooltip content={title}><button
-                className="xp-menu-trigger"
+                className={`xp-menu-trigger ${XP_BTN}`}
                 onClick={onClick}
                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: BUTTON_RADIUS, cursor: 'pointer', color: '#555', fontSize: '12px' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
@@ -1760,7 +1768,7 @@ export function XPActionButton({
             <button
                 onClick={onClick}
                 disabled={disabled}
-                className={className}
+                className={[XP_BTN, className].filter(Boolean).join(' ')}
                 style={{
                     fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px',
                     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,

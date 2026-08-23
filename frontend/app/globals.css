@@ -1661,3 +1661,54 @@ table {
 @media (prefers-reduced-motion: reduce) {
     .tip-anim, .chip-pop-anim { animation: none; }
 }
+
+/* ── BUTTONS: one radius, one hover/press motion ──────────────────────────────
+   Radius comes from BUTTON_RADIUS in components/shared/xpTheme.tsx; --btn-radius
+   mirrors it for the class-based half. The motion is filter/transform/box-shadow
+   ONLY — never background or border — so it composes with the inline XP gradient
+   faces every classic button paints itself with (an inline background would win
+   over a CSS one and the hover would silently do nothing). Tag a button
+   `.xp-btn` (export `XP_BTN` from xpTheme) rather than re-rolling per-view
+   onMouseEnter handlers. */
+:root { --btn-radius: 3px; }
+
+.xp-btn {
+  border-radius: var(--btn-radius);
+  transition: filter 90ms ease-out, transform 90ms ease-out, box-shadow 90ms ease-out;
+}
+.xp-btn:not(:disabled):hover {
+  /* Lift + shadow, not brightness alone: half the XP faces are already near-white,
+     where a brightness bump is invisible. */
+  filter: brightness(1.06) saturate(1.04);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.16);
+}
+.xp-btn:not(:disabled):active {
+  filter: brightness(0.94);
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+/* Bootstrap-classed buttons in Classic need `!important` on the shadow only:
+   the .btn-primary/.btn-success/... override above sets `box-shadow: none
+   !important` for the flat XP face, which would otherwise eat the motion. */
+.ui-style-classic .btn:not(:disabled):not(.disabled):hover {
+  filter: brightness(1.06) saturate(1.04);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.16) !important;
+}
+.ui-style-classic .btn:not(:disabled):not(.disabled):active {
+  filter: brightness(0.94);
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22) !important;
+}
+.xp-btn:focus-visible { outline: 1px dotted currentColor; outline-offset: -3px; }
+.ui-style-classic .btn {
+  transition: filter 90ms ease-out, transform 90ms ease-out, box-shadow 90ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xp-btn, .ui-style-classic .btn { transition: none; }
+  .xp-btn:not(:disabled):hover,
+  .xp-btn:not(:disabled):active,
+  .ui-style-classic .btn:not(:disabled):hover,
+  .ui-style-classic .btn:not(:disabled):active { transform: none; }
+}

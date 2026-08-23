@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { xpFont as XP_FONT } from '../shared/xpTheme';
+import { xpFont as XP_FONT, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import {
     xpBevel, xpTitleBar, xpToolbar, ShellTone,
     SearchField, FilterChipBar, FilterChipOption,
@@ -175,6 +175,7 @@ export function MobileButton({
     return (
         <button
             type="button"
+            className={XP_BTN}
             onClick={onClick}
             disabled={disabled}
             title={title}
@@ -185,7 +186,7 @@ export function MobileButton({
                 cursor: disabled ? 'default' : 'pointer',
                 opacity: disabled ? 0.5 : 1,
                 border: '1px solid',
-                borderRadius: 0,
+                borderRadius: BUTTON_RADIUS,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',

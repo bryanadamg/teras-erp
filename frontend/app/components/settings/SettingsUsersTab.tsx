@@ -192,7 +192,7 @@ export default function SettingsUsersTab({
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
                                 background: '#dde8f5', border: '1px solid #7f9db9', color: '#00006e',
-                                padding: '1px 5px', fontSize: 10, fontFamily: xpFont,
+                                padding: '1px 5px', fontSize: 10, fontFamily: xpFont, borderRadius: CHIP_RADIUS,
                             }}
                         >
                             Role: {roleFilterName}

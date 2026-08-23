@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser } from '../../context/UserContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { xpFont as XP_FONT } from '../shared/xpTheme';
+import { xpFont as XP_FONT, BUTTON_RADIUS } from '../shared/xpTheme';
 import { xpToolbar } from '../shared/shellTheme';
 import { routeTitle } from '../shared/navConfig';
 import { MOBILE_BG } from './mobileTheme';
@@ -44,7 +44,7 @@ function getActiveTab(pathname: string): string {
 const headerBtn: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #ffffff 0%, #ebeadb 100%)',
     border: '1px solid #707070',
-    borderRadius: 3,
+    borderRadius: BUTTON_RADIUS,
     color: '#00309c',
     fontFamily: XP_FONT,
     fontSize: 10,

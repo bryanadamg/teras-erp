@@ -3,7 +3,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
 import { useTheme } from '../../context/ThemeContext';
 import { NAV_SECTIONS, navLabel, leafPermissions, NavSection } from './navConfig';
-import { xpFont } from './xpTheme';
+import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
 
 interface SidebarProps {
   activeTab: string;
@@ -269,11 +269,13 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Quick Scan ── */}
         <div style={{ padding: classic ? '8px 8px 4px' : '12px 12px 4px' }}>
           <button
+            className={XP_BTN}
             onClick={() => setActiveTab('scanner')}
             {...H('scanner')}
             style={classic ? {
               width: '100%',
               padding: '6px 0',
+              borderRadius: BUTTON_RADIUS,
               background: hovered === 'scanner' ? '#2a6ce4' : '#1a5cd4',
               border: '1px solid #003088',
               color: '#fff',

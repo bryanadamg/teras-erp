@@ -13,7 +13,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
@@ -605,8 +605,10 @@ export default function WorkOrderPanel({
                                             Save
                                         </button>
                                         <button
+                                            className={XP_BTN}
                                             onClick={resetForm}
                                             style={{
+                                                borderRadius: BUTTON_RADIUS,
                                                 fontFamily: xpFont, fontSize: 10, padding: '1px 6px',
                                                 background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
                                                 border: '1px solid #808080', cursor: 'pointer',
@@ -897,9 +899,11 @@ export default function WorkOrderPanel({
                                     />
                                 </label>
                                 <button
+                                    className={XP_BTN}
                                     onClick={handleAdd}
                                     disabled={isSaving}
                                     style={{
+                                        borderRadius: BUTTON_RADIUS,
                                         fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
                                         background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
                                         border: '1px solid #0a3e0a', cursor: 'pointer',
@@ -908,8 +912,10 @@ export default function WorkOrderPanel({
                                     {isSaving ? '...' : 'Add'}
                                 </button>
                                 <button
+                                    className={XP_BTN}
                                     onClick={resetForm}
                                     style={{
+                                        borderRadius: BUTTON_RADIUS,
                                         fontFamily: xpFont, fontSize: 10, padding: '1px 6px',
                                         background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
                                         border: '1px solid #808080', cursor: 'pointer',

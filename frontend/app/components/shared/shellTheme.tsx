@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS } from './xpTheme';
+import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, XP_BTN } from './xpTheme';
 
 // Shared "classic outer window" chrome — bevel container + colored title bar +
 // toolbar strip. Every dual-theme table/detail view (Sales Orders, Packing,
@@ -196,6 +196,7 @@ export function ToolbarButton({
         return (
             <button
                 data-testid={testId}
+                className={XP_BTN}
                 onClick={onClick}
                 disabled={disabled}
                 title={title}

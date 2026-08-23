@@ -11,7 +11,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import ProductionRunModal from './ProductionRunModal';
 import MOCreationPreview from './MOCreationPreview';
-import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor } from '../shared/xpTheme';
+import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
@@ -553,11 +553,12 @@ export default function ManufacturingView({
                                       <button
                                           key={key}
                                           onClick={handleClick}
-                                          className={classic ? undefined : `btn btn-sm btn-light border ${isActive ? 'active' : ''}`}
+                                          className={classic ? XP_BTN : `btn btn-sm btn-light border ${isActive ? 'active' : ''}`}
                                           style={classic ? {
                                               fontFamily: xpFont,
                                               fontSize: '11px',
                                               padding: '2px 8px',
+                                              borderRadius: BUTTON_RADIUS,
                                               background: isActive
                                                   ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
                                                   : 'linear-gradient(to bottom,#d4d0c8 0%,#b8b4ac 100%)',

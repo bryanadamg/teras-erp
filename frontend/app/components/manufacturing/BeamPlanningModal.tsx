@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
-import { xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { xpFont, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
@@ -123,8 +123,10 @@ export default function BeamPlanningModal({ mo, machines, groupId, groupName, co
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
                 <button
+                    className={XP_BTN}
                     onClick={onClose}
                     style={{
+                        borderRadius: BUTTON_RADIUS,
                         fontFamily: xpFont, fontSize: 11, padding: '2px 12px',
                         background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
                         border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
@@ -134,9 +136,11 @@ export default function BeamPlanningModal({ mo, machines, groupId, groupName, co
                     Cancel
                 </button>
                 <button
+                    className={XP_BTN}
                     onClick={handleCreate}
                     disabled={isSaving || totalWoCount === 0}
                     style={{
+                        borderRadius: BUTTON_RADIUS,
                         fontFamily: xpFont, fontSize: 11, padding: '2px 14px', fontWeight: 'bold',
                         background: isSaving || totalWoCount === 0
                             ? 'linear-gradient(to bottom, #d0d0c8, #b8b8b0)'
@@ -370,8 +374,10 @@ export default function BeamPlanningModal({ mo, machines, groupId, groupName, co
             </div>
 
             <button
+                className={XP_BTN}
                 onClick={addRow}
                 style={{
+                    borderRadius: BUTTON_RADIUS,
                     fontFamily: xpFont, fontSize: 11, padding: '2px 10px',
                     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
                     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
