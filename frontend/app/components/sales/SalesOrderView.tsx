@@ -46,6 +46,33 @@ const SO_COL_WIDTHS = [
 ];
 const SO_TABLE_MIN_WIDTH = SO_COL_WIDTHS.reduce((a, b) => a + b, 0);
 
+// The MO progress bar IS the link to the MO. A code chip above it ate the column's
+// width and truncated the code to noise ("PR-2026-08-00010-00…"), so the code now
+// lives only in the hover tooltip and the bar itself is the click target.
+function MOProgressLink({ pct, tone, title, onClick }: { pct: number; tone: 'green' | 'blue'; title: string; onClick: () => void }) {
+    const [hover, setHover] = useState(false);
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            title={title}
+            onClick={onClick}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            style={{
+                cursor: 'pointer',
+                outline: 'none',
+                borderRadius: 2,
+                boxShadow: hover ? '0 0 0 2px rgba(0, 88, 230, 0.28)' : undefined,
+                filter: hover ? 'brightness(1.1)' : undefined,
+            }}
+        >
+            <ProgressBar pct={pct} tone={tone} height={6} />
+        </div>
+    );
+}
+
 // Ordered qty is the emphasised number on a line, so it keeps its own blue fill —
 // VARIANT_TONE entries mean "variant identity", which a quantity is not. The metre
 // echo takes the neutral Chip default and KG the shared qty green.
@@ -967,25 +994,28 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }
       const mos: any[] = mp.mos || [];
       const stepLine = (st: any) => `  ${st.status === 'COMPLETED' ? '✓' : st.status === 'IN_PROGRESS' ? '▶' : '·'} ${st.stage || st.name || st.code || ''}`;
-      const title = mos.map((m: any) => {
-          const head = `${m.mo_code} (${m.mo_status}) — ${m.steps_done}/${m.steps_total} steps`;
-          return [head, ...(m.steps || []).map(stepLine)].join('\n');
-      }).join('\n');
+      const title = [
+          ...mos.map((m: any) => {
+              const head = `${m.mo_code} (${m.mo_status}) — ${m.steps_done}/${m.steps_total} steps`;
+              return [head, ...(m.steps || []).map(stepLine)].join('\n');
+          }),
+          `Click to open ${mp.mo_code}`,
+      ].join('\n');
       return (
           <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }} title={title}>
-              <div style={{ display:'flex', alignItems:'center', gap:3, minWidth:0 }}>
-                  <CodeChip code={mp.mo_code} classic={classic} link
-                      style={{ fontSize:'9px', padding:'0 4px', maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis' }}
-                      onClick={() => goToMO(mp.mo_code)} />
-                  {mp.mo_count > 1 && (
-                      <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#666' }}>+{mp.mo_count - 1}</span>
-                  )}
-              </div>
               {/* Blue while running, green at 100 — the STATUS_FAMILY reading of
                   IN_PROGRESS vs COMPLETED, matching lineageProgressBar. */}
-              <ProgressBar pct={mp.pct} tone={mp.pct >= 100 ? 'green' : 'blue'} height={6} />
+              <MOProgressLink
+                  pct={mp.pct}
+                  tone={mp.pct >= 100 ? 'green' : 'blue'}
+                  title={title}
+                  onClick={() => goToMO(mp.mo_code)}
+              />
               <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.pct >= 100 ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
                   {mp.steps_total > 0 ? `${mp.steps_done}/${mp.steps_total} steps` : `${mp.pct}%`}
+                  {/* The dropped code chip carried the "+N" for extra MOs; the count
+                      rides the steps line now so a multi-MO line still reads as one. */}
+                  {mp.mo_count > 1 && ` · ${mp.mo_count} MOs`}
               </div>
               {mp.current_stage && (
                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.current_stage_running ? (classic ? '#00327d' : '#0058e6') : '#999', fontWeight: mp.current_stage_running ? 'bold' : undefined, whiteSpace:'nowrap' as const, overflow:'hidden', textOverflow:'ellipsis' }}>
