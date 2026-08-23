@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -466,9 +466,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   // Origin — customer/supplier source only (SO + PO), as badges.
   const originCell = (b: Batch) => {
     const chips: React.ReactNode[] = [];
-    if (b.sales_order_code) chips.push(chip(`SO ${b.sales_order_code}`, '#0058e6', '#e8f0ff', '#a8c8f0'));
-    if (b.po_number) chips.push(chip(`PO ${b.po_number}`, '#7a4500', '#fdf3d8', '#e0c080',
-      { title: b.vendor_lot ? `Supplier Lot: ${b.vendor_lot}` : undefined }));
+    if (b.sales_order_code) chips.push(<OriginChip kind="so" code={b.sales_order_code} classic={classic} />);
+    if (b.po_number) chips.push(<OriginChip kind="po" code={b.po_number} classic={classic}
+      title={b.vendor_lot ? `Supplier Lot: ${b.vendor_lot}` : undefined} />);
     return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
   };
 
@@ -476,9 +476,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   // unit that actually minted the lot (source_wo_id), so it leads the chain.
   const moPrCell = (b: Batch) => {
     const chips: React.ReactNode[] = [];
-    if (b.wo_code) chips.push(chip(b.wo_code, '#1d5c2e', '#e4f2e6', '#a8ccb0', { mono: true, title: `Work Order: ${b.wo_code}` }));
-    if (b.mo_code) chips.push(chip(b.mo_code, '#444', '#eceae2', '#c4c2ba', { mono: true }));
-    if (b.production_run_code) chips.push(chip(`PR ${b.production_run_code}`, '#5a4499', '#efeaff', '#cabbec', { mono: true }));
+    if (b.wo_code) chips.push(<OriginChip kind="wo" code={b.wo_code} classic={classic} prefix={false} />);
+    if (b.mo_code) chips.push(<OriginChip kind="mo" code={b.mo_code} classic={classic} prefix={false} />);
+    if (b.production_run_code) chips.push(<OriginChip kind="pr" code={b.production_run_code} classic={classic} />);
     return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
   };
 
@@ -540,29 +540,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
         <span>{batchItemCode(b)}</span>
         {(sz || combo || shade) && chipRow(
           <>
-            {sz && chip(
-              <><i className="bi bi-rulers" style={{ marginRight: 3 }} />{sz}</>,
-              '#3d4d5c', '#e8edf0', '#b8c4cc', { title: `Size: ${sz}` },
-            )}
-            {combo && chip(
-              <><i className="bi bi-grid-3x3-gap" style={{ marginRight: 3 }} />{combo}</>,
-              '#5a4499', '#efeaff', '#cabbec', { title: `Combo: ${combo}` },
-            )}
+            {sz && <VariantChip kind="size" classic={classic} title={`Size: ${sz}`}>{sz}</VariantChip>}
+            {combo && <VariantChip kind="combo" classic={classic} title={`Combo: ${combo}`}>{combo}</VariantChip>}
             {shade && (shade.pending
-              ? chip(`${shade.label} (pending)`, '#7a4500', '#fdf3d8', '#e0c080',
-                { title: `Shade pending lab dip approval: ${shade.label}` })
-              : chip(
-                <>
-                  {shade.hex && (
-                    <span style={{
-                      display: 'inline-block', width: 7, height: 7, marginRight: 3, borderRadius: '50%',
-                      background: shade.hex, border: '1px solid rgba(0,0,0,.35)',
-                    }} />
-                  )}
-                  {shade.label}
-                </>,
-                '#8a3a5a', '#fdeaf1', '#e8bcd0', { title: `Color: ${shade.label}` },
-              ))}
+              ? <VariantChip kind="pending" classic={classic} title={`Shade pending lab dip approval: ${shade.label}`}>{shade.label} (pending)</VariantChip>
+              : <VariantChip kind="color" classic={classic} swatch={shade.hex} title={`Color: ${shade.label}`}>{shade.label}</VariantChip>)}
           </>,
         )}
       </div>

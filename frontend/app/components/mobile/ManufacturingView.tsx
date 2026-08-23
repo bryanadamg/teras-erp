@@ -3,56 +3,15 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
-import { STATUS_COLORS, CodeChip, xpFont as XP_FONT, CHIP_RADIUS } from '../shared/xpTheme';
-
-const XP_BEIGE = '#ece9d8';
-
-const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    border: '2px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    background: '#f5f4ef',
-    borderRadius: 0,
-    ...extra,
-});
-
-const xpInset = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    border: '2px solid',
-    borderColor: '#808080 #dfdfdf #dfdfdf #808080',
-    background: '#ffffff',
-    borderRadius: 0,
-    ...extra,
-});
-
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: XP_FONT,
-    fontSize: 12,
-    padding: '7px 14px',
-    cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    color: '#000',
-    borderRadius: 0,
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    ...extra,
-});
+import { STATUS_COLORS, StatusChip, CodeChip, xpFont as XP_FONT } from '../shared/xpTheme';
+import { ToolbarCount } from '../shared/shellTheme';
+import {
+    MOBILE_BG, MobilePanel, MobileToolbar, MobileSearchField, MobileFilterBar,
+    MobileButton, MobileEmpty, mobileCard as xpPanel,
+} from './mobileTheme';
 
 const STATUS_TABS = ['ALL', 'PENDING', 'IN_PROGRESS'] as const;
 type StatusFilter = typeof STATUS_TABS[number];
-
-const xpStatusBadge = (status: string): React.CSSProperties => {
-    const base: React.CSSProperties = {
-        fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold',
-        padding: '1px 7px', display: 'inline-block', whiteSpace: 'nowrap',
-    };
-    if (status === 'IN_PROGRESS') return { ...base, background: STATUS_COLORS.IN_PROGRESS, color: '#fff' };
-    if (status === 'DELIVERED')   return { ...base, background: STATUS_COLORS.DELIVERED, color: '#fff' };
-    if (status === 'COMPLETED')   return { ...base, background: STATUS_COLORS.COMPLETED, color: '#fff' };
-    if (status === 'CANCELLED')   return { ...base, background: STATUS_COLORS.CANCELLED, color: '#fff' };
-    return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
-};
 
 interface MobileManufacturingViewProps {
     manufacturingOrders: any[];
@@ -184,78 +143,35 @@ export default function MobileManufacturingView({
     };
 
     return (
-        <div style={{ background: XP_BEIGE, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: MOBILE_BG, padding: 10 }}>
+            <MobilePanel
+                icon="bi-gear-fill"
+                title="Manufacturing Orders"
+                pad={0}
+                right={
+                    <MobileButton compact tone="neutral" icon="bi-qr-code-scan" onClick={() => router.push('/scanner')}>
+                        Scan MO
+                    </MobileButton>
+                }
+            >
+                {/* Toolbar: the same search field and segmented status filter the
+                    desktop list views use, one size up for a finger. */}
+                <MobileToolbar>
+                    <MobileSearchField value={search} onChange={setSearch} placeholder="Search MO code or item..." />
+                    <ToolbarCount classic right>{filtered.length} MOs</ToolbarCount>
+                </MobileToolbar>
+                <MobileToolbar>
+                    <MobileFilterBar
+                        options={STATUS_TABS.map(tab => ({ value: tab, label: tabLabel[tab], count: counts[tab] }))}
+                        value={filter}
+                        onChange={v => setFilter(v as StatusFilter)}
+                    />
+                </MobileToolbar>
 
-            {/* Header */}
-            <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#555', borderBottom: '1px solid #c0bdb5', paddingBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span><i className="bi bi-gear-fill" style={{ marginRight: 5, color: '#1a4a8a' }} />Manufacturing Orders</span>
-                <button
-                    onClick={() => router.push('/scanner')}
-                    style={xpBtn({
-                        background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)',
-                        borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a',
-                        color: '#fff', fontWeight: 'bold', fontSize: 11, padding: '5px 10px',
-                    })}
-                >
-                    <i className="bi bi-qr-code-scan" />Scan MO
-                </button>
-            </div>
-
-            {/* Search */}
-            <div style={xpInset({ padding: 0, display: 'flex', alignItems: 'center' })}>
-                <i className="bi bi-search" style={{ padding: '0 8px', color: '#666', fontSize: 13, flexShrink: 0 }} />
-                <input
-                    type="text"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search MO code or item..."
-                    style={{
-                        flex: 1, border: 'none', outline: 'none',
-                        background: 'transparent', fontFamily: XP_FONT,
-                        fontSize: 13, padding: '9px 8px 9px 0', color: '#000',
-                    }}
-                />
-                {search && (
-                    <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', color: '#666', fontSize: 14 }}>x</button>
-                )}
-            </div>
-
-            {/* Status filter tabs */}
-            <div style={{ display: 'flex', border: '2px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080' }}>
-                {STATUS_TABS.map((tab, i) => {
-                    const isActive = filter === tab;
-                    return (
-                        <button
-                            key={tab}
-                            onClick={() => setFilter(tab)}
-                            style={{
-                                flex: 1, fontFamily: XP_FONT, fontSize: 11,
-                                fontWeight: isActive ? 'bold' : 'normal',
-                                padding: '7px 4px', border: 'none',
-                                borderRight: i < STATUS_TABS.length - 1 ? '1px solid #c0bdb5' : 'none',
-                                background: isActive ? 'linear-gradient(to bottom, #316ac5, #1a4a8a)' : 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-                                color: isActive ? '#fff' : '#333', cursor: 'pointer',
-                            }}
-                        >
-                            {tabLabel[tab]}
-                            <span style={{
-                                marginLeft: 4,
-                                background: isActive ? 'rgba(255,255,255,0.25)' : '#e0ddd5',
-                                color: isActive ? '#fff' : '#555',
-                                fontSize: 9, fontWeight: 'bold', padding: '0 4px', borderRadius: CHIP_RADIUS,
-                            }}>
-                                {counts[tab]}
-                            </span>
-                        </button>
-                    );
-                })}
-            </div>
-
+                <div style={{ padding: 8 }}>
             {/* MO List */}
             {filtered.length === 0 ? (
-                <div style={xpInset({ padding: '20px', textAlign: 'center', color: '#666', fontFamily: XP_FONT, fontSize: 12 })}>
-                    No manufacturing orders found
-                </div>
+                <MobileEmpty>No manufacturing orders found</MobileEmpty>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     {filtered.map((mo: any) => {
@@ -301,9 +217,7 @@ export default function MobileManufacturingView({
                                             </div>
                                         </div>
                                         <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                                            <span style={xpStatusBadge(mo.status)}>
-                                                {mo.status === 'IN_PROGRESS' ? 'IN PROGRESS' : mo.status}
-                                            </span>
+                                            <StatusChip status={mo.status} />
                                             <span style={{ fontFamily: XP_FONT, fontSize: 10, color: '#888' }}>
                                                 {isExpanded ? 'collapse' : 'tap to expand'}
                                             </span>
@@ -338,25 +252,27 @@ export default function MobileManufacturingView({
                                                                 <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555' }}>Qty: {parseFloat(run.qty)}</div>
                                                             </div>
                                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                                                                <span style={xpStatusBadge(run.status)}>{run.status === 'IN_PROGRESS' ? 'IN PROGRESS' : run.status}</span>
+                                                                <StatusChip status={run.status} />
                                                                 <div style={{ display: 'flex', gap: 4 }}>
                                                                     {run.status === 'PENDING' && (
-                                                                        <button
+                                                                        <MobileButton
+                                                                            compact
+                                                                            tone="launch"
                                                                             disabled={updatingRunId === run.id}
                                                                             onClick={e => { e.stopPropagation(); handleRunStatus(run.id, 'IN_PROGRESS'); }}
-                                                                            style={xpBtn({ fontSize: 10, padding: '3px 8px', background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontWeight: 'bold' })}
                                                                         >
                                                                             Start
-                                                                        </button>
+                                                                        </MobileButton>
                                                                     )}
                                                                     {run.status === 'IN_PROGRESS' && (
-                                                                        <button
+                                                                        <MobileButton
+                                                                            compact
+                                                                            tone="create"
                                                                             disabled={updatingRunId === run.id}
                                                                             onClick={e => { e.stopPropagation(); handleRunStatus(run.id, 'COMPLETED'); }}
-                                                                            style={xpBtn({ fontSize: 10, padding: '3px 8px', background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })}
                                                                         >
                                                                             Done
-                                                                        </button>
+                                                                        </MobileButton>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -373,12 +289,13 @@ export default function MobileManufacturingView({
 
                                         {/* Add Run */}
                                         {!isAddingRun ? (
-                                            <button
+                                            <MobileButton
+                                                icon="bi-plus-lg"
                                                 onClick={e => { e.stopPropagation(); handleOpenAddRun(mo); }}
-                                                style={xpBtn({ fontSize: 11, padding: '6px 12px', width: '100%', justifyContent: 'center' })}
+                                                style={{ width: '100%' }}
                                             >
-                                                + Add Run
-                                            </button>
+                                                Add Run
+                                            </MobileButton>
                                         ) : (
                                             <div style={{ border: '1px solid #aca899', padding: '8px', background: '#f5f4ee', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                                 <div style={{ fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold', color: '#000080', textTransform: 'uppercase' }}>New Run</div>
@@ -416,25 +333,22 @@ export default function MobileManufacturingView({
                                                     </div>
                                                 )}
                                                 <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                                                    <button
+                                                    <MobileButton
+                                                        compact
                                                         onClick={e => { e.stopPropagation(); setAddRunMOId(null); }}
-                                                        style={xpBtn({ fontSize: 11, padding: '4px 10px' })}
+                                                        style={{ padding: '5px 12px' }}
                                                     >
                                                         Cancel
-                                                    </button>
-                                                    <button
+                                                    </MobileButton>
+                                                    <MobileButton
+                                                        compact
+                                                        tone="launch"
                                                         disabled={submitting || !runQty || parseFloat(runQty) <= 0}
                                                         onClick={e => { e.stopPropagation(); handleAddRun(mo); }}
-                                                        style={xpBtn({
-                                                            fontSize: 11, padding: '4px 10px',
-                                                            background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)',
-                                                            borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a',
-                                                            color: '#fff', fontWeight: 'bold',
-                                                            opacity: (submitting || !runQty || parseFloat(runQty) <= 0) ? 0.6 : 1,
-                                                        })}
+                                                        style={{ padding: '5px 12px' }}
                                                     >
                                                         {submitting ? 'Saving...' : 'Add Run'}
-                                                    </button>
+                                                    </MobileButton>
                                                 </div>
                                             </div>
                                         )}
@@ -445,6 +359,8 @@ export default function MobileManufacturingView({
                     })}
                 </div>
             )}
+                </div>
+            </MobilePanel>
         </div>
     );
 }

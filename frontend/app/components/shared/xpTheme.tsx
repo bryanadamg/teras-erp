@@ -293,6 +293,137 @@ export function Chip({
     );
 }
 
+// ---------------------------------------------------------------------------
+// Variant identity — THE tone map and THE chip for "which variant is this?"
+//
+// Size / combo / shade / pending-labdip / loose attribute / location / order / qty
+// were each being re-coloured per view (WO list, netting plan, BOM list, lot
+// pickers, SO table, batches, quarantine all had their own palette), so the same
+// shade read pink on one page, slate on the next and beige on a third. The map
+// lives here and nothing picks its own hue: a shade is a shade everywhere. Swap a
+// hue HERE and every page follows — never per view.
+// ---------------------------------------------------------------------------
+export const VARIANT_TONE = {
+    // Shade chips are the NEUTRAL slate ones and size takes the pink: a shade often
+    // carries its own colour swatch, and a real swatch sitting on a tinted fill reads
+    // as a colour clash rather than as the colour of the goods. Neutral behind the
+    // swatch keeps the swatch the only colour in the chip.
+    size: { color: '#8a3a5a', background: '#fdeaf1', borderColor: '#e8bcd0' },
+    combo: { color: '#5a4499', background: '#efeaff', borderColor: '#cabbec' },
+    color: { color: '#3d4d5c', background: '#e8edf0', borderColor: '#b8c4cc' },
+    pending: { color: '#7a4500', background: '#fdf3d8', borderColor: '#e0c080' },
+    material: { color: '#3a6b2a', background: '#e8f0e2', borderColor: '#b8d0a8' },
+    location: { color: '#0058e6', background: '#e8f0ff', borderColor: '#a8c8f0' },
+    order: { color: '#444444', background: '#eceae2', borderColor: '#c4c2ba' },
+    qty: { color: '#1a5e1a', background: '#e4f3e4', borderColor: '#a8d0a8' },
+} as const;
+
+export type VariantKind = keyof typeof VARIANT_TONE;
+
+/** The tone triple for `<Chip tone={...}>`, for the few callers that need the raw palette. */
+export const variantChipTone = (kind: VariantKind) => VARIANT_TONE[kind];
+
+// Default leading icon per kind. A size chip always wears the ruler, a combo the
+// grid, a pending shade the eyedropper — pass `icon` to override, `icon={null}`
+// to drop it (a chip that carries a colour swatch doesn't want one).
+const VARIANT_ICON: Partial<Record<VariantKind, string>> = {
+    size: 'bi-rulers',
+    combo: 'bi-grid-3x3-gap',
+    pending: 'bi-eyedropper',
+    location: 'bi-geo-alt',
+};
+
+/** One variant-identity badge. Geometry comes from `Chip`, colour from `VARIANT_TONE`. */
+export function VariantChip({
+    kind, children, classic, swatch, icon, mono, title, size = 'xs', bold = true, onRemove, onClick, style,
+}: {
+    kind: VariantKind;
+    children: React.ReactNode;
+    classic?: boolean;
+    swatch?: string | null;
+    /** Override the kind's default icon; `null` renders none. */
+    icon?: string | null;
+    /** Chip holds a CODE (supplier lot, producing order) — takes the app-wide code face. */
+    mono?: boolean;
+    title?: string;
+    size?: 'xs' | 'sm' | 'md';
+    bold?: boolean;
+    onRemove?: () => void;
+    onClick?: () => void;
+    style?: React.CSSProperties;
+}) {
+    // A swatch already says "this is a colour", so the palette icon would be noise.
+    const ic = icon === null ? undefined : (icon ?? (swatch ? undefined : VARIANT_ICON[kind]));
+    return (
+        <Chip
+            classic={classic}
+            tone={VARIANT_TONE[kind]}
+            size={size}
+            bold={bold}
+            icon={ic}
+            swatch={swatch}
+            title={title}
+            onRemove={onRemove}
+            onClick={onClick}
+            style={mono ? { fontFamily: CODE_FONT, ...style } : style}
+        >{children}</Chip>
+    );
+}
+
+// Document-origin badges — the SO/PO/PR/MO/WO references that hang off a row as
+// secondary provenance ("where did this come from"), not as the row's own identity
+// (that stays a bare `CodeChip`). Several sit side by side, so the prefix + tone is
+// what separates them at a glance; the tone map lives here so PR is the same purple
+// on every page instead of being re-picked per view.
+export const ORIGIN_TONES = {
+    wo: { color: '#1d5c2e', background: '#e4f2e6', borderColor: '#a8ccb0' },
+    mo: { color: '#444444', background: '#eceae2', borderColor: '#c4c2ba' },
+    pr: { color: '#5a4499', background: '#efeaff', borderColor: '#cabbec' },
+    so: { color: '#0058e6', background: '#e8f0ff', borderColor: '#a8c8f0' },
+    po: { color: '#7a4500', background: '#fdf3d8', borderColor: '#e0c080' },
+} as const;
+
+export type OriginKind = keyof typeof ORIGIN_TONES;
+
+const ORIGIN_TITLE: Record<OriginKind, string> = {
+    wo: 'Work Order', mo: 'Manufacturing Order', pr: 'Production Run',
+    so: 'Sales Order', po: 'Purchase Order',
+};
+
+/** One origin reference as a badge. `prefix` false drops the "PR "/"SO " label when
+ *  the code already carries it (MO-00012) or the column header says which it is. */
+export function OriginChip({ kind, code, classic, prefix = true, title, size = 'xs', style }: {
+    kind: OriginKind;
+    code: React.ReactNode;
+    classic?: boolean;
+    prefix?: boolean;
+    title?: string;
+    size?: 'xs' | 'sm' | 'md';
+    style?: React.CSSProperties;
+}) {
+    return (
+        <Chip
+            classic={classic}
+            tone={ORIGIN_TONES[kind]}
+            size={size}
+            bold
+            title={title ?? `${ORIGIN_TITLE[kind]}: ${typeof code === 'string' ? code : ''}`.trim()}
+            style={{ fontFamily: CODE_FONT, gap: 3, ...style }}
+        >
+            {prefix ? `${kind.toUpperCase()} ${code}` : code}
+        </Chip>
+    );
+}
+
+/** Origin badges on one line — the row never grows taller, the table scrolls. */
+export function OriginChipRow({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+    return (
+        <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', whiteSpace: 'nowrap', ...style }}>
+            {children}
+        </div>
+    );
+}
+
 export function StatusChip({ status, label, style, tint, title }: { status: string; label?: string; style?: React.CSSProperties; tint?: boolean; title?: string }) {
     return (
         <span style={statusChipStyle(status, style, tint)} title={title}>
@@ -384,18 +515,24 @@ export function colorHexFor(name?: string): string | null {
 // Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
 // `hex` overrides the derived lookup with a stored AttributeValue.hex, when known.
 // `onRemove` renders a small "x" for removable pick-lists (e.g. lab dip request colors).
-export function ColorSwatchChip({ label, classic, hex: hexOverride, onRemove }: { label: string; classic: boolean; hex?: string | null; onRemove?: () => void }) {
-    const hex = hexOverride ?? colorHexFor(label);
+// Colour chip keyed off a label (Color Library rows, lab-dip colours, quarantine
+// group shade). Thin wrapper on `VariantChip` — it exists only for the `hex`
+// fallback: most callers hold a name and no hex, so the swatch is derived from the
+// name via `colorHexFor`. It used to carry its own beige/gray palette, which is why
+// the same shade read pink on the lot pickers and beige here.
+export function ColorSwatchChip({ label, classic, hex: hexOverride, onRemove, size = 'sm', title }: {
+    label: string; classic: boolean; hex?: string | null; onRemove?: () => void;
+    size?: 'xs' | 'sm' | 'md'; title?: string;
+}) {
     return (
-        <span style={classic
-            ? { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', borderRadius: CHIP_RADIUS, fontFamily: xpFont, whiteSpace: 'nowrap' }
-            : { display: 'inline-flex', alignItems: 'center', gap: 5, background: '#eef1f6', border: '1px solid #cbd3df', color: '#334155', fontSize: 12, borderRadius: CHIP_RADIUS, padding: '2px 8px', fontFamily: modernFont, whiteSpace: 'nowrap' }}>
-            {hex && <span style={{ width: 10, height: 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
-            {label}
-            {onRemove && (
-                <button type="button" onClick={onRemove} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontWeight: 'bold', lineHeight: 1, padding: 0, marginLeft: 1, fontSize: classic ? 11 : 13 }}>×</button>
-            )}
-        </span>
+        <VariantChip
+            kind="color"
+            classic={classic}
+            size={size}
+            swatch={hexOverride ?? colorHexFor(label)}
+            title={title ?? `Color: ${label}`}
+            onRemove={onRemove}
+        >{label}</VariantChip>
     );
 }
 

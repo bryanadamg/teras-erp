@@ -17,6 +17,7 @@ import {
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
     XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg, ToggleChip, ChipTone,
+    OriginChip, OriginChipRow,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -797,13 +798,18 @@ export default function QuarantinePackingView() {
                                 >
                                     <ExpanderCell classic={classic} expanded={open} onToggle={() => toggleRow(g.key, g.lots)} label="lots" />
                                     <td style={lvTd(classic)}>
-                                        {g.mo_code
-                                            ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
-                                            : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}
-                                        {g.mo_status && <StatusChip status={g.mo_status} style={{ marginLeft: 6 }} tint />}
-                                        <div style={{ fontSize: 10, color: '#666' }}>
-                                            {[g.production_run_code, g.sales_order_code].filter(Boolean).join(' · ') || ' '}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            {g.mo_code
+                                                ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
+                                                : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}
+                                            {g.mo_status && <StatusChip status={g.mo_status} style={{ marginLeft: 'auto' }} tint />}
                                         </div>
+                                        {(g.production_run_code || g.sales_order_code) ? (
+                                            <OriginChipRow style={{ marginTop: 2 }}>
+                                                {g.production_run_code && <OriginChip kind="pr" code={g.production_run_code} classic={classic} />}
+                                                {g.sales_order_code && <OriginChip kind="so" code={g.sales_order_code} classic={classic} />}
+                                            </OriginChipRow>
+                                        ) : <div style={{ fontSize: 10 }}>&nbsp;</div>}
                                     </td>
                                     <td style={lvTd(classic)}>
                                         <span style={{ fontWeight: 'bold' }}>{g.item_name}</span>
@@ -830,12 +836,12 @@ export default function QuarantinePackingView() {
                                                 <LotChipRow>
                                                     {size && (
                                                         <LotChip tone="size" title={`Size: ${size}`}>
-                                                            <i className="bi bi-rulers" />{size}
+                                                            {size}
                                                         </LotChip>
                                                     )}
                                                     {combo && (
                                                         <LotChip tone="combo" title={`Combo: ${combo}`}>
-                                                            <i className="bi bi-grid-3x3-gap" />{combo}
+                                                            {combo}
                                                         </LotChip>
                                                     )}
                                                 </LotChipRow>

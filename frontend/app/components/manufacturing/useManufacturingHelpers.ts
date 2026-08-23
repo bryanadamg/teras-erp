@@ -1,4 +1,5 @@
 import { useTimezone } from '../../context/TimezoneContext';
+import { colorHexFor } from '../shared/xpTheme';
 
 export interface ManufacturingHelpersInput {
     items: any[];
@@ -36,6 +37,17 @@ export function useManufacturingHelpers({
             if (val) return val.value;
         }
         return valId;
+    };
+
+    // Swatch hex for an attribute value, so a colour value chips as a shade (with its
+    // dot) instead of a generic attribute. Falls back to the name-derived palette in
+    // xpTheme, same rule the BOM list and SO table use.
+    const getAttributeValueHex = (valId: string): string | null => {
+        for (const attr of attributes) {
+            const val = attr.values.find((v: any) => v.id === valId);
+            if (val) return val.hex || colorHexFor(val.value) || null;
+        }
+        return null;
     };
 
     const getBomSizeLabel = (bomId: string, bomSizeId: string, snapshot?: any): string => {
@@ -158,7 +170,7 @@ export function useManufacturingHelpers({
         uomBadgeStyle,
         getItemName, getItemCode, getItemUom, getItemEnds,
         getBOMCode, getLocationName, getOpName, getWCName,
-        getAttributeValueName, getBomSizeLabel,
+        getAttributeValueName, getAttributeValueHex, getBomSizeLabel,
         formatDate, formatDateTime, getDueDateWarning,
         calculateRequiredQty, checkStockAvailability, getStockAcrossLocations,
         getBeamBatchCount, isBatchIdentityItem,

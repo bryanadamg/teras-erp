@@ -12,7 +12,7 @@ import { qtyFmt } from '../shared/format';
 // cartons than this spills onto continuation rows rather than squeezing the grid.
 const PERINCIAN_COLS = 8;
 
-function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, preparedBy }: any) {
+function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, preparedBy, sjNoOverride }: any) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const { itemIndex } = useData();
     const { formatCustom: tzFmt } = useTimezone();
@@ -79,7 +79,7 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
     const dotCell: React.CSSProperties = { borderBottom: '1px dotted #777', padding: '3px 5px', textAlign: 'center' };
 
     const customerName = shp.customer_name || '';
-    const sjNo = shp.delivery_note_number || shp.code;
+    const sjNo = (sjNoOverride || '').trim() || shp.delivery_note_number || shp.code;
     const tanggal = fmt(shp.delivery_date || shp.dispatched_at || shp.staged_at);
 
     const CompanyBlock = () => (
@@ -245,6 +245,7 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
 
 export default function SuratJalanPrintModal({ shipment, attributes, companyProfile, customerAddr, onClose }: any) {
     const [preparedBy, setPreparedBy] = useState('');
+    const [sjNo, setSjNo] = useState(shipment.delivery_note_number || shipment.code || '');
 
     // One flat carton list across every pick list on the shipment, each line
     // tagged with the customer PO it shipped against — the note's NO PO column.
@@ -269,12 +270,12 @@ export default function SuratJalanPrintModal({ shipment, attributes, companyProf
     const btnGreen = xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' });
     const xpInput: React.CSSProperties = { fontFamily: font, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
 
-    const doc = <SJDocument shp={shipment} lines={lines} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
+    const doc = <SJDocument shp={shipment} lines={lines} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} sjNoOverride={sjNo} />;
 
     return (
         <>
             <PrintModalShell
-                title={`Surat Jalan — ${shipment.delivery_note_number || shipment.code}`}
+                title={`Surat Jalan — ${(sjNo || '').trim() || shipment.delivery_note_number || shipment.code}`}
                 onClose={onClose}
                 width="calc(var(--app-vw) * 92 / 100)"
                 maxWidth={900}
@@ -283,7 +284,9 @@ export default function SuratJalanPrintModal({ shipment, attributes, companyProf
             >
                 <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                     <div style={{ width: 200, borderRight: '1px solid #b0a898', background: '#f4f3ee', padding: 14 }}>
-                        <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', marginBottom: 6 }}>Prepared By</div>
+                        <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', marginBottom: 6 }}>Surat Jalan No</div>
+                        <input style={xpInput} value={sjNo} onChange={e => setSjNo(e.target.value)} placeholder="No" />
+                        <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', margin: '14px 0 6px' }}>Prepared By</div>
                         <input style={xpInput} value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Name" />
                         <div style={{ fontSize: 10, color: '#555', marginTop: 14 }}>Paper size &amp; margins set in browser print dialog.</div>
                     </div>

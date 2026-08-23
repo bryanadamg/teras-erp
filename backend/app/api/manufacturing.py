@@ -738,10 +738,17 @@ async def list_work_orders_flat(
         ))
     if center_type:
         ct = center_type.upper()
-        alias_map = {"BEAMING": ["BEAMING"], "WEAVING": ["WEAVING", "TENUN"], "DYEING": ["DYEING", "CELUP"]}
+        alias_map = {
+            "BEAMING": ["BEAMING"],
+            "WEAVING": ["WEAVING", "TENUN"],
+            "DYEING": ["DYEING", "CELUP"],
+            "SETTING": ["SETTING"],
+        }
         if ct == "OTHERS":
+            # Complement of every tabbed type — keep in sync with alias_map above,
+            # or a type gets counted on two tabs at once.
             named_subq = select(WorkCenter.id).where(
-                func.upper(WorkCenter.center_type).in_(["BEAMING", "WEAVING", "TENUN", "DYEING", "CELUP"])
+                func.upper(WorkCenter.center_type).in_([t for ts in alias_map.values() for t in ts])
             ).scalar_subquery()
             conditions.append(or_(
                 WorkOrderModel.work_center_id.is_(None),

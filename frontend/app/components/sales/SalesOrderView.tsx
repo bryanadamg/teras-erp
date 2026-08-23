@@ -11,7 +11,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone } from '../shared/xpTheme';
+
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
@@ -33,8 +34,8 @@ const SO_COL_WIDTHS = [
     180, // Customer
     72,  // Date
     180, // Item
-    80,  // Size
-    175, // Qty
+    132, // Size
+    205, // Qty
     110, // Alt Unit
     110, // Stock Notes
     88,  // Req / Conf
@@ -44,6 +45,11 @@ const SO_COL_WIDTHS = [
     75,  // Actions
 ];
 const SO_TABLE_MIN_WIDTH = SO_COL_WIDTHS.reduce((a, b) => a + b, 0);
+
+// Ordered qty is the emphasised number on a line, so it keeps its own blue fill —
+// VARIANT_TONE entries mean "variant identity", which a quantity is not. The metre
+// echo takes the neutral Chip default and KG the shared qty green.
+const QTY_ORDERED_TONE = { color: '#003ea6', background: '#dce8ff', borderColor: '#9ab0e0' };
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO }: any) {
   const { showToast } = useToast();
@@ -846,23 +852,25 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       // it reads as a chip alongside colour rather than in the italic attribute line.
       const comboValId = comboAttr ? attrIds.find(vid => comboAttr.values?.some((v: any) => v.id === vid)) : undefined;
       const plainIds = attrIds.filter(vid => vid !== colorValId && vid !== comboValId);
-      const chips: { label: string; hex: string | null; pending?: boolean; icon?: string }[] = [];
-      if (colorValId) chips.push({ label: getAttributeValueName(colorValId), hex: getAttributeValueHex(colorValId) });
-      if (colorLabel) chips.push({ label: colorLabel, hex: colorHex || null });
-      else if (pendingLabdip) chips.push({ label: pendingLabdip, hex: null, pending: true });
-      if (comboValId) chips.push({ label: getAttributeValueName(comboValId), hex: null, icon: 'bi-collection' });
+      const chips: { label: string; hex: string | null; kind: VariantKind; icon?: string | null }[] = [];
+      if (colorValId) chips.push({ label: getAttributeValueName(colorValId), hex: getAttributeValueHex(colorValId), kind: 'color' });
+      if (colorLabel) chips.push({ label: colorLabel, hex: colorHex || null, kind: 'color' });
+      else if (pendingLabdip) chips.push({ label: pendingLabdip, hex: null, kind: 'pending' });
+      if (comboValId) chips.push({ label: getAttributeValueName(comboValId), hex: null, kind: 'combo' });
       return { chips, plainIds };
   };
 
-  const renderChipRow = (chips: { label: string; hex: string | null; pending?: boolean; icon?: string }[]) => (
+  // Shade / combo / size chips are VariantChips like everywhere else, so a shade
+  // reads pink and a combo violet here too instead of landing in the neutral
+  // default this row used to draw.
+  const renderChipRow = (chips: { label: string; hex: string | null; kind: VariantKind; icon?: string | null }[]) => (
       <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2}}>
           {chips.map((c, i) => (
-              <Chip key={i} classic={classic} size="xs"
-                  title={c.pending ? 'Pending lab dip — colour not approved yet' : undefined}
-                  icon={c.pending ? 'bi-eyedropper' : c.icon}
+              <VariantChip key={i} kind={c.kind} classic={classic}
+                  title={c.kind === 'pending' ? 'Pending lab dip — colour not approved yet' : `${c.label}`}
+                  icon={c.icon}
                   swatch={c.hex}
-                  tone={c.pending ? { background: classic ? '#fff5d6' : '#fff8e1', borderColor: '#c8a000', color: '#8a6d00' } : undefined}
-              >{c.label}</Chip>
+              >{c.label}</VariantChip>
           ))}
       </div>
   );
@@ -1917,12 +1925,12 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                {line.bom_size_id ? (() => {
                                                    const { name, measurement } = getBomSizeParts(line.bom_size_id);
                                                    return (
-                                                       <>
-                                                           <div style={{ fontFamily:xpFont, fontSize:'10px', fontWeight:'bold', color: classic?'#005':'#0d6efd' }}>
-                                                               <i className="bi bi-rulers me-1"></i>{name}
-                                                           </div>
-                                                           {measurement && renderChipRow([{ label: measurement, hex: null }])}
-                                                       </>
+                                                       <div style={{ display:'flex', flexWrap:'nowrap' as const, gap:3, alignItems:'center' }}>
+                                                           <VariantChip kind="size" classic={classic} title={`Size: ${name}`}>{name}</VariantChip>
+                                                           {measurement && (
+                                                               <VariantChip kind="size" classic={classic} icon={null} title={`Measurement: ${measurement}`}>{measurement}</VariantChip>
+                                                           )}
+                                                       </div>
                                                    );
                                                })() : (
                                                    <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>
@@ -1932,10 +1940,10 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            {/* Qty */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                <div style={{ display:'flex', flexWrap:'nowrap' as const, gap:3, alignItems:'center' }}>
-                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', fontWeight:'bold', color: classic?'#003ea6':'#fff', background: classic?'#dce8ff':'#0d6efd', border: classic?'1px solid #9ab0e0':'none', padding:'1px 5px', borderRadius: CHIP_RADIUS }}>{line.qty} Yd</span>
-                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#444':'#555', background: classic?'#efefef':'#f0f0f0', border: classic?'1px solid #c0bdb5':'1px solid #ddd', padding:'1px 5px', borderRadius: CHIP_RADIUS }}>{Math.round(line.qty * 0.9144 * 100) / 100} m</span>
+                                                   <Chip classic={classic} size="xs" bold tone={QTY_ORDERED_TONE} title="Quantity ordered">{line.qty} Yd</Chip>
+                                                   <Chip classic={classic} size="xs" title="Same quantity in metres">{Math.round(line.qty * 0.9144 * 100) / 100} m</Chip>
                                                    {line.qty_kg != null && line.qty_kg !== '' && (
-                                                       <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#1a5e1a':'#166534', background: classic?'#e4f5e4':'#dcfce7', border: classic?'1px solid #90c090':'1px solid #86efac', padding:'1px 5px', borderRadius: CHIP_RADIUS }}>{line.qty_kg} KG</span>
+                                                       <Chip classic={classic} size="xs" tone={variantChipTone('qty')} title="Quantity in kilograms">{line.qty_kg} KG</Chip>
                                                    )}
                                                </div>
                                            </td>

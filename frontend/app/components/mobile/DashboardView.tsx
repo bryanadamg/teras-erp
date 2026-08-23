@@ -4,39 +4,15 @@ import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { xpFont as XP_FONT, familyColor, familyTint, ProgressBar, StatusChip, type StatusFamily, CodeChip, CODE_FONT } from '../shared/xpTheme';
-
-const XP_BEIGE = '#ece9d8';
-
-const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    border: '2px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    background: '#f5f4ef',
-    borderRadius: 0,
-    ...extra,
-});
-
-const xpInset = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    border: '2px solid',
-    borderColor: '#808080 #dfdfdf #dfdfdf #808080',
-    background: '#ffffff',
-    borderRadius: 0,
-    ...extra,
-});
-
-const xpSectionLabel: React.CSSProperties = {
-    fontFamily: XP_FONT,
-    fontSize: 10,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    color: '#555',
-    borderBottom: '1px solid #c0bdb5',
-    paddingBottom: 3,
-    marginBottom: 8,
-};
+import { MOBILE_BG, MobilePanel, MobileButton, MobileEmpty, mobileCard, mobileInset } from './mobileTheme';
 
 // Severity families for the action-item rows — same five as STATUS_FAMILY.
 const SEV_FAMILY: Record<'crit' | 'warn' | 'info', StatusFamily> = { crit: 'red', warn: 'amber', info: 'blue' };
+
+const kpiLabel = (alert: boolean): React.CSSProperties => ({
+    fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase',
+    letterSpacing: 0.5, color: alert ? '#cc0000' : '#666', marginBottom: 3,
+});
 
 export default function MobileDashboardView({ items, stockBalance, workOrders, salesOrders, kpis, summary, itemIndex }: any) {
     const router = useRouter();
@@ -118,8 +94,8 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
     const PctBar = ({ label, pct, good }: { label: string; pct: number; good: boolean }) => {
         const tone: StatusFamily = good ? 'green' : 'amber';
         return (
-            <div style={xpPanel({ padding: '8px 10px', flex: 1, minWidth: 0 })}>
-                <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 3 }}>{label}</div>
+            <div style={mobileCard({ padding: '8px 10px', flex: 1, minWidth: 0 })}>
+                <div style={kpiLabel(false)}>{label}</div>
                 <div style={{ fontFamily: CODE_FONT, fontSize: 20, fontWeight: 'bold', color: familyColor(tone), lineHeight: 1 }}>{pct.toFixed(0)}%</div>
                 <div style={{ marginTop: 4 }}>
                     <ProgressBar pct={pct} tone={tone} height={7} title={label} />
@@ -128,20 +104,25 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
         );
     };
 
-    return (
-        <div style={{ background: XP_BEIGE, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    // Panels head each section with the same blue-gradient title bar the desktop
+    // views use, and carry severity in the bar itself (alerts amber) the way the
+    // desktop dashboard panel stack does.
+    const alertTone = actionItems.some(a => a.sev === 'crit') ? 'red' : 'amber';
+    const activeCount = (workOrders || []).filter((w: any) => ['IN_PROGRESS', 'PENDING'].includes(w.status)).length;
 
-            {/* KPI grid */}
-            <div>
-                <div style={xpSectionLabel}>System Status</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+    return (
+        <div style={{ background: MOBILE_BG, padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* KPI grid + rate bars */}
+            <MobilePanel icon="bi-speedometer2" title={t('system_status') || 'System Status'}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     {kpiCards.map(k => (
-                        <div key={k.label} style={xpPanel({
+                        <div key={k.label} style={mobileCard({
                             padding: '10px 12px',
                             borderColor: k.alert ? '#cc0000 #800000 #800000 #cc0000' : undefined,
-                            background: k.alert ? '#fce8e8' : '#f5f4ef',
+                            background: k.alert ? '#fce8e8' : undefined,
                         })}>
-                            <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: k.alert ? '#cc0000' : '#666', marginBottom: 3 }}>
+                            <div style={kpiLabel(k.alert)}>
                                 <i className={`bi ${k.icon}`} style={{ marginRight: 4 }} aria-hidden="true" />{k.label}
                             </div>
                             <div style={{ fontFamily: CODE_FONT, fontSize: 28, fontWeight: 'bold', color: k.alert ? '#cc0000' : '#00309c', lineHeight: 1 }}>
@@ -150,24 +131,26 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                         </div>
                     ))}
                 </div>
-            </div>
-
-            {/* Yield + Delivery readiness */}
-            <div style={{ display: 'flex', gap: 8 }}>
-                <PctBar label={t('production_yield')} pct={prodYield} good={prodYield > 90} />
-                <PctBar label={t('delivery_readiness')} pct={deliveryReadiness} good={deliveryReadiness > 80} />
-            </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <PctBar label={t('production_yield')} pct={prodYield} good={prodYield > 90} />
+                    <PctBar label={t('delivery_readiness')} pct={deliveryReadiness} good={deliveryReadiness > 80} />
+                </div>
+            </MobilePanel>
 
             {/* Needs Attention */}
             {actionItems.length > 0 && (
-                <div>
-                    <div style={xpSectionLabel}>{t('action_items')}</div>
+                <MobilePanel
+                    icon="bi-exclamation-triangle-fill"
+                    title={t('action_items') || 'Needs Attention'}
+                    tone={alertTone}
+                    right={<span style={{ fontFamily: XP_FONT, fontSize: 11 }}>{actionItems.length}</span>}
+                >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                         {actionItems.slice(0, 5).map((item, i) => {
                             const tint = familyTint(SEV_FAMILY[item.sev]);
                             return (
                                 <div key={i} style={{
-                                    ...xpInset(),
+                                    ...mobileInset(),
                                     padding: '8px 10px',
                                     borderLeft: `4px solid ${familyColor(SEV_FAMILY[item.sev])}`,
                                     background: tint.background,
@@ -178,29 +161,25 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                             );
                         })}
                     </div>
-                </div>
+                </MobilePanel>
             )}
 
             {/* Active Work Orders */}
-            <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                    <div style={xpSectionLabel}>{t('work_orders')}</div>
-                    <button
-                        onClick={() => router.push('/work-orders')}
-                        style={{ background: 'none', border: 'none', color: '#0058e6', fontFamily: XP_FONT, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                    >
-                        View all →
-                    </button>
-                </div>
-
+            <MobilePanel
+                icon="bi-clipboard-check-fill"
+                title={t('work_orders')}
+                right={
+                    <MobileButton compact tone="neutral" icon="bi-box-arrow-up-right" onClick={() => router.push('/work-orders')}>
+                        View all
+                    </MobileButton>
+                }
+            >
                 {activeWOList.length === 0 ? (
-                    <div style={xpInset({ padding: '16px', textAlign: 'center', color: '#666', fontFamily: XP_FONT, fontSize: 12 })}>
-                        {t('no_active_production')}
-                    </div>
+                    <MobileEmpty>{t('no_active_production')}</MobileEmpty>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                         {activeWOList.map((wo: any) => (
-                            <div key={wo.id} style={xpPanel({
+                            <div key={wo.id} style={mobileCard({
                                 padding: '9px 10px',
                                 display: 'flex',
                                 justifyContent: 'space-between',
@@ -227,17 +206,14 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                                 <StatusChip status={wo.isOverdue ? 'OVERDUE' : wo.status} />
                             </div>
                         ))}
-                        {(workOrders || []).filter((w: any) => ['IN_PROGRESS', 'PENDING'].includes(w.status)).length > 10 && (
-                            <button
-                                onClick={() => router.push('/work-orders')}
-                                style={{ ...xpPanel({ padding: '9px', textAlign: 'center' as const }), border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#0058e6', fontFamily: XP_FONT, fontSize: 12, cursor: 'pointer', width: '100%' }}
-                            >
-                                View all work orders →
-                            </button>
+                        {activeCount > 10 && (
+                            <MobileButton tone="launch" icon="bi-list-ul" onClick={() => router.push('/work-orders')} style={{ width: '100%' }}>
+                                View all {activeCount} work orders
+                            </MobileButton>
                         )}
                     </div>
                 )}
-            </div>
+            </MobilePanel>
         </div>
     );
 }

@@ -15,6 +15,18 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-23
+
+### Added
+- Work orders list has a Setting tab alongside Beaming / Weaving / Dyeing. `Others` is now derived from the tab list itself instead of a second hardcoded set of centre types, so adding a tab can't leave a type counted on two tabs at once
+- The Surat Jalan number can be typed in the print preview before printing. It overrides the shipment's delivery-note number on the printed sheet and the modal title only — nothing is written back to the shipment, so a one-off manual number doesn't rewrite the record
+
+### Changed
+- Mobile views wear the same classic chrome as the desktop app: blue-gradient window bar, a toolbar strip carrying the current page title, and a tab bar in the sidebar palette. The old navy bar over grey tabs belonged to no other screen in the app. Shared primitives live in `mobileTheme.tsx`, so the phone views stop re-inventing their panels and cards per screen
+- Variant identity chips (size / shade / combo) take their colour from one `VARIANT_TONE` map and a shared `VariantChip`. Seven views were each re-colouring them, so the same shade read pink on the work-order list, slate on the netting plan and beige on the BOM list. Shade chips are now the neutral slate ones and size takes the pink — a shade often carries its own colour swatch, and a swatch sitting on a tinted fill reads as a colour clash rather than as the colour of the goods
+- SO/PO/PR/MO/WO references hanging off a row render as `OriginChip` badges with one tone per document type, so several origins side by side stay tellable apart and a PR is the same purple on every page
+- Every control in a classic page header takes the same rounded XP chrome; a generic `.btn-light` rule was squaring off only some of them
+
 ## [0.6.1] - 2026-08-23
 
 ### Changed

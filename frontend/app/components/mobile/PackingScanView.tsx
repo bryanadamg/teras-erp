@@ -4,31 +4,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT } from '../shared/xpTheme';
 import { toNum } from '../shared/format';
+import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
-const XP_BEIGE = '#ece9d8';
-
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    color: '#000000', borderRadius: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
-    ...extra,
-});
-const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({
-    background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)',
-    borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', ...extra,
-});
-const xpPanel: React.CSSProperties = {
-    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    background: '#f5f4ef', borderRadius: 0, padding: '10px 12px',
-};
-const xpSectionLabel: React.CSSProperties = {
-    fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold',
-    textTransform: 'uppercase', letterSpacing: 0.5, color: '#555',
-    borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 8,
-};
 const xpInput: React.CSSProperties = {
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
     border: '1px solid #7f9db9', boxSizing: 'border-box',
@@ -209,11 +188,12 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const reset = () => { setPo(null); setUnit(null); setError(null); setLastCartons([]); setManualCode(''); };
 
     return (
-        <div style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: 'var(--app-vh)', padding: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <strong style={{ fontSize: 15 }}>Packing Scanner</strong>
-                <button style={xpBtn()} onClick={onClose}>Back</button>
-            </div>
+        <div style={{ fontFamily: XP_FONT, background: MOBILE_BG, minHeight: 'var(--app-vh)', padding: 10 }}>
+            <MobileScreenBar
+                icon="bi-box2-fill"
+                title="Packing Scanner"
+                right={<MobileButton compact icon="bi-arrow-left" onClick={onClose}>Back</MobileButton>}
+            />
 
             {error && (
                 <div style={{ background: '#ffe8e8', border: '1px solid #c00', color: '#800', padding: '6px 10px', fontSize: 12, marginBottom: 10 }}>
@@ -223,12 +203,10 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
 
             {!po && !unit && (
                 <>
-                    <div style={{ ...xpPanel, marginBottom: 10 }}>
-                        <div style={xpSectionLabel}>Scan</div>
+                    <MobilePanel icon="bi-camera-fill" title="Scan" style={{ marginBottom: 10 }}>
                         <div id="packing-reader" style={{ width: '100%' }} />
-                    </div>
-                    <div style={xpPanel}>
-                        <div style={xpSectionLabel}>Or type a code</div>
+                    </MobilePanel>
+                    <MobilePanel icon="bi-keyboard-fill" title="Or type a code">
                         <input
                             style={xpInput}
                             placeholder="PCK-00001 or PU-20260802-0001"
@@ -236,35 +214,39 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                             onChange={e => setManualCode(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') resolveCode(manualCode); }}
                         />
-                        <button style={{ ...xpBtn(), marginTop: 8 }} onClick={() => resolveCode(manualCode)}>Open</button>
-                    </div>
+                        <MobileButton tone="launch" icon="bi-arrow-return-left" onClick={() => resolveCode(manualCode)} style={{ marginTop: 8 }}>
+                            Open
+                        </MobileButton>
+                    </MobilePanel>
                 </>
             )}
 
             {unit && (
-                <div style={xpPanel}>
-                    <div style={xpSectionLabel}>Carton {unit.batch_number}</div>
+                <MobilePanel icon="bi-box2-fill" title={`Carton ${unit.batch_number}`}>
                     <Row label="Item" value={`${unit.item_name || ''} (${unit.item_code || ''})`} />
                     <Row label="Carton no." value={String(unit.package_no ?? '—')} />
                     <Row label="Qty in stock" value={num(unit.qty).toLocaleString()} />
                     <Row label="Location" value={unit.location_name || '—'} />
                     <Row label="Packing order" value={unit.packing_order_code || '—'} />
                     <Row label="Quality" value={unit.quality_status} />
-                    <button style={{ ...xpBtn(), marginTop: 10 }} onClick={reset}>Scan another</button>
-                </div>
+                    <MobileButton icon="bi-upc-scan" onClick={reset} style={{ marginTop: 10 }}>Scan another</MobileButton>
+                </MobilePanel>
             )}
 
             {po && (
                 <>
-                    <div style={{ ...xpPanel, marginBottom: 10 }}>
-                        <div style={xpSectionLabel}>{po.code}</div>
+                    <MobilePanel
+                        icon="bi-clipboard-check-fill"
+                        title={po.code}
+                        right={<StatusChip status={po.status} />}
+                        style={{ marginBottom: 10 }}
+                    >
                         <Row label="Item" value={`${po.item_name || ''} (${po.item_code || ''})`} />
                         <Row label="Colour" value={po.color_name || '—'} />
                         <Row label="Sales order" value={po.sales_order_code || 'to stock'} />
                         <Row label="Target" value={`${num(po.qty_target).toLocaleString()} ${po.item_uom || ''}`} />
                         <Row label="Packed" value={`${num(po.qty_packed).toLocaleString()} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`} />
-                        <div style={{ marginTop: 6 }}><StatusChip status={po.status} /></div>
-                    </div>
+                    </MobilePanel>
 
                     {lastCartons.length > 0 && (
                         <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '8px 10px', fontSize: 12, marginBottom: 10 }}>
@@ -276,8 +258,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         </div>
                     )}
 
-                    <div style={xpPanel}>
-                        <div style={xpSectionLabel}>Log packing</div>
+                    <MobilePanel icon="bi-pencil-square" title="Log packing">
                         <label style={xpLabel}>Qty packed</label>
                         <input type="number" min={0} style={xpInput} value={qty} onChange={e => onQtyChange(e.target.value)} />
                         <label style={{ ...xpLabel, marginTop: 8 }}>Number of {(po.package_label || 'carton').toLowerCase()}s</label>
@@ -300,12 +281,12 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <label style={{ ...xpLabel, marginTop: 8 }}>Notes</label>
                         <input style={xpInput} value={notes} onChange={e => setNotes(e.target.value)} />
                         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                            <button style={xpBtn()} onClick={reset}>Scan another</button>
-                            <button style={{ ...xpBtnGreen(), flex: 1, justifyContent: 'center' }} disabled={logging} onClick={logPack}>
+                            <MobileButton icon="bi-upc-scan" onClick={reset}>Scan another</MobileButton>
+                            <MobileButton tone="create" icon="bi-box-seam" disabled={logging} onClick={logPack} style={{ flex: 1 }}>
                                 {logging ? 'Packing...' : 'Pack'}
-                            </button>
+                            </MobileButton>
                         </div>
-                    </div>
+                    </MobilePanel>
                 </>
             )}
         </div>
