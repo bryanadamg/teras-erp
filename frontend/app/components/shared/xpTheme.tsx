@@ -254,11 +254,12 @@ export const CHIP_RADIUS = 3;
 
 export const CODE_CHIP_RADIUS = CHIP_RADIUS;
 
-// Button corner radius — same single-constant rule as CHIP_RADIUS, for the
-// *interactive* primitives (toolbar buttons, xpBtn, modal footer actions, row
-// action buttons, the "..." trigger, toggle chips). XP buttons were themselves
-// slightly rounded while textboxes/panels/table chrome were square, so panels,
-// inputs and bevel windows deliberately keep `borderRadius: 0`.
+// Interactive-chrome corner radius — same single-constant rule as CHIP_RADIUS,
+// and the same reason: one number, or every view re-picks. Covers the controls a
+// user acts on — toolbar buttons, xpBtn, modal footer actions, row action
+// buttons, the "..." trigger, toggle chips, text inputs/selects, and the top
+// corners of a tab. Static chrome stays square: panels, bevel windows, title
+// bars, table cells, progress tracks.
 export const BUTTON_RADIUS = 3;
 
 // The class that carries the shared button hover/press motion (see the BUTTONS
@@ -793,7 +794,7 @@ export const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => (
 });
 
 export const xpInput = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
+    fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9', borderRadius: BUTTON_RADIUS,
     padding: '1px 6px', background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
     ...extra,
 });

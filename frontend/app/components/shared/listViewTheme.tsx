@@ -18,7 +18,7 @@ export const LV_MODERN_FONT = modernFont;
 // a toolbar row, and the default `width: '100%'` would otherwise silently win and
 // blow every field out to full width (stacking a one-line filter bar into N rows).
 export const lvInput = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => (classic ? {
-    fontFamily: LV_XP_FONT, fontSize: 11, border: '1px solid #7f9db9',
+    fontFamily: LV_XP_FONT, fontSize: 11, border: '1px solid #7f9db9', borderRadius: BUTTON_RADIUS,
     background: 'white', padding: '1px 6px', outline: 'none', height: 20, width: '100%', boxSizing: 'border-box',
     ...extra,
 } : {

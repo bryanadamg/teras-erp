@@ -101,7 +101,7 @@ export function SearchField({
                 title={title}
                 autoFocus={autoFocus}
                 style={classic ? {
-                    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9', borderRadius: 0,
+                    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9', borderRadius: BUTTON_RADIUS,
                     background: '#ffffff', color: '#000000', height: 20, outline: 'none',
                     width: '100%', boxSizing: 'border-box', padding: '1px 20px 1px 20px',
                 } : {

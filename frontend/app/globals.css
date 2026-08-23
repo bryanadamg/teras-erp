@@ -483,7 +483,7 @@ body {
   font-size: 10px !important;
   color: black !important;
   padding: 0 4px !important;
-  border-radius: 0 !important;
+  border-radius: 3px !important;
 }
 
 /* Header controls: one rounded XP-chrome shape for every control.
@@ -730,7 +730,7 @@ body {
 /* Form Overrides */
 .ui-style-classic .form-control, 
 .ui-style-classic .form-select {
-  border-radius: 0 !important;
+  border-radius: 3px !important;   /* matches BUTTON_RADIUS in xpTheme.tsx */
   border: 1px solid;
   border-color: #808080 #dfdfdf #dfdfdf #808080 !important;
   padding: 2px 4px !important;
@@ -1711,4 +1711,21 @@ table {
   .xp-btn:not(:disabled):active,
   .ui-style-classic .btn:not(:disabled):hover,
   .ui-style-classic .btn:not(:disabled):active { transform: none; }
+}
+
+/* Bootstrap tab strips in Classic (Sample Requests) — top corners only, matching
+   the shared `Tabs` primitive; the bottom edge stays open into the pane. */
+.ui-style-classic .nav-tabs .nav-link {
+  border-radius: 3px 3px 0 0 !important;
+}
+
+/* Text-entry controls: the element-selector floor for the ~60 inputs/selects that
+   are still hand-rolled inline rather than going through xpInput/lvInput/
+   SearchField. No `!important` and lowest specificity on purpose — a Bootstrap
+   `.form-control`, a modern-theme inline radius, or an intentional square all
+   still win. Checkboxes/radios/ranges are excluded: XP drew those square. */
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  border-radius: var(--btn-radius);
 }

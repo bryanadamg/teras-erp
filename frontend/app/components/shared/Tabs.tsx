@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { xpFont } from './xpTheme';
+import { xpFont, BUTTON_RADIUS } from './xpTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -58,6 +58,9 @@ export function Tabs<K extends string>({ tabs, activeKey, onChange, classic }: {
             padding: '3px 12px 4px',
             cursor: 'pointer',
             border: '1px solid',
+            // Top corners only: the active tab's bottom edge is deliberately open
+            // into the pane below it, and rounding it would cut that seam.
+            borderRadius: `${BUTTON_RADIUS}px ${BUTTON_RADIUS}px 0 0`,
             borderBottom: active ? '1px solid #ece9d8' : '1px solid #7f9db9',
             background: active
                 ? '#ece9d8'
