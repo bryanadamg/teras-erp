@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { STATUS_COLORS, xpFont as XP_FONT, CHIP_RADIUS } from '../shared/xpTheme';
+import { STATUS_COLORS, StatusChip, xpFont as XP_FONT, CHIP_RADIUS } from '../shared/xpTheme';
+import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
 
 interface MobileScannerViewProps {
     manufacturingOrders: any[];
@@ -28,27 +29,14 @@ interface MaterialRow {
     orig_item_code: string;
 }
 
-const XP_BEIGE = '#ece9d8';
-
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    color: '#000000', borderRadius: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
-    ...extra,
-});
-
 const xpInset: React.CSSProperties = {
     border: '2px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
     background: '#ffffff', borderRadius: 0,
 };
 
-const xpPanel: React.CSSProperties = {
-    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    background: '#f5f4ef', borderRadius: 0, padding: '10px 12px',
-};
-
-const xpSectionLabel: React.CSSProperties = {
+// Heading for a second group INSIDE a panel — a panel's own heading is its blue
+// title bar; this is the tier below it.
+const subLabel: React.CSSProperties = {
     fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold',
     textTransform: 'uppercase', letterSpacing: 0.5, color: '#555',
     borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 8,
@@ -58,17 +46,6 @@ const xpInput: React.CSSProperties = {
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
     border: '1px solid #7f9db9', boxSizing: 'border-box',
     borderRadius: 0, background: '#fff', width: '100%',
-};
-
-const xpStatusBadge = (status: string): React.CSSProperties => {
-    const base: React.CSSProperties = {
-        fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold',
-        padding: '2px 8px', display: 'inline-block',
-    };
-    if (status === 'COMPLETED')   return { ...base, background: STATUS_COLORS.COMPLETED, color: '#fff' };
-    if (status === 'IN_PROGRESS') return { ...base, background: STATUS_COLORS.IN_PROGRESS, color: '#fff' };
-    if (status === 'CANCELLED')   return { ...base, background: STATUS_COLORS.CANCELLED, color: '#fff' };
-    return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
 };
 
 const isUUID = (s: string) =>
@@ -387,31 +364,37 @@ export default function MobileScannerView({
     };
 
     return (
-        <div style={{ background: XP_BEIGE, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: MOBILE_BG, padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-            {/* Terminal header */}
-            <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#555', borderBottom: '1px solid #c0bdb5', paddingBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <i className="bi bi-qr-code-scan" style={{ color: '#1a4a8a' }} />
-                Operator Scan Terminal
-                <span style={{ marginLeft: 'auto', fontWeight: 'normal', fontSize: 10, color: '#888' }}>ID: {terminalId.current}</span>
-                {/* Route back to the shared scanner — the only way to reach a
-                    pick or packing code once this screen owns the camera. */}
-                <button style={xpBtn({ padding: '2px 8px', fontSize: 11 })} type="button" onClick={onClose}>Back</button>
-            </div>
+            {/* Terminal header — the same window bar every other screen wears.
+                The Back action routes to the shared scanner: the only way to reach
+                a pick or packing code once this screen owns the camera. */}
+            <MobileScreenBar
+                icon="bi-qr-code-scan"
+                title="Operator Scan Terminal"
+                meta={`ID: ${terminalId.current}`}
+                right={<MobileButton compact icon="bi-arrow-left" onClick={onClose}>Back</MobileButton>}
+            />
 
             {scannedWO && scannedWOParentMO ? (
                 <>
                     {/* WO identity panel */}
-                    <div style={{ ...xpPanel, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <MobilePanel
+                        icon="bi-clipboard-check-fill"
+                        title="Work Order Step"
+                        right={
+                            <MobileButton compact icon="bi-arrow-repeat" onClick={handleReset}>Reset</MobileButton>
+                        }
+                        bodyStyle={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+                    >
                         <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: '#666', marginBottom: 2 }}>Work Order Step</div>
                             <div style={{ fontFamily: XP_FONT, fontSize: 16, fontWeight: 'bold', color: '#000080', lineHeight: 1.2 }}>{scannedWO.name}</div>
                             <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555', marginTop: 2 }}>
                                 {scannedWOParentMO.code} — {scannedWOParentMO.item_name || ''}
                                 {scannedWO.work_center_name && <span style={{ marginLeft: 6 }}>| {scannedWO.work_center_name}</span>}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                                <span style={xpStatusBadge(scannedWO.status)}>{scannedWO.status === 'IN_PROGRESS' ? 'IN PROGRESS' : scannedWO.status}</span>
+                                <StatusChip status={scannedWO.status} />
                                 {woTarget > 0 && <span style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555' }}>Target: {woTarget} | Done: {woDone.toFixed(2)}</span>}
                             </div>
                             {woTarget > 0 && (
@@ -431,10 +414,7 @@ export default function MobileScannerView({
                                 </div>
                             )}
                         </div>
-                        <button style={xpBtn({ flexShrink: 0, padding: '6px 12px' })} type="button" onClick={handleReset}>
-                            <i className="bi bi-arrow-repeat"></i> Reset
-                        </button>
-                    </div>
+                    </MobilePanel>
 
                     {logSuccess && (
                         <div style={{ background: '#e8f5e9', border: '1px solid #2e7d32', borderLeft: '4px solid #2e7d32', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#1b5e20' }}>
@@ -448,8 +428,7 @@ export default function MobileScannerView({
                     )}
 
                     {/* Log form */}
-                    <div style={xpPanel}>
-                        <div style={xpSectionLabel}>Log Hasil Produksi</div>
+                    <MobilePanel icon="bi-pencil-square" title="Log Hasil Produksi">
 
                         {/* Qty */}
                         <div style={{ marginBottom: 10 }}>
@@ -558,7 +537,7 @@ export default function MobileScannerView({
                                 : [];
                             return (
                             <div style={{ marginBottom: 10 }}>
-                                <div style={{ ...xpSectionLabel, marginTop: 4 }}>Material Consumption</div>
+                                <div style={{ ...subLabel, marginTop: 4 }}>Material Consumption</div>
                                 <div style={{ fontSize: 9, color: '#888', marginBottom: 6, fontFamily: XP_FONT }}>
                                     Planned = BOM% x output. Tap Sub to use a substitute item if stock is unavailable.
                                 </div>
@@ -700,34 +679,29 @@ export default function MobileScannerView({
                             );
                         })()}
 
-                        <button
+                        <MobileButton
+                            tone="create"
+                            icon="bi-save"
                             onClick={handleLogWO}
                             disabled={submittingLog}
-                            style={xpBtn({
-                                width: '100%', justifyContent: 'center', fontSize: 14,
-                                padding: '12px 14px', fontWeight: 'bold',
-                                background: submittingLog ? '#aaa' : 'linear-gradient(to bottom, #5ec85e, #2d7a2d)',
-                                borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
-                                color: '#fff', opacity: submittingLog ? 0.6 : 1,
-                                cursor: submittingLog ? 'not-allowed' : 'pointer',
-                            })}
+                            style={{ width: '100%', fontSize: 14, padding: '12px 14px' }}
                         >
                             {submittingLog ? 'Menyimpan...' : 'Simpan Log'}
-                        </button>
-                    </div>
+                        </MobileButton>
+                    </MobilePanel>
                 </>
 
             ) : (
                 <>
                     {/* Scanner idle view */}
-                    <div style={{ ...xpInset, overflow: 'hidden' }}>
-                        <div id="mobile-reader" style={{ width: '100%' }} />
-                    </div>
-
-                    <div style={{ textAlign: 'center', fontFamily: XP_FONT, fontSize: 12, color: '#333' }}>
-                        <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Ready to Scan</div>
-                        <div style={{ fontSize: 11, color: '#666' }}>Point camera at a Work Order QR code (Kartu Kerja)</div>
-                    </div>
+                    <MobilePanel icon="bi-camera-fill" title="Ready to Scan">
+                        <div style={{ ...xpInset, overflow: 'hidden' }}>
+                            <div id="mobile-reader" style={{ width: '100%' }} />
+                        </div>
+                        <div style={{ textAlign: 'center', fontFamily: XP_FONT, fontSize: 11, color: '#666', marginTop: 6 }}>
+                            Point camera at a Work Order QR code (Kartu Kerja)
+                        </div>
+                    </MobilePanel>
 
                     {error && (
                         <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#6b0000' }}>

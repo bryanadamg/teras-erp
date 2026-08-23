@@ -3,31 +3,21 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT } from '../shared/xpTheme';
+import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
-
-const XP_BEIGE = '#ece9d8';
-
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    color: '#000000', borderRadius: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
-    ...extra,
-});
-const xpPanel: React.CSSProperties = {
-    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    background: '#f5f4ef', borderRadius: 0, padding: '10px 12px',
-};
-const xpSectionLabel: React.CSSProperties = {
-    fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold',
-    textTransform: 'uppercase', letterSpacing: 0.5, color: '#555',
-    borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 8,
-};
 const xpInput: React.CSSProperties = {
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
     border: '1px solid #7f9db9', boxSizing: 'border-box',
     borderRadius: 0, background: '#fff', width: '100%',
+};
+
+// Heading for a second group INSIDE a panel — a panel's own heading is its blue
+// title bar; this is the tier below it.
+const subLabel: React.CSSProperties = {
+    fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase',
+    letterSpacing: 0.5, color: '#555', borderBottom: '1px solid #c0bdb5',
+    paddingBottom: 3, marginBottom: 6, marginTop: 12,
 };
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
@@ -212,11 +202,12 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
     const reset = () => { setPl(null); setUnit(null); setError(null); setFlash(null); setManualCode(''); };
 
     return (
-        <div style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: 'var(--app-vh)', padding: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <strong style={{ fontSize: 15 }}>Pick Scanner</strong>
-                <button style={xpBtn()} onClick={onClose}>Back</button>
-            </div>
+        <div style={{ fontFamily: XP_FONT, background: MOBILE_BG, minHeight: 'var(--app-vh)', padding: 10 }}>
+            <MobileScreenBar
+                icon="bi-upc-scan"
+                title="Pick Scanner"
+                right={<MobileButton compact icon="bi-arrow-left" onClick={onClose}>Back</MobileButton>}
+            />
 
             {error && (
                 <div style={{ background: '#ffe8e8', border: '1px solid #c00', color: '#800', padding: '8px 10px', fontSize: 13, fontWeight: 'bold', marginBottom: 10 }}>
@@ -230,12 +221,13 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
             )}
 
             {pl && (
-                <div style={{ ...xpPanel, marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                        <strong style={{ fontSize: 15 }}>{pl.code}</strong>
-                        <StatusChip status={pl.status} />
-                    </div>
-                    <div style={{ fontSize: 12, color: '#333', marginTop: 4 }}>
+                <MobilePanel
+                    icon="bi-list-check"
+                    title={pl.code}
+                    right={<StatusChip status={pl.status} />}
+                    style={{ marginBottom: 10 }}
+                >
+                    <div style={{ fontSize: 12, color: '#333' }}>
                         {pl.sales_order_code || '—'} · {pl.customer_name || '—'}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
@@ -251,13 +243,12 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
                             All cartons scanned. Hand to QC — dispatch and the Surat Jalan are done on the desktop.
                         </div>
                     )}
-                    <button style={{ ...xpBtn(), marginTop: 10 }} onClick={reset}>Close list</button>
-                </div>
+                    <MobileButton icon="bi-x-lg" onClick={reset} style={{ marginTop: 10 }}>Close list</MobileButton>
+                </MobilePanel>
             )}
 
             {unit ? (
-                <div style={xpPanel}>
-                    <div style={xpSectionLabel}>Carton {unit.batch_number}</div>
+                <MobilePanel icon="bi-box2-fill" title={`Carton ${unit.batch_number}`}>
                     <Row label="Item" value={`${unit.item_name || ''} (${unit.item_code || ''})`} />
                     <Row label="Carton no." value={String(unit.package_no ?? '—')} />
                     <Row label="Qty in stock" value={num(unit.qty).toLocaleString()} />
@@ -267,16 +258,18 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
                     <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
                         Scan a pick list first to pick this carton onto an order.
                     </div>
-                    <button style={{ ...xpBtn(), marginTop: 10 }} onClick={reset}>Scan another</button>
-                </div>
+                    <MobileButton icon="bi-upc-scan" onClick={reset} style={{ marginTop: 10 }}>Scan another</MobileButton>
+                </MobilePanel>
             ) : (
                 <>
-                    <div style={{ ...xpPanel, marginBottom: 10, opacity: busy ? 0.6 : 1 }}>
-                        <div style={xpSectionLabel}>{pl ? 'Scan cartons' : 'Scan'}</div>
+                    <MobilePanel
+                        icon="bi-camera-fill"
+                        title={pl ? 'Scan cartons' : 'Scan'}
+                        style={{ marginBottom: 10, opacity: busy ? 0.6 : 1 }}
+                    >
                         <div id="pick-reader" style={{ width: '100%' }} />
-                    </div>
-                    <div style={{ ...xpPanel, marginBottom: 10 }}>
-                        <div style={xpSectionLabel}>Or type a code</div>
+                    </MobilePanel>
+                    <MobilePanel icon="bi-keyboard-fill" title="Or type a code" style={{ marginBottom: 10 }}>
                         {/* Also the USB-wedge path: a keyboard-emulating scanner types
                             the code here and submits with Enter. */}
                         <input
@@ -286,16 +279,25 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
                             onChange={e => setManualCode(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') { resolveCode(manualCode); setManualCode(''); } }}
                         />
-                        <button style={{ ...xpBtn(), marginTop: 8 }} onClick={() => { resolveCode(manualCode); setManualCode(''); }}>
+                        <MobileButton
+                            tone="launch"
+                            icon="bi-arrow-return-left"
+                            onClick={() => { resolveCode(manualCode); setManualCode(''); }}
+                            style={{ marginTop: 8 }}
+                        >
                             {pl ? 'Pick' : 'Open'}
-                        </button>
-                    </div>
+                        </MobileButton>
+                    </MobilePanel>
                 </>
             )}
 
             {pl && cartons.length > 0 && (
-                <div style={xpPanel}>
-                    <div style={xpSectionLabel}>Pending ({pending.length})</div>
+                <MobilePanel
+                    icon="bi-box-seam"
+                    title={`Pending (${pending.length})`}
+                    tone={pending.length === 0 ? 'green' : 'blue'}
+                    right={<span style={{ fontFamily: XP_FONT, fontSize: 11 }}>{picked.length}/{cartons.length} scanned</span>}
+                >
                     {pending.length === 0
                         ? <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>Nothing left to scan.</div>
                         : pending.map((l: any) => (
@@ -303,13 +305,13 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
                         ))}
                     {picked.length > 0 && (
                         <>
-                            <div style={{ ...xpSectionLabel, marginTop: 12 }}>Scanned ({picked.length})</div>
+                            <div style={subLabel}>Scanned ({picked.length})</div>
                             {picked.map((l: any) => (
                                 <CartonRow key={l.id} line={l} done />
                             ))}
                         </>
                     )}
-                </div>
+                </MobilePanel>
             )}
         </div>
     );

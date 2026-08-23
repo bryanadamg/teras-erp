@@ -1602,3 +1602,24 @@ table {
 @media (prefers-reduced-motion: reduce) {
     .lv-chev { transition: none; }
 }
+
+/* ── MOBILE SHELL: touch sizing for the shared classic primitives ──────────
+   The phone screens render the same `SearchField` / `FilterChipBar` controls the
+   desktop list views use (see components/mobile/mobileTheme.tsx) so the two read
+   as one product. Only the hit box grows here — colors, borders and gradients
+   stay in the shared TS source. Don't fork the controls to resize them. */
+.mobile-field input {
+  height: 32px !important;
+  font-size: 13px !important;
+  padding: 4px 28px 4px 28px !important;
+}
+.mobile-field > div { width: 100%; }
+.mobile-field i { font-size: 13px !important; left: 8px !important; }
+.mobile-field button { font-size: 15px !important; right: 6px !important; }
+
+.mobile-seg button {
+  flex: 1 1 0 !important;
+  padding: 7px 6px !important;
+  font-size: 12px !important;
+  min-width: 0 !important;
+}
