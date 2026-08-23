@@ -33,7 +33,7 @@ const SO_COL_WIDTHS = [
     150, // PO# / Ref
     180, // Customer
     72,  // Date
-    180, // Item
+    215, // Item
     132, // Size
     205, // Qty
     110, // Alt Unit
@@ -863,13 +863,17 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   // Shade / combo / size chips are VariantChips like everywhere else, so a shade
   // reads pink and a combo violet here too instead of landing in the neutral
   // default this row used to draw.
+  // The Item column is a fixed width (`tableLayout: fixed`), so a long combo name
+  // used to run the chip out past the cell's right edge into its neighbour. Chips
+  // clip to the cell instead; the full label stays on the tooltip.
   const renderChipRow = (chips: { label: string; hex: string | null; kind: VariantKind; icon?: string | null }[]) => (
-      <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2}}>
+      <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2,minWidth:0,maxWidth:'100%'}}>
           {chips.map((c, i) => (
               <VariantChip key={i} kind={c.kind} classic={classic}
                   title={c.kind === 'pending' ? 'Pending lab dip — colour not approved yet' : `${c.label}`}
                   icon={c.icon}
                   swatch={c.hex}
+                  truncate
               >{c.label}</VariantChip>
           ))}
       </div>

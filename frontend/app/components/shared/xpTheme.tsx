@@ -246,7 +246,7 @@ export const statusChipStyle = (status?: string, extra: React.CSSProperties = {}
 // bootstrap-icon class, `swatch` for a colour dot, `onRemove` for a pick-list "x".
 // Don't re-roll a chip span in a view; if a variant is missing, add it here.
 export function Chip({
-    children, classic, tone, icon, swatch, title, onRemove, onClick, bold, size = 'sm', style,
+    children, classic, tone, icon, swatch, title, onRemove, onClick, bold, size = 'sm', truncate, style,
 }: {
     children: React.ReactNode;
     classic?: boolean;
@@ -258,6 +258,10 @@ export function Chip({
     onClick?: () => void;
     bold?: boolean;
     size?: 'xs' | 'sm' | 'md';
+    /** Clip the label to the container instead of overflowing it (fixed-width table
+     *  cells). The chip never grows past its parent; the text ellipses, the icon,
+     *  swatch and remove button stay. Pair with a `title` carrying the full text. */
+    truncate?: boolean;
     style?: React.CSSProperties;
 }) {
     const fs = size === 'xs' ? (classic ? 9 : 9.5) : size === 'md' ? (classic ? 11 : 12) : (classic ? 10 : 11);
@@ -279,12 +283,15 @@ export function Chip({
                 lineHeight: 1.45,
                 whiteSpace: 'nowrap',
                 cursor: onClick ? 'pointer' : undefined,
+                ...(truncate ? { maxWidth: '100%', minWidth: 0, overflow: 'hidden' } : null),
                 ...style,
             }}
         >
             {icon && <i className={`bi ${icon}`} style={{ fontSize: fs - 1.5, opacity: 0.8 }} />}
             {swatch && <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: swatch, border: '1px solid rgba(0,0,0,0.25)' }} />}
-            {children}
+            {truncate
+                ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span>
+                : children}
             {onRemove && (
                 <button type="button" onClick={e => { e.stopPropagation(); onRemove(); }} title="Remove"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontWeight: 'bold', lineHeight: 1, padding: 0, marginLeft: 1, fontSize: fs + 2 }}>×</button>
@@ -335,7 +342,7 @@ const VARIANT_ICON: Partial<Record<VariantKind, string>> = {
 
 /** One variant-identity badge. Geometry comes from `Chip`, colour from `VARIANT_TONE`. */
 export function VariantChip({
-    kind, children, classic, swatch, icon, mono, title, size = 'xs', bold = true, onRemove, onClick, style,
+    kind, children, classic, swatch, icon, mono, title, size = 'xs', bold = true, onRemove, onClick, truncate, style,
 }: {
     kind: VariantKind;
     children: React.ReactNode;
@@ -350,6 +357,8 @@ export function VariantChip({
     bold?: boolean;
     onRemove?: () => void;
     onClick?: () => void;
+    /** Clip the label to the parent's width instead of overflowing it. */
+    truncate?: boolean;
     style?: React.CSSProperties;
 }) {
     // A swatch already says "this is a colour", so the palette icon would be noise.
@@ -365,6 +374,7 @@ export function VariantChip({
             title={title}
             onRemove={onRemove}
             onClick={onClick}
+            truncate={truncate}
             style={mono ? { fontFamily: CODE_FONT, ...style } : style}
         >{children}</Chip>
     );
