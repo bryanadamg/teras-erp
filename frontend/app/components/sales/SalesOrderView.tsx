@@ -1852,16 +1852,16 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        )}
                                        {soPRs.length > 0 && (
                                            <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, marginTop:3 }}>
-                                               {soPRs.map((pr: any) => classic ? (
-                                                   <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`}
-                                                       style={{ borderRadius: CHIP_RADIUS, fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
-                                                       <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{pr.code}
-                                                   </span>
-                                               ) : (
-                                                   <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`} role="button"
-                                                       style={{ fontSize:9, whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', cursor:'pointer', background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius: CHIP_RADIUS, fontWeight:'bold' }}>
-                                                       <i className="bi bi-check-circle me-1"></i>{pr.code}
-                                                   </span>
+                                               {/* Shared Chip, not a hand-rolled span: the PR chip is clipped by
+                                                   this column, and only Chip knows how to pop the full code out on
+                                                   hover. It also drops the per-theme green pair this cell used to
+                                                   pick for itself — green is the STATUS_FAMILY green. */}
+                                               {soPRs.map((pr: any) => (
+                                                   <Chip key={pr.id} classic={classic} tone={statusTint('COMPLETED')} bold truncate
+                                                       icon="bi-check-circle" size="xs" title={`Go to ${pr.code}`}
+                                                       onClick={() => goToPR(pr.code)} style={{ fontFamily: CODE_FONT }}>
+                                                       {pr.code}
+                                                   </Chip>
                                                ))}
                                            </div>
                                        )}
