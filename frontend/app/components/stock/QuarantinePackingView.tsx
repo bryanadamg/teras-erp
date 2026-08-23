@@ -834,12 +834,12 @@ export default function QuarantinePackingView() {
                                                 <LotChipRow>
                                                     {size && (
                                                         <LotChip tone="size" title={`Size: ${size}`}>
-                                                            <i className="bi bi-rulers" />{size}
+                                                            {size}
                                                         </LotChip>
                                                     )}
                                                     {combo && (
                                                         <LotChip tone="combo" title={`Combo: ${combo}`}>
-                                                            <i className="bi bi-grid-3x3-gap" />{combo}
+                                                            {combo}
                                                         </LotChip>
                                                     )}
                                                 </LotChipRow>

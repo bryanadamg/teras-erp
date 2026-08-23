@@ -531,6 +531,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         colorName={run.color_name}
                         colorHex={run.color_hex}
                         labdipCode={run.labdip_variant_code}
+                        classic={cls}
                         scale="sm"
                     />
                     <span className="text-muted small">
@@ -896,6 +897,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                             colorName={h.color_name}
                                                             colorHex={h.color_hex}
                                                             labdipCode={h.labdip_variant_code}
+                                                            classic={cls}
                                                         />
                                                     </div>
                                                 </td>

@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -540,29 +540,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
         <span>{batchItemCode(b)}</span>
         {(sz || combo || shade) && chipRow(
           <>
-            {sz && chip(
-              <><i className="bi bi-rulers" style={{ marginRight: 3 }} />{sz}</>,
-              '#3d4d5c', '#e8edf0', '#b8c4cc', { title: `Size: ${sz}` },
-            )}
-            {combo && chip(
-              <><i className="bi bi-grid-3x3-gap" style={{ marginRight: 3 }} />{combo}</>,
-              '#5a4499', '#efeaff', '#cabbec', { title: `Combo: ${combo}` },
-            )}
+            {sz && <VariantChip kind="size" classic={classic} title={`Size: ${sz}`}>{sz}</VariantChip>}
+            {combo && <VariantChip kind="combo" classic={classic} title={`Combo: ${combo}`}>{combo}</VariantChip>}
             {shade && (shade.pending
-              ? chip(`${shade.label} (pending)`, '#7a4500', '#fdf3d8', '#e0c080',
-                { title: `Shade pending lab dip approval: ${shade.label}` })
-              : chip(
-                <>
-                  {shade.hex && (
-                    <span style={{
-                      display: 'inline-block', width: 7, height: 7, marginRight: 3, borderRadius: '50%',
-                      background: shade.hex, border: '1px solid rgba(0,0,0,.35)',
-                    }} />
-                  )}
-                  {shade.label}
-                </>,
-                '#8a3a5a', '#fdeaf1', '#e8bcd0', { title: `Color: ${shade.label}` },
-              ))}
+              ? <VariantChip kind="pending" classic={classic} title={`Shade pending lab dip approval: ${shade.label}`}>{shade.label} (pending)</VariantChip>
+              : <VariantChip kind="color" classic={classic} swatch={shade.hex} title={`Color: ${shade.label}`}>{shade.label}</VariantChip>)}
           </>,
         )}
       </div>

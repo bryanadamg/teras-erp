@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, VariantChip } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton, SearchField } from '../shared/shellTheme';
@@ -227,17 +227,20 @@ export default function BOMView({
         return null;
     };
 
-    // Variant chip row (hex swatch + label) — shared by the list Variant column and the detail node header.
+    // Variant chip row — shared by the list Variant column and the detail node header.
+    // Tone/geometry come from VariantChip (xpTheme); a value that resolves to a hex is
+    // a shade, the rest are loose attributes. No local palette: the old beige one made
+    // the same value read differently here than on the WO list or the lot pickers.
     const renderVariantChips = (valIds: string[], compact = false) => (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
             {valIds.map((valId: string) => {
                 const label = getAttributeValueName(valId);
                 const hex = getAttributeValueHex(valId) ?? colorHexFor(label);
                 return (
-                    <span key={valId} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: compact ? 9 : 10, padding: compact ? '0 4px' : '1px 5px', fontFamily: xpFont, whiteSpace: 'nowrap' }}>
-                        {hex && <span style={{ width: compact ? 9 : 10, height: compact ? 9 : 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
-                        {label}
-                    </span>
+                    <VariantChip
+                        key={valId} kind={hex ? 'color' : 'material'} classic={classic}
+                        size={compact ? 'xs' : 'sm'} swatch={hex} icon={null} title={label}
+                    >{label}</VariantChip>
                 );
             })}
         </div>

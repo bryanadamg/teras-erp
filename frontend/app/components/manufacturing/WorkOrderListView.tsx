@@ -901,6 +901,7 @@ export default function WorkOrderListView({
                                                             colorName={wo.color_name}
                                                             colorHex={wo.color_hex}
                                                             labdipCode={wo.labdip_variant_code}
+                                                            classic={classic}
                                                             style={{ marginLeft: 'auto', flexShrink: 0 }}
                                                         />
                                                     </div>

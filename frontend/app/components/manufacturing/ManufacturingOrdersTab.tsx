@@ -8,13 +8,18 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
 import { useTimezone } from '../../context/TimezoneContext';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
+
+// On the selected (blue) tree row a normal chip fill would fight the highlight, so
+// chips there go translucent-on-blue instead of picking a second palette.
+const activeChipStyle = (isActive: boolean): React.CSSProperties | undefined =>
+    isActive ? { background: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.45)', color: '#eaf2ff' } : undefined;
 
 export default function ManufacturingOrdersTab({
     items,
@@ -52,7 +57,7 @@ export default function ManufacturingOrdersTab({
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
     const {
         getItemName, getItemCode, getItemUom, getItemEnds, uomBadgeStyle,
-        getBOMCode, getLocationName, getWCName, getAttributeValueName, getBomSizeLabel,
+        getBOMCode, getLocationName, getWCName, getAttributeValueName, getAttributeValueHex, getBomSizeLabel,
         formatDate, formatDateTime, getDueDateWarning,
         calculateRequiredQty, getStockAcrossLocations, getBeamBatchCount,
     } = helpers;
@@ -561,17 +566,21 @@ export default function ManufacturingOrdersTab({
                                         )}
                                         {((node.attribute_value_ids || []).length > 0 || node.bom_size_id) && (
                                             <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 2 }}>
-                                                {(node.attribute_value_ids || []).map((id: string) => (
-                                                    <span key={id} style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(219,234,254,0.25)' : '#dbeafe', color: isActive ? '#bfdbfe' : '#1d4ed8', borderRadius: CHIP_RADIUS, fontWeight: 700, lineHeight: '14px' }}>
-                                                        {getAttributeValueName(id)}
-                                                    </span>
-                                                ))}
+                                                {(node.attribute_value_ids || []).map((id: string) => {
+                                                    const hex = getAttributeValueHex(id);
+                                                    return (
+                                                        <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic}
+                                                            swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                                            style={activeChipStyle(isActive)}
+                                                        >{getAttributeValueName(id)}</VariantChip>
+                                                    );
+                                                })}
                                                 {(node.bom_size_id || node.bom_size_snapshot) && (() => {
                                                     const label = getBomSizeLabel(node.bom_id, node.bom_size_id, node.bom_size_snapshot);
                                                     return label ? (
-                                                        <span style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(220,252,231,0.25)' : '#dcfce7', color: isActive ? '#bbf7d0' : '#15803d', borderRadius: CHIP_RADIUS, fontWeight: 700, lineHeight: '14px' }}>
-                                                            <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
-                                                        </span>
+                                                        <VariantChip kind="size" classic={classic} title={`Size: ${label}`}
+                                                            style={activeChipStyle(isActive)}
+                                                        >{label}</VariantChip>
                                                     ) : null;
                                                 })()}
                                             </div>
@@ -612,11 +621,14 @@ export default function ManufacturingOrdersTab({
                     }}>
                         <CodeChip code={selectedNode.code} classic={classic} style={{ fontSize: 12, fontWeight: 'bold' }} />
                         <span style={{ fontSize: '12px', color: '#000' }}>{selectedNode.item_name}</span>
-                        {(selectedNode.attribute_value_ids || []).map((id: string) => (
-                            <span key={id} style={{ fontSize: '9px', padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
-                                {getAttributeValueName(id)}
-                            </span>
-                        ))}
+                        {(selectedNode.attribute_value_ids || []).map((id: string) => {
+                            const hex = getAttributeValueHex(id);
+                            return (
+                                <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic} size="sm"
+                                    swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                >{getAttributeValueName(id)}</VariantChip>
+                            );
+                        })}
                         {canManage && selectedNode.status === 'PENDING' && (
                             <button
                                 title="Edit attributes"
@@ -628,14 +640,15 @@ export default function ManufacturingOrdersTab({
                         )}
                         {/* Color / pending-lab-dip status for color-type orders */}
                         {selectedNode.color_code && (
-                            <span title="Approved color" style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
-                                <i className="bi bi-palette me-1"></i>{selectedNode.color_code}{selectedNode.color_name && selectedNode.color_name !== selectedNode.color_code ? ` — ${selectedNode.color_name}` : ''}
-                            </span>
+                            <VariantChip kind="color" classic={classic} size="sm" title="Approved color"
+                                swatch={selectedNode.color_hex || colorHexFor(selectedNode.color_name || selectedNode.color_code)}
+                                icon={selectedNode.color_hex ? undefined : 'bi-palette'}
+                            >{selectedNode.color_code}{selectedNode.color_name && selectedNode.color_name !== selectedNode.color_code ? ` — ${selectedNode.color_name}` : ''}</VariantChip>
                         )}
                         {!selectedNode.color_id && selectedNode.labdip_variant_code && (
-                            <span title="Color still in lab dip — dyeing is blocked until approved or a color is set" style={{ fontSize: '9px', padding: '1px 6px', background: '#fbf4dd', color: '#8a6d00', border: '1px solid #e8dca8', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
-                                <i className="bi bi-eyedropper me-1"></i>Lab dip: {selectedNode.labdip_variant_code}
-                            </span>
+                            <VariantChip kind="pending" classic={classic} size="sm"
+                                title="Color still in lab dip — dyeing is blocked until approved or a color is set"
+                            >Lab dip: {selectedNode.labdip_variant_code}</VariantChip>
                         )}
                         {canManage && (selectedNode.color_id || selectedNode.labdip_variant_code) && selectedNode.status !== 'COMPLETED' && selectedNode.status !== 'CANCELLED' && (
                             <button
@@ -649,9 +662,7 @@ export default function ManufacturingOrdersTab({
                         {(selectedNode.bom_size_id || selectedNode.bom_size_snapshot) && (() => {
                             const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id, selectedNode.bom_size_snapshot);
                             return label ? (
-                                <span style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
-                                    <i className="bi bi-rulers me-1"></i>{label}
-                                </span>
+                                <VariantChip kind="size" classic={classic} size="sm" title={`Size: ${label}`}>{label}</VariantChip>
                             ) : null;
                         })()}
                         <span
@@ -1237,17 +1248,18 @@ export default function ManufacturingOrdersTab({
                                                     </div>
                                                     {((wo.attribute_value_ids || []).length > 0 || wo.bom_size_id) && (
                                                         <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap', overflow: 'hidden', marginTop: 2 }}>
-                                                            {(wo.attribute_value_ids || []).map((id: string) => (
-                                                                <span key={id} style={{ fontSize: '9px', padding: '1px 5px', background: classic ? '#dce8ff' : '#dbeafe', color: classic ? '#003ea6' : '#1d4ed8', border: `1px solid ${classic ? '#9ab0e0' : '#93c5fd'}`, borderRadius: CHIP_RADIUS, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                                                    {getAttributeValueName(id)}
-                                                                </span>
-                                                            ))}
+                                                            {(wo.attribute_value_ids || []).map((id: string) => {
+                                                                const hex = getAttributeValueHex(id);
+                                                                return (
+                                                                    <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic}
+                                                                        swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                                                    >{getAttributeValueName(id)}</VariantChip>
+                                                                );
+                                                            })}
                                                             {wo.bom_size_id && (() => {
                                                                 const label = getBomSizeLabel(wo.bom_id, wo.bom_size_id);
                                                                 return label ? (
-                                                                    <span style={{ fontSize: '9px', padding: '1px 5px', background: classic ? '#e4f5e4' : '#dcfce7', color: classic ? '#1a5e1a' : '#15803d', border: `1px solid ${classic ? '#90c090' : '#86efac'}`, borderRadius: CHIP_RADIUS, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                                                        <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
-                                                                    </span>
+                                                                    <VariantChip kind="size" classic={classic} title={`Size: ${label}`}>{label}</VariantChip>
                                                                 ) : null;
                                                             })()}
                                                         </div>

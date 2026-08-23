@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CODE_FONT, CHIP_RADIUS } from './xpTheme';
+import { VariantChip, VariantKind } from './xpTheme';
 
 /**
  * Shared lot-identity chips for lot/beam pickers (WO staging, WO completion,
@@ -68,55 +68,29 @@ export const lotColorLabel = (b: LotLike): { label: string; hex?: string | null;
     return null;
 };
 
-const TONE = {
-    size: { fg: '#3d4d5c', bg: '#e8edf0', border: '#b8c4cc' },
-    combo: { fg: '#5a4499', bg: '#efeaff', border: '#cabbec' },
-    color: { fg: '#8a3a5a', bg: '#fdeaf1', border: '#e8bcd0' },
-    pending: { fg: '#7a4500', bg: '#fdf3d8', border: '#e0c080' },
-    material: { fg: '#3a6b2a', bg: '#e8f0e2', border: '#b8d0a8' },
-    location: { fg: '#0058e6', bg: '#e8f0ff', border: '#a8c8f0' },
-    order: { fg: '#444', bg: '#eceae2', border: '#c4c2ba' },
-    qty: { fg: '#1a5e1a', bg: '#e4f3e4', border: '#a8d0a8' },
-} as const;
+// Lot chips are variant chips: the tone map and the badge itself now live in
+// xpTheme (`VARIANT_TONE` / `VariantChip`) so the SO table, netting plan, BOM list
+// and WO list draw a shade the same pink this file always did. Re-exported here
+// because the lot pickers refer to them by these names.
+export { VARIANT_TONE, variantChipTone } from './xpTheme';
+export type LotChipTone = VariantKind;
 
-export type LotChipTone = keyof typeof TONE;
-
+/** A lot-identity badge. Kept as a name of its own because the pickers read better
+ *  with it, but it is `VariantChip` — no second geometry, no second palette. */
 export function LotChip({
-    children, tone = 'order', title, mono, swatch,
+    children, tone = 'order', title, mono, swatch, icon,
 }: {
     children: React.ReactNode;
     tone?: LotChipTone;
     title?: string;
     mono?: boolean;
     swatch?: string | null;
+    icon?: string | null;
 }) {
-    const t = TONE[tone];
     return (
-        <span
-            title={title}
-            style={{
-                display: 'inline-flex', alignItems: 'center', gap: 3,
-                fontSize: 9, fontWeight: 'bold', padding: '0 4px',
-                // Shape comes from CHIP_RADIUS, never from a caller: the old `rounded`
-                // prop was really "am I in the modern theme", so the same lot chip
-                // rendered square next to a pill depending on which view drew it.
-                borderRadius: CHIP_RADIUS, lineHeight: '14px',
-                color: t.fg, background: t.bg, border: `1px solid ${t.border}`,
-                // `mono` marks the two chips that hold a CODE (supplier lot, producing
-                // order) rather than an attribute value. They stay chips — inside a
-                // LotChipRow they are peers of the size/combo/shade chips and bare text
-                // would break the row — but they share the app-wide code face.
-                whiteSpace: 'nowrap', fontFamily: mono ? CODE_FONT : undefined,
-            }}
-        >
-            {swatch ? (
-                <span style={{
-                    width: 7, height: 7, flexShrink: 0, borderRadius: '50%',
-                    background: swatch, border: '1px solid rgba(0,0,0,.35)',
-                }} />
-            ) : null}
+        <VariantChip kind={tone} title={title} mono={mono} swatch={swatch} icon={icon}>
             {children}
-        </span>
+        </VariantChip>
     );
 }
 
@@ -162,14 +136,14 @@ export function LotChips({
     if (size) {
         chips.push(
             <LotChip key="size" tone="size" title={`Size: ${size}`}>
-                <i className="bi bi-rulers" />{size}
+                {size}
             </LotChip>,
         );
     }
     if (combo) {
         chips.push(
             <LotChip key="combo" tone="combo" title={`Combo: ${combo}`}>
-                <i className="bi bi-grid-3x3-gap" />{combo}
+                {combo}
             </LotChip>,
         );
     }
@@ -200,7 +174,7 @@ export function LotChips({
     if (showLocation && batch.location_name) {
         chips.push(
             <LotChip key="loc" tone="location" title="Current location">
-                <i className="bi bi-geo-alt" />{batch.location_name}
+                {batch.location_name}
             </LotChip>,
         );
     }

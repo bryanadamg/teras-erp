@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { CodeChip, CODE_FONT, colorHexFor, CHIP_RADIUS } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, colorHexFor, CHIP_RADIUS, VariantChip, VariantKind } from '../shared/xpTheme';
 import { qtyFmt } from '../shared/format';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
@@ -83,12 +83,10 @@ const DECISION: Record<string, { label: string; bg: string; fg: string; bd: stri
 
 const num = qtyFmt(2);
 
-// One palette per chip kind, so a size never reads as a shade at a glance.
-const CHIP_TONE: Record<string, { bg: string; fg: string; bd: string }> = {
-    size: { bg: '#f1f5f9', fg: '#334155', bd: '#cbd5e1' },
-    color: { bg: '#fff', fg: '#334155', bd: '#cbd5e1' },
-    combo: { bg: '#eef2ff', fg: '#4338ca', bd: '#c7d2fe' },
-    attr: { bg: '#f8fafc', fg: '#64748b', bd: '#e2e8f0' },
+// Chip kinds map onto the app-wide VARIANT_TONE — no local palette (this table
+// used to have one, so a shade here was slate while the lot pickers drew it pink).
+const CHIP_KIND: Record<string, VariantKind> = {
+    size: 'size', color: 'color', combo: 'combo', attr: 'material',
 };
 
 function IdentityChips({ chips, classic }: { chips?: NettingChip[]; classic: boolean }) {
@@ -96,24 +94,15 @@ function IdentityChips({ chips, classic }: { chips?: NettingChip[]; classic: boo
     return (
         <>
             {chips.map((c, i) => {
-                const t = CHIP_TONE[c.kind] || CHIP_TONE.attr;
-                const swatch = c.kind === 'color' ? (c.hex || colorHexFor(c.label)) : null;
+                const kind = CHIP_KIND[c.kind] || 'material';
+                const swatch = kind === 'color' ? (c.hex || colorHexFor(c.label)) : null;
                 return (
-                    <span key={i} title={c.group ? `${c.group}: ${c.label}` : c.label}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 3,
-                            fontSize: 9, fontWeight: 600, lineHeight: 1.5,
-                            background: classic ? '#e8e4d8' : t.bg,
-                            color: classic ? '#333' : t.fg,
-                            border: `1px solid ${classic ? '#b0aaa0' : t.bd}`,
-                            padding: '0 4px', borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap',
-                        }}>
-                        {swatch && <span style={{
-                            width: 7, height: 7, background: swatch, flexShrink: 0,
-                            border: '1px solid rgba(0,0,0,0.35)', display: 'inline-block',
-                        }} />}
-                        {c.kind === 'size' ? c.label.toUpperCase() : c.label}
-                    </span>
+                    <VariantChip
+                        key={i} kind={kind} classic={classic} swatch={swatch}
+                        title={c.group ? `${c.group}: ${c.label}` : c.label}
+                    >
+                        {kind === 'size' ? c.label.toUpperCase() : c.label}
+                    </VariantChip>
                 );
             })}
         </>

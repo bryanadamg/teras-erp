@@ -204,6 +204,7 @@ export default function WeavingMonitorView() {
             colorName={run.color_name}
             colorHex={run.color_hex}
             labdipCode={run.labdip_variant_code}
+            classic={cls}
             scale="sm"
             style={{ flexWrap: 'wrap', gap: 3 }}
         />
