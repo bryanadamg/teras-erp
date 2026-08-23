@@ -183,9 +183,11 @@ export function FloatingLayer({ rect, anchorEl, placement = 'bottom', align = 's
 /** The tooltip box itself. Classic is the XP tooltip (pale yellow, 1px black,
  *  Tahoma); modern is a dark bubble. Exported for the rare caller that drives its
  *  own anchor and only wants the surface. */
-export function TooltipSurface({ classic, children, maxWidth = 320 }: { classic: boolean; children: React.ReactNode; maxWidth?: number }) {
+export function TooltipSurface({ classic, children, maxWidth = 320, id }: { classic: boolean; children: React.ReactNode; maxWidth?: number; id?: string }) {
     return (
         <div
+            id={id}
+            role="tooltip"
             className="tip-surface"
             style={{
                 maxWidth,
@@ -233,8 +235,15 @@ export function Tooltip({ content, children, placement = 'bottom', align = 'star
     const classic = uiStyle === 'classic';
     const empty = content === null || content === undefined || content === '';
     const { rect, anchorEl, handlers } = useHoverAnchor({ delay, enabled: !disabled && !empty });
+    const tipId = React.useId();
     const child = React.Children.only(children) as React.ReactElement<any>;
     const cloned = React.cloneElement(child, {
+        // Points a screen reader at the surface while it is up, the same way the
+        // global layer does for a plain `title`.
+        'aria-describedby': rect ? tipId : child.props['aria-describedby'],
+        // Tells GlobalTooltip to keep its hands off: this element already owns a
+        // surface, and the global one would stack a second bubble on top of it.
+        'data-no-tip': '',
         onMouseEnter: chain(child.props.onMouseEnter, handlers.onMouseEnter),
         onMouseLeave: chain(child.props.onMouseLeave, handlers.onMouseLeave),
         onFocus: chain(child.props.onFocus, handlers.onFocus),
@@ -246,7 +255,7 @@ export function Tooltip({ content, children, placement = 'bottom', align = 'star
             {cloned}
             {rect && (
                 <FloatingLayer rect={rect} anchorEl={anchorEl} placement={placement} align={align} className="tip-anim">
-                    <TooltipSurface classic={classic} maxWidth={maxWidth}>{content}</TooltipSurface>
+                    <TooltipSurface classic={classic} maxWidth={maxWidth} id={tipId}>{content}</TooltipSurface>
                 </FloatingLayer>
             )}
         </>

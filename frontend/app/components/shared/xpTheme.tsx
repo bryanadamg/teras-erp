@@ -84,7 +84,7 @@ export function CodeChip({ code, classic, tier = 1, tone = 'default', link = fal
 
     return (
         <>
-            <span ref={selfRef} className={className} {...handlers} onClick={onClick} style={boxStyle}>{code}</span>
+            <span ref={selfRef} className={className} {...handlers} data-no-tip="" onClick={onClick} style={boxStyle}>{code}</span>
             {rect && (mode.current === 'pop'
                 ? (
                     <FloatingLayer rect={rect} anchorEl={anchorEl} placement="over" className="chip-pop-anim">
@@ -354,7 +354,7 @@ export function Chip({
 
     return (
         <>
-            <span {...handlers} onClick={onClick} style={chipStyle}>{inner(true)}</span>
+            <span {...handlers} data-no-tip="" onClick={onClick} style={chipStyle}>{inner(true)}</span>
             {rect && (mode.current === 'pop'
                 ? (
                     // Same chip, unclipped, over its own position — it grows out of
@@ -401,6 +401,20 @@ export const VARIANT_TONE = {
 } as const;
 
 export type VariantKind = keyof typeof VARIANT_TONE;
+
+// Reference tones — the badges that name a REFERENCE rather than a variant: an
+// item's category, the warehouse and bin a balance sits in, the lot it belongs to,
+// the supplier lot it came in on, the MO that produced it. These hexes were
+// declared inline in the stock and ledger tables (twice each, once per theme);
+// they keep their colours and lose the duplication. Render them with `<Chip>`.
+export const REF_TONES = {
+    category:    { color: '#2a464a', background: '#e4eef0', borderColor: '#8fb3bb' },
+    warehouse:   { color: '#4a4a2a', background: '#eef0e4', borderColor: '#b7bb8f' },
+    bin:         { color: '#3a2a4a', background: '#e8e1f0', borderColor: '#a890c0' },
+    lot:         { color: '#5a3c00', background: '#fff8dc', borderColor: '#c8a000' },
+    supplierLot: { color: '#4a4438', background: '#f0ece0', borderColor: '#b0a890' },
+    producedBy:  { color: '#2a4a2a', background: '#e4f0e4', borderColor: '#8fbb8f' },
+} as const;
 
 /** The tone triple for `<Chip tone={...}>`, for the few callers that need the raw palette. */
 export const variantChipTone = (kind: VariantKind) => VARIANT_TONE[kind];
