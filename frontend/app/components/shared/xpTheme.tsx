@@ -300,12 +300,17 @@ export function Chip({
 // were each being re-coloured per view (WO list, netting plan, BOM list, lot
 // pickers, SO table, batches, quarantine all had their own palette), so the same
 // shade read pink on one page, slate on the next and beige on a third. The map
-// lives here and nothing picks its own hue: a shade is a shade everywhere.
+// lives here and nothing picks its own hue: a shade is a shade everywhere. Swap a
+// hue HERE and every page follows — never per view.
 // ---------------------------------------------------------------------------
 export const VARIANT_TONE = {
-    size: { color: '#3d4d5c', background: '#e8edf0', borderColor: '#b8c4cc' },
+    // Shade chips are the NEUTRAL slate ones and size takes the pink: a shade often
+    // carries its own colour swatch, and a real swatch sitting on a tinted fill reads
+    // as a colour clash rather than as the colour of the goods. Neutral behind the
+    // swatch keeps the swatch the only colour in the chip.
+    size: { color: '#8a3a5a', background: '#fdeaf1', borderColor: '#e8bcd0' },
     combo: { color: '#5a4499', background: '#efeaff', borderColor: '#cabbec' },
-    color: { color: '#8a3a5a', background: '#fdeaf1', borderColor: '#e8bcd0' },
+    color: { color: '#3d4d5c', background: '#e8edf0', borderColor: '#b8c4cc' },
     pending: { color: '#7a4500', background: '#fdf3d8', borderColor: '#e0c080' },
     material: { color: '#3a6b2a', background: '#e8f0e2', borderColor: '#b8d0a8' },
     location: { color: '#0058e6', background: '#e8f0ff', borderColor: '#a8c8f0' },
