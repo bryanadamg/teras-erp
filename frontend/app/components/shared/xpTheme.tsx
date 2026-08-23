@@ -293,6 +293,60 @@ export function Chip({
     );
 }
 
+// Document-origin badges — the SO/PO/PR/MO/WO references that hang off a row as
+// secondary provenance ("where did this come from"), not as the row's own identity
+// (that stays a bare `CodeChip`). Several sit side by side, so the prefix + tone is
+// what separates them at a glance; the tone map lives here so PR is the same purple
+// on every page instead of being re-picked per view.
+export const ORIGIN_TONES = {
+    wo: { color: '#1d5c2e', background: '#e4f2e6', borderColor: '#a8ccb0' },
+    mo: { color: '#444444', background: '#eceae2', borderColor: '#c4c2ba' },
+    pr: { color: '#5a4499', background: '#efeaff', borderColor: '#cabbec' },
+    so: { color: '#0058e6', background: '#e8f0ff', borderColor: '#a8c8f0' },
+    po: { color: '#7a4500', background: '#fdf3d8', borderColor: '#e0c080' },
+} as const;
+
+export type OriginKind = keyof typeof ORIGIN_TONES;
+
+const ORIGIN_TITLE: Record<OriginKind, string> = {
+    wo: 'Work Order', mo: 'Manufacturing Order', pr: 'Production Run',
+    so: 'Sales Order', po: 'Purchase Order',
+};
+
+/** One origin reference as a badge. `prefix` false drops the "PR "/"SO " label when
+ *  the code already carries it (MO-00012) or the column header says which it is. */
+export function OriginChip({ kind, code, classic, prefix = true, title, size = 'xs', style }: {
+    kind: OriginKind;
+    code: React.ReactNode;
+    classic?: boolean;
+    prefix?: boolean;
+    title?: string;
+    size?: 'xs' | 'sm' | 'md';
+    style?: React.CSSProperties;
+}) {
+    return (
+        <Chip
+            classic={classic}
+            tone={ORIGIN_TONES[kind]}
+            size={size}
+            bold
+            title={title ?? `${ORIGIN_TITLE[kind]}: ${typeof code === 'string' ? code : ''}`.trim()}
+            style={{ fontFamily: CODE_FONT, gap: 3, ...style }}
+        >
+            {prefix ? `${kind.toUpperCase()} ${code}` : code}
+        </Chip>
+    );
+}
+
+/** Origin badges on one line — the row never grows taller, the table scrolls. */
+export function OriginChipRow({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+    return (
+        <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', whiteSpace: 'nowrap', ...style }}>
+            {children}
+        </div>
+    );
+}
+
 export function StatusChip({ status, label, style, tint, title }: { status: string; label?: string; style?: React.CSSProperties; tint?: boolean; title?: string }) {
     return (
         <span style={statusChipStyle(status, style, tint)} title={title}>
