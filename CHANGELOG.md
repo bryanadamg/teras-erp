@@ -15,6 +15,15 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-23
+
+### Changed
+- Every small tinted badge — status chip, count pill, variant/colour/combo chip, qty chip, tag chip, permission chip, lot chip — takes its corner radius from one `CHIP_RADIUS` token and a shared `<Chip>` primitive. Seven modern radii and two classic ones were in use across ~60 chips, so two chips in the same table cell could render one square and one pill
+- Sidebar labels drop the `(SO)`/`(PO)` abbreviations
+
+### Fixed
+- The production-run netting preview splits component rows per size the same way MO creation splits component MOs: a size-differentiated sub-BOM now gets one row per size (matched to the parent's size row by Size master, else by label), while an unsized or free sub-BOM still pools across every parent size. The preview was pooling all sizes into one component row, so it showed a different tree than the run it was previewing
+
 ## [0.6.0] - 2026-08-22
 
 ### Added
