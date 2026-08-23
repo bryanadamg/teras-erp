@@ -39,12 +39,13 @@ function ActionSlot({ width, show, children }: { width: number; show: boolean; c
     );
 }
 
-type WOTabKey = 'ALL' | 'BEAMING' | 'WEAVING' | 'DYEING' | 'OTHERS';
+type WOTabKey = 'ALL' | 'BEAMING' | 'WEAVING' | 'DYEING' | 'SETTING' | 'OTHERS';
 const WO_TABS: TabDef<WOTabKey>[] = [
     { key: 'ALL',     label: 'All',     icon: 'bi-collection' },
     { key: 'BEAMING', label: 'Beaming', icon: 'bi-diagram-3' },
     { key: 'WEAVING', label: 'Weaving', icon: 'bi-grid-3x3' },
     { key: 'DYEING',  label: 'Dyeing',  icon: 'bi-droplet-half' },
+    { key: 'SETTING', label: 'Setting', icon: 'bi-thermometer-half' },
     { key: 'OTHERS',  label: 'Others',  icon: 'bi-three-dots' },
 ];
 
