@@ -15,6 +15,7 @@ import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonM
 
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
+import { Tooltip } from '../shared/Tooltip';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
 import { lvThead, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
@@ -49,13 +50,12 @@ const SO_TABLE_MIN_WIDTH = SO_COL_WIDTHS.reduce((a, b) => a + b, 0);
 // The MO progress bar IS the link to the MO. A code chip above it ate the column's
 // width and truncated the code to noise ("PR-2026-08-00010-00…"), so the code now
 // lives only in the hover tooltip and the bar itself is the click target.
-function MOProgressLink({ pct, tone, title, onClick }: { pct: number; tone: 'green' | 'blue'; title: string; onClick: () => void }) {
+function MOProgressLink({ pct, tone, onClick }: { pct: number; tone: 'green' | 'blue'; onClick: () => void }) {
     const [hover, setHover] = useState(false);
     return (
         <div
             role="button"
             tabIndex={0}
-            title={title}
             onClick={onClick}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
             onMouseEnter={() => setHover(true)}
@@ -1002,13 +1002,15 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
           `Click to open ${mp.mo_code}`,
       ].join('\n');
       return (
-          <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }} title={title}>
+          // One tooltip for the whole cell — the step list is the same answer
+          // whether the reader is over the bar, the count or the stage line.
+          <Tooltip content={title} maxWidth={340}>
+          <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
               {/* Blue while running, green at 100 — the STATUS_FAMILY reading of
                   IN_PROGRESS vs COMPLETED, matching lineageProgressBar. */}
               <MOProgressLink
                   pct={mp.pct}
                   tone={mp.pct >= 100 ? 'green' : 'blue'}
-                  title={title}
                   onClick={() => goToMO(mp.mo_code)}
               />
               <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.pct >= 100 ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
@@ -1023,6 +1025,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                   </div>
               )}
           </div>
+          </Tooltip>
       );
   };
 
