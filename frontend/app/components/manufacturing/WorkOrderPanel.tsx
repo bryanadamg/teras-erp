@@ -13,7 +13,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
@@ -534,7 +534,7 @@ export default function WorkOrderPanel({
                                             </select>
                                         )}
                                         {lockedGroupId && (
-                                            <span style={{
+                                            <span style={{ borderRadius: CHIP_RADIUS,
                                                 fontFamily: xpFont, fontSize: 10, padding: '0 7px', height: 20,
                                                 display: 'inline-flex', alignItems: 'center',
                                                 background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',
@@ -675,7 +675,7 @@ export default function WorkOrderPanel({
 
                                     {/* Work center type chip */}
                                     {wo.work_center_type ? (
-                                        <span style={{
+                                        <span style={{ borderRadius: CHIP_RADIUS,
                                             padding: '0 5px', fontSize: 9, fontWeight: 'bold',
                                             border: `1px solid ${chipStyle.borderColor}`,
                                             background: chipStyle.background,
@@ -822,7 +822,7 @@ export default function WorkOrderPanel({
                                 )}
                                 {/* Group locked badge — BOM defines work_center_id */}
                                 {lockedGroupId && (
-                                    <span style={{
+                                    <span style={{ borderRadius: CHIP_RADIUS,
                                         fontFamily: xpFont, fontSize: 10, padding: '0 7px', height: 20,
                                         display: 'inline-flex', alignItems: 'center',
                                         background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',

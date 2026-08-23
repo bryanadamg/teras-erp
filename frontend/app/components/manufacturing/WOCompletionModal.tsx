@@ -8,7 +8,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
-import { ProgressBar, LegendPanel, CodeChip, xpFont } from '../shared/xpTheme';
+import { ProgressBar, LegendPanel, CodeChip, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 import { RowCheckbox, lvPickerRow, LV_STICKY_THEAD } from '../shared/listViewTheme';
 import { LotChips } from '../shared/LotChips';
 import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
@@ -466,7 +466,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                         <span style={{
                                             fontSize: 9, fontWeight: 'bold', letterSpacing: 0.3, textTransform: 'uppercase',
                                             color: '#31569e', background: '#e8f0fe', border: '1px solid #a8c0f0',
-                                            borderRadius: 2, padding: '0 5px', lineHeight: '14px',
+                                            borderRadius: CHIP_RADIUS, padding: '0 5px', lineHeight: '14px',
                                         }}>
                                             {findItem(mo.item_id).uom}
                                         </span>
@@ -556,7 +556,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                                 {/* What this log actually takes off the lot — the rest stays
                                                                     on it for the next run. FIFO, so later lots may draw 0. */}
                                                                 {selSet.has(b.id) && (
-                                                                    <span style={{
+                                                                    <span style={{ borderRadius: CHIP_RADIUS,
                                                                         fontSize: 9, fontWeight: 'bold', color: drawByBatch[b.id] ? '#0a3e0a' : '#777',
                                                                         background: drawByBatch[b.id] ? '#d0f0d0' : '#eceae2',
                                                                         border: '1px solid #aca899', padding: '0 4px',
@@ -619,7 +619,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                 <label style={{ ...xpLabel, ...(needsMachine ? { fontWeight: 'bold', color: '#900' } : {}) }}>
                                     Work Center / Machine{needsMachine ? ' (required — assigns stock locations)' : ''}
                                     {machineScopeLabel && (
-                                        <span style={{
+                                        <span style={{ borderRadius: CHIP_RADIUS,
                                             marginLeft: 5, fontSize: 9, fontWeight: 'bold',
                                             background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',
                                             padding: '0 4px',
@@ -672,7 +672,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                                         <span style={{ color: '#666', fontSize: 10 }}>{row.item_name}</span>
                                                                     )}
                                                                     {row.is_substitute && (
-                                                                        <span style={{ fontSize: 9, background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px' }}>SUB</span>
+                                                                        <span style={{ borderRadius: CHIP_RADIUS, fontSize: 9, background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px' }}>SUB</span>
                                                                     )}
                                                                     {row.is_substitute && (
                                                                         <span style={{ fontSize: 9, color: '#999', textDecoration: 'line-through' }}>{row.orig_item_code}</span>

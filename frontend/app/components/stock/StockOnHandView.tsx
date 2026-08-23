@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg } from '../shared/xpTheme';
+import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
@@ -624,7 +624,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                         <div style={classic ? { display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 } : undefined} className={classic ? undefined : 'd-flex flex-wrap gap-1 mt-1'}>
                             {getComboLabel(bal) && (
                                 <span
-                                    style={classic ? { fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px' } : { fontSize: 9 }}
+                                    style={classic ? { fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: CHIP_RADIUS, fontWeight: 700, lineHeight: '14px' } : { fontSize: 9 }}
                                     className={classic ? undefined : 'badge bg-primary bg-opacity-10 text-primary'}
                                     title={`Combo: ${getComboLabel(bal)}`}>
                                     {getComboLabel(bal)}
@@ -632,7 +632,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                             )}
                             {bal.size_label && (
                                 <span
-                                    style={classic ? { fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px' } : { fontSize: 9 }}
+                                    style={classic ? { fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: CHIP_RADIUS, fontWeight: 700, lineHeight: '14px' } : { fontSize: 9 }}
                                     className={classic ? undefined : 'badge bg-success bg-opacity-10 text-success'}
                                     title={`Size: ${bal.size_label}`}>
                                     <i className="bi bi-rulers me-1" style={classic ? { fontSize: 7 } : undefined}></i>{bal.size_label}

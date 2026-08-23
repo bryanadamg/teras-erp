@@ -5,7 +5,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import NettingPlanTable, { useNettingPreview } from './NettingPlanTable';
-import { xpFont, xpInput as _xpInput, xpLabel as _xpLabel, ModalFooterActions } from '../shared/xpTheme';
+import { xpFont, xpInput as _xpInput, xpLabel as _xpLabel, ModalFooterActions, CHIP_RADIUS } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -189,7 +189,7 @@ function BomEntryRow({
             {selectedBom && sizes.length > 0 && (
                 <div>
                     <label style={xpLabel({ fontWeight: 'bold', marginBottom: 4 })}>
-                        Qty per Size{itemUom ? <span style={{ fontWeight: 'normal', marginLeft: 4, fontSize: 10, background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>{itemUom}</span> : null}
+                        Qty per Size{itemUom ? <span style={{ borderRadius: CHIP_RADIUS, fontWeight: 'normal', marginLeft: 4, fontSize: 10, background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>{itemUom}</span> : null}
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
                         {sizes.map((s: any) => (
@@ -217,7 +217,7 @@ function BomEntryRow({
                         onChange={e => onChange({ ...entry, totalQty: e.target.value })}
                     />
                     {itemUom && (
-                        <span style={{ fontSize: 10, fontFamily: xpFont, background: '#dde8f5', border: '1px solid #7f9db9', padding: '1px 5px', color: '#336' }}>{itemUom}</span>
+                        <span style={{ borderRadius: CHIP_RADIUS, fontSize: 10, fontFamily: xpFont, background: '#dde8f5', border: '1px solid #7f9db9', padding: '1px 5px', color: '#336' }}>{itemUom}</span>
                     )}
                 </div>
             )}

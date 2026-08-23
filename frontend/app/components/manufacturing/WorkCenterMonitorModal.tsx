@@ -1001,7 +1001,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                 <td style={lvTd(cls)}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
                                                         <span title={m.item_name || undefined}>{m.item_code || '—'}</span>
-                                                        <LotChips batch={m} rounded={!cls} />
+                                                        <LotChips batch={m} />
                                                     </div>
                                                 </td>
                                                 <td style={lvTd(cls)}>{m.ends ?? '—'}</td>

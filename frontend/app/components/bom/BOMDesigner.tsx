@@ -6,7 +6,7 @@ import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
-import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -1348,7 +1348,7 @@ export default function BOMDesigner({
                         <span style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}><i className="bi bi-diagram-3" style={{ marginRight: 4 }} />Structure</span>
                         <span style={{
                             background: 'rgba(255,255,255,0.2)', color: 'white',
-                            fontSize: 9, padding: '0 5px', borderRadius: 2,
+                            fontSize: 9, padding: '0 5px', borderRadius: CHIP_RADIUS,
                         }}>
                             {nodeCount} nodes
                         </span>
@@ -1576,7 +1576,7 @@ export default function BOMDesigner({
                                                 <span style={{ fontSize: 10, color: '#003080', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Linked Sample:</span>
                                                 <CodeChip code={selItem.source_sample_code} classic tone="accent" />
                                                 {selItem.source_color_name && (
-                                                    <span style={{ fontSize: 10, color: '#333', background: '#d8e8f8', border: '1px solid #b0c8e8', padding: '0 6px', whiteSpace: 'nowrap' }}>
+                                                    <span style={{ borderRadius: CHIP_RADIUS, fontSize: 10, color: '#333', background: '#d8e8f8', border: '1px solid #b0c8e8', padding: '0 6px', whiteSpace: 'nowrap' }}>
                                                         {selItem.source_color_name}
                                                     </span>
                                                 )}
@@ -2048,7 +2048,7 @@ export default function BOMDesigner({
                                                     <label style={{ ...xpLabel, fontSize: 10 }}>
                                                         Item
                                                         {pendingItemCode && getItemUom(pendingItemCode) && (
-                                                            <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'normal', background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>
+                                                            <span style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, fontSize: 9, fontWeight: 'normal', background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>
                                                                 {getItemUom(pendingItemCode)}
                                                             </span>
                                                         )}
@@ -2145,7 +2145,7 @@ export default function BOMDesigner({
                                                         <span style={{ flex: 1, fontWeight: 'bold', fontSize: 11 }}>
                                                             {getItemName(line.item_code)}
                                                             {getItemUom(line.item_code) && (
-                                                                <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'normal', background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>
+                                                                <span style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, fontSize: 9, fontWeight: 'normal', background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>
                                                                     {getItemUom(line.item_code)}
                                                                 </span>
                                                             )}

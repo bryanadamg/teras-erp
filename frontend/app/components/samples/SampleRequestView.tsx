@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg, ToggleChip } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -875,7 +875,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        );
                                    })}
                                    {activeAttrName && (
-                                       <span style={{ fontFamily: xpFont, fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px', marginLeft: 'auto', alignSelf: 'center' }}>
+                                       <span style={{ borderRadius: CHIP_RADIUS, fontFamily: xpFont, fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px', marginLeft: 'auto', alignSelf: 'center' }}>
                                            attr: {activeAttrName}
                                        </span>
                                    )}
@@ -889,7 +889,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    {newSample.colors.length === 0
                                        ? <span style={{ fontFamily: xpFont, fontSize: 11, color: '#999', fontStyle: 'italic' }}>No variants added yet…</span>
                                        : newSample.colors.map((c, idx) => (
-                                           <span key={idx} style={{
+                                           <span key={idx} style={{ borderRadius: CHIP_RADIUS,
                                                display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px',
                                                marginRight: 4, marginBottom: 4,
                                                background: c.is_repeat ? '#dce8f8' : '#e8f4e8',
@@ -1533,7 +1533,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                             className={classic ? '' : 'small text-muted d-flex gap-1 flex-wrap mt-1'}>
                                            {s.colors && s.colors.map((c: any, i: number) => (
                                                classic ? (
-                                                   <span key={i} style={{ background: c.is_repeat ? '#e8e8ff' : '#e8f5e8', border: `1px solid ${c.is_repeat ? '#8888cc' : '#88aa88'}`, color: c.is_repeat ? '#333' : '#1a3a1a', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>
+                                                   <span key={i} style={{ borderRadius: CHIP_RADIUS, background: c.is_repeat ? '#e8e8ff' : '#e8f5e8', border: `1px solid ${c.is_repeat ? '#8888cc' : '#88aa88'}`, color: c.is_repeat ? '#333' : '#1a3a1a', padding: '0 4px', fontSize: '9px', fontFamily: xpFont }}>
                                                        {c.name}{c.is_repeat ? ' (R)' : ''}
                                                    </span>
                                                ) : (
@@ -1652,7 +1652,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            cells: [
                                                <span style={{ fontWeight: classic ? 'bold' : 500, color: '#111' }}>{c.name}</span>,
                                                classic ? (
-                                                   <span style={{ background: c.is_repeat ? '#dce4f5' : '#d4edda', border: `1px solid ${c.is_repeat ? '#6878c8' : '#5aaa68'}`, color: c.is_repeat ? '#0d2a6e' : '#0c3a1a', padding: '0 4px', fontSize: 9, fontFamily: xpFont, fontWeight: 'bold' }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
+                                                   <span style={{ borderRadius: CHIP_RADIUS, background: c.is_repeat ? '#dce4f5' : '#d4edda', border: `1px solid ${c.is_repeat ? '#6878c8' : '#5aaa68'}`, color: c.is_repeat ? '#0d2a6e' : '#0c3a1a', padding: '0 4px', fontSize: 9, fontFamily: xpFont, fontWeight: 'bold' }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
                                                ) : (
                                                    <span className={`badge ${c.is_repeat ? 'bg-primary bg-opacity-10 text-primary' : 'bg-success bg-opacity-10 text-success'} border`} style={{ fontSize: 10 }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
                                                ),

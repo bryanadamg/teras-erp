@@ -641,7 +641,7 @@ export default function QuarantinePackingView() {
                                         <StatusChip status="CLAIMED" label={l.claimed_by_order_code} tint
                                             title={`Claimed by packing order ${l.claimed_by_order_code}`} />
                                     )}
-                                    <div style={{ marginLeft: 'auto' }}><LotChips batch={l} rounded /></div>
+                                    <div style={{ marginLeft: 'auto' }}><LotChips batch={l} /></div>
                                 </div>
                             </td>
                             <td style={{ ...lotTd, textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>

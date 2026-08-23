@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip } from '../shared/xpTheme';
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
@@ -110,7 +110,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const lineageStatusBadge = (s: string) => {
     const { background: bg, borderColor: bd, color: fg } = statusTint(s);
     return (
-      <span style={{ fontSize: '0.68rem', background: bg, border: `1px solid ${bd}`, color: fg, padding: '0 6px', borderRadius: classic ? 0 : 10, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: '0.68rem', background: bg, border: `1px solid ${bd}`, color: fg, padding: '0 6px', borderRadius: CHIP_RADIUS, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
         {(s || 'PENDING').replace('_', ' ')}
       </span>
     );
@@ -133,7 +133,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
         style={{
           fontFamily: CODE_FONT, fontWeight: 'bold', fontSize: '0.72rem',
           background: colors.bg, border: `1px solid ${colors.bd}`, color: colors.fg,
-          padding: '1px 7px', borderRadius: classic ? 0 : 4, cursor: 'pointer',
+          padding: '1px 7px', borderRadius: CODE_CHIP_RADIUS, cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
         }}
         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(0.93)'; }}
@@ -147,7 +147,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   };
 
   const lineageChip = (text: React.ReactNode, bg: string, bd: string, fg: string, icon?: string) => (
-    <span style={{ fontSize: '0.68rem', background: bg, border: `1px solid ${bd}`, color: fg, padding: '0 6px', borderRadius: classic ? 0 : 3, fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+    <span style={{ fontSize: '0.68rem', background: bg, border: `1px solid ${bd}`, color: fg, padding: '0 6px', borderRadius: CHIP_RADIUS, fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
       {icon && <i className={`bi ${icon}`} style={{ fontSize: '0.62rem' }}></i>}{text}
     </span>
   );
@@ -205,7 +205,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
     return (
       <tr key={key}>
         <td style={lineageTd({ paddingLeft: indent })}>
-          <span title={`Beam ${bm.batch_number}`} style={{ fontSize: '0.68rem', background: '#fdf3e0', border: '1px solid #e0c08a', color: '#8a5a00', padding: '1px 7px', borderRadius: classic ? 0 : 4, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span title={`Beam ${bm.batch_number}`} style={{ fontSize: '0.68rem', background: '#fdf3e0', border: '1px solid #e0c08a', color: '#8a5a00', padding: '1px 7px', borderRadius: CHIP_RADIUS, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <i className="bi bi-box-seam"></i><span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{bm.batch_number}</span>
           </span>
         </td>
@@ -515,6 +515,27 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       return '';
   };
 
+  // Split of formatBomSizeLabel for the SO table: the size NAME (S/M/L/…) stays text
+  // in the cell, the measurement rides under it as a chip so the two read apart.
+  const formatBomSizeMeasurement = (bs: any): string => {
+      if (bs.measurement_min != null && bs.measurement_max != null) {
+          return `${parseFloat(bs.measurement_min)} cm - ${parseFloat(bs.measurement_max)} cm`;
+      }
+      if (bs.target_measurement != null) return `${parseFloat(bs.target_measurement)} cm`;
+      return '';
+  };
+
+  const getBomSizeParts = (bomSizeId: string): { name: string; measurement: string } => {
+      if (!boms || !bomSizeId) return { name: '', measurement: '' };
+      for (const bom of boms) {
+          const bs = (bom.sizes || []).find((s: any) => s.id === bomSizeId);
+          if (!bs) continue;
+          const name = bs.size_name || bs.size?.name || bs.label || `Size ${bs.id.slice(0, 6)}`;
+          return { name, measurement: formatBomSizeMeasurement(bs) };
+      }
+      return { name: '', measurement: '' };
+  };
+
   const handleQtyYardChange = (ydStr: string) => {
       const yd = parseFloat(ydStr) || 0;
       const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
@@ -821,30 +842,27 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   // color_id, so it renders as a chip in the same row (amber) instead of vanishing.
   const buildVariantChips = (attrIds: string[], colorLabel?: string | null, colorHex?: string | null, pendingLabdip?: string | null) => {
       const colorValId = colorAttr ? attrIds.find(vid => colorAttr.values?.some((v: any) => v.id === vid)) : undefined;
-      const plainIds = attrIds.filter(vid => vid !== colorValId);
-      const chips: { label: string; hex: string | null; pending?: boolean }[] = [];
+      // Combo is a variant identity, not a loose attribute — it gates BOM choice, so
+      // it reads as a chip alongside colour rather than in the italic attribute line.
+      const comboValId = comboAttr ? attrIds.find(vid => comboAttr.values?.some((v: any) => v.id === vid)) : undefined;
+      const plainIds = attrIds.filter(vid => vid !== colorValId && vid !== comboValId);
+      const chips: { label: string; hex: string | null; pending?: boolean; icon?: string }[] = [];
       if (colorValId) chips.push({ label: getAttributeValueName(colorValId), hex: getAttributeValueHex(colorValId) });
       if (colorLabel) chips.push({ label: colorLabel, hex: colorHex || null });
       else if (pendingLabdip) chips.push({ label: pendingLabdip, hex: null, pending: true });
+      if (comboValId) chips.push({ label: getAttributeValueName(comboValId), hex: null, icon: 'bi-collection' });
       return { chips, plainIds };
   };
 
-  const renderChipRow = (chips: { label: string; hex: string | null; pending?: boolean }[]) => (
+  const renderChipRow = (chips: { label: string; hex: string | null; pending?: boolean; icon?: string }[]) => (
       <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2}}>
           {chips.map((c, i) => (
-              <span key={i} title={c.pending ? 'Pending lab dip — colour not approved yet' : undefined}
-                  style={{display:'inline-flex',alignItems:'center',gap:4,
-                  background:c.pending?(classic?'#fff5d6':'#fff8e1'):(classic?'#f0ede4':'#eef1f4'),
-                  border:c.pending?'1px solid #c8a000':(classic?'1px solid #b0a898':'1px solid #dee2e6'),
-                  borderRadius:classic?0:10,
-                  padding:'1px 6px 1px 4px',
-                  fontSize:'9px',
-                  fontFamily:classic?xpFont:undefined,
-                  color:c.pending?'#8a6d00':(classic?'#333':'#495057')}}>
-                  {c.pending && <i className="bi bi-eyedropper" style={{fontSize:'8px'}}></i>}
-                  {c.hex && <span style={{width:8,height:8,borderRadius:'50%',flexShrink:0,display:'inline-block',background:c.hex,border:'1px solid rgba(0,0,0,0.25)'}}></span>}
-                  {c.label}
-              </span>
+              <Chip key={i} classic={classic} size="xs"
+                  title={c.pending ? 'Pending lab dip — colour not approved yet' : undefined}
+                  icon={c.pending ? 'bi-eyedropper' : c.icon}
+                  swatch={c.hex}
+                  tone={c.pending ? { background: classic ? '#fff5d6' : '#fff8e1', borderColor: '#c8a000', color: '#8a6d00' } : undefined}
+              >{c.label}</Chip>
           ))}
       </div>
   );
@@ -1186,7 +1204,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        fontFamily: xpFont, fontSize: classic ? '9px' : '10px',
                                        fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.4px',
                                        background: classic ? '#e8f5e9' : '#e8f5e9', border: '1px solid #2e7d32',
-                                       color: '#1b4620', padding: '0 5px', borderRadius: classic ? 0 : 3, whiteSpace: 'nowrap',
+                                       color: '#1b4620', padding: '0 5px', borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap',
                                    }}
                                >
                                    Finished Goods only
@@ -1631,7 +1649,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
                                    <CodeChip code={getItemCode(line.item_id, line.item_code)} classic={classic} tier={2} style={{ marginLeft: 8 }} />
-                                   {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?xpFont:'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
+                                   {isSample(line.item_id) && <span style={{ borderRadius: CHIP_RADIUS,background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?xpFont:'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
                                    {(() => {
                                        const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], line.color_label, line.color_hex, !line.color_id ? line.labdip_variant_code : null);
                                        return (
@@ -1791,12 +1809,12 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, marginTop:3 }}>
                                                {soPRs.map((pr: any) => classic ? (
                                                    <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`}
-                                                       style={{ fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
+                                                       style={{ borderRadius: CHIP_RADIUS, fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
                                                        <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{pr.code}
                                                    </span>
                                                ) : (
                                                    <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`} role="button"
-                                                       style={{ fontSize:9, whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', cursor:'pointer', background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius:3, fontWeight:'bold' }}>
+                                                       style={{ fontSize:9, whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', cursor:'pointer', background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius: CHIP_RADIUS, fontWeight:'bold' }}>
                                                        <i className="bi bi-check-circle me-1"></i>{pr.code}
                                                    </span>
                                                ))}
@@ -1896,11 +1914,17 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
                                            {/* Size */}
                                            <td style={lineTd(isFirst, isLast)}>
-                                               {line.bom_size_id ? (
-                                                   <div style={{ fontFamily:xpFont, fontSize:'10px', fontWeight:'bold', color: classic?'#005':'#0d6efd' }}>
-                                                       <i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}
-                                                   </div>
-                                               ) : (
+                                               {line.bom_size_id ? (() => {
+                                                   const { name, measurement } = getBomSizeParts(line.bom_size_id);
+                                                   return (
+                                                       <>
+                                                           <div style={{ fontFamily:xpFont, fontSize:'10px', fontWeight:'bold', color: classic?'#005':'#0d6efd' }}>
+                                                               <i className="bi bi-rulers me-1"></i>{name}
+                                                           </div>
+                                                           {measurement && renderChipRow([{ label: measurement, hex: null }])}
+                                                       </>
+                                                   );
+                                               })() : (
                                                    <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }}>—</span>
                                                )}
                                            </td>
@@ -1908,10 +1932,10 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            {/* Qty */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                <div style={{ display:'flex', flexWrap:'nowrap' as const, gap:3, alignItems:'center' }}>
-                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', fontWeight:'bold', color: classic?'#003ea6':'#fff', background: classic?'#dce8ff':'#0d6efd', border: classic?'1px solid #9ab0e0':'none', padding:'1px 5px', borderRadius: classic?0:3 }}>{line.qty} Yd</span>
-                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#444':'#555', background: classic?'#efefef':'#f0f0f0', border: classic?'1px solid #c0bdb5':'1px solid #ddd', padding:'1px 5px', borderRadius: classic?0:3 }}>{Math.round(line.qty * 0.9144 * 100) / 100} m</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', fontWeight:'bold', color: classic?'#003ea6':'#fff', background: classic?'#dce8ff':'#0d6efd', border: classic?'1px solid #9ab0e0':'none', padding:'1px 5px', borderRadius: CHIP_RADIUS }}>{line.qty} Yd</span>
+                                                   <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#444':'#555', background: classic?'#efefef':'#f0f0f0', border: classic?'1px solid #c0bdb5':'1px solid #ddd', padding:'1px 5px', borderRadius: CHIP_RADIUS }}>{Math.round(line.qty * 0.9144 * 100) / 100} m</span>
                                                    {line.qty_kg != null && line.qty_kg !== '' && (
-                                                       <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#1a5e1a':'#166534', background: classic?'#e4f5e4':'#dcfce7', border: classic?'1px solid #90c090':'1px solid #86efac', padding:'1px 5px', borderRadius: classic?0:3 }}>{line.qty_kg} KG</span>
+                                                       <span style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#1a5e1a':'#166534', background: classic?'#e4f5e4':'#dcfce7', border: classic?'1px solid #90c090':'1px solid #86efac', padding:'1px 5px', borderRadius: CHIP_RADIUS }}>{line.qty_kg} KG</span>
                                                    )}
                                                </div>
                                            </td>

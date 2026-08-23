@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -562,14 +562,14 @@ export default function ManufacturingOrdersTab({
                                         {((node.attribute_value_ids || []).length > 0 || node.bom_size_id) && (
                                             <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 2 }}>
                                                 {(node.attribute_value_ids || []).map((id: string) => (
-                                                    <span key={id} style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(219,234,254,0.25)' : '#dbeafe', color: isActive ? '#bfdbfe' : '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }}>
+                                                    <span key={id} style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(219,234,254,0.25)' : '#dbeafe', color: isActive ? '#bfdbfe' : '#1d4ed8', borderRadius: CHIP_RADIUS, fontWeight: 700, lineHeight: '14px' }}>
                                                         {getAttributeValueName(id)}
                                                     </span>
                                                 ))}
                                                 {(node.bom_size_id || node.bom_size_snapshot) && (() => {
                                                     const label = getBomSizeLabel(node.bom_id, node.bom_size_id, node.bom_size_snapshot);
                                                     return label ? (
-                                                        <span style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(220,252,231,0.25)' : '#dcfce7', color: isActive ? '#bbf7d0' : '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }}>
+                                                        <span style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(220,252,231,0.25)' : '#dcfce7', color: isActive ? '#bbf7d0' : '#15803d', borderRadius: CHIP_RADIUS, fontWeight: 700, lineHeight: '14px' }}>
                                                             <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
                                                         </span>
                                                     ) : null;
@@ -593,7 +593,7 @@ export default function ManufacturingOrdersTab({
                                             );
                                         })()}
                                     </div>
-                                    <span style={{ fontSize: '8px', background: statusColor, color: '#fff', padding: '1px 4px', borderRadius: classic ? '0' : '2px', whiteSpace: 'nowrap', alignSelf: 'center', flexShrink: 0 }}>
+                                    <span style={{ fontSize: '8px', background: statusColor, color: '#fff', padding: '1px 4px', borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap', alignSelf: 'center', flexShrink: 0 }}>
                                         {node.status === 'IN_PROGRESS' ? 'IN PROG' : node.status}
                                     </span>
                                 </div>
@@ -613,7 +613,7 @@ export default function ManufacturingOrdersTab({
                         <CodeChip code={selectedNode.code} classic={classic} style={{ fontSize: 12, fontWeight: 'bold' }} />
                         <span style={{ fontSize: '12px', color: '#000' }}>{selectedNode.item_name}</span>
                         {(selectedNode.attribute_value_ids || []).map((id: string) => (
-                            <span key={id} style={{ fontSize: '9px', padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 2, fontWeight: 700 }}>
+                            <span key={id} style={{ fontSize: '9px', padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
                                 {getAttributeValueName(id)}
                             </span>
                         ))}
@@ -628,12 +628,12 @@ export default function ManufacturingOrdersTab({
                         )}
                         {/* Color / pending-lab-dip status for color-type orders */}
                         {selectedNode.color_code && (
-                            <span title="Approved color" style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 2, fontWeight: 700 }}>
+                            <span title="Approved color" style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
                                 <i className="bi bi-palette me-1"></i>{selectedNode.color_code}{selectedNode.color_name && selectedNode.color_name !== selectedNode.color_code ? ` — ${selectedNode.color_name}` : ''}
                             </span>
                         )}
                         {!selectedNode.color_id && selectedNode.labdip_variant_code && (
-                            <span title="Color still in lab dip — dyeing is blocked until approved or a color is set" style={{ fontSize: '9px', padding: '1px 6px', background: '#fbf4dd', color: '#8a6d00', border: '1px solid #e8dca8', borderRadius: 2, fontWeight: 700 }}>
+                            <span title="Color still in lab dip — dyeing is blocked until approved or a color is set" style={{ fontSize: '9px', padding: '1px 6px', background: '#fbf4dd', color: '#8a6d00', border: '1px solid #e8dca8', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
                                 <i className="bi bi-eyedropper me-1"></i>Lab dip: {selectedNode.labdip_variant_code}
                             </span>
                         )}
@@ -649,14 +649,14 @@ export default function ManufacturingOrdersTab({
                         {(selectedNode.bom_size_id || selectedNode.bom_size_snapshot) && (() => {
                             const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id, selectedNode.bom_size_snapshot);
                             return label ? (
-                                <span style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 2, fontWeight: 700 }}>
+                                <span style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: CHIP_RADIUS, fontWeight: 700 }}>
                                     <i className="bi bi-rulers me-1"></i>{label}
                                 </span>
                             ) : null;
                         })()}
                         <span
                             title="Planned putaway bin — where the output will be stored"
-                            style={{ fontSize: '9px', padding: '1px 6px', background: selectedNode.planned_putaway_location_name ? '#e8f5e9' : '#f3f4f6', color: selectedNode.planned_putaway_location_name ? '#1b5e20' : '#6b7280', border: `1px solid ${selectedNode.planned_putaway_location_name ? '#a5d6a7' : '#d1d5db'}`, borderRadius: 2, fontWeight: 700 }}
+                            style={{ fontSize: '9px', padding: '1px 6px', background: selectedNode.planned_putaway_location_name ? '#e8f5e9' : '#f3f4f6', color: selectedNode.planned_putaway_location_name ? '#1b5e20' : '#6b7280', border: `1px solid ${selectedNode.planned_putaway_location_name ? '#a5d6a7' : '#d1d5db'}`, borderRadius: CHIP_RADIUS, fontWeight: 700 }}
                         >
                             <i className="bi bi-box-arrow-in-down me-1"></i>
                             {selectedNode.planned_putaway_location_name || 'No putaway bin'}
@@ -771,7 +771,7 @@ export default function ManufacturingOrdersTab({
                                     title={unlimited
                                         ? 'No output ceiling on this order — log as much as the floor produces.'
                                         : `Logging is allowed up to ${maxLoggable!.toFixed(2)} (${total.toFixed(2)} + ${Number(tolPct).toFixed(0)}%). Raise the tolerance to log more.`}
-                                    style={{ fontSize: '9px', padding: '1px 6px', whiteSpace: 'nowrap', border: '1px solid #d1d5db', background: '#f3f4f6', color: '#555', borderRadius: 2, fontWeight: 700 }}
+                                    style={{ fontSize: '9px', padding: '1px 6px', whiteSpace: 'nowrap', border: '1px solid #d1d5db', background: '#f3f4f6', color: '#555', borderRadius: CHIP_RADIUS, fontWeight: 700 }}
                                 >
                                     <i className="bi bi-arrow-bar-up me-1"></i>
                                     {unlimited ? 'Max: unlimited' : `Max: ${maxLoggable!.toFixed(2)}`}
@@ -843,7 +843,7 @@ export default function ManufacturingOrdersTab({
                                                 <td style={{ ...cell, color: '#000' }}>
                                                     <div style={{ fontWeight: 500 }}>{line.item_name || getItemName(line.item_id)}</div>
                                                     <CodeChip code={line.item_code || getItemCode(line.item_id)} classic={classic} tier={2} style={{ display: 'block' }} />
-                                                    {hasSubBOM && <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
+                                                    {hasSubBOM && <span style={{ borderRadius: CHIP_RADIUS, fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
                                                 </td>
                                                 <td style={{ ...cell, color: '#333' }}>{attrLabel || '—'}</td>
                                                 <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -886,7 +886,7 @@ export default function ManufacturingOrdersTab({
                                                     ) : (
                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                                             {locs.map(l => (
-                                                                <span key={l.locId} style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', fontSize: 8, padding: '0 4px', whiteSpace: 'nowrap' }}>
+                                                                <span key={l.locId} style={{ borderRadius: CHIP_RADIUS, background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', fontSize: 8, padding: '0 4px', whiteSpace: 'nowrap' }}>
                                                                     {l.code} <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
                                                                 </span>
                                                             ))}
@@ -977,7 +977,7 @@ export default function ManufacturingOrdersTab({
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                                 <span style={{ fontFamily: CODE_FONT, fontSize: '10px', fontWeight: 'bold', color: total > 0 ? '#004400' : '#880000' }}>{total.toFixed(2)}</span>
                                                 {getItemUom(b.item_id) && <span style={uomBadgeStyle}>{getItemUom(b.item_id)}</span>}
-                                                <span style={{ fontSize: 9, background: '#e8d8ff', border: '1px solid #c4a8ee', color: '#440099', padding: '0 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{bc} beam{bc !== 1 ? 's' : ''}</span>
+                                                <span style={{ borderRadius: CHIP_RADIUS, fontSize: 9, background: '#e8d8ff', border: '1px solid #c4a8ee', color: '#440099', padding: '0 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{bc} beam{bc !== 1 ? 's' : ''}</span>
                                             </div>
                                         </div>
                                     );
@@ -1002,7 +1002,7 @@ export default function ManufacturingOrdersTab({
                                     {outputBatch && (
                                         <div style={{ fontSize: '10px', marginBottom: '4px' }}>
                                             <span style={{ color: '#555', fontSize: '9px' }}>Output: </span>
-                                            <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#1a6e1a', fontSize: '10px', background: '#f0fdf4', border: '1px solid #86efac', padding: '0 4px', borderRadius: 2 }}>
+                                            <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#1a6e1a', fontSize: '10px', background: '#f0fdf4', border: '1px solid #86efac', padding: '0 4px', borderRadius: CHIP_RADIUS }}>
                                                 {outputBatch}
                                             </span>
                                         </div>
@@ -1010,7 +1010,7 @@ export default function ManufacturingOrdersTab({
                                     <div style={{ fontSize: '9px', color: '#555', marginBottom: '2px' }}>Input batches:</div>
                                     {trace.map((c: any, i: number) => (
                                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px', fontSize: '9px' }}>
-                                            <span style={{ fontFamily: CODE_FONT, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #93c5fd', padding: '0 3px', borderRadius: 2, fontSize: '9px' }}>
+                                            <span style={{ fontFamily: CODE_FONT, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #93c5fd', padding: '0 3px', borderRadius: CHIP_RADIUS, fontSize: '9px' }}>
                                                 {c.input_batch_number}
                                             </span>
                                             <span style={{ color: '#666', fontSize: '9px' }}>{Number(c.qty_consumed).toFixed(2)}</span>
@@ -1238,14 +1238,14 @@ export default function ManufacturingOrdersTab({
                                                     {((wo.attribute_value_ids || []).length > 0 || wo.bom_size_id) && (
                                                         <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap', overflow: 'hidden', marginTop: 2 }}>
                                                             {(wo.attribute_value_ids || []).map((id: string) => (
-                                                                <span key={id} style={{ fontSize: '9px', padding: '1px 5px', background: classic ? '#dce8ff' : '#dbeafe', color: classic ? '#003ea6' : '#1d4ed8', border: `1px solid ${classic ? '#9ab0e0' : '#93c5fd'}`, borderRadius: classic ? 0 : 3, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                                                <span key={id} style={{ fontSize: '9px', padding: '1px 5px', background: classic ? '#dce8ff' : '#dbeafe', color: classic ? '#003ea6' : '#1d4ed8', border: `1px solid ${classic ? '#9ab0e0' : '#93c5fd'}`, borderRadius: CHIP_RADIUS, fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                                     {getAttributeValueName(id)}
                                                                 </span>
                                                             ))}
                                                             {wo.bom_size_id && (() => {
                                                                 const label = getBomSizeLabel(wo.bom_id, wo.bom_size_id);
                                                                 return label ? (
-                                                                    <span style={{ fontSize: '9px', padding: '1px 5px', background: classic ? '#e4f5e4' : '#dcfce7', color: classic ? '#1a5e1a' : '#15803d', border: `1px solid ${classic ? '#90c090' : '#86efac'}`, borderRadius: classic ? 0 : 3, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                                                    <span style={{ fontSize: '9px', padding: '1px 5px', background: classic ? '#e4f5e4' : '#dcfce7', color: classic ? '#1a5e1a' : '#15803d', border: `1px solid ${classic ? '#90c090' : '#86efac'}`, borderRadius: CHIP_RADIUS, fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                                         <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
                                                                     </span>
                                                                 ) : null;
@@ -1266,14 +1266,14 @@ export default function ManufacturingOrdersTab({
                                                         color: '#003ea6', padding: '0 5px', fontWeight: 'bold', whiteSpace: 'nowrap',
                                                     } : {
                                                         fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
-                                                        color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', whiteSpace: 'nowrap',
+                                                        color: '#0a58ca', padding: '1px 6px', borderRadius: CHIP_RADIUS, fontWeight: 'bold', whiteSpace: 'nowrap',
                                                     }} title="Originating Sales Order">
                                                         <i className="bi bi-receipt me-1" style={{ fontSize: classic ? '7px' : undefined }}></i>SO: {wo.sales_order_code || '—'}
                                                     </span>
                                                 )}
                                                 {wo.child_mos && wo.child_mos.length > 0 && (
                                                     classic
-                                                        ? <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED x{wo.child_mos.length}</span>
+                                                        ? <span style={{ borderRadius: CHIP_RADIUS, fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED x{wo.child_mos.length}</span>
                                                         : <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_mos.length})</span>
                                                 )}
                                             </div>

@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg, StatusChip } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvTd, lvZebra } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
@@ -546,13 +546,13 @@ export default function WorkOrderListView({
                                                             </td>
                                                             <td style={{ ...subTd, color: '#333' }}>
                                                                 {c.operator_name || '—'}
-                                                                {c.rejected && <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>}
+                                                                {c.rejected && <span style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>}
                                                                 {/* Partial reject: the log stays active with its qty already trimmed,
                                                                     so the scrapped amount only shows as its own marker. */}
                                                                 {!c.rejected && (c.qty_rejected ?? 0) > 0 && (
                                                                     <span
                                                                         title={rejectTitle(c, 'Partially rejected')}
-                                                                        style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}
+                                                                        style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}
                                                                     >
                                                                         -{Number(c.qty_rejected).toFixed(2)} REJ
                                                                     </span>
@@ -589,7 +589,7 @@ export default function WorkOrderListView({
                                                                     )}
                                                                     {substitutes.map((ai: any) => (
                                                                         <span key={ai.item_id} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginRight: 6 }}>
-                                                                            <span style={{ background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px', fontWeight: 'bold', fontSize: 8 }}>SUB</span>
+                                                                            <span style={{ borderRadius: CHIP_RADIUS, background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px', fontWeight: 'bold', fontSize: 8 }}>SUB</span>
                                                                             <span style={{ color: '#555' }}>{ai.item_code || ai.item_id} &times;{parseFloat(ai.qty_used).toFixed(2)}</span>
                                                                         </span>
                                                                     ))}
@@ -866,7 +866,7 @@ export default function WorkOrderListView({
                                                             {(wo.root_mo_count ?? 0) > 1 && (
                                                                 <span
                                                                     title={`Shared component — feeds ${wo.root_mo_count} root MOs: ${(wo.root_mo_codes || []).join(', ')}`}
-                                                                    style={{ fontSize: 9, fontWeight: 'bold', color: '#7a5000', background: '#fff3cd', border: '1px solid #b8860b', padding: '0 3px', flexShrink: 0 }}
+                                                                    style={{ borderRadius: CHIP_RADIUS, fontSize: 9, fontWeight: 'bold', color: '#7a5000', background: '#fff3cd', border: '1px solid #b8860b', padding: '0 3px', flexShrink: 0 }}
                                                                 >+{(wo.root_mo_count ?? 1) - 1}</span>
                                                             )}
                                                         </div>
@@ -912,7 +912,7 @@ export default function WorkOrderListView({
                                                             return (
                                                                 <span style={{
                                                                     padding: '1px 5px',
-                                                                    borderRadius: classic ? 2 : 4,
+                                                                    borderRadius: CHIP_RADIUS,
                                                                     border: `1px solid ${cs.borderColor as string}`,
                                                                     background: cs.background as string,
                                                                     color: cs.color as string,

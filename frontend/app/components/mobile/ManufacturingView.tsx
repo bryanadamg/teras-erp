@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
-import { STATUS_COLORS, CodeChip, xpFont as XP_FONT } from '../shared/xpTheme';
+import { STATUS_COLORS, CodeChip, xpFont as XP_FONT, CHIP_RADIUS } from '../shared/xpTheme';
 
 const XP_BEIGE = '#ece9d8';
 
@@ -242,7 +242,7 @@ export default function MobileManufacturingView({
                                 marginLeft: 4,
                                 background: isActive ? 'rgba(255,255,255,0.25)' : '#e0ddd5',
                                 color: isActive ? '#fff' : '#555',
-                                fontSize: 9, fontWeight: 'bold', padding: '0 4px', borderRadius: 1,
+                                fontSize: 9, fontWeight: 'bold', padding: '0 4px', borderRadius: CHIP_RADIUS,
                             }}>
                                 {counts[tab]}
                             </span>

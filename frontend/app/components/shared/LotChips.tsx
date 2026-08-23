@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CODE_FONT } from './xpTheme';
+import { CODE_FONT, CHIP_RADIUS } from './xpTheme';
 
 /**
  * Shared lot-identity chips for lot/beam pickers (WO staging, WO completion,
@@ -82,13 +82,12 @@ const TONE = {
 export type LotChipTone = keyof typeof TONE;
 
 export function LotChip({
-    children, tone = 'order', title, mono, rounded, swatch,
+    children, tone = 'order', title, mono, swatch,
 }: {
     children: React.ReactNode;
     tone?: LotChipTone;
     title?: string;
     mono?: boolean;
-    rounded?: boolean;
     swatch?: string | null;
 }) {
     const t = TONE[tone];
@@ -98,7 +97,10 @@ export function LotChip({
             style={{
                 display: 'inline-flex', alignItems: 'center', gap: 3,
                 fontSize: 9, fontWeight: 'bold', padding: '0 4px',
-                borderRadius: rounded ? 8 : 0, lineHeight: '14px',
+                // Shape comes from CHIP_RADIUS, never from a caller: the old `rounded`
+                // prop was really "am I in the modern theme", so the same lot chip
+                // rendered square next to a pill depending on which view drew it.
+                borderRadius: CHIP_RADIUS, lineHeight: '14px',
                 color: t.fg, background: t.bg, border: `1px solid ${t.border}`,
                 // `mono` marks the two chips that hold a CODE (supplier lot, producing
                 // order) rather than an attribute value. They stay chips — inside a
@@ -132,10 +134,9 @@ export function LotChipRow({ children, style }: { children: React.ReactNode; sty
  * carries no identity at all, so callers can drop it in unconditionally.
  */
 export function LotChips({
-    batch, rounded, showLocation, showOrder, showQty, qtyUnit = 'kg', showOtherAttrs = true,
+    batch, showLocation, showOrder, showQty, qtyUnit = 'kg', showOtherAttrs = true,
 }: {
     batch: LotLike;
-    rounded?: boolean;
     showLocation?: boolean;
     showOrder?: boolean;
     showQty?: number | null;
@@ -153,21 +154,21 @@ export function LotChips({
     const chips: React.ReactNode[] = [];
     if (showQty != null) {
         chips.push(
-            <LotChip key="qty" tone="qty" rounded={rounded} title="Quantity remaining">
+            <LotChip key="qty" tone="qty" title="Quantity remaining">
                 {showQty.toFixed(2)} {qtyUnit}
             </LotChip>,
         );
     }
     if (size) {
         chips.push(
-            <LotChip key="size" tone="size" rounded={rounded} title={`Size: ${size}`}>
+            <LotChip key="size" tone="size" title={`Size: ${size}`}>
                 <i className="bi bi-rulers" />{size}
             </LotChip>,
         );
     }
     if (combo) {
         chips.push(
-            <LotChip key="combo" tone="combo" rounded={rounded} title={`Combo: ${combo}`}>
+            <LotChip key="combo" tone="combo" title={`Combo: ${combo}`}>
                 <i className="bi bi-grid-3x3-gap" />{combo}
             </LotChip>,
         );
@@ -177,7 +178,6 @@ export function LotChips({
             <LotChip
                 key="color"
                 tone={color.pending ? 'pending' : 'color'}
-                rounded={rounded}
                 swatch={color.hex || null}
                 title={color.pending ? `Shade pending lab dip approval: ${color.label}` : `Color: ${color.label}`}
             >
@@ -186,27 +186,27 @@ export function LotChips({
         );
     }
     others.forEach((a, i) => chips.push(
-        <LotChip key={`a${i}`} tone="material" rounded={rounded} swatch={a.hex || null} title={`${a.name}: ${a.value}`}>
+        <LotChip key={`a${i}`} tone="material" swatch={a.hex || null} title={`${a.name}: ${a.value}`}>
             {a.value}
         </LotChip>,
     ));
     if (batch.vendor_lot) {
         chips.push(
-            <LotChip key="vendor" tone="pending" rounded={rounded} mono title="Supplier lot">
+            <LotChip key="vendor" tone="pending" mono title="Supplier lot">
                 {batch.vendor_lot}
             </LotChip>,
         );
     }
     if (showLocation && batch.location_name) {
         chips.push(
-            <LotChip key="loc" tone="location" rounded={rounded} title="Current location">
+            <LotChip key="loc" tone="location" title="Current location">
                 <i className="bi bi-geo-alt" />{batch.location_name}
             </LotChip>,
         );
     }
     if (showOrder && (batch.wo_code || batch.mo_code)) {
         chips.push(
-            <LotChip key="ord" tone="order" rounded={rounded} mono title="Produced by">
+            <LotChip key="ord" tone="order" mono title="Produced by">
                 {batch.wo_code || batch.mo_code}
             </LotChip>,
         );

@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpFont, rowStateBg } from '../shared/xpTheme';
+import { xpBtn, xpFont, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import PermissionBreakdown from './PermissionBreakdown';
@@ -188,7 +188,7 @@ export default function SettingsRolesTab({
                                         <td style={classic ? tdBase : undefined}>
                                             {isAdminRole ? (
                                                 classic ? (
-                                                    <span style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>All Permissions</span>
+                                                    <span style={{ borderRadius: CHIP_RADIUS, background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '0 4px', fontSize: '9px', fontFamily: xpFont, fontWeight: 'bold' }}>All Permissions</span>
                                                 ) : (
                                                     <span className="badge bg-dark bg-opacity-75">All Permissions</span>
                                                 )

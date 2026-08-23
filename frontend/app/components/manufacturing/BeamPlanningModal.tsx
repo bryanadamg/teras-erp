@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
@@ -191,7 +191,7 @@ export default function BeamPlanningModal({ mo, machines, groupId, groupName, co
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {components.map((c, i) => (
-                            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'white', border: '1px solid #c0bdb5', padding: '1px 6px', fontSize: 10 }}>
+                            <span key={i} style={{ borderRadius: CHIP_RADIUS, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'white', border: '1px solid #c0bdb5', padding: '1px 6px', fontSize: 10 }}>
                                 <span style={{ color: '#222', fontWeight: 'bold' }}>{c.name}</span>
                                 <span style={{ background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', padding: '0 4px' }}>
                                     {c.ends != null && c.ends > 0 ? `${Math.round(c.ends)} ends` : '— ends'}
@@ -218,7 +218,7 @@ export default function BeamPlanningModal({ mo, machines, groupId, groupName, co
                         <th style={{ ...thStyle('Machine'), width: 170 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 {groupName && (
-                                    <span style={{
+                                    <span style={{ borderRadius: CHIP_RADIUS,
                                         fontFamily: xpFont, fontSize: 9, padding: '0 5px',
                                         display: 'inline-flex', alignItems: 'center',
                                         background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',

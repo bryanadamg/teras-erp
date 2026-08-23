@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -446,7 +446,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
       title={opts.title}
       style={{
         display: 'inline-block', fontSize: classic ? 9 : 10, fontWeight: 'bold',
-        padding: '0 5px', borderRadius: classic ? 0 : 8, lineHeight: classic ? '14px' : '16px',
+        padding: '0 5px', borderRadius: CHIP_RADIUS, lineHeight: classic ? '14px' : '16px',
         color: fg, background: bg, border: `1px solid ${border}`, whiteSpace: 'nowrap',
         fontFamily: opts.mono ? CODE_FONT : undefined,
       }}

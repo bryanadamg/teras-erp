@@ -10,7 +10,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra, TableEmpty } from '../shared/listViewTheme';
@@ -82,7 +82,7 @@ const statusStyle = (status: string, classic: boolean): React.CSSProperties => {
         PENDING:     { bg: '#f1f5f9', border: '#d4dce6', color: '#475569' },
     };
     const s = map[status] || { bg: '#f1f5f9', border: '#d4dce6', color: '#475569' };
-    return { display: 'inline-block', background: s.bg, border: `1px solid ${s.border}`, color: s.color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontFamily: modernFont, fontWeight: 600, whiteSpace: 'nowrap' as const };
+    return { display: 'inline-block', background: s.bg, border: `1px solid ${s.border}`, color: s.color, borderRadius: CHIP_RADIUS, padding: '2px 8px', fontSize: 11, fontFamily: modernFont, fontWeight: 600, whiteSpace: 'nowrap' as const };
 };
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -123,17 +123,17 @@ const itemColorNames = (req: any, item: any): string[] => {
 // Two distinct chips: the request sequence (neutral) and the item's variant letter (accent).
 const seqBadge = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: CODE_FONT, fontSize: 11, fontWeight: 'bold', color: '#333',
-    background: '#e4e1d8', border: '1px solid #a0988c', padding: '1px 7px', whiteSpace: 'nowrap' as const,
+    background: '#e4e1d8', border: '1px solid #a0988c', borderRadius: CHIP_RADIUS, padding: '1px 7px', whiteSpace: 'nowrap' as const,
 } : {
     fontFamily: CODE_FONT, fontSize: 12, fontWeight: 700, color: '#475569',
-    background: '#eef1f6', border: '1px solid #d4dce6', borderRadius: 5, padding: '2px 9px', whiteSpace: 'nowrap' as const,
+    background: '#eef1f6', border: '1px solid #d4dce6', borderRadius: CHIP_RADIUS, padding: '2px 9px', whiteSpace: 'nowrap' as const,
 };
 const variantBadge = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: '#fff',
-    background: '#3a6fc4', border: '1px solid #1a4a8a', padding: '1px 7px', whiteSpace: 'nowrap' as const,
+    background: '#3a6fc4', border: '1px solid #1a4a8a', borderRadius: CHIP_RADIUS, padding: '1px 7px', whiteSpace: 'nowrap' as const,
 } : {
     fontFamily: modernFont, fontSize: 12, fontWeight: 700, color: '#1e40af',
-    background: '#dbe7fb', border: '1px solid #bcd0f5', borderRadius: 5, padding: '2px 9px', whiteSpace: 'nowrap' as const,
+    background: '#dbe7fb', border: '1px solid #bcd0f5', borderRadius: CHIP_RADIUS, padding: '2px 9px', whiteSpace: 'nowrap' as const,
 };
 
 const emptyForm = () => ({
@@ -703,7 +703,7 @@ export default function LabDipRequestView({
                                                             type="button"
                                                             title={`View ${it.rejection_count} rejection${it.rejection_count === 1 ? '' : 's'} — reasons & notes`}
                                                             onClick={() => setHistoryItem({ item: it, code: variantCode })}
-                                                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, border: classic ? '1px solid #a01a1a' : '1px solid #f3c4c4', background: classic ? '#f8d7da' : '#fef2f2', color: classic ? '#7f0000' : '#dc2626', borderRadius: classic ? 0 : 4, fontSize: classic ? 10 : 11, fontWeight: 'bold', lineHeight: 1.5, padding: '0 6px', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                                                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, border: classic ? '1px solid #a01a1a' : '1px solid #f3c4c4', background: classic ? '#f8d7da' : '#fef2f2', color: classic ? '#7f0000' : '#dc2626', borderRadius: CHIP_RADIUS, fontSize: classic ? 10 : 11, fontWeight: 'bold', lineHeight: 1.5, padding: '0 6px', textDecoration: 'underline', textUnderlineOffset: 2 }}
                                                         >
                                                             <i className="bi bi-clock-history" style={{ fontSize: classic ? 10 : 12, textDecoration: 'none' }} />
                                                             {it.rejection_count}x

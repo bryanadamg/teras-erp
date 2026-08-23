@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { xpFont } from './xpTheme';
+import { xpFont, CHIP_RADIUS } from './xpTheme';
 import { lvSubRow } from './listViewTheme';
 import { actionIntent, INTENT_CHIP } from './permissionMatrix';
 
@@ -56,7 +56,7 @@ export function PermissionChip({ label, code, state, classic, direct = false, ti
         fontWeight: on ? 'bold' : 'normal',
         opacity: state === 'locked' ? 0.7 : 1,
         padding: '1px 6px',
-        borderRadius: classic ? 0 : 3,
+        borderRadius: CHIP_RADIUS,
         whiteSpace: 'nowrap',
         cursor: interactive ? 'pointer' : 'default',
     };
@@ -184,7 +184,7 @@ export function PermissionCountPill({ granted, total, classic }: { granted: numb
             color: granted ? '#1a3d7a' : '#8b8578',
             background: '#fff',
             border: `1px solid ${granted ? '#a9bdd6' : '#d5d1c6'}`,
-            borderRadius: classic ? 0 : 3,
+            borderRadius: CHIP_RADIUS,
             padding: '0 4px',
             fontWeight: 'normal',
         }}>{granted} / {total}</span>

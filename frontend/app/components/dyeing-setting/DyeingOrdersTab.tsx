@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { STATUS_COLORS, xpFont, ListSkeleton } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont, ListSkeleton, CHIP_RADIUS } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
@@ -761,7 +761,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                         {run.status === 'COMPLETED' && run.shade_result ? (
                                                             <span style={classic ? {
                                                                 padding: '1px 6px',
-                                                                borderRadius: 2,
+                                                                borderRadius: CHIP_RADIUS,
                                                                 fontSize: 10,
                                                                 fontWeight: 'bold',
                                                                 background: shadeColors?.bg ?? '#eee',
@@ -769,7 +769,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                                 border: '1px solid #ccc',
                                                             } : {
                                                                 padding: '1px 8px',
-                                                                borderRadius: 6,
+                                                                borderRadius: CHIP_RADIUS,
                                                                 fontSize: 11,
                                                                 fontWeight: 700,
                                                                 background: shadeColors?.bg ?? '#eee',

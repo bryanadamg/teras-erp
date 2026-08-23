@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton, SearchField } from '../shared/shellTheme';
@@ -366,7 +366,7 @@ export default function BOMView({
                                         <span style={uomBadge}>{getItemUom(line.item_id)}</span>
                                     )}
                                     {isExpandable && (
-                                        <span style={{ background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', fontSize: '8px', padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
+                                        <span style={{ borderRadius: CHIP_RADIUS, background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', fontSize: '8px', padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
                                     )}
                                 </span>
                             </div>
@@ -439,7 +439,7 @@ export default function BOMView({
                         {line.item_name || line.item_code}
                     </span>
                     {isSelectable && (
-                        <span style={{
+                        <span style={{ borderRadius: CHIP_RADIUS,
                             background: isSelected ? 'rgba(255,255,255,0.25)' : '#fff3cd',
                             border: `1px solid ${isSelected ? 'rgba(255,255,255,0.5)' : '#b8860b'}`,
                             color: isSelected ? '#fff' : '#6b4e00',
@@ -481,7 +481,7 @@ export default function BOMView({
                         <div style={{ width: 320, flexShrink: 0, borderRight: '2px solid #aca899', display: 'flex', flexDirection: 'column', background: '#ddd9c8' }}>
                             <div style={{ background: 'linear-gradient(to bottom, #4a78c8, #2a54a8)', color: '#fff', fontSize: 11, fontWeight: 'bold', padding: '3px 8px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <span><i className="bi bi-diagram-3-fill" style={{ marginRight: 4 }} />BOM Structure</span>
-                                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 9, padding: '0 5px', borderRadius: 2 }}>{nodeCount} nodes</span>
+                                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 9, padding: '0 5px', borderRadius: CHIP_RADIUS }}>{nodeCount} nodes</span>
                             </div>
                             <div style={{ border: '2px inset #aaa', background: 'white', flex: 1, margin: 4, overflowY: 'auto', padding: 0 }}>
                                 {/* Root node */}
@@ -504,7 +504,7 @@ export default function BOMView({
                                     <span title={bom.item_name || bom.item_code} style={{ flex: 1, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {bom.item_name || bom.item_code}
                                     </span>
-                                    <span style={{ background: isRootSelected ? 'rgba(255,255,255,0.25)' : '#2d7a2d', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold', flexShrink: 0, border: isRootSelected ? '1px solid rgba(255,255,255,0.4)' : 'none' }}>ROOT</span>
+                                    <span style={{ borderRadius: CHIP_RADIUS, background: isRootSelected ? 'rgba(255,255,255,0.25)' : '#2d7a2d', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold', flexShrink: 0, border: isRootSelected ? '1px solid rgba(255,255,255,0.4)' : 'none' }}>ROOT</span>
                                 </div>
                                 {buildTreeNodes(bom, 1, new Set(), bomId, selectedBomId)}
                             </div>
@@ -527,7 +527,7 @@ export default function BOMView({
                                     </div>
                                 </div>
                                 {!isRootSelected && parentName && (
-                                    <span style={{ fontSize: 9, color: '#333', background: '#f0efe6', border: '1px solid #c0bdb5', padding: '1px 6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                    <span style={{ borderRadius: CHIP_RADIUS, fontSize: 9, color: '#333', background: '#f0efe6', border: '1px solid #c0bdb5', padding: '1px 6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
                                         Sub-assembly of: {parentName}
                                     </span>
                                 )}
@@ -560,7 +560,7 @@ export default function BOMView({
                                                                 <CodeChip code={line.item_code} classic={classic} tone="accent" />
                                                                 <span style={{ marginLeft: 5, color: '#000' }}>{line.item_name}</span>
                                                                 {isSubBOM && (
-                                                                    <span style={{ marginLeft: 5, background: '#e6eeff', border: '1px solid #0058e6', color: '#003080', fontSize: 9, padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
+                                                                    <span style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, background: '#e6eeff', border: '1px solid #0058e6', color: '#003080', fontSize: 9, padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
                                                                 )}
                                                             </td>
                                                             <td style={{ ...xpTd, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -576,7 +576,7 @@ export default function BOMView({
                                                             {beamBom && (
                                                                 <td style={{ ...xpTd, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                     {(Number(line.qty) || 0) > 0
-                                                                        ? <span style={{ background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 10, padding: '0 5px' }}>{Math.round(Number(line.qty))} ends</span>
+                                                                        ? <span style={{ borderRadius: CHIP_RADIUS, background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 10, padding: '0 5px' }}>{Math.round(Number(line.qty))} ends</span>
                                                                         : <span style={{ color: '#888' }}>—</span>}
                                                                 </td>
                                                             )}
@@ -671,7 +671,7 @@ export default function BOMView({
                                         <div>
                                             <div style={lbl}>{getItemEnds(displayBOM.item_id) != null ? 'Warp Ends (Utas)' : 'Batch Output'}</div>
                                             {getItemEnds(displayBOM.item_id) != null ? (
-                                                <div><span style={{ display: 'inline-block', background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 11, padding: '1px 8px', borderRadius: 2 }}>{Math.round(Number(displayBOM.qty))} ends</span></div>
+                                                <div><span style={{ display: 'inline-block', background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 11, padding: '1px 8px', borderRadius: CHIP_RADIUS }}>{Math.round(Number(displayBOM.qty))} ends</span></div>
                                             ) : (
                                                 <div style={val}>{Number(displayBOM.qty).toFixed(2)} <span style={{ fontWeight: 'normal', color: '#555', fontSize: 9 }}>pcs</span></div>
                                             )}
@@ -1049,7 +1049,7 @@ export default function BOMView({
                                                                 </span>
                                                             )}
                                                             {bom.size_mode === 'sized' && (bom.sizes || []).length > 0 && (
-                                                                <span title="Sized BOM" style={{ whiteSpace: 'nowrap', background: '#eef0fa', border: '1px solid #99a6cc', color: '#334', padding: '0 4px', fontSize: 9 }}>{sizeTag(bom.sizes)}</span>
+                                                                <span title="Sized BOM" style={{ borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap', background: '#eef0fa', border: '1px solid #99a6cc', color: '#334', padding: '0 4px', fontSize: 9 }}>{sizeTag(bom.sizes)}</span>
                                                             )}
                                                             {hasTeknisFor(bom) && (
                                                                 <span title="Has weaving/textile spec" style={{ width: 7, height: 7, borderRadius: '50%', background: '#b46a00', display: 'inline-block', flexShrink: 0 }} />

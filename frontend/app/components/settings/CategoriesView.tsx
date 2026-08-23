@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { CODE_FONT, xpFont } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 type Category = {
@@ -308,7 +308,7 @@ export default function CategoriesView({
                     <span style={{ flex: 1 }}>{node.name}</span>
                     {node.is_system && (
                         classic ? (
-                            <span style={{ fontFamily: xpFont, fontSize: 9, color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px', marginRight: 4 }}>SYSTEM</span>
+                            <span style={{ borderRadius: CHIP_RADIUS, fontFamily: xpFont, fontSize: 9, color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px', marginRight: 4 }}>SYSTEM</span>
                         ) : (
                             <span className="badge bg-primary" style={{ fontSize: 10, marginRight: 6 }}>SYSTEM</span>
                         )
