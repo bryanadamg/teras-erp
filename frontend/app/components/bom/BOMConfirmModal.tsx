@@ -74,6 +74,7 @@ const xpBtn: React.CSSProperties = {
     borderTop: '1px solid #fff', borderLeft: '1px solid #fff',
     borderRight: '1px solid #555', borderBottom: '1px solid #555',
     cursor: 'pointer', whiteSpace: 'nowrap', minWidth: 70, color: '#000',
+    borderRadius: 3,
 };
 
 const xpBtnPrimary: React.CSSProperties = {
@@ -81,6 +82,7 @@ const xpBtnPrimary: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #b4d0f8, #7aacf0)',
     borderTopColor: '#c8e0ff', borderLeftColor: '#c8e0ff',
     fontWeight: 'bold', color: '#00007a', minWidth: 130,
+    borderRadius: 3,
 };
 
 const ACTION_STYLE: Record<BOMPlanAction, { bg: string; fg: string; label: string }> = {

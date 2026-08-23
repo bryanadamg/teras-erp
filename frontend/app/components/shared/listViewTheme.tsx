@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont, SortMark, SortState } from './xpTheme';
+import { xpFont, modernFont, SortMark, SortState, BUTTON_RADIUS } from './xpTheme';
 
 // Shared dual-theme (classic XP / modern) style helpers for master-data list views
 // (Color Library, Combo Library, Colors variant, …). xpTheme's xpBtn/xpInput are
@@ -18,7 +18,7 @@ export const LV_MODERN_FONT = modernFont;
 // a toolbar row, and the default `width: '100%'` would otherwise silently win and
 // blow every field out to full width (stacking a one-line filter bar into N rows).
 export const lvInput = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => (classic ? {
-    fontFamily: LV_XP_FONT, fontSize: 11, border: '1px solid #7f9db9',
+    fontFamily: LV_XP_FONT, fontSize: 11, border: '1px solid #7f9db9', borderRadius: BUTTON_RADIUS,
     background: 'white', padding: '1px 6px', outline: 'none', height: 20, width: '100%', boxSizing: 'border-box',
     ...extra,
 } : {
@@ -32,7 +32,8 @@ const LV_MODERN_PRIMARY: React.CSSProperties = { fontWeight: 600, background: '#
 export const lvBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => (classic ? {
     fontFamily: LV_XP_FONT, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', ...extra,
+    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000',
+    borderRadius: BUTTON_RADIUS, ...extra,
 } : {
     fontFamily: LV_MODERN_FONT, fontSize: 12.5, fontWeight: 500, padding: '5px 12px', cursor: 'pointer',
     background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7, ...extra,

@@ -11,7 +11,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import ProductionRunModal from './ProductionRunModal';
 import MOCreationPreview from './MOCreationPreview';
-import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor } from '../shared/xpTheme';
+import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
@@ -409,7 +409,7 @@ export default function ManufacturingView({
                               <button
                                   type="button"
                                   onClick={() => setIsConfigOpen(true)}
-                                  style={{ fontFamily: xpFont, fontSize: 11, height: 24, padding: '0 7px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', borderRadius: 0, cursor: 'pointer', boxSizing: 'border-box' as const }}
+                                  style={{ fontFamily: xpFont, fontSize: 11, height: 24, padding: '0 7px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', borderRadius: 3, cursor: 'pointer', boxSizing: 'border-box' as const }}
                                   title="Configure code format"
                               ><i className="bi bi-gear-fill" style={{ fontSize: 10 }}></i></button>
                           </div>
@@ -553,11 +553,12 @@ export default function ManufacturingView({
                                       <button
                                           key={key}
                                           onClick={handleClick}
-                                          className={classic ? undefined : `btn btn-sm btn-light border ${isActive ? 'active' : ''}`}
+                                          className={classic ? XP_BTN : `btn btn-sm btn-light border ${isActive ? 'active' : ''}`}
                                           style={classic ? {
                                               fontFamily: xpFont,
                                               fontSize: '11px',
                                               padding: '2px 8px',
+                                              borderRadius: BUTTON_RADIUS,
                                               background: isActive
                                                   ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
                                                   : 'linear-gradient(to bottom,#d4d0c8 0%,#b8b4ac 100%)',

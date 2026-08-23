@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useId } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { toLayoutPx } from './uiScale';
-import { xpFont } from './xpTheme';
+import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
 
 // Shared z-index tier for anything that must render as an overlay but can't use
 // ModalWrapper directly (e.g. a full-screen designer canvas with its own custom
@@ -222,6 +222,7 @@ export default function ModalWrapper({
                         {title}
                     </span>
                     <button
+                        className={XP_BTN}
                         onClick={onClose}
                         onMouseEnter={() => setCloseBtnHov(true)}
                         onMouseLeave={() => setCloseBtnHov(false)}
@@ -233,7 +234,7 @@ export default function ModalWrapper({
                                 : 'linear-gradient(to bottom, #d4c8c8, #a89898)',
                             border: '1px solid',
                             borderColor: closeBtnHov ? '#8e0000 #5e0000 #5e0000 #8e0000' : '#dfdfdf #808080 #808080 #dfdfdf',
-                            color: '#ffffff', borderRadius: 0,
+                            color: '#ffffff', borderRadius: BUTTON_RADIUS,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             lineHeight: 1, flexShrink: 0,
                             textShadow: '0 1px 1px rgba(0,0,0,0.5)',

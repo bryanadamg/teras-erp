@@ -3,6 +3,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { lvBtn, LV_XP_FONT, LV_MODERN_FONT } from './listViewTheme';
+import { XP_BTN } from './xpTheme';
 
 interface PagerProps {
     page: number;
@@ -37,6 +38,7 @@ export default function Pager({ page, total, pageSize, onPageChange, hideWhenEmp
     // toolbar) so the pager reads as part of the same button system, not a one-off.
     const navBtn = (label: React.ReactNode, target: number, disabled: boolean) => (
         <button
+            className={XP_BTN}
             disabled={disabled}
             onClick={() => onPageChange(target)}
             style={lvBtn(classic, disabled ? { opacity: 0.5, cursor: 'default' } : {})}

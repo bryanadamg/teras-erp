@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { layoutRectOf, layoutScroll } from './uiScale';
+import { xpFont, modernFont, CODE_FONT } from './typography';
+import { FloatingLayer, Tooltip, TooltipSurface, useHoverAnchor, isClipped } from './Tooltip';
+import { useTheme } from '../../context/ThemeContext';
 
 /**
  * Shared Windows XP "classic" theme primitives.
@@ -9,14 +12,11 @@ import { layoutRectOf, layoutScroll } from './uiScale';
  * that were previously duplicated per view.
  */
 
-export const xpFont = 'Tahoma, "Segoe UI", Arial, sans-serif';
-export const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+// The font stacks live in ./typography so Tooltip (which this file imports) can
+// use them without an import cycle. Re-exported here: every existing
+// `import { xpFont } from '../shared/xpTheme'` still resolves to the same const.
+export { xpFont, modernFont, CODE_FONT } from './typography';
 
-// Single monospace stack for every identifier and every aligned number. Views used
-// to pick between `'Courier New', monospace` and a bare `monospace` per file, which
-// resolve to different faces on Windows — the same MO code rendered two widths on
-// two pages. Always import this; never hand-write a mono stack.
-export const CODE_FONT = "'Courier New', Consolas, monospace";
 
 // ── Identifier typography ─────────────────────────────────────────────────────
 // Codes are UNBOXED — plain monospace text. The box the items/BOM tables used to
@@ -42,40 +42,70 @@ export function CodeChip({ code, classic, tier = 1, tone = 'default', link = fal
     style?: React.CSSProperties; className?: string; onClick?: () => void;
 }) {
     const base: React.CSSProperties = { fontFamily: CODE_FONT, whiteSpace: 'nowrap' };
-    if (link) {
-        return (
-            <span
-                className={className}
-                onClick={onClick}
-                title={title ?? (typeof code === 'string' ? code : undefined)}
-                style={{
-                    ...base,
-                    fontSize: classic ? 10 : 11,
-                    fontWeight: 'bold',
-                    color: '#0058e6',
-                    background: '#e8f0fe',
-                    border: '1px solid #b0c8f8',
-                    borderRadius: CODE_CHIP_RADIUS,
-                    padding: '0 5px',
-                    cursor: 'pointer',
-                    display: 'inline-block',
-                    ...style,
-                }}
-            >{code}</span>
-        );
-    }
-    const s: React.CSSProperties = tier === 2
-        ? { ...base, fontSize: classic ? 9 : 10.5, color: '#666' }
-        : {
+    const selfRef = useRef<HTMLSpanElement>(null);
+    const tip = title ?? (typeof code === 'string' ? code : undefined);
+    const mode = useRef<'pop' | 'tip' | null>(null);
+    // A code is the one label a reader must have in full — "PR-2026-08-000…" is
+    // not a shorter code, it is no code. So a clipped one pops out whole; an
+    // unclipped one only floats a tooltip if the caller wrote something the code
+    // itself doesn't already say.
+    const { rect, anchorEl, handlers } = useHoverAnchor({
+        delay: 260,
+        shouldOpen: () => {
+            if (isClipped(selfRef.current)) { mode.current = 'pop'; return true; }
+            if (title) { mode.current = 'tip'; return true; }
+            return false;
+        },
+    });
+
+    const boxStyle: React.CSSProperties = link
+        ? {
             ...base,
-            fontSize: classic ? 11 : 12,
+            fontSize: classic ? 10 : 11,
             fontWeight: 'bold',
-            color: tone === 'accent' ? '#000055' : '#000',
-        };
+            color: '#0058e6',
+            background: '#e8f0fe',
+            border: '1px solid #b0c8f8',
+            borderRadius: CODE_CHIP_RADIUS,
+            padding: '0 5px',
+            cursor: 'pointer',
+            display: 'inline-block',
+            ...style,
+        }
+        : tier === 2
+            ? { ...base, fontSize: classic ? 9 : 10.5, color: '#666', ...style }
+            : {
+                ...base,
+                fontSize: classic ? 11 : 12,
+                fontWeight: 'bold',
+                color: tone === 'accent' ? '#000055' : '#000',
+                ...style,
+            };
+
     return (
-        <span className={className} onClick={onClick} title={title ?? (typeof code === 'string' ? code : undefined)} style={{ ...s, ...style }}>
-            {code}
-        </span>
+        <>
+            <span ref={selfRef} className={className} {...handlers} data-no-tip="" onClick={onClick} style={boxStyle}>{code}</span>
+            {rect && (mode.current === 'pop'
+                ? (
+                    <FloatingLayer rect={rect} anchorEl={anchorEl} placement="over" className="chip-pop-anim">
+                        <span style={{
+                            ...boxStyle,
+                            margin: 0,
+                            maxWidth: 'none', overflow: 'visible', textOverflow: 'clip',
+                            // A tier-2/plain code has no fill of its own, so the
+                            // popout has to supply one or it reads as text printed
+                            // over the row underneath it.
+                            ...(link ? null : { background: classic ? '#ffffe1' : '#ffffff', border: '1px solid', borderColor: classic ? '#000' : '#cbd5e1', borderRadius: CODE_CHIP_RADIUS, padding: '0 5px' }),
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.22)',
+                        }}>{code}</span>
+                    </FloatingLayer>
+                )
+                : (
+                    <FloatingLayer rect={rect} anchorEl={anchorEl} className="tip-anim">
+                        <TooltipSurface classic={classic}>{tip}</TooltipSurface>
+                    </FloatingLayer>
+                ))}
+        </>
     );
 }
 
@@ -224,6 +254,20 @@ export const CHIP_RADIUS = 3;
 
 export const CODE_CHIP_RADIUS = CHIP_RADIUS;
 
+// Interactive-chrome corner radius — same single-constant rule as CHIP_RADIUS,
+// and the same reason: one number, or every view re-picks. Covers the controls a
+// user acts on — toolbar buttons, xpBtn, modal footer actions, row action
+// buttons, the "..." trigger, toggle chips, text inputs/selects, and the top
+// corners of a tab. Static chrome stays square: panels, bevel windows, title
+// bars, table cells, progress tracks.
+export const BUTTON_RADIUS = 3;
+
+// The class that carries the shared button hover/press motion (see the BUTTONS
+// block in globals.css). Tag any classic button with it instead of hand-rolling
+// onMouseEnter/onMouseLeave state — it animates filter/transform/box-shadow only,
+// so it layers over whatever inline gradient face the button paints.
+export const XP_BTN = 'xp-btn';
+
 // StatusChip is the XP-flavoured chip used in BOTH themes (it always renders on
 // xpFont), so it takes the classic geometry in both rather than threading a
 // `classic` flag through its ~100 call sites. 2px vs 4px at 9px type is invisible;
@@ -246,7 +290,7 @@ export const statusChipStyle = (status?: string, extra: React.CSSProperties = {}
 // bootstrap-icon class, `swatch` for a colour dot, `onRemove` for a pick-list "x".
 // Don't re-roll a chip span in a view; if a variant is missing, add it here.
 export function Chip({
-    children, classic, tone, icon, swatch, title, onRemove, onClick, bold, size = 'sm', style,
+    children, classic, tone, icon, swatch, title, onRemove, onClick, bold, size = 'sm', truncate, style,
 }: {
     children: React.ReactNode;
     classic?: boolean;
@@ -258,38 +302,83 @@ export function Chip({
     onClick?: () => void;
     bold?: boolean;
     size?: 'xs' | 'sm' | 'md';
+    /** Clip the label to the container instead of overflowing it (fixed-width table
+     *  cells). The chip never grows past its parent; the text ellipses, the icon,
+     *  swatch and remove button stay. Pair with a `title` carrying the full text. */
+    truncate?: boolean;
     style?: React.CSSProperties;
 }) {
     const fs = size === 'xs' ? (classic ? 9 : 9.5) : size === 'md' ? (classic ? 11 : 12) : (classic ? 10 : 11);
-    return (
-        <span
-            title={title}
-            onClick={onClick}
-            style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                background: tone?.background ?? (classic ? '#f0ede4' : '#eef1f4'),
-                border: '1px solid',
-                borderColor: tone?.borderColor ?? (classic ? '#b0a898' : '#dee2e6'),
-                color: tone?.color ?? (classic ? '#333' : '#495057'),
-                borderRadius: CHIP_RADIUS,
-                padding: size === 'md' ? '1px 7px' : '1px 6px',
-                fontFamily: classic ? xpFont : modernFont,
-                fontSize: fs,
-                fontWeight: bold ? 700 : 400,
-                lineHeight: 1.45,
-                whiteSpace: 'nowrap',
-                cursor: onClick ? 'pointer' : undefined,
-                ...style,
-            }}
-        >
+    const labelRef = useRef<HTMLSpanElement>(null);
+    // Which surface this hover wants. Decided in shouldOpen against the live DOM
+    // (a chip is only clipped at some column widths), read back on render — by
+    // then the rect state has committed, so the ref is already correct.
+    const mode = useRef<'pop' | 'tip' | null>(null);
+    const { rect, anchorEl, handlers } = useHoverAnchor({
+        delay: 260,
+        enabled: !!truncate || !!title,
+        shouldOpen: () => {
+            // A clipped chip completes itself; an unclipped one with a title
+            // explains itself. Never both — the popout already shows the text the
+            // title would have repeated.
+            if (truncate && isClipped(labelRef.current)) { mode.current = 'pop'; return true; }
+            if (title) { mode.current = 'tip'; return true; }
+            return false;
+        },
+    });
+
+    const chipStyle: React.CSSProperties = {
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        background: tone?.background ?? (classic ? '#f0ede4' : '#eef1f4'),
+        border: '1px solid',
+        borderColor: tone?.borderColor ?? (classic ? '#b0a898' : '#dee2e6'),
+        color: tone?.color ?? (classic ? '#333' : '#495057'),
+        borderRadius: CHIP_RADIUS,
+        padding: size === 'md' ? '1px 7px' : '1px 6px',
+        fontFamily: classic ? xpFont : modernFont,
+        fontSize: fs,
+        fontWeight: bold ? 700 : 400,
+        lineHeight: 1.45,
+        whiteSpace: 'nowrap',
+        cursor: onClick ? 'pointer' : undefined,
+        ...(truncate ? { maxWidth: '100%', minWidth: 0, overflow: 'hidden' } : null),
+        ...style,
+    };
+
+    const inner = (clipped: boolean) => (
+        <>
             {icon && <i className={`bi ${icon}`} style={{ fontSize: fs - 1.5, opacity: 0.8 }} />}
             {swatch && <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: swatch, border: '1px solid rgba(0,0,0,0.25)' }} />}
-            {children}
+            {truncate
+                ? <span ref={clipped ? labelRef : undefined} style={{ overflow: clipped ? 'hidden' : 'visible', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span>
+                : children}
             {onRemove && (
                 <button type="button" onClick={e => { e.stopPropagation(); onRemove(); }} title="Remove"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontWeight: 'bold', lineHeight: 1, padding: 0, marginLeft: 1, fontSize: fs + 2 }}>×</button>
             )}
-        </span>
+        </>
+    );
+
+    return (
+        <>
+            <span {...handlers} data-no-tip="" onClick={onClick} style={chipStyle}>{inner(true)}</span>
+            {rect && (mode.current === 'pop'
+                ? (
+                    // Same chip, unclipped, over its own position — it grows out of
+                    // where it already was instead of arriving as a second badge.
+                    <FloatingLayer rect={rect} anchorEl={anchorEl} placement="over" className="chip-pop-anim">
+                        {/* margin: 0 — a caller's margin is spacing from its NEIGHBOUR
+                            in the row; on the popout, which is placed absolutely on the
+                            chip, the same margin is a pure offset off the target. */}
+                        <span style={{ ...chipStyle, margin: 0, maxWidth: 'none', overflow: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.22)' }}>{inner(false)}</span>
+                    </FloatingLayer>
+                )
+                : (
+                    <FloatingLayer rect={rect} anchorEl={anchorEl} className="tip-anim">
+                        <TooltipSurface classic={!!classic}>{title}</TooltipSurface>
+                    </FloatingLayer>
+                ))}
+        </>
     );
 }
 
@@ -320,6 +409,20 @@ export const VARIANT_TONE = {
 
 export type VariantKind = keyof typeof VARIANT_TONE;
 
+// Reference tones — the badges that name a REFERENCE rather than a variant: an
+// item's category, the warehouse and bin a balance sits in, the lot it belongs to,
+// the supplier lot it came in on, the MO that produced it. These hexes were
+// declared inline in the stock and ledger tables (twice each, once per theme);
+// they keep their colours and lose the duplication. Render them with `<Chip>`.
+export const REF_TONES = {
+    category:    { color: '#2a464a', background: '#e4eef0', borderColor: '#8fb3bb' },
+    warehouse:   { color: '#4a4a2a', background: '#eef0e4', borderColor: '#b7bb8f' },
+    bin:         { color: '#3a2a4a', background: '#e8e1f0', borderColor: '#a890c0' },
+    lot:         { color: '#5a3c00', background: '#fff8dc', borderColor: '#c8a000' },
+    supplierLot: { color: '#4a4438', background: '#f0ece0', borderColor: '#b0a890' },
+    producedBy:  { color: '#2a4a2a', background: '#e4f0e4', borderColor: '#8fbb8f' },
+} as const;
+
 /** The tone triple for `<Chip tone={...}>`, for the few callers that need the raw palette. */
 export const variantChipTone = (kind: VariantKind) => VARIANT_TONE[kind];
 
@@ -335,7 +438,7 @@ const VARIANT_ICON: Partial<Record<VariantKind, string>> = {
 
 /** One variant-identity badge. Geometry comes from `Chip`, colour from `VARIANT_TONE`. */
 export function VariantChip({
-    kind, children, classic, swatch, icon, mono, title, size = 'xs', bold = true, onRemove, onClick, style,
+    kind, children, classic, swatch, icon, mono, title, size = 'xs', bold = true, onRemove, onClick, truncate, style,
 }: {
     kind: VariantKind;
     children: React.ReactNode;
@@ -350,6 +453,8 @@ export function VariantChip({
     bold?: boolean;
     onRemove?: () => void;
     onClick?: () => void;
+    /** Clip the label to the parent's width instead of overflowing it. */
+    truncate?: boolean;
     style?: React.CSSProperties;
 }) {
     // A swatch already says "this is a colour", so the palette icon would be noise.
@@ -365,6 +470,7 @@ export function VariantChip({
             title={title}
             onRemove={onRemove}
             onClick={onClick}
+            truncate={truncate}
             style={mono ? { fontFamily: CODE_FONT, ...style } : style}
         >{children}</Chip>
     );
@@ -425,11 +531,14 @@ export function OriginChipRow({ children, style }: { children: React.ReactNode; 
 }
 
 export function StatusChip({ status, label, style, tint, title }: { status: string; label?: string; style?: React.CSSProperties; tint?: boolean; title?: string }) {
-    return (
-        <span style={statusChipStyle(status, style, tint)} title={title}>
+    const chip = (
+        <span style={statusChipStyle(status, style, tint)}>
             {(label ?? status).replace(/_/g, ' ').toUpperCase()}
         </span>
     );
+    // Status chips are never clipped (they're short and nowrap), so the only hover
+    // surface they need is the explanatory one.
+    return title ? <Tooltip content={title}>{chip}</Tooltip> : chip;
 }
 
 // Count pill — "<n> approved" as one tinted, bounded unit instead of loose numbers
@@ -440,9 +549,8 @@ export function StatusCountPill({ status, count, label, classic, title }: {
     status: string; count: number; label?: string; classic?: boolean; title?: string;
 }) {
     const c = statusTint(status);
-    return (
+    const pill = (
         <span
-            title={title}
             style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: classic ? '0 6px' : '1px 9px',
@@ -459,6 +567,7 @@ export function StatusCountPill({ status, count, label, classic, title }: {
             <span style={{ opacity: 0.85 }}>{(label ?? status).replace(/_/g, ' ').toLowerCase()}</span>
         </span>
     );
+    return title ? <Tooltip content={title}>{pill}</Tooltip> : pill;
 }
 
 // Work-center chip palette keyed on center_type (case-insensitive). Falls back
@@ -511,6 +620,18 @@ export function colorHexFor(name?: string): string | null {
     for (const tok of k.split(/[\s\-_/]+/)) if (COLOR_HEX[tok]) return COLOR_HEX[tok];
     return null;
 }
+
+// Colour code vs colour name: in real data they are near-identical ("318" / "318",
+// "HITAM MERAH CABAI" / "HITAM MERAH CABAI"), so the `{code} — {name}` label every
+// view used to build was mostly duplicated text that overflowed narrow cells. The
+// CODE is the display label everywhere; the name only survives on the tooltip, and
+// only when it actually says something the code does not.
+export const colorLabel = (code?: string | null, name?: string | null): string =>
+    (code || name || '').trim();
+export const colorTitle = (code?: string | null, name?: string | null): string => {
+    const c = (code || '').trim(), n = (name || '').trim();
+    return c && n && n.toLowerCase() !== c.toLowerCase() ? `${c} — ${n}` : (c || n);
+};
 
 // Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
 // `hex` overrides the derived lookup with a stored AttributeValue.hex, when known.
@@ -618,7 +739,7 @@ export function ProgressBar({
     const pctLabel = Math.round(clamped);
 
     const track = (
-        <div title={title} style={{ flex: label === 'outside' ? 1 : undefined, border: '1px solid #7f9db9', borderRadius: 3, height, width: label === 'outside' ? undefined : (width ?? '100%'), background: '#e9e9e9', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ flex: label === 'outside' ? 1 : undefined, border: '1px solid #7f9db9', borderRadius: 3, height, width: label === 'outside' ? undefined : (width ?? '100%'), background: '#e9e9e9', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${clamped}%`, background: progressBarFill(t, hatched), transition: 'width 0.2s' }} />
             {secondaryPct != null && (
                 <div style={{ position: 'absolute', top: 0, left: `${clamped}%`, height: '100%', width: `${secClamped}%`, background: progressBarFill(secondaryTone, hatched), transition: 'width 0.2s, left 0.2s' }} />
@@ -627,14 +748,15 @@ export function ProgressBar({
                 <div style={{ position: 'absolute', top: 0, left: `${clamped + secClamped}%`, height: '100%', width: `${terClamped}%`, background: progressBarFill(tertiaryTone, hatched), transition: 'width 0.2s, left 0.2s' }} />
             )}
             {markerPct != null && (
-                <div
-                    title={markerTitle}
-                    style={{
-                        position: 'absolute', top: 0, bottom: 0,
-                        left: `${Math.max(0, Math.min(100, markerPct))}%`,
-                        width: 2, background: '#000',
-                    }}
-                />
+                <Tooltip content={markerTitle}>
+                    <div
+                        style={{
+                            position: 'absolute', top: 0, bottom: 0,
+                            left: `${Math.max(0, Math.min(100, markerPct))}%`,
+                            width: 2, background: '#000',
+                        }}
+                    />
+                </Tooltip>
             )}
             {label === 'inside' && (
                 <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -649,11 +771,14 @@ export function ProgressBar({
         </div>
     );
 
-    if (label !== 'outside') return track;
+    // The bar carries long, multi-line explanations (MO step lists, receiving
+    // breakdowns) — exactly the content the OS tooltip renders worst.
+    const tipped = title ? <Tooltip content={title} maxWidth={380}>{track}</Tooltip> : track;
+    if (label !== 'outside') return tipped;
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {track}
+            {tipped}
             <span style={{ fontSize: 10, fontFamily: CODE_FONT, minWidth: 32 }}>{pctLabel}%</span>
         </div>
     );
@@ -664,12 +789,12 @@ export function ProgressBar({
 export const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0,
+    borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: BUTTON_RADIUS,
     ...extra,
 });
 
 export const xpInput = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
+    fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9', borderRadius: BUTTON_RADIUS,
     padding: '1px 6px', background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
     ...extra,
 });
@@ -726,10 +851,11 @@ export function ModalFooterActions({
             <>
                 <button
                     type="button"
+                    className={XP_BTN}
                     onClick={onCancel}
                     style={{
                         fontFamily: xpFont, fontSize: 11, padding: '3px 16px', cursor: 'pointer',
-                        borderRadius: 0, border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                        borderRadius: BUTTON_RADIUS, border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                         background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',
                     }}
                 >
@@ -737,11 +863,12 @@ export function ModalFooterActions({
                 </button>
                 <button
                     type="button"
+                    className={XP_BTN}
                     onClick={onSubmit}
                     disabled={submitting || disabled}
                     style={{
                         fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '3px 20px', cursor: submitting || disabled ? 'default' : 'pointer',
-                        borderRadius: 0, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
+                        borderRadius: BUTTON_RADIUS, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
                         ...tone,
                     }}
                 >
@@ -871,12 +998,11 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
     // used before they moved onto this shared chip.
     const flatFilter = down ? 'brightness(0.96)' : lit ? 'brightness(1.08)' : 'none';
     const flatLift = lit && !down ? 'translateY(-1px)' : 'translateY(0)';
-    return (
+    const btn = (
         <button
             type="button"
             disabled={disabled}
             onClick={onClick}
-            title={title}
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => { setHover(false); setPressed(false); }}
             onMouseDown={() => setPressed(true)}
@@ -885,7 +1011,7 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
             className={classic ? '' : `btn btn-sm ${on ? c.cls : 'btn-outline-secondary'}`}
             style={classic ? {
                 fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
-                minWidth, padding: '2px 9px', borderRadius: 0,
+                minWidth, padding: '2px 9px', borderRadius: BUTTON_RADIUS,
                 cursor: disabled ? 'default' : 'pointer',
                 border: '1px solid',
                 borderColor: on ? c.border
@@ -920,6 +1046,7 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
             {children}
         </button>
     );
+    return title ? <Tooltip content={title}>{btn}</Tooltip> : btn;
 }
 
 // Mon-first weekday picker (0=Mon … 6=Sun) — the working-days control on every
@@ -1577,22 +1704,21 @@ export function useFloatingMenu(menuWidth = 175) {
 export function MenuTriggerButton({ classic, onClick, title = 'More actions' }: { classic: boolean; onClick: (e: React.MouseEvent) => void; title?: string }) {
     if (classic) {
         return (
-            <button
-                className="xp-menu-trigger"
-                title={title}
+            <Tooltip content={title}><button
+                className={`xp-menu-trigger ${XP_BTN}`}
                 onClick={onClick}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: BUTTON_RADIUS, cursor: 'pointer', color: '#555', fontSize: '12px' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
             >
                 <i className="bi bi-three-dots"></i>
-            </button>
+            </button></Tooltip>
         );
     }
     return (
-        <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center xp-menu-trigger" style={{ width: 26, height: 26 }} title={title} onClick={onClick}>
+        <Tooltip content={title}><button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center xp-menu-trigger" style={{ width: 26, height: 26 }} onClick={onClick}>
             <i className="bi bi-three-dots fs-6"></i>
-        </button>
+        </button></Tooltip>
     );
 }
 
@@ -1633,31 +1759,33 @@ export function XPActionButton({
     className?: string;          // extra classes — pass 'xp-menu-trigger' when this button opens a FloatingMenu
 }) {
     const iconEl = icon ? <i className={`bi ${icon}`} /> : null;
+    // Icon-only action buttons are the densest tooltip consumer in the app (a whole
+    // action column of them), so they take the styled surface rather than the OS
+    // one that arrives a second later in a different font.
+    const tip = (btn: React.ReactElement) => title ? <Tooltip content={title}>{btn}</Tooltip> : btn;
     if (classic) {
         const t = XP_ACTION_TONES[tone];
-        return (
+        return tip(
             <button
                 onClick={onClick}
-                title={title}
                 disabled={disabled}
-                className={className}
+                className={[XP_BTN, className].filter(Boolean).join(' ')}
                 style={{
                     fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px',
                     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
                     background: t.bg, border: `1px solid ${t.border}`, color: t.fg,
-                    display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 0,
+                    display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: BUTTON_RADIUS,
                 }}
             >
                 {iconEl}{label}
             </button>
         );
     }
-    return (
+    return tip(
         <button
             className={`btn ${XP_ACTION_MODERN[tone]} d-inline-flex align-items-center py-0 px-1`}
             style={{ fontSize: 11, gap: 4 }}
             onClick={onClick}
-            title={title}
             disabled={disabled}
         >
             {iconEl}{label}

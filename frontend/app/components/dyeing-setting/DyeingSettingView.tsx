@@ -21,6 +21,7 @@ const xpBtn: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     cursor: 'pointer',
+    borderRadius: 3,
 };
 const xpSectionHeader: React.CSSProperties = {
     background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',

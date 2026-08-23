@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
 import { layoutRectOf, layoutViewport } from './uiScale';
-import { CODE_FONT, xpFont as font } from './xpTheme';
+import { CODE_FONT, xpFont as font, BUTTON_RADIUS } from './xpTheme';
 
 interface Option {
     value: string;
@@ -173,7 +173,7 @@ export default function SearchableSelect({
                     <select
                         style={{
                             fontFamily: font, fontSize: 10,
-                            border: '1px solid #7f9db9', height: 18,
+                            border: '1px solid #7f9db9', borderRadius: BUTTON_RADIUS, height: 18,
                             padding: '0 2px', background: 'white', flexShrink: 0,
                         }}
                         value={activeCategory || ''}
@@ -197,6 +197,7 @@ export default function SearchableSelect({
                     style={{
                         fontFamily: font, fontSize: 11,
                         border: '1px solid #7f9db9',
+                        borderRadius: BUTTON_RADIUS,
                         borderTopColor: '#5a7fa8',
                         background: 'white',
                         height: 18,

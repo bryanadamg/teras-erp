@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg } from './xpTheme';
+import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, XP_BTN } from './xpTheme';
 
 // Shared "classic outer window" chrome — bevel container + colored title bar +
 // toolbar strip. Every dual-theme table/detail view (Sales Orders, Packing,
@@ -101,7 +101,7 @@ export function SearchField({
                 title={title}
                 autoFocus={autoFocus}
                 style={classic ? {
-                    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9', borderRadius: 0,
+                    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9', borderRadius: BUTTON_RADIUS,
                     background: '#ffffff', color: '#000000', height: 20, outline: 'none',
                     width: '100%', boxSizing: 'border-box', padding: '1px 20px 1px 20px',
                 } : {
@@ -196,13 +196,14 @@ export function ToolbarButton({
         return (
             <button
                 data-testid={testId}
+                className={XP_BTN}
                 onClick={onClick}
                 disabled={disabled}
                 title={title}
                 style={{
                     fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
                     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
-                    border: '1px solid', borderRadius: 0,
+                    border: '1px solid', borderRadius: BUTTON_RADIUS,
                     ...TOOLBAR_BTN_CLASSIC[tone],
                     ...style,
                 }}

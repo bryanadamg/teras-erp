@@ -32,6 +32,7 @@ const xpBtn: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     cursor: 'pointer',
+    borderRadius: 3,
 };
 const modernBtn: React.CSSProperties = {
     fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px',

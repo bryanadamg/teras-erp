@@ -163,7 +163,7 @@ export default function PickListPrintModal({ pl, companyProfile, onClose }: any)
         </div>
     );
 
-    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom,#ffffff 0%,#d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra });
+    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom,#ffffff 0%,#d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 3, ...extra });
     const btnGreen = xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' });
 
     return (

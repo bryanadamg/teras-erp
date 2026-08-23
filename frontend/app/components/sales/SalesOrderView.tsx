@@ -11,10 +11,11 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel } from '../shared/xpTheme';
 
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
+import { Tooltip } from '../shared/Tooltip';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
 import { lvThead, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
@@ -33,7 +34,7 @@ const SO_COL_WIDTHS = [
     150, // PO# / Ref
     180, // Customer
     72,  // Date
-    180, // Item
+    215, // Item
     132, // Size
     205, // Qty
     110, // Alt Unit
@@ -45,6 +46,32 @@ const SO_COL_WIDTHS = [
     75,  // Actions
 ];
 const SO_TABLE_MIN_WIDTH = SO_COL_WIDTHS.reduce((a, b) => a + b, 0);
+
+// The MO progress bar IS the link to the MO. A code chip above it ate the column's
+// width and truncated the code to noise ("PR-2026-08-00010-00…"), so the code now
+// lives only in the hover tooltip and the bar itself is the click target.
+function MOProgressLink({ pct, tone, onClick }: { pct: number; tone: 'green' | 'blue'; onClick: () => void }) {
+    const [hover, setHover] = useState(false);
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onClick}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            style={{
+                cursor: 'pointer',
+                outline: 'none',
+                borderRadius: 2,
+                boxShadow: hover ? '0 0 0 2px rgba(0, 88, 230, 0.28)' : undefined,
+                filter: hover ? 'brightness(1.1)' : undefined,
+            }}
+        >
+            <ProgressBar pct={pct} tone={tone} height={6} />
+        </div>
+    );
+}
 
 // Ordered qty is the emphasised number on a line, so it keeps its own blue fill —
 // VARIANT_TONE entries mean "variant identity", which a quantity is not. The metre
@@ -670,7 +697,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
               bom_size_id: l.bom_size_id || '',
               attribute_value_ids: l.attribute_value_ids || [],
               color_id: l.color_id || '',
-              color_label: l.color_code ? `${l.color_code}${l.color_name ? ' — ' + l.color_name : ''}` : '',
+              color_label: colorLabel(l.color_code, l.color_name),
               color_hex: l.color_hex || '',
               labdip_variant_code: l.labdip_variant_code || '',
               labdip_item_id: l.labdip_item_id || '',
@@ -811,7 +838,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
   const selectColor = (c: any) => {
       // Approved shade clears any pending lab dip selection (mutually exclusive).
-      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: `${c.code}${c.name ? ' — ' + c.name : ''}`, color_hex: c.hex || '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' }));
+      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: colorLabel(c.code, c.name), color_hex: c.hex || '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' }));
       setColorSearch('');
       setColorResults([]);
   };
@@ -863,13 +890,17 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   // Shade / combo / size chips are VariantChips like everywhere else, so a shade
   // reads pink and a combo violet here too instead of landing in the neutral
   // default this row used to draw.
+  // The Item column is a fixed width (`tableLayout: fixed`), so a long combo name
+  // used to run the chip out past the cell's right edge into its neighbour. Chips
+  // clip to the cell instead; the full label stays on the tooltip.
   const renderChipRow = (chips: { label: string; hex: string | null; kind: VariantKind; icon?: string | null }[]) => (
-      <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2}}>
+      <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2,minWidth:0,maxWidth:'100%'}}>
           {chips.map((c, i) => (
               <VariantChip key={i} kind={c.kind} classic={classic}
                   title={c.kind === 'pending' ? 'Pending lab dip — colour not approved yet' : `${c.label}`}
                   icon={c.icon}
                   swatch={c.hex}
+                  truncate
               >{c.label}</VariantChip>
           ))}
       </div>
@@ -963,25 +994,30 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }
       const mos: any[] = mp.mos || [];
       const stepLine = (st: any) => `  ${st.status === 'COMPLETED' ? '✓' : st.status === 'IN_PROGRESS' ? '▶' : '·'} ${st.stage || st.name || st.code || ''}`;
-      const title = mos.map((m: any) => {
-          const head = `${m.mo_code} (${m.mo_status}) — ${m.steps_done}/${m.steps_total} steps`;
-          return [head, ...(m.steps || []).map(stepLine)].join('\n');
-      }).join('\n');
+      const title = [
+          ...mos.map((m: any) => {
+              const head = `${m.mo_code} (${m.mo_status}) — ${m.steps_done}/${m.steps_total} steps`;
+              return [head, ...(m.steps || []).map(stepLine)].join('\n');
+          }),
+          `Click to open ${mp.mo_code}`,
+      ].join('\n');
       return (
-          <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }} title={title}>
-              <div style={{ display:'flex', alignItems:'center', gap:3, minWidth:0 }}>
-                  <CodeChip code={mp.mo_code} classic={classic} link
-                      style={{ fontSize:'9px', padding:'0 4px', maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis' }}
-                      onClick={() => goToMO(mp.mo_code)} />
-                  {mp.mo_count > 1 && (
-                      <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#666' }}>+{mp.mo_count - 1}</span>
-                  )}
-              </div>
+          // One tooltip for the whole cell — the step list is the same answer
+          // whether the reader is over the bar, the count or the stage line.
+          <Tooltip content={title} maxWidth={340}>
+          <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
               {/* Blue while running, green at 100 — the STATUS_FAMILY reading of
                   IN_PROGRESS vs COMPLETED, matching lineageProgressBar. */}
-              <ProgressBar pct={mp.pct} tone={mp.pct >= 100 ? 'green' : 'blue'} height={6} />
+              <MOProgressLink
+                  pct={mp.pct}
+                  tone={mp.pct >= 100 ? 'green' : 'blue'}
+                  onClick={() => goToMO(mp.mo_code)}
+              />
               <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.pct >= 100 ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
                   {mp.steps_total > 0 ? `${mp.steps_done}/${mp.steps_total} steps` : `${mp.pct}%`}
+                  {/* The dropped code chip carried the "+N" for extra MOs; the count
+                      rides the steps line now so a multi-MO line still reads as one. */}
+                  {mp.mo_count > 1 && ` · ${mp.mo_count} MOs`}
               </div>
               {mp.current_stage && (
                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.current_stage_running ? (classic ? '#00327d' : '#0058e6') : '#999', fontWeight: mp.current_stage_running ? 'bold' : undefined, whiteSpace:'nowrap' as const, overflow:'hidden', textOverflow:'ellipsis' }}>
@@ -989,6 +1025,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                   </div>
               )}
           </div>
+          </Tooltip>
       );
   };
 
@@ -1815,16 +1852,16 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        )}
                                        {soPRs.length > 0 && (
                                            <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, marginTop:3 }}>
-                                               {soPRs.map((pr: any) => classic ? (
-                                                   <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`}
-                                                       style={{ borderRadius: CHIP_RADIUS, fontFamily:xpFont, fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
-                                                       <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{pr.code}
-                                                   </span>
-                                               ) : (
-                                                   <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`} role="button"
-                                                       style={{ fontSize:9, whiteSpace:'nowrap' as const, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', cursor:'pointer', background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius: CHIP_RADIUS, fontWeight:'bold' }}>
-                                                       <i className="bi bi-check-circle me-1"></i>{pr.code}
-                                                   </span>
+                                               {/* Shared Chip, not a hand-rolled span: the PR chip is clipped by
+                                                   this column, and only Chip knows how to pop the full code out on
+                                                   hover. It also drops the per-theme green pair this cell used to
+                                                   pick for itself — green is the STATUS_FAMILY green. */}
+                                               {soPRs.map((pr: any) => (
+                                                   <Chip key={pr.id} classic={classic} tone={statusTint('COMPLETED')} bold truncate
+                                                       icon="bi-check-circle" size="xs" title={`Go to ${pr.code}`}
+                                                       onClick={() => goToPR(pr.code)} style={{ fontFamily: CODE_FONT }}>
+                                                       {pr.code}
+                                                   </Chip>
                                                ))}
                                            </div>
                                        )}
@@ -1897,8 +1934,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                    {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize:'0.6rem'}}></i>}
                                                </div>
                                                {(() => {
-                                                   const colorLabel = line.color_code ? `${line.color_code}${line.color_name ? ' — ' + line.color_name : ''}` : null;
-                                                   const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], colorLabel, line.color_hex, line.labdip_variant_code);
+                                                   const lineColor = colorLabel(line.color_code, line.color_name) || null;
+                                                   const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], lineColor, line.color_hex, line.labdip_variant_code);
                                                    return (
                                                        <>
                                                            {plainIds.length > 0 && (

@@ -5,7 +5,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import NettingPlanTable, { useNettingPreview } from './NettingPlanTable';
-import { xpFont, xpInput as _xpInput, xpLabel as _xpLabel, ModalFooterActions, CHIP_RADIUS } from '../shared/xpTheme';
+import { xpFont, xpInput as _xpInput, xpLabel as _xpLabel, ModalFooterActions, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -131,7 +131,8 @@ function BomEntryRow({
             {canRemove && (
                 <button
                     onClick={onRemove}
-                    style={{ position: 'absolute', top: -8, right: 6, background: '#c84040', border: '1px solid #800', color: '#fff', fontSize: 9, padding: '1px 5px', cursor: 'pointer', fontFamily: xpFont }}
+                    className={XP_BTN}
+                    style={{ position: 'absolute', top: -8, right: 6, background: '#c84040', border: '1px solid #800', color: '#fff', fontSize: 9, padding: '1px 5px', cursor: 'pointer', fontFamily: xpFont, borderRadius: BUTTON_RADIUS }}
                 >
                     Remove
                 </button>
@@ -541,7 +542,8 @@ export default function ProductionRunModal({
                                 />
                                 <button
                                     onClick={handleApplyFormula}
-                                    style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #e8f0ff, #c0d0f0)', border: '1px solid', borderColor: '#d0d8f0 #4060a0 #4060a0 #d0d8f0', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    className={XP_BTN}
+                                    style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #e8f0ff, #c0d0f0)', border: '1px solid', borderColor: '#d0d8f0 #4060a0 #4060a0 #d0d8f0', cursor: 'pointer', whiteSpace: 'nowrap', borderRadius: BUTTON_RADIUS }}
                                 >
                                     Apply
                                 </button>
@@ -554,7 +556,8 @@ export default function ProductionRunModal({
 
                     <button
                         onClick={addEntry}
-                        style={{ marginTop: 8, fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', alignSelf: 'flex-start' }}
+                        className={XP_BTN}
+                        style={{ marginTop: 8, fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', alignSelf: 'flex-start', borderRadius: BUTTON_RADIUS }}
                     >
                         + Add BOM
                     </button>

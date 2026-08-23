@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg, VariantChip } from '../shared/xpTheme';
+import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg, VariantChip, Chip, REF_TONES, statusTint } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
@@ -633,13 +633,13 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 </td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140, ...colDivider } : { maxWidth: 140, ...colDivider }}>
                     {bal.item_category_name ? (
-                        <span title={bal.item_category_name}
-                            style={classic
-                                ? { display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }
-                                : { display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}
-                            className={classic ? undefined : 'badge bg-info-subtle text-info-emphasis'}>
+                        // Shared Chip in both themes: these six badges each carried a
+                        // classic palette AND a bootstrap badge class, so the same fact
+                        // wore two shapes, and neither popped out when the column
+                        // clipped it. Palettes moved to REF_TONES unchanged.
+                        <Chip classic={classic} tone={REF_TONES.category} truncate size="xs">
                             {bal.item_category_name}
-                        </span>
+                        </Chip>
                     ) : (
                         <span style={classic ? { fontSize: '10px', color: '#999', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted'}>—</span>
                     )}
@@ -647,60 +647,39 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     <div style={classic ? { display: 'flex', flexWrap: 'wrap', gap: 3, maxWidth: '100%' } : { maxWidth: '100%' }} className={classic ? undefined : 'd-flex flex-wrap gap-1'}>
                         {getWarehouseName(bal.location_id) && (
-                            <span title={getWarehouseName(bal.location_id)}
-                                style={classic
-                                    ? { maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }
-                                    : { maxWidth: '100%' }}
-                                className={classic ? undefined : 'badge bg-secondary-subtle text-secondary-emphasis text-truncate'}>
+                            <Chip classic={classic} tone={REF_TONES.warehouse} truncate size="xs">
                                 {getWarehouseName(bal.location_id)}
-                            </span>
+                            </Chip>
                         )}
-                        <span title={bal.location_name || getLocationName(bal.location_id)}
-                            style={classic
-                                ? { maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }
-                                : { maxWidth: '100%' }}
-                            className={classic ? undefined : 'badge bg-primary-subtle text-primary-emphasis text-truncate'}>
+                        <Chip classic={classic} tone={REF_TONES.bin} truncate size="xs">
                             {bal.location_name || getLocationName(bal.location_id)}
-                        </span>
+                        </Chip>
                     </div>
                 </td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     {bal.batch_key ? (
                         <div style={classic ? { display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', maxWidth: '100%' } : { maxWidth: '100%' }}
                             className={classic ? undefined : 'd-flex flex-column gap-1 align-items-start'}>
-                            <span title={batchLabel}
-                                style={classic
-                                    ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }
-                                    : { maxWidth: '100%' }}
-                                className={classic ? undefined : 'badge bg-warning text-dark d-block text-truncate'}>
-                                {batchLabel}
-                            </span>
+                            <Chip classic={classic} tone={REF_TONES.lot} truncate size="xs">{batchLabel}</Chip>
                             {bal.vendor_lot && (
-                                <span title={`Supplier lot: ${bal.vendor_lot}`}
-                                    style={classic
-                                        ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }
-                                        : { fontFamily: CODE_FONT, maxWidth: '100%' }}
-                                    className={classic ? undefined : 'badge bg-secondary-subtle text-secondary-emphasis d-block text-truncate'}>
+                                <Chip classic={classic} tone={REF_TONES.supplierLot} truncate size="xs"
+                                    title={`Supplier lot: ${bal.vendor_lot}`} style={{ fontFamily: CODE_FONT }}>
                                     SUP {bal.vendor_lot}
-                                </span>
+                                </Chip>
                             )}
                             {bal.mo_code && (
-                                <span title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}
-                                    style={classic
-                                        ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#e4f0e4', border: '1px solid #8fbb8f', padding: '0 5px', fontFamily: CODE_FONT, fontSize: '10px', color: '#2a4a2a', whiteSpace: 'nowrap' }
-                                        : { fontFamily: CODE_FONT, maxWidth: '100%' }}
-                                    className={classic ? undefined : 'badge bg-success-subtle text-success-emphasis d-block text-truncate'}>
+                                <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
+                                    title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}
+                                    style={{ fontFamily: CODE_FONT }}>
                                     MO {bal.mo_code}
-                                </span>
+                                </Chip>
                             )}
                             {qStatus && (
-                                <span title="QC rejected — not usable stock, excluded from netting and consumption pickers"
-                                    style={classic
-                                        ? { display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', background: '#f8d7d7', border: '1px solid #a03030', padding: '0 5px', fontSize: '10px', fontWeight: 'bold', color: '#7a1010', whiteSpace: 'nowrap' }
-                                        : { maxWidth: '100%' }}
-                                    className={classic ? undefined : 'badge bg-danger d-block text-truncate'}>
-                                    <i className={classic ? 'bi bi-x-octagon-fill' : 'bi bi-x-octagon-fill me-1'} style={classic ? { marginRight: 3, fontSize: 9 } : undefined} />{qStatus}
-                                </span>
+                                <Chip classic={classic} tone={statusTint('REJECTED')} truncate size="xs" bold
+                                    icon="bi-x-octagon-fill"
+                                    title="QC rejected — not usable stock, excluded from netting and consumption pickers">
+                                    {qStatus}
+                                </Chip>
                             )}
                         </div>
                     ) : (

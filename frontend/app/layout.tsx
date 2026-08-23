@@ -11,6 +11,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { TimezoneProvider } from './context/TimezoneContext';
 import QueryProvider from './components/shared/QueryProvider';
 import MainLayout from './components/shared/MainLayout';
+import GlobalTooltip from './components/shared/GlobalTooltip';
 import SWRegister from './components/shared/SWRegister';
 
 export const metadata = {
@@ -57,6 +58,11 @@ export default function RootLayout({
             <ToastProvider>
               <ConfirmProvider>
                   <ThemeProvider>
+                  {/* Upgrades every native `title=` in the app to the themed
+                      surface, and gives clipped text a hover of its own. Sits
+                      under ThemeProvider (it reads the style) and outside the
+                      route subtree so it survives navigation. */}
+                  <GlobalTooltip />
                   <TimezoneProvider>
                   <UserProvider>
                     <DataProvider>

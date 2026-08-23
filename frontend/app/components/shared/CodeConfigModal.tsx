@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from './ModalWrapper';
-import { CODE_FONT, xpFont } from './xpTheme';
+import { CODE_FONT, xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
 
 export interface CodeConfig {
     prefix: string;
@@ -513,12 +513,14 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
 
   const footer = classic ? (
     <>
-      <button onClick={onClose} style={{
+      <button onClick={onClose} className={XP_BTN} style={{
+        borderRadius: BUTTON_RADIUS,
         fontFamily: xpFont, fontSize: '11px', padding: '4px 18px',
         background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
         border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer',
       }}>Cancel</button>
-      <button onClick={handleSave} style={{
+      <button onClick={handleSave} className={XP_BTN} style={{
+        borderRadius: BUTTON_RADIUS,
         fontFamily: xpFont, fontSize: '11px', padding: '4px 18px',
         fontWeight: 'bold', background: 'linear-gradient(to bottom, #6699cc, #3366aa)',
         border: '1px solid', borderColor: '#99bbee #224477 #224477 #99bbee',

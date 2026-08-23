@@ -10,7 +10,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
-    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg,
+    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg, colorLabel, colorTitle,
 } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, EMPTY_DASH } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
@@ -553,8 +553,8 @@ function ShipmentDetail({ shp, tzDateTime, itemIndex }: any) {
                                     <td style={subTd}><CodeChip code={pl.code} classic tier={2} /></td>
                                     <td style={subTd}>{pl.sales_order_code || '—'}</td>
                                     <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || '—'}</td>
-                                    <td style={subTd}>
-                                        {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : '—'}
+                                    <td style={subTd} title={colorTitle(l.color_code, l.color_name)}>
+                                        {colorLabel(l.color_code, l.color_name) || '—'}
                                     </td>
                                     <td style={subTd}>{l.batch_number ? <CodeChip code={l.batch_number} classic tier={2} /> : '—'}</td>
                                     <td style={{ ...subTd, textAlign: 'right' }}>{fmtQty(l.qty_picked)} {l.item_uom || ''}</td>
@@ -606,8 +606,8 @@ function DeckDetail({ row, pl, tzDate, itemIndex }: any) {
                             {lines.map((l: any) => (
                                 <tr key={String(l.id)}>
                                     <td style={subTd}>{l.item_name || itemIndex?.[String(l.item_id)]?.name || EMPTY_DASH}</td>
-                                    <td style={subTd}>
-                                        {l.color_name ? `${l.color_name}${l.color_code ? ` (${l.color_code})` : ''}` : EMPTY_DASH}
+                                    <td style={subTd} title={colorTitle(l.color_code, l.color_name)}>
+                                        {colorLabel(l.color_code, l.color_name) || EMPTY_DASH}
                                     </td>
                                     <td style={subTd}>{l.batch_number ? <CodeChip code={l.batch_number} classic tier={2} /> : EMPTY_DASH}</td>
                                     <td style={{ ...subTd, textAlign: 'right' }}>

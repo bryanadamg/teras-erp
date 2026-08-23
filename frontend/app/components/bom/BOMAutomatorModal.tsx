@@ -53,6 +53,7 @@ const xpBtn: React.CSSProperties = {
     whiteSpace: 'nowrap' as const,
     minWidth: 60,
     color: '#000',
+    borderRadius: 3,
 };
 
 const xpBtnPrimary: React.CSSProperties = {
@@ -63,6 +64,7 @@ const xpBtnPrimary: React.CSSProperties = {
     fontWeight: 'bold',
     color: '#00007a',
     minWidth: 80,
+    borderRadius: 3,
 };
 
 const xpBtnDanger: React.CSSProperties = {
@@ -72,6 +74,7 @@ const xpBtnDanger: React.CSSProperties = {
     minWidth: 'auto',
     padding: '1px 6px',
     fontSize: 10,
+    borderRadius: 3,
 };
 
 const xpInput: React.CSSProperties = {
