@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { FormSection, FormError } from '../shared/xpTheme';
+import { FormSection, FormError, XP_BTN } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead, TableEmpty } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -238,8 +238,8 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                 modeless
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <button type="button" style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" form="color-variant-form" style={lvPrimaryBtn(classic)} disabled={saving}>{saving ? 'Creating…' : 'Create'}</button>
+                        <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
+                        <button type="submit" className={XP_BTN} form="color-variant-form" style={lvPrimaryBtn(classic)} disabled={saving}>{saving ? 'Creating…' : 'Create'}</button>
                     </div>
                 }
             >

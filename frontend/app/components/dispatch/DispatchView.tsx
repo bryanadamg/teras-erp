@@ -10,7 +10,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
-    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg, colorLabel, colorTitle,
+    useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg, colorLabel, colorTitle, XP_BTN,
 } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, EMPTY_DASH, lvTh, lvThead } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, xpToolbar } from '../shared/shellTheme';
@@ -295,11 +295,11 @@ export default function DispatchView() {
                         </span>
                     )}
                     {canManage && (
-                        <button style={xpBtnGreen()} disabled={mixedCustomers} onClick={() => setStaging(selectedDeck)}>
+                        <button className={XP_BTN} style={xpBtnGreen()} disabled={mixedCustomers} onClick={() => setStaging(selectedDeck)}>
                             Stage on Deck
                         </button>
                     )}
-                    <button style={xpBtn()} onClick={sel.clear}>Clear</button>
+                    <button className={XP_BTN} style={xpBtn()} onClick={sel.clear}>Clear</button>
                 </div>
             )}
 
@@ -655,8 +655,9 @@ function StageModal({ picks, onClose, onSubmit }: any) {
             modeless
             footer={
                 <>
-                    <button style={xpBtn()} onClick={onClose}>Cancel</button>
+                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button>
                     <button
+                        className={XP_BTN}
                         style={xpBtnGreen()}
                         onClick={() => onSubmit({
                             carrier: carrier || null,
@@ -741,7 +742,7 @@ function EditShipmentModal({ shp, deck, authFetch, showToast, onClose, onSaved }
     return (
         <ModalWrapper
             isOpen onClose={onClose} title={`Edit ${shp.code}`} size="lg" modeless
-            footer={<><button style={xpBtn()} onClick={onClose}>Cancel</button><button style={xpBtnGreen()} onClick={save}>Save</button></>}
+            footer={<><button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button><button className={XP_BTN} style={xpBtnGreen()} onClick={save}>Save</button></>}
         >
             <div style={{ fontFamily: xpFont, fontSize: 11, display: 'flex', gap: 16 }}>
                 <div style={{ flex: 1 }}>
@@ -793,8 +794,9 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
             isOpen onClose={onClose} title={`Verify Load — ${shp.code}`} size="lg" modeless variant="success"
             footer={
                 <>
-                    <button style={xpBtn()} onClick={onClose}>Cancel</button>
+                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button>
                     <button
+                        className={XP_BTN}
                         style={xpBtnGreen()}
                         disabled={!allTicked && !discrepancy}
                         onClick={() => onSubmit({ notes: notes || null, with_discrepancy: discrepancy })}

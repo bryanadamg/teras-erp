@@ -9,7 +9,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, RowCheckbox, lvThSticky, lvPickerRow, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -686,8 +686,8 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
             isOpen onClose={onClose} title="New Packing Order" size="lg" modeless
             footer={
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                    <button style={xpBtn()} onClick={onClose}>Cancel</button>
-                    <button style={xpBtnGreen()} disabled={saving} onClick={submit}>{saving ? 'Creating...' : 'Create'}</button>
+                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button>
+                    <button className={XP_BTN} style={xpBtnGreen()} disabled={saving} onClick={submit}>{saving ? 'Creating...' : 'Create'}</button>
                 </div>
             }
         >
@@ -1144,13 +1144,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             size="md" modeless
             footer={
                 <>
-                    <button type="button" onClick={onClose} style={xpBtn()}>Close</button>
-                    <button type="button" style={xpBtn()} onClick={() => onPrintCard(po)}>Packing Card</button>
-                    <button type="button" style={xpBtn()} disabled={!units.length} onClick={() => onPrintLabels(po, units)}>
+                    <button type="button" className={XP_BTN} onClick={onClose} style={xpBtn()}>Close</button>
+                    <button type="button" className={XP_BTN} style={xpBtn()} onClick={() => onPrintCard(po)}>Packing Card</button>
+                    <button type="button" className={XP_BTN} style={xpBtn()} disabled={!units.length} onClick={() => onPrintLabels(po, units)}>
                         Carton Labels
                     </button>
                     {!readOnly && (
-                        <button type="submit" form="packing-log-form" disabled={logging || boxMismatch || locsMissing || locsDirty}
+                        <button type="submit" form="packing-log-form" className={XP_BTN} disabled={logging || boxMismatch || locsMissing || locsDirty}
                             style={{ ...xpBtnGreen(), opacity: logging || boxMismatch || locsMissing || locsDirty ? 0.6 : 1 }}>
                             {logging ? 'Packing...' : 'Log Packing'}
                         </button>
@@ -1235,6 +1235,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 </div>
                                 <button
                                     type="button"
+                                    className={XP_BTN}
                                     onClick={regenerateBoxes}
                                     title="Reset the box list below from Qty to Pack ÷ Box size"
                                     style={{ ...xpBtn(), fontSize: 9, padding: '3px 8px', marginBottom: 1 }}
@@ -1248,6 +1249,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     <span>{po.package_label}s to be Made</span>
                                     <button
                                         type="button"
+                                        className={XP_BTN}
                                         onClick={addBoxRow}
                                         style={{ ...xpBtn(), fontSize: 9, padding: '0 6px' }}
                                     >+ Add {po.package_label.toLowerCase()}</button>
@@ -1336,7 +1338,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
                                 </div>
                                 {(locsDirty || locsMissing) && (
-                                    <button type="button" onClick={saveLocations}
+                                    <button type="button" className={XP_BTN} onClick={saveLocations}
                                         disabled={savingLocs || !srcDraft || !outDraft}
                                         style={{ ...xpBtn(), fontSize: 9, padding: '3px 8px', marginBottom: 1, opacity: savingLocs || !srcDraft || !outDraft ? 0.6 : 1 }}>
                                         {savingLocs ? 'Saving...' : 'Save Locations'}
@@ -1368,6 +1370,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 <strong>{drawn.toFixed(2)}</strong>{short ? ` of ${num(qty).toFixed(2)}` : ''}
                                                 <button
                                                     type="button"
+                                                    className={XP_BTN}
                                                     onClick={() => setSelectedLots(allSelected ? [] : allIds)}
                                                     style={{ ...xpBtn(), fontSize: 9, padding: '0 6px', marginLeft: 6 }}
                                                 >{allSelected ? 'None' : 'All'}</button>
@@ -1611,9 +1614,10 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         Still usable (downgrade, not scrap)
                                     </label>
                                     <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end' }}>
-                                        <button type="button" style={xpBtn()} onClick={() => setRejectComp(null)}>Cancel</button>
+                                        <button type="button" className={XP_BTN} style={xpBtn()} onClick={() => setRejectComp(null)}>Cancel</button>
                                         <button
                                             type="button"
+                                            className={XP_BTN}
                                             style={{ ...xpBtn({ ...BTN_TONES.danger }), opacity: rejecting ? 0.6 : 1 }}
                                             disabled={rejecting || candidates.length === 0}
                                             onClick={submitReject}

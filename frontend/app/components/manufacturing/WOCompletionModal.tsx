@@ -8,7 +8,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
-import { ProgressBar, LegendPanel, CodeChip, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { ProgressBar, LegendPanel, CodeChip, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { RowCheckbox, LV_STICKY_THEAD, lvPickerRow } from '../shared/listViewTheme';
 import { LotChips } from '../shared/LotChips';
 import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
@@ -400,8 +400,8 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
             size="md"
             footer={
                 <>
-                    <button type="button" onClick={onClose} style={xpBtn()}>Cancel</button>
-                    <button type="submit" form="wo-completion-form" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
+                    <button type="button" className={XP_BTN} onClick={onClose} style={xpBtn()}>Cancel</button>
+                    <button type="submit" form="wo-completion-form" className={XP_BTN} disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
                         {submitting ? 'Saving...' : 'Log Completion'}
                     </button>
                 </>
@@ -523,6 +523,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                     <strong>{drawn.toFixed(2)}</strong>{short ? ` of ${need.toFixed(2)}` : ''}
                                                     <button
                                                         type="button"
+                                                        className={XP_BTN}
                                                         onClick={() => setSelectedLots(prev => ({ ...prev, [itemId]: allSelected ? [] : allIds }))}
                                                         style={{ ...xpBtn(), fontSize: 9, padding: '0 6px', marginLeft: 6 }}
                                                     >{allSelected ? 'None' : 'All'}</button>
@@ -790,12 +791,13 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                         </div>
                                         <button
                                             type="button"
+                                            className={XP_BTN}
                                             onClick={() => removeActualItem(idx)}
                                             style={{ ...xpBtn(), padding: '0 6px', height: 20, lineHeight: '18px', color: '#900', flexShrink: 0 }}
                                         >×</button>
                                     </div>
                                 ))}
-                                <button type="button" onClick={addActualItem} style={{ ...xpBtn(), fontSize: 10, padding: '1px 8px' }}>
+                                <button type="button" className={XP_BTN} onClick={addActualItem} style={{ ...xpBtn(), fontSize: 10, padding: '1px 8px' }}>
                                     + Add Item
                                 </button>
                             </div>
@@ -809,6 +811,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                 right={workOrder && woBags.length > 0 ? (
                                     <button
                                         type="button"
+                                        className={XP_BTN}
                                         onClick={() => { setLabelSeqStart(1); setLabelBags(woBags); }}
                                         style={{ ...xpBtn(), fontSize: 10, padding: '1px 8px' }}
                                     >
@@ -867,6 +870,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                         ) : bagSeqById[String(c.id)] ? (
                                                             <button
                                                                 type="button"
+                                                                className={XP_BTN}
                                                                 onClick={() => { setLabelSeqStart(bagSeqById[String(c.id)]); setLabelBags([c]); }}
                                                                 style={{ ...xpBtn(), fontSize: 9, padding: '0 6px' }}
                                                                 title={`Print label for bag #${bagSeqById[String(c.id)]} (lot ${c.output_batch_number})`}

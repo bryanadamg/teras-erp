@@ -13,7 +13,7 @@ import {
 } from '../shared/listViewTheme';
 import {
     StatusChip, TableBlockSkeleton, XPStatusBar, XPEmptyState, useSortable,
-    familyColor, familyTint, xpPanel, type StatusFamily,
+    familyColor, familyTint, xpPanel, type StatusFamily, XP_BTN,
 } from '../shared/xpTheme';
 
 /**
@@ -204,7 +204,7 @@ export default function LabDipReportView() {
             <div style={lvSep(classic)} />
             {([['month', 'This Month'], ['last30', 'Last 30 Days'], ['quarter', 'This Quarter'], ['year', 'This Year']] as [Preset, string][]).map(([p, label]) => (
                 <button key={p} type="button" onClick={() => applyPreset(p)}
-                    style={lvBtn(classic)} className={classic ? '' : 'btn btn-sm btn-outline-secondary'}>{label}</button>
+                    style={lvBtn(classic)} className={classic ? XP_BTN : 'btn btn-sm btn-outline-secondary'}>{label}</button>
             ))}
 
             <div style={lvSep(classic)} />
