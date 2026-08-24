@@ -18,7 +18,10 @@ interface Props {
     canCreate: boolean;
     canEdit: boolean;
     canDelete: boolean;
-    onAdd: (value: string, hex?: string | null) => void;
+    /** Resolves with the outcome so a rejected create can be shown in the modal
+     *  rather than closing it and leaving the reason in a toast the user has
+     *  already dismissed. */
+    onAdd: (value: string, hex?: string | null) => Promise<{ ok: boolean; error?: string }>;
     onRename: (valueId: string, value: string, hex?: string | null) => void;
     onDelete: (valueId: string) => void;
 }
@@ -42,6 +45,8 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
     const [editText, setEditText] = useState('');
     const [editHexOn, setEditHexOn] = useState(false);
     const [editHex, setEditHex] = useState('#cccccc');
+    const [formError, setFormError] = useState('');
+    const [saving, setSaving] = useState(false);
 
     const sorted = [...(values || [])].sort((a, b) => String(a.value).localeCompare(String(b.value)));
     const filtered = search ? sorted.filter(v => String(v.value).toLowerCase().includes(search.toLowerCase())) : sorted;
@@ -51,13 +56,23 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
 
     const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
 
-    const openCreate = () => { setNewValue(''); setNewHexOn(false); setNewHex('#cccccc'); setIsModalOpen(true); };
+    const openCreate = () => { setNewValue(''); setNewHexOn(false); setNewHex('#cccccc'); setFormError(''); setIsModalOpen(true); };
 
-    const handleAdd = () => {
+    const handleAdd = async () => {
         const v = newValue.trim();
-        if (!v) return;
-        if (sorted.some(x => String(x.value).toLowerCase() === v.toLowerCase())) return;
-        onAdd(v, newHexOn ? newHex : null);
+        if (!v) { setFormError('Enter a color name.'); return; }
+        const clash = sorted.find(x => String(x.value).trim().toLowerCase() === v.toLowerCase());
+        if (clash) { setFormError(`"${clash.value}" already exists — color names must be unique.`); return; }
+
+        // The loaded list can be stale (it rides in on the attributes master load), so
+        // the server's own uniqueness check is the one that decides. Keep the modal open
+        // and show what it said instead of closing on an unconfirmed create.
+        setFormError('');
+        setSaving(true);
+        const res = await onAdd(v, newHexOn ? newHex : null);
+        setSaving(false);
+        if (!res?.ok) { setFormError(res?.error || 'Could not add this color.'); return; }
+
         setNewValue('');
         setNewHexOn(false);
         setNewHex('#cccccc');
@@ -203,19 +218,27 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button type="button" style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" form="color-variant-form" style={lvPrimaryBtn(classic)}>Create</button>
+                        <button type="submit" form="color-variant-form" style={lvPrimaryBtn(classic)} disabled={saving}>{saving ? 'Creating…' : 'Create'}</button>
                     </div>
                 }
             >
                 <form id="color-variant-form" onSubmit={e => { e.preventDefault(); handleAdd(); }}>
+                    {formError && (
+                        <div
+                            role="alert"
+                            style={classic
+                                ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10 }
+                                : { background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, color: '#b91c1c', padding: '6px 10px', fontSize: 12, marginBottom: 10 }}
+                        >{formError}</div>
+                    )}
                     <FormSection title="Color" classic={classic}>
                         <div>
                             <label style={lvLabel(classic)}>Name *</label>
                             <input
                                 autoFocus
                                 value={newValue}
-                                onChange={e => setNewValue(e.target.value)}
-                                style={{ ...lvInput(classic), width: '100%' }}
+                                onChange={e => { setNewValue(e.target.value); if (formError) setFormError(''); }}
+                                style={{ ...lvInput(classic), width: '100%', ...(formError ? { borderColor: classic ? '#8e0000' : '#dc2626' } : {}) }}
                                 required
                             />
                         </div>

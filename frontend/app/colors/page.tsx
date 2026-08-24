@@ -133,12 +133,18 @@ export default function ColorsPage() {
     const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
     const colorValues = colorAttr?.values ?? [];
 
-    const handleAddColorValue = async (value: string, hex?: string | null) => {
+    // Returns the outcome as well as toasting it: the create modal keeps itself open
+    // and shows the reason on a rejection (duplicate name, missing permission) instead
+    // of closing on an unconfirmed write.
+    const handleAddColorValue = async (value: string, hex?: string | null): Promise<{ ok: boolean; error?: string }> => {
         const res = await authFetch(`${API_BASE}/colors/variant-values`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, hex: hex || null }),
         });
-        if (res.ok) { refreshItemMetadata(); showToast('Color added', 'success'); }
-        else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to add color', 'danger'); }
+        if (res.ok) { refreshItemMetadata(); showToast('Color added', 'success'); return { ok: true }; }
+        const e = await res.json().catch(() => ({}));
+        const error = e.detail || 'Failed to add color';
+        showToast(error, 'danger');
+        return { ok: false, error };
     };
 
     const handleRenameColorValue = async (valueId: string, value: string, hex?: string | null) => {
