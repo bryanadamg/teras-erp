@@ -4,7 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { MODAL_Z, MODAL_REPOSITION_EVENT } from './ModalWrapper';
 import { toLayoutPx } from './uiScale';
-import { xpFont } from './xpTheme';
+import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
 
 interface PrintModalShellProps {
     title: React.ReactNode;
@@ -123,6 +123,63 @@ export default function PrintModalShell({
             onClick={onClose}
         >
             {panel}
+        </div>
+    );
+}
+
+// The Close / Print bar every print modal ends with. All 16 of them hand-rolled it:
+// the same padded strip, the same optional left-hand note, and the same pair of
+// buttons — but with three different button faces (classic-inline + bootstrap,
+// classic-inline in BOTH themes, and a pale-green XP variant), each carrying its own
+// copy of the XP gradient. That is where `xpBtnGrey`/`xpBtnGreen`/`btnGreen` came
+// from; they are gone. One footer, so a print dialog looks the same wherever it is
+// opened from, and the button chrome lives in ONE place.
+export function PrintModalFooter({ note, onClose, onPrint, printDisabled = false, printLabel = 'Print', closeLabel = 'Close' }: {
+    /** Left-aligned hint ("Settings saved automatically"). Omitted → buttons sit right. */
+    note?: React.ReactNode;
+    onClose: () => void;
+    onPrint: () => void;
+    /** Nothing to print yet (no bags/lots/cartons) — greys the Print button. */
+    printDisabled?: boolean;
+    printLabel?: string;
+    closeLabel?: string;
+}) {
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
+    const grey: React.CSSProperties = {
+        fontFamily: xpFont, fontSize: 11, padding: '3px 12px', borderRadius: BUTTON_RADIUS,
+        background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid',
+        borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', cursor: 'pointer',
+    };
+    const green: React.CSSProperties = {
+        fontFamily: xpFont, fontSize: 11, padding: '3px 14px', borderRadius: BUTTON_RADIUS,
+        background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid',
+        borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer',
+        fontWeight: 'bold', opacity: printDisabled ? 0.5 : 1,
+    };
+    return (
+        <div style={{
+            padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', flexShrink: 0,
+            display: 'flex', justifyContent: note ? 'space-between' : 'flex-end', alignItems: 'center', gap: 6,
+        }}>
+            {note && <span style={{ fontSize: 10, color: '#666' }}>{note}</span>}
+            <div style={{ display: 'flex', gap: 6 }}>
+                {classic ? (
+                    <>
+                        <button className={XP_BTN} style={grey} onClick={onClose}>{closeLabel}</button>
+                        <button className={XP_BTN} style={green} disabled={printDisabled} onClick={onPrint}>
+                            <i className="bi bi-printer" style={{ marginRight: 4 }} />{printLabel}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button className="btn btn-sm btn-secondary" onClick={onClose}>{closeLabel}</button>
+                        <button className="btn btn-sm btn-success" disabled={printDisabled} onClick={onPrint}>
+                            <i className="bi bi-printer me-1" />{printLabel}
+                        </button>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

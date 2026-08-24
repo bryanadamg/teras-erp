@@ -5,11 +5,10 @@ import QRCode from 'qrcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import KartuKerjaTemplateCard from './KartuKerjaTemplateCard';
-import PrintModalShell from '../shared/PrintModalShell';
+import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { resolveLayout } from '../shared/printTemplate/templateStore';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
 import { paperDimsMm, paperCssSize, paperSizeLabel } from '../shared/printTemplate/paper';
-import { xpFont, BUTTON_RADIUS } from '../shared/xpTheme';
 
 interface PrintSettings {
     showMaterials: boolean;
@@ -152,13 +151,6 @@ export default function WOBulkPrintModal({
         pages.push(selectedWOs.slice(i, i + 4));
     }
 
-    const isClassicBool = isClassic as boolean;
-    const xpBtnGrey: React.CSSProperties = isClassicBool
-        ? { fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
-        : {};
-    const xpBtnGreen: React.CSSProperties = isClassicBool
-        ? { fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
-        : {};
     return (
         <>
             <PrintModalShell modeless title={isSingle ? `Print Kartu Kerja — ${selectedWOs[0].name}` : `Bulk Print Kartu Kerja — ${selectedWOs.length} WO`} onClose={onClose} width={isSingle ? 'calc(var(--app-vw) * 90 / 100)' : 'calc(var(--app-vw) * 92 / 100)'} maxWidth={isSingle ? 880 : undefined} height={isSingle ? 'calc(var(--app-vh) * 88 / 100)' : 'calc(var(--app-vh) * 90 / 100)'}>
@@ -237,21 +229,7 @@ export default function WOBulkPrintModal({
                         )}
                     </div>
 
-                    <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                        {isClassicBool ? (
-                            <>
-                                <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                <button style={xpBtnGreen} onClick={doPrint}>Print</button>
-                            </>
-                        ) : (
-                            <>
-                                <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                <button className="btn btn-sm btn-success" onClick={doPrint}>
-                                    <i className="bi bi-printer me-1" />{isSingle ? 'Print' : `Print ${selectedWOs.length} WOs`}
-                                </button>
-                            </>
-                        )}
-                    </div>
+                    <PrintModalFooter onClose={onClose} onPrint={doPrint} />
             </PrintModalShell>
 
             {isSingle

@@ -2,8 +2,8 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
-import PrintModalShell from '../shared/PrintModalShell';
-import { xpFont, BUTTON_RADIUS } from '../shared/xpTheme';
+import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+
 import { useTimezone } from '../../context/TimezoneContext';
 
 const TABLE_SETTINGS_KEY = 'so_table_print_settings';
@@ -169,7 +169,6 @@ export default function SOTablePrintModal({
     partners: any[];
 }) {
     const { formatCustom: tzFmt } = useTimezone();
-    const isClassic = currentStyle === 'classic';
 
     useEffect(() => {
         document.body.classList.add('so-table-print-active');
@@ -191,13 +190,6 @@ export default function SOTablePrintModal({
         window.addEventListener('afterprint', handler, { once: true });
         window.print();
     };
-
-    const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }
-        : {};
-    const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
-        : {};
 
     const docContent = (
         <SOTableDocument
@@ -231,26 +223,7 @@ export default function SOTablePrintModal({
                     </div>
 
                     {/* Footer */}
-                    <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, color: '#555' }}>
-                            Landscape orientation is set automatically — no need to change the browser print dialog.
-                        </span>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                            {isClassic ? (
-                                <>
-                                    <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                    <button style={xpBtnGreen} onClick={handlePrint}>Print</button>
-                                </>
-                            ) : (
-                                <>
-                                    <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                    <button className="btn btn-sm btn-success" onClick={handlePrint}>
-                                        <i className="bi bi-printer me-1"></i>Print
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
+                    <PrintModalFooter note="Landscape orientation is set automatically — no need to change the browser print dialog." onClose={onClose} onPrint={handlePrint} />
             </PrintModalShell>
 
             {/* Print portal */}
