@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, expandedRowFrame, BTN_TONES } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -271,30 +271,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   };
 
   // ── XP shared inline styles ──────────────────────────────────────────────
-  const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-      fontFamily: xpFont,
-      fontSize: '11px',
-      padding: '2px 10px',
-      cursor: 'pointer',
-      background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-      border: '1px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-      color: '#000000',
-      borderRadius: BUTTON_RADIUS,
-      ...extra,
-  });
+  const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase(extra);
 
-  const xpInput: React.CSSProperties = {
-      fontFamily: xpFont,
-      borderRadius: BUTTON_RADIUS, fontSize: '11px',
-      border: '1px solid #7f9db9',
-      boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
-      padding: '1px 6px',
-      background: '#ffffff',
-      color: '#000000',
-      height: '20px',
-      outline: 'none',
-  };
+  const xpInput: React.CSSProperties = xpInputBase({ boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' });
 
   const xpSep: React.CSSProperties = {
       width: '1px',
@@ -519,7 +498,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       setIsCreateOpen(false);
   };
 
-
   const createItemFromColor = (sample: any, color: any) => {
       const suggestedCode = encodeURIComponent(`${sample.code}-${color.name}`);
       router.push(
@@ -625,7 +603,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        className={classic ? '' : 'btn btn-sm btn-link text-muted'}
                        onClick={() => setApproveTarget(null)}>{t('cancel')}</button>
                    <button type="button"
-                       style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #2e7d32, #1b5e20)', borderColor: '#155016 #0d3810 #0d3810 #155016', color: '#fff', fontWeight: 'bold' }) : undefined}
+                       style={classic ? xpBtn({ ...BTN_TONES.success }) : undefined}
                        className={classic ? '' : 'btn btn-sm btn-success px-4 fw-bold'}
                        onClick={confirmApprove}>Approve</button>
                </>
@@ -665,7 +643,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        className={classic ? '' : 'btn btn-sm btn-link text-muted'}
                        onClick={() => setRejectTarget(null)}>{t('cancel')}</button>
                    <button type="button"
-                       style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #d32f2f, #8b0000)', borderColor: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff', fontWeight: 'bold' }) : undefined}
+                       style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
                        className={classic ? '' : 'btn btn-sm btn-danger px-4 fw-bold'}
                        onClick={confirmReject}>Reject Color</button>
                </>
@@ -717,7 +695,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    >{t('cancel')}</button>
                    <button
                        type="button"
-                       style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                       style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
                        className={classic ? '' : 'btn btn-sm btn-primary px-4 fw-bold'}
                        onClick={handleSubmit as any}
                    >{editingSample ? 'Save Changes' : 'Create Request'}</button>
@@ -921,7 +899,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    <button
                                        type="button"
                                        style={pendingColorIsRepeat
-                                           ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', minWidth: 52 })
+                                           ? xpBtn({ ...BTN_TONES.primary, minWidth: 52 })
                                            : xpBtn({ minWidth: 52 })}
                                        onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}
                                        title="Toggle New / Repeat">
@@ -1711,13 +1689,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                            : <span className="badge bg-success bg-opacity-10 text-success border" style={{ fontSize: 10 }}>Item: {c.item_code}</span>
                                                    ) : canManage ? (
                                                        classic
-                                                           ? <button style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontSize: 10, padding: '1px 6px' })} onClick={() => createItemFromColor(s, c)} title="Create Item from this approved color">+ Item</button>
+                                                           ? <button style={xpBtn({ ...BTN_TONES.success, fontSize: 10, padding: '1px 6px' })} onClick={() => createItemFromColor(s, c)} title="Create Item from this approved color">+ Item</button>
                                                            : <button className="btn btn-sm btn-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createItemFromColor(s, c)}>+ Item</button>
                                                    ) : null
                                                ) : isRejected ? (
                                                    canManage ? (
                                                        classic
-                                                           ? <button style={xpBtn({ background: 'linear-gradient(to bottom, #5a8fd8, #2a5faa)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontSize: 10, padding: '1px 6px' })} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
+                                                           ? <button style={xpBtn({ ...BTN_TONES.primary, fontSize: 10, padding: '1px 6px' })} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
                                                            : <button className="btn btn-sm btn-primary" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
                                                    ) : null
                                                ) : null,

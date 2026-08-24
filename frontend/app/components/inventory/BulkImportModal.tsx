@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpFont, BUTTON_RADIUS } from '../shared/xpTheme';
+import { xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 
 interface BulkImportModalProps {
     isOpen: boolean;
@@ -23,30 +23,9 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
     const classic = currentStyle === 'classic';
 
     // ── XP style constants ────────────────────────────────────────────────────
-    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-        fontFamily: xpFont,
-        fontSize: '11px',
-        padding: '2px 10px',
-        cursor: 'pointer',
-        background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-        border: '1px solid',
-        borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        color: '#000000',
-        borderRadius: BUTTON_RADIUS,
-        ...extra,
-    });
+    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase(extra);
 
-    const xpInput: React.CSSProperties = {
-        fontFamily: xpFont,
-        borderRadius: BUTTON_RADIUS, fontSize: '11px',
-        border: '1px solid #7f9db9',
-        boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
-        padding: '1px 6px',
-        background: '#ffffff',
-        color: '#000000',
-        height: '20px',
-        outline: 'none',
-    };
+    const xpInput: React.CSSProperties = xpInputBase({ boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' });
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -84,7 +63,7 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
             footer={
                 results ? (
                     <button
-                        style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                        style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
                         className={classic ? '' : 'btn btn-primary'}
                         onClick={() => { reset(); onClose(); }}
                     >Close</button>

@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { useSortable, StatusChip, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, ExpandedRowPanel, xpBtn, xpInput as xpInputBase, CodeChip, xpFont, rowStateBg, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubCaption, ExpanderCell, SortableTh, lvThSticky, lvTdRuled, lvZebra } from '../shared/listViewTheme';
@@ -478,7 +478,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
            footer={classic ? (
                <>
                    <button type="button" style={xpBtn()} onClick={closeModal}>{t('cancel')}</button>
-                   <button type="submit" form="create-po-form" style={xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingPOId ? 'Update' : t('save')} PO</button>
+                   <button type="submit" form="create-po-form" style={xpBtn({ ...BTN_TONES.success, padding: '2px 16px' })}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingPOId ? 'Update' : t('save')} PO</button>
                </>
            ) : (
                <>
@@ -585,7 +585,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                            <input type="date" className="form-control" style={classic?xpInput({width:'100%',height:'22px'}):undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
                        </div>
                        <div className="col-2 d-flex align-items-end">
-                           <button type="button" style={classic ? xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#fff',width:'100%',padding:'2px 6px'}) : undefined} className={classic?'':'btn btn-success w-100'} onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}>
+                           <button type="button" style={classic ? xpBtn({ ...BTN_TONES.success, width: '100%', padding: '2px 6px' }) : undefined} className={classic?'':'btn btn-success w-100'} onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}>
                                <i className="bi bi-plus-lg" style={classic?{marginRight:3}:{marginRight:4}}></i>{classic?'Add':'Add Item'}
                            </button>
                        </div>
@@ -652,7 +652,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
            footer={classic ? (
                <>
                    <button type="button" style={xpBtn()} onClick={() => setReceiptTarget(null)}>Cancel</button>
-                   <button type="button" style={xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleReceiptSubmit}><i className="bi bi-check-lg" style={{marginRight:4}}></i>Confirm Receipt</button>
+                   <button type="button" style={xpBtn({ ...BTN_TONES.success, padding: '2px 16px' })} onClick={handleReceiptSubmit}><i className="bi bi-check-lg" style={{marginRight:4}}></i>Confirm Receipt</button>
                </>
            ) : (
                <>
@@ -926,7 +926,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                            {canManage && po.status !== 'RECEIVED' && (
                                                classic ? (
                                                    <button
-                                                       style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', padding: 0, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' })}
+                                                       style={xpBtn({ ...BTN_TONES.success, padding: 0, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' })}
                                                        title="Receive Goods"
                                                        onClick={() => openReceiptModal(po)}
                                                    >

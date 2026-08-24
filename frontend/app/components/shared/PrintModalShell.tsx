@@ -4,7 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { MODAL_Z, MODAL_REPOSITION_EVENT } from './ModalWrapper';
 import { toLayoutPx } from './uiScale';
-import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
+import { xpFont, XP_BTN, xpBtn, BTN_TONES } from './xpTheme';
 
 interface PrintModalShellProps {
     title: React.ReactNode;
@@ -146,17 +146,8 @@ export function PrintModalFooter({ note, onClose, onPrint, printDisabled = false
 }) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const grey: React.CSSProperties = {
-        fontFamily: xpFont, fontSize: 11, padding: '3px 12px', borderRadius: BUTTON_RADIUS,
-        background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid',
-        borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', cursor: 'pointer',
-    };
-    const green: React.CSSProperties = {
-        fontFamily: xpFont, fontSize: 11, padding: '3px 14px', borderRadius: BUTTON_RADIUS,
-        background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid',
-        borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer',
-        fontWeight: 'bold', opacity: printDisabled ? 0.5 : 1,
-    };
+    const grey = xpBtn({ padding: '3px 12px' });
+    const green = xpBtn({ ...BTN_TONES.success, padding: '3px 14px', opacity: printDisabled ? 0.5 : 1 });
     return (
         <div style={{
             padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', flexShrink: 0,

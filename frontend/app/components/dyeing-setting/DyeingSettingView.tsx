@@ -7,22 +7,13 @@ import { Tabs, TabDef } from '../shared/Tabs';
 import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
-import { xpFont, FORM_SECTION_BLUE, BUTTON_RADIUS } from '../shared/xpTheme';
+import { xpFont, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
 import { pageFillStyle } from '../shared/shellTheme';
 
-// ── XP Style Constants ────────────────────────────────────────────────────────
+// ── XP Style Constants ─────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', padding: '1px 4px', outline: 'none', height: 20,
-};
-const xpBtn: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    cursor: 'pointer',
-    borderRadius: 3,
-};
+const xpInput: React.CSSProperties = xpInputBase({ padding: '1px 4px' });
+const xpBtn: React.CSSProperties = xpBtnBase({ fontSize: 10, padding: '2px 8px' });
 const xpSectionHeader: React.CSSProperties = {
     background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',

@@ -9,8 +9,8 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, RowCheckbox, lvPickerRow, lvThSticky } from '../shared/listViewTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, RowCheckbox, lvThSticky, lvPickerRow, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -28,8 +28,8 @@ const xpFont = LV_XP_FONT;
 const xpInput: React.CSSProperties = lvInput(true);
 const xpSelect: React.CSSProperties = { ...xpInput, height: 22 };
 const xpTableHeader: React.CSSProperties = lvThSticky(true);
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
-const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
+const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, 'default', extra);
+const xpBtnGreen = (extra: React.CSSProperties = {}) => lvBtn(true, 'success', extra);
 // Title-bar "create" button — same style as SalesOrderView / PartnersView / SampleRequestView.
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
@@ -1614,7 +1614,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         <button type="button" style={xpBtn()} onClick={() => setRejectComp(null)}>Cancel</button>
                                         <button
                                             type="button"
-                                            style={{ ...xpBtn({ background: 'linear-gradient(to bottom, #f0b0b0, #d87070)', color: '#500', fontWeight: 'bold' }), opacity: rejecting ? 0.6 : 1 }}
+                                            style={{ ...xpBtn({ ...BTN_TONES.danger }), opacity: rejecting ? 0.6 : 1 }}
                                             disabled={rejecting || candidates.length === 0}
                                             onClick={submitReject}
                                         >

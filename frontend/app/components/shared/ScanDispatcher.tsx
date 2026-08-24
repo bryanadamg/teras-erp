@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useToast } from './Toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { xpFont as XP_FONT, XPLoading, BUTTON_RADIUS } from './xpTheme';
+import { xpFont as XP_FONT, XPLoading, xpInput as xpInputBase, xpBtn as xpBtnBase } from './xpTheme';
 
 // One camera per session: the branch views are only mounted after a code has
 // already been decoded here, so their own readers never race this one.
@@ -21,13 +21,7 @@ const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
 const XP_BEIGE = '#ece9d8';
 
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    color: '#000000', borderRadius: BUTTON_RADIUS, display: 'inline-flex', alignItems: 'center', gap: 5,
-    ...extra,
-});
+const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase({ fontSize: 13, padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: 5, ...extra });
 const xpPanel: React.CSSProperties = {
     border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     background: '#f5f4ef', borderRadius: 0, padding: '10px 12px',
@@ -37,11 +31,7 @@ const xpSectionLabel: React.CSSProperties = {
     textTransform: 'uppercase', letterSpacing: 0.5, color: '#555',
     borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 8,
 };
-const xpInput: React.CSSProperties = {
-    fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
-    border: '1px solid #7f9db9', boxSizing: 'border-box',
-    borderRadius: BUTTON_RADIUS, background: '#fff', width: '100%',
-};
+const xpInput: React.CSSProperties = xpInputBase({ fontSize: 13, height: 'auto', padding: '6px 8px', width: '100%', boxSizing: 'border-box' });
 
 const isUUID = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);

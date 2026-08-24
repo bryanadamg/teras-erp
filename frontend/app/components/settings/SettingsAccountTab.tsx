@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpBtn, xpInput, FieldLabel } from '../shared/xpTheme';
+import { xpBtn, xpInput, FieldLabel, BTN_TONES } from '../shared/xpTheme';
 import { settingsActions, settingsGrid, settingsHint, settingsStack } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import PixelAvatar from '../shared/PixelAvatar';
@@ -146,11 +146,7 @@ export default function SettingsAccountTab() {
             <div style={{ ...settingsActions(classic), marginTop: 0 }}>
                 <button
                     type="submit"
-                    style={classic ? xpBtn({
-                        background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)',
-                        borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a',
-                        color: '#ffffff', fontWeight: 'bold', padding: '3px 14px',
-                    }) : undefined}
+                    style={classic ? xpBtn({ ...BTN_TONES.primary, padding: '3px 14px' }) : undefined}
                     className={classic ? '' : 'btn btn-sm btn-primary px-3'}
                 >Save Account</button>
             </div>

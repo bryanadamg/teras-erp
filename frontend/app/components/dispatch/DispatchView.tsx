@@ -12,8 +12,8 @@ import {
     XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip,
     useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CodeChip, CODE_FONT, rowStateBg, colorLabel, colorTitle,
 } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow, lvThead, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, EMPTY_DASH } from '../shared/listViewTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount } from '../shared/shellTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubTable, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, EMPTY_DASH, lvTh, lvThead } from '../shared/listViewTheme';
+import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { qtyFmt, toNum as num } from '../shared/format';
@@ -29,8 +29,8 @@ const xpTableHeader: React.CSSProperties = { ...lvTh(true), ...lvThead(true), po
 // One grid now carries both grains. Nine columns:
 // checkbox · Document · Reference · Customer · Vehicle · Cartons · Status · Checked by · menu
 const COLS = 9;
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
-const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
+const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, 'default', extra);
+const xpBtnGreen = (extra: React.CSSProperties = {}) => lvBtn(true, 'success', extra);
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
 // Expanded-row sub-table (shipment contents) — subordinate chrome, not the

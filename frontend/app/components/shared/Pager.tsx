@@ -41,7 +41,7 @@ export default function Pager({ page, total, pageSize, onPageChange, hideWhenEmp
             className={XP_BTN}
             disabled={disabled}
             onClick={() => onPageChange(target)}
-            style={lvBtn(classic, disabled ? { opacity: 0.5, cursor: 'default' } : {})}
+            style={lvBtn(classic, 'default', disabled ? { opacity: 0.5, cursor: 'default' } : {})}
         >{label}</button>
     );
 

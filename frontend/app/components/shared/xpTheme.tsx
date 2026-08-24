@@ -4,7 +4,6 @@ import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { layoutRectOf, layoutScroll } from './uiScale';
 import { xpFont, modernFont, CODE_FONT } from './typography';
 import { FloatingLayer, Tooltip, TooltipSurface, useHoverAnchor, isClipped } from './Tooltip';
-import { useTheme } from '../../context/ThemeContext';
 
 /**
  * Shared Windows XP "classic" theme primitives.
@@ -16,7 +15,6 @@ import { useTheme } from '../../context/ThemeContext';
 // use them without an import cycle. Re-exported here: every existing
 // `import { xpFont } from '../shared/xpTheme'` still resolves to the same const.
 export { xpFont, modernFont, CODE_FONT } from './typography';
-
 
 // ── Identifier typography ─────────────────────────────────────────────────────
 // Codes are UNBOXED — plain monospace text. The box the items/BOM tables used to
@@ -786,6 +784,21 @@ export function ProgressBar({
 
 // ── Inline style helpers (XP widgets) ────────────────────────────────────────
 
+// The four button intents. `default` is the bare XP face `xpBtn` already paints, so
+// it is empty; the other three are patches you spread over it (or hand to
+// `lvBtn(classic, tone)`, which owns the modern half). ~19 local copies used to
+// carry their own blue/green/red — three different blues and three different greens
+// across BOMDesigner, the WO modals and the print modals — which is why the faces
+// live here now. Adding a fifth tone is almost never the answer.
+export type BtnTone = 'default' | 'primary' | 'success' | 'danger';
+
+export const BTN_TONES: Record<BtnTone, React.CSSProperties> = {
+    default: {},
+    primary: { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' },
+    success: { background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', color: '#fff', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', fontWeight: 'bold' },
+    danger:  { background: 'linear-gradient(to bottom, #c84040, #8e0000)', color: '#fff', borderColor: '#8e0000 #5e0000 #5e0000 #8e0000', fontWeight: 'bold' },
+};
+
 export const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
@@ -1159,7 +1172,6 @@ export function FormError({ children, classic, style }: {
         </div>
     );
 }
-
 
 // ── Loading / empty states ───────────────────────────────────────────────────
 

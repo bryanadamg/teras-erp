@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { STATIC_BASE as API_BASE } from '../shared/apiBase';
-import { xpBtn, xpInput, FieldLabel } from '../shared/xpTheme';
+import { xpBtn, xpInput, FieldLabel, BTN_TONES } from '../shared/xpTheme';
 import { settingsActions, settingsGrid, settingsHint, SETTINGS_FIELD_GAP } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 
@@ -143,12 +143,7 @@ export default function CompanyProfileView({ profile, onUpdate, onUploadLogo, au
                 <div style={settingsActions(classic)}>
                     <button
                         type="submit"
-                        style={classic ? xpBtn({
-                            background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)',
-                            borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a',
-                            color: '#ffffff', fontWeight: 'bold', padding: '3px 14px',
-                            display: 'flex', alignItems: 'center', gap: 4,
-                        }) : undefined}
+                        style={classic ? xpBtn({ ...BTN_TONES.primary, padding: '3px 14px', display: 'flex', alignItems: 'center', gap: 4 }) : undefined}
                         className={classic ? '' : 'btn btn-sm btn-primary px-3'}
                         disabled={isSaving}
                     >

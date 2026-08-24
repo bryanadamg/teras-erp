@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip, BUTTON_RADIUS } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip, xpBtn as xpBtnBase, xpInput as xpInputBase, BTN_TONES } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -761,17 +761,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
   const xpTitleBar: React.CSSProperties = classic ? sharedXpTitleBar() : {};
 
-  const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => classic ? ({
-    fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
-    cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000',
-    borderRadius: BUTTON_RADIUS, ...extra,
-  }) : { cursor: 'pointer', ...extra };
+  const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties =>
+    classic ? xpBtnBase(extra) : { cursor: 'pointer', ...extra };
 
-  const xpInput: React.CSSProperties = classic ? {
-    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: '11px', border: '1px solid #7f9db9',
-    padding: '1px 6px', background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
-  } : {};
+  const xpInput: React.CSSProperties = classic ? xpInputBase() : {};
 
   // minWidth + nowrap: cells never wrap, the table scrolls sideways instead. Keeps
   // multi-chip rows (Product / WO-MO-PR / Location) one line tall.
@@ -1074,7 +1067,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           footer={<>
             <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setRejectBatch(null)}>Cancel</button>
             <button
-              style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #f0b0b0, #d87070)', color: '#500', fontWeight: 'bold' }) : undefined}
+              style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
               className={classic ? '' : 'btn btn-sm btn-danger'}
               onClick={handleReject}
               disabled={rejecting}

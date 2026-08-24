@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -40,54 +40,13 @@ const normalizeInherit = (flags: boolean[] | null | undefined, levelCount: numbe
     Array.from({ length: levelCount }, (_, i) => !!flags?.[i]);
 
 // --- XP style helpers ---
-const xpBtn: React.CSSProperties = {
-    fontFamily: xpFont,
-    fontSize: 11,
-    padding: '2px 10px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    borderTop: '1px solid #fff',
-    borderLeft: '1px solid #fff',
-    borderRight: '1px solid #555',
-    borderBottom: '1px solid #555',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap' as const,
-    minWidth: 60,
-    color: '#000',
-    borderRadius: 3,
-};
+const xpBtn: React.CSSProperties = xpBtnBase({ whiteSpace: 'nowrap', minWidth: 60 });
 
-const xpBtnPrimary: React.CSSProperties = {
-    ...xpBtn,
-    background: 'linear-gradient(to bottom, #b4d0f8, #7aacf0)',
-    borderTopColor: '#c8e0ff',
-    borderLeftColor: '#c8e0ff',
-    fontWeight: 'bold',
-    color: '#00007a',
-    minWidth: 80,
-    borderRadius: 3,
-};
+const xpBtnPrimary: React.CSSProperties = xpBtnBase({ ...BTN_TONES.primary, minWidth: 80 });
 
-const xpBtnDanger: React.CSSProperties = {
-    ...xpBtn,
-    background: 'linear-gradient(to bottom, #f8d0d0, #e0a0a0)',
-    color: '#800000',
-    minWidth: 'auto',
-    padding: '1px 6px',
-    fontSize: 10,
-    borderRadius: 3,
-};
+const xpBtnDanger: React.CSSProperties = xpBtnBase({ ...BTN_TONES.danger, minWidth: 'auto', padding: '1px 6px', fontSize: 10 });
 
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont,
-    borderRadius: BUTTON_RADIUS, fontSize: 11,
-    border: '1px solid #7f9db9',
-    borderTopColor: '#5a7fa8',
-    background: 'white',
-    height: 20,
-    padding: '0 4px',
-    outline: 'none',
-    width: '100%',
-};
+const xpInput: React.CSSProperties = xpInputBase({ borderTopColor: '#5a7fa8', padding: '0 4px', width: '100%' });
 
 const xpGroupbox = (label: string): { wrapper: React.CSSProperties; labelStyle: React.CSSProperties } => ({
     wrapper: {

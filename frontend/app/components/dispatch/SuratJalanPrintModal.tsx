@@ -4,9 +4,8 @@ import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
-import { xpFont as font, BUTTON_RADIUS } from '../shared/xpTheme';
+import { xpFont as font, xpInput as xpInputBase } from '../shared/xpTheme';
 import { qtyFmt } from '../shared/format';
-
 
 // Perincian spreads each group's cartons across fixed columns; a group with more
 // cartons than this spills onto continuation rows rather than squeezing the grid.
@@ -266,7 +265,7 @@ export default function SuratJalanPrintModal({ shipment, attributes, companyProf
         window.print();
     };
 
-    const xpInput: React.CSSProperties = { fontFamily: font, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
+    const xpInput: React.CSSProperties = xpInputBase({ fontFamily: font, boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', width: '100%', boxSizing: 'border-box' });
 
     const doc = <SJDocument shp={shipment} lines={lines} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} sjNoOverride={sjNo} />;
 

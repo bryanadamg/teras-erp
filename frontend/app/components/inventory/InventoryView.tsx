@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -279,22 +279,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
 InventoryRow.displayName = 'InventoryRow';
 
 // XP bevel button helper
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: xpFont,
-    borderRadius: BUTTON_RADIUS, fontSize: '11px',
-    padding: '2px 10px',
-    cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff, #ece9d8)',
-    border: '1px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    color: '#000000',
-    height: '22px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    whiteSpace: 'nowrap' as const,
-    ...extra,
-});
+const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase({ background: 'linear-gradient(to bottom, #ffffff, #ece9d8)', height: '22px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', ...extra });
 
 export default function InventoryView({
     items,
@@ -450,7 +435,6 @@ export default function InventoryView({
           }
       }
   }, []);
-
 
   // Sync beam name when item name changes and beam name hasn't been manually edited
   const [beamNameManuallyEdited, setBeamNameManuallyEdited] = useState(false);
@@ -714,17 +698,7 @@ export default function InventoryView({
   const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
 
-  const xpInput: React.CSSProperties = {
-      fontFamily: xpFont,
-      borderRadius: BUTTON_RADIUS, fontSize: '11px',
-      border: '1px solid #7f9db9',
-      boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
-      padding: '1px 6px',
-      background: '#ffffff',
-      color: '#000000',
-      height: '20px',
-      outline: 'none',
-  };
+  const xpInput: React.CSSProperties = xpInputBase({ boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' });
 
   const xpSelect: React.CSSProperties = {
       fontFamily: xpFont,
@@ -796,7 +770,7 @@ export default function InventoryView({
                   <button
                       data-testid="submit-create-item"
                       type="button"
-                      style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                      style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
                       className={classic ? '' : 'btn btn-primary fw-bold px-4'}
                       onClick={() => (document.getElementById('create-item-form') as HTMLFormElement)?.requestSubmit()}
                   >{createBeam && isRawMaterialCategory ? 'Create 2 Items' : t('create')}</button>
@@ -1198,7 +1172,7 @@ export default function InventoryView({
                 {canDelete && sel.count > 0 && (
                   <>
                     <button
-                      style={xpBtn({ background: 'linear-gradient(to bottom, #ff6060, #cc0000)', borderColor: '#800000 #4a0000 #4a0000 #800000', color: '#ffffff' })}
+                      style={xpBtn({ ...BTN_TONES.danger })}
                       onClick={handleBulkDelete}
                     >
                       <i className="bi bi-trash"></i> Delete ({sel.count})
@@ -1405,7 +1379,7 @@ export default function InventoryView({
                   <button type="button" style={xpBtn()} onClick={() => setEditingItem(null)}>{t('cancel')}</button>
                   <button
                     type="button"
-                    style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', padding: '2px 16px' })}
+                    style={xpBtn({ ...BTN_TONES.success, padding: '2px 16px' })}
                     onClick={() => (document.getElementById('edit-item-form') as HTMLFormElement)?.requestSubmit()}
                   >{t('save')}</button>
                 </>

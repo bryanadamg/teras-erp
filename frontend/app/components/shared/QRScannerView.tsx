@@ -3,7 +3,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { STATUS_COLORS, CodeChip, xpFont, BUTTON_RADIUS } from './xpTheme';
+import { STATUS_COLORS, CodeChip, xpFont, xpBtn as xpBtnBase, BTN_TONES } from './xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from './shellTheme';
 
 interface QRScannerViewProps {
@@ -75,12 +75,7 @@ export default function QRScannerView({
         background: 'linear-gradient(to right, #1a1a2e 0%, #3a3a5e 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)', borderBottom: '1px solid #0a0a1e',
     });
-    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-        fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
-        cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-        border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        color: '#000000', borderRadius: BUTTON_RADIUS, ...extra,
-    });
+    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase(extra);
 
     // --- Validation Logic ---
     const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
@@ -281,7 +276,7 @@ export default function QRScannerView({
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {scannedWO.status === 'PENDING' && (
                                     <button
-                                        style={xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold', padding: '10px 20px', fontSize: '14px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 })}
+                                        style={xpBtn({ ...BTN_TONES.primary, padding: '10px 20px', fontSize: '14px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 })}
                                         type="button"
                                         onClick={() => handleUpdate('IN_PROGRESS')}
                                     >
@@ -290,7 +285,7 @@ export default function QRScannerView({
                                 )}
                                 {scannedWO.status === 'IN_PROGRESS' && (
                                     <button
-                                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', padding: '10px 20px', fontSize: '14px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 })}
+                                        style={xpBtn({ ...BTN_TONES.success, padding: '10px 20px', fontSize: '14px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 })}
                                         type="button"
                                         onClick={() => handleUpdate('COMPLETED')}
                                     >

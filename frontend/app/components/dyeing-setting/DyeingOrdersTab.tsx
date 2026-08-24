@@ -8,38 +8,13 @@ import { useTheme } from '../../context/ThemeContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { lvThead, lvThBanded, LV_STICKY_THEAD, lvZebra, Dash } from '../shared/listViewTheme';
+import { lvThBanded, LV_STICKY_THEAD, lvZebra, Dash, lvBtn, lvInput } from '../shared/listViewTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
-const makeInput = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', padding: '1px 4px', outline: 'none', height: 20,
-} : {
-    fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df',
-    borderRadius: 7, padding: '4px 8px', background: '#fff', color: '#1e293b',
-    outline: 'none', height: 'auto',
-};
-const makeBtn = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    cursor: 'pointer',
-} : {
-    fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px',
-    background: '#fff', color: '#334155', border: '1px solid #cbd3df',
-    borderRadius: 7, cursor: 'pointer',
-};
-const makePrimaryBtn = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    cursor: 'pointer',
-} : {
-    fontFamily: modernFont, fontSize: 12.5, fontWeight: 600, padding: '5px 12px',
-    background: '#2563eb', color: '#fff', border: 'none',
-    borderRadius: 7, cursor: 'pointer',
-};
+const makeInput = (classic: boolean): React.CSSProperties => lvInput(classic, classic ? { padding: '1px 4px', width: 'auto' } : { height: 'auto' });
+const makeBtn = (classic: boolean): React.CSSProperties => lvBtn(classic, 'default', classic ? { fontSize: 10, padding: '2px 8px' } : {});
+const makePrimaryBtn = (classic: boolean): React.CSSProperties => lvBtn(classic, 'primary', classic ? { fontSize: 10, padding: '2px 8px' } : {});
 const makeSectionHeader = (classic: boolean): React.CSSProperties => classic ? {
     background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',
