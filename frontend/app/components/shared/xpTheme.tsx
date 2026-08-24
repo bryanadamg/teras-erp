@@ -1092,7 +1092,13 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
                 // instead of tinting it — same feedback, tone-agnostic.
                 filter: flat ? flatFilter : (lit && on ? 'brightness(1.18)' : 'none'),
                 transform: flat ? flatLift : undefined,
-                boxShadow: (!flat && lit && !on) ? 'inset 0 0 0 1px rgba(255,255,255,0.75)' : 'none',
+                // Was an inset white ring traced around the whole chip on hover — a hard
+                // outline on top of the bevel border it sits inside, reading as two nested
+                // frames instead of one control lighting up. A soft outer glow reads as the
+                // chip itself lifting off the strip, the way the flat variant's translateY
+                // does, without the transform (segmented chips share a border line and must
+                // not shift apart from their neighbours on hover).
+                boxShadow: (!flat && lit && !on) ? '0 1px 4px rgba(0,64,180,0.28)' : 'none',
                 transition: 'background 120ms ease, border-color 120ms ease, filter 120ms ease, box-shadow 120ms ease, color 120ms ease, transform 120ms ease',
                 whiteSpace: 'nowrap',
                 // Segment members share one border line; the selected (or hovered)

@@ -1671,6 +1671,14 @@ table {
 .lv-check {
     transition: box-shadow 0.12s ease;
 }
+/* Classic checkboxes are bare native inputs (no form-check-input class), which
+   Chromium/Edge render with rounded corners regardless of CSS. box-shadow
+   always follows an element's own border-radius, so without this the hover
+   ring boxes the rounded glyph in a sharp square. Modern theme's checkbox
+   already carries Bootstrap's own border-radius, so its ring already matches. */
+.ui-style-classic .lv-check {
+    border-radius: 3px;
+}
 .lv-check:hover:not(:disabled) {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.20);
 }
