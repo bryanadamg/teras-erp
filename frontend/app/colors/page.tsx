@@ -29,7 +29,11 @@ export default function ColorsPage() {
     // (~30k library rows) and the small `Colors` variant list. Different data models —
     // tabbed together only for a single management surface. A LabDip "+ Color" deep-link
     // always targets the catalog tab.
-    const [tab, setTab] = useState<'codes' | 'variant'>('codes');
+    // The leaf grants access on ANY of color_code.view / color_variant.* (navConfig),
+    // so either tab can be the only one this user may see. Land on whichever they hold
+    // — defaulting to 'codes' showed a variant-only role an empty catalog.
+    const canViewCodes = hasPermission('color_code.view');
+    const [tab, setTab] = useState<'codes' | 'variant'>(canViewCodes ? 'codes' : 'variant');
 
     // ── Color Code catalog (library) ────────────────────────────────────────────
     const sourceLineId = searchParams.get('source_lab_dip_line_id');
@@ -46,7 +50,7 @@ export default function ColorsPage() {
         },
     } : null, [sourceLineId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    useEffect(() => { if (sourceLineId) setTab('codes'); }, [sourceLineId]);
+    useEffect(() => { if (sourceLineId && canViewCodes) setTab('codes'); }, [sourceLineId, canViewCodes]);
 
     const [search, setSearch] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState('ALL');
@@ -58,8 +62,8 @@ export default function ColorsPage() {
     // Deep-link from LabDip approved-color button: /colors?search=<code> focuses the catalog on that code.
     useEffect(() => {
         const s = searchParams.get('search');
-        if (s) { setTab('codes'); setStatusFilter('ALL'); setSearch(s); }
-    }, [searchParams]);
+        if (s && canViewCodes) { setTab('codes'); setStatusFilter('ALL'); setSearch(s); }
+    }, [searchParams, canViewCodes]);
 
     // Page window, fetch, loading flag and stale-response race guard all come from
     // the shared hook (context/usePaginatedList.ts). ColorLibraryView debounces the
@@ -70,6 +74,7 @@ export default function ColorsPage() {
     } = usePaginatedFetch<any>({
         endpoint: `${API_BASE}/colors`,
         authFetch,
+        enabled: canViewCodes,
         pageSize: PAGE_SIZE,
         params: {
             include_meta: 'true',
@@ -166,11 +171,14 @@ export default function ColorsPage() {
                 classic={classic}
                 active={tab}
                 onChange={(k) => setTab(k as 'codes' | 'variant')}
-                tabs={[{ key: 'codes', label: 'Color Codes' }, { key: 'variant', label: 'Colors (Variant)' }]}
+                tabs={[
+                    ...(canViewCodes ? [{ key: 'codes', label: 'Color Codes' }] : []),
+                    { key: 'variant', label: 'Colors (Variant)' },
+                ]}
             />
 
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                {tab === 'codes' ? (
+                {tab === 'codes' && canViewCodes ? (
                     <ColorLibraryView
                         colors={colors}
                         total={total}
