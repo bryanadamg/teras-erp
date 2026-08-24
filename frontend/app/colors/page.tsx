@@ -19,7 +19,7 @@ export default function ColorsPage() {
     const { showToast } = useToast();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { hasPermission, hasAnyPermission } = useUser();
+    const { hasPermission } = useUser();
     const searchParams = useSearchParams();
     const router = useRouter();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -117,13 +117,19 @@ export default function ColorsPage() {
     };
 
     // ── Colors variant (system_role='color' attribute values) ────────────────────
-    const canManageVariant = hasAnyPermission('color_variant.create', 'color_variant.edit', 'color_variant.delete');
+    // Writes go to /colors/variant-values, NOT the generic /attributes value routes:
+    // those are gated on attribute.create/edit/delete, so a role holding only
+    // color_variant.* saw enabled buttons and a 403 on submit, and the only unblock was
+    // plant-wide attribute power. Per-action flags rather than one canManage, so a
+    // create-only grant doesn't render a Delete button that 403s.
+    const canCreateVariant = hasPermission('color_variant.create');
+    const canEditVariant = hasPermission('color_variant.edit');
+    const canDeleteVariant = hasPermission('color_variant.delete');
     const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
     const colorValues = colorAttr?.values ?? [];
 
     const handleAddColorValue = async (value: string, hex?: string | null) => {
-        if (!colorAttr) return;
-        const res = await authFetch(`${API_BASE}/attributes/${colorAttr.id}/values`, {
+        const res = await authFetch(`${API_BASE}/colors/variant-values`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, hex: hex || null }),
         });
         if (res.ok) { refreshItemMetadata(); showToast('Color added', 'success'); }
@@ -131,7 +137,7 @@ export default function ColorsPage() {
     };
 
     const handleRenameColorValue = async (valueId: string, value: string, hex?: string | null) => {
-        const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, {
+        const res = await authFetch(`${API_BASE}/colors/variant-values/${valueId}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, hex: hex || null }),
         });
         if (res.ok) { refreshItemMetadata(); showToast('Color renamed', 'success'); }
@@ -139,7 +145,7 @@ export default function ColorsPage() {
     };
 
     const handleDeleteColorValue = async (valueId: string) => {
-        const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, { method: 'DELETE' });
+        const res = await authFetch(`${API_BASE}/colors/variant-values/${valueId}`, { method: 'DELETE' });
         if (res.ok) { refreshItemMetadata(); showToast('Color deleted', 'success'); }
         else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to delete color', 'danger'); }
     };
@@ -195,7 +201,9 @@ export default function ColorsPage() {
                 ) : (
                     <ColorsVariantView
                         values={colorValues}
-                        canManage={canManageVariant}
+                        canCreate={canCreateVariant}
+                        canEdit={canEditVariant}
+                        canDelete={canDeleteVariant}
                         onAdd={handleAddColorValue}
                         onRename={handleRenameColorValue}
                         onDelete={handleDeleteColorValue}

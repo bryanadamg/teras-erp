@@ -12,7 +12,12 @@ const PAGE_SIZE = 25;
 
 interface Props {
     values: any[];                 // AttributeValue rows of the Colors variant attribute
-    canManage: boolean;
+    // Per-action, not one canManage flag: color_variant.create/edit/delete are granted
+    // independently on the Access Control grid, so a create-only role must not be shown
+    // a Delete button the API will refuse.
+    canCreate: boolean;
+    canEdit: boolean;
+    canDelete: boolean;
     onAdd: (value: string, hex?: string | null) => void;
     onRename: (valueId: string, value: string, hex?: string | null) => void;
     onDelete: (valueId: string) => void;
@@ -22,7 +27,7 @@ interface Props {
 // curated product-color list. This is the SAME variant attribute used for BOM gating,
 // dye-recipe matching, MO/stock variant_key; it is NOT the 30k Color Code catalog. It
 // lives here as a sibling tab purely for discoverability (single "Colors" home).
-export default function ColorsVariantView({ values, canManage, onAdd, onRename, onDelete }: Props) {
+export default function ColorsVariantView({ values, canCreate, canEdit, canDelete, onAdd, onRename, onDelete }: Props) {
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
@@ -89,7 +94,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
                     {filtered.length} color{filtered.length !== 1 ? 's' : ''}
                 </span>
-                {canManage && (
+                {canCreate && (
                     <>
                         <span style={lvSep(classic)} />
                         <ToolbarButton classic={classic} tone="create" icon="bi-plus-lg" onClick={openCreate}>New Color</ToolbarButton>
@@ -121,7 +126,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                                                 <input type="color" value={editHex} onChange={e => setEditHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
                                             )}
                                         </div>
-                                    ) : canManage ? (
+                                    ) : canEdit ? (
                                         <label
                                             title={v.hex ? `${v.hex} — click to change` : 'Click to set color'}
                                             style={{
@@ -153,7 +158,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                                     ) : v.value}
                                 </td>
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
-                                    {canManage && (
+                                    {(canEdit || canDelete) && (
                                         <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
                                             {editingId === v.id ? (
                                                 <>
@@ -166,12 +171,16 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                                                 </>
                                             ) : (
                                                 <>
-                                                    <button title="Rename" onClick={() => startEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                                        <i className="bi bi-pencil" />
-                                                    </button>
-                                                    <button title="Delete" onClick={() => handleDelete(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
-                                                        <i className="bi bi-trash" />
-                                                    </button>
+                                                    {canEdit && (
+                                                        <button title="Rename" onClick={() => startEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
+                                                            <i className="bi bi-pencil" />
+                                                        </button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button title="Delete" onClick={() => handleDelete(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
+                                                            <i className="bi bi-trash" />
+                                                        </button>
+                                                    )}
                                                 </>
                                             )}
                                         </div>
