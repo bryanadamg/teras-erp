@@ -5,7 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton, CHIP_RADIUS, SECTION_RADIUS, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
+import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton, CHIP_RADIUS, SECTION_RADIUS, BUTTON_RADIUS, XP_BTN, ToggleChip } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, FilterChipBar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
 import { useToast } from '../shared/Toast';
@@ -66,6 +66,10 @@ export default function WeavingMonitorView() {
     // render: a component identity that changes every render remounts and would drop
     // the slide on every 60s poll.
     const [runSlide, setRunSlide] = useState<Record<string, number>>({});
+    // "Running only" — hides looms with no active run. Same rule as groupFilter: it
+    // hides CARDS, never measurements, so every count/badge on the strip and the
+    // group bands stays plant-wide while it is on.
+    const [runningOnly, setRunningOnly] = useState(false);
 
     const load = useCallback(async () => {
         try {
@@ -181,6 +185,9 @@ export default function WeavingMonitorView() {
         const hit = sections.filter(s => (s.id || '__ungrouped__') === groupFilter);
         return hit.length ? hit : sections;
     }, [sections, groupFilter]);
+
+    const shown = (list: any[]) => (runningOnly ? list.filter((m: any) => runsOf(m).length > 0) : list);
+    const runningCount = useMemo(() => machines.filter((m: any) => runsOf(m).length > 0).length, [machines]);
 
     // Efficiency vs its target tick — the shared ProgressBar with a threshold
     // marker, so this reads like every other bar in the app. The machine modal's
@@ -618,14 +625,31 @@ export default function WeavingMonitorView() {
     // Group focus chips. These FILTER (they don't hide): every chip keeps its
     // plant-wide below-target badge, so an alarm in a bank you are not looking at is
     // still on screen — the property tabs would have cost.
-    const chipBar = isGrouped ? (
+    const runningToggle = (
+        <span style={{ marginLeft: isGrouped ? 'auto' : undefined }}>
+            <ToggleChip
+                classic={cls}
+                on={runningOnly}
+                tone="green"
+                toneIdle
+                title={t('running_only_hint')}
+                onClick={() => setRunningOnly(v => !v)}
+            >
+                <i className="bi bi-play-circle-fill" style={{ marginRight: 4 }} />
+                {t('running_only')} ({runningCount})
+            </ToggleChip>
+        </span>
+    );
+
+    const chipBar = (
         <div style={cls
             ? xpToolbar({ marginBottom: 8, border: '1px solid #b0a898', borderRadius: SECTION_RADIUS })
             : { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            <span style={{ fontSize: cls ? 11 : 12, color: '#666', fontFamily: cls ? xpFont : undefined }}>
+            {!isGrouped ? runningToggle : null}
+            {isGrouped && <span style={{ fontSize: cls ? 11 : 12, color: '#666', fontFamily: cls ? xpFont : undefined }}>
                 <i className="bi bi-funnel" style={{ marginRight: 4 }} />{t('group')}
-            </span>
-            <FilterChipBar
+            </span>}
+            {isGrouped && <FilterChipBar
                 classic={cls}
                 value={groupFilter ?? ALL_GROUPS}
                 onChange={v => setGroupFilter(v === ALL_GROUPS || v === groupFilter ? null : v)}
@@ -653,9 +677,10 @@ export default function WeavingMonitorView() {
                         ),
                     })),
                 ]}
-            />
+            />}
+            {isGrouped ? runningToggle : null}
         </div>
-    ) : null;
+    );
 
     // Geometry mirrors cardGrid()/card() above — same minmax floor and gap, and a
     // body deep enough for the run stack + beam strip + prep row — so the real
@@ -671,14 +696,19 @@ export default function WeavingMonitorView() {
         />
     ) : machines.length === 0 ? (
         <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
+    ) : runningOnly && runningCount === 0 ? (
+        <XPEmptyState icon="bi-pause-circle" message={t('no_running_machines')} />
     ) : !isGrouped ? (
-        cardGrid(machines)
+        cardGrid(shown(machines))
     ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: cls ? 10 : 20 }}>
-            {visibleSections.map(sec => (
+            {/* A group with nothing running drops out entirely while the filter is on —
+                its band alone would read as a bank with a missing grid. Its alarms are
+                still on the chip bar, which is why hiding it is safe. */}
+            {visibleSections.filter(sec => shown(sec.machines).length > 0).map(sec => (
                 <div key={sec.id || 'ungrouped'}>
                     {groupHeader(sec)}
-                    {cardGrid(sec.machines)}
+                    {cardGrid(shown(sec.machines))}
                 </div>
             ))}
         </div>
