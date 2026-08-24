@@ -107,7 +107,10 @@ export default function UserFormModal({
             onClose={onClose}
             title={<span><i className="bi bi-person-badge me-2"></i>{mode === 'create' ? 'Add User' : `Edit User — ${user?.username}`}</span>}
             variant={mode === 'create' ? 'success' : 'primary'}
-            size="md"
+            /* Same reason as RoleFormModal: the permission matrix wraps every resource
+               row onto three lines at md. The two modals show the same picker, so they
+               get the same width. */
+            size="xl"
             footer={
                 <ModalFooterActions
                     classic={classic}
@@ -134,96 +137,102 @@ export default function UserFormModal({
                 </div>
             </div>
 
-            <div className="mb-2">
-                <FieldLabel classic={classic}>Username</FieldLabel>
-                <input
-                    style={classic ? xpInput({ width: '100%', fontFamily: CODE_FONT }) : { fontFamily: CODE_FONT }}
-                    className={classic ? '' : 'form-control form-control-sm'}
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                />
-            </div>
-            <div className="mb-3">
-                <FieldLabel classic={classic}>Full Name</FieldLabel>
-                <input
-                    style={classic ? xpInput({ width: '100%' }) : undefined}
-                    className={classic ? '' : 'form-control form-control-sm'}
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                />
-            </div>
-
-            <div className="mb-3">
-                <FieldLabel classic={classic}>Role</FieldLabel>
-                <select
-                    style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
-                    className={classic ? '' : 'form-select form-select-sm'}
-                    value={roleId}
-                    onChange={e => setRoleId(e.target.value)}
-                >
-                    <option value="">No Role</option>
-                    {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
+            {/* Paired two-up: at xl these single-line fields each stretching the full
+                width read as a form with nothing in it. Collapses to one column on
+                narrow screens. */}
+            <div className="row g-2 mb-3">
+                <div className="col-md-6">
+                    <FieldLabel classic={classic}>Username</FieldLabel>
+                    <input
+                        style={classic ? xpInput({ width: '100%', fontFamily: CODE_FONT }) : { fontFamily: CODE_FONT }}
+                        className={classic ? '' : 'form-control form-control-sm'}
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                    />
+                </div>
+                <div className="col-md-6">
+                    <FieldLabel classic={classic}>Full Name</FieldLabel>
+                    <input
+                        style={classic ? xpInput({ width: '100%' }) : undefined}
+                        className={classic ? '' : 'form-control form-control-sm'}
+                        value={fullName}
+                        onChange={e => setFullName(e.target.value)}
+                    />
+                </div>
             </div>
 
-            <div className="mb-3">
-                <FieldLabel
-                    classic={classic}
-                    right={mode === 'edit' && !showPassword ? (
-                        <button
-                            type="button"
-                            style={classic ? xpBtn({ padding: '1px 6px', fontSize: 10 }) : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-link p-0'}
-                            onClick={() => setShowPassword(true)}
-                        >Reset Password…</button>
-                    ) : undefined}
-                >Password</FieldLabel>
-                {showPassword ? (
-                    <>
-                        <div className="d-flex gap-1">
-                            <input
-                                type={passwordVisible ? 'text' : 'password'}
-                                style={classic ? xpInput({ width: '100%', borderColor: '#cc6666' }) : undefined}
-                                className={classic ? '' : 'form-control form-control-sm'}
-                                placeholder={mode === 'create' ? 'Password' : 'New password'}
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                            />
+            <div className="row g-2 mb-3">
+                <div className="col-md-6">
+                    <FieldLabel classic={classic}>Role</FieldLabel>
+                    <select
+                        style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
+                        className={classic ? '' : 'form-select form-select-sm'}
+                        value={roleId}
+                        onChange={e => setRoleId(e.target.value)}
+                    >
+                        <option value="">No Role</option>
+                        {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                </div>
+                <div className="col-md-6">
+                    <FieldLabel
+                        classic={classic}
+                        right={mode === 'edit' && !showPassword ? (
                             <button
                                 type="button"
-                                title={passwordVisible ? 'Hide' : 'Show'}
-                                style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
-                                className={classic ? '' : 'btn btn-sm btn-light border'}
-                                onClick={() => setPasswordVisible(v => !v)}
-                            ><i className={`bi ${passwordVisible ? 'bi-eye-slash' : 'bi-eye'}`}></i></button>
-                            <button
-                                type="button"
-                                title="Generate a random password"
-                                style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
-                                className={classic ? '' : 'btn btn-sm btn-light border'}
-                                onClick={handleGeneratePassword}
-                            ><i className="bi bi-shuffle"></i></button>
-                            {mode === 'edit' && (
+                                style={classic ? xpBtn({ padding: '1px 6px', fontSize: 10 }) : undefined}
+                                className={classic ? '' : 'btn btn-sm btn-link p-0'}
+                                onClick={() => setShowPassword(true)}
+                            >Reset Password…</button>
+                        ) : undefined}
+                    >Password</FieldLabel>
+                    {showPassword ? (
+                        <>
+                            <div className="d-flex gap-1">
+                                <input
+                                    type={passwordVisible ? 'text' : 'password'}
+                                    style={classic ? xpInput({ width: '100%', borderColor: '#cc6666' }) : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    placeholder={mode === 'create' ? 'Password' : 'New password'}
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                />
                                 <button
                                     type="button"
-                                    title="Cancel password reset"
+                                    title={passwordVisible ? 'Hide' : 'Show'}
                                     style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
                                     className={classic ? '' : 'btn btn-sm btn-light border'}
-                                    onClick={() => { setShowPassword(false); setPassword(''); setPasswordVisible(false); }}
-                                ><i className="bi bi-x-lg"></i></button>
+                                    onClick={() => setPasswordVisible(v => !v)}
+                                ><i className={`bi ${passwordVisible ? 'bi-eye-slash' : 'bi-eye'}`}></i></button>
+                                <button
+                                    type="button"
+                                    title="Generate a random password"
+                                    style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
+                                    className={classic ? '' : 'btn btn-sm btn-light border'}
+                                    onClick={handleGeneratePassword}
+                                ><i className="bi bi-shuffle"></i></button>
+                                {mode === 'edit' && (
+                                    <button
+                                        type="button"
+                                        title="Cancel password reset"
+                                        style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
+                                        className={classic ? '' : 'btn btn-sm btn-light border'}
+                                        onClick={() => { setShowPassword(false); setPassword(''); setPasswordVisible(false); }}
+                                    ><i className="bi bi-x-lg"></i></button>
+                                )}
+                            </div>
+                            {passwordVisible && password && (
+                                <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: xpFont, fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
+                                    Copy this now — it won&apos;t be shown again after saving.
+                                </small>
                             )}
+                        </>
+                    ) : (
+                        <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'small text-muted fst-italic'}>
+                            Leave unchanged, or reset it above.
                         </div>
-                        {passwordVisible && password && (
-                            <small className={classic ? '' : 'text-muted d-block mt-1'} style={classic ? { fontFamily: xpFont, fontSize: 9, color: '#888', display: 'block', marginTop: 2 } : undefined}>
-                                Copy this now — it won&apos;t be shown again after saving.
-                            </small>
-                        )}
-                    </>
-                ) : (
-                    <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'small text-muted fst-italic'}>
-                        Leave unchanged, or reset it above.
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             <div className="mb-3">
