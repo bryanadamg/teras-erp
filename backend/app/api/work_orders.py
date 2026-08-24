@@ -18,7 +18,7 @@ from app.models.weaving import WeavingRun
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import (
     WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
-    LeftoverBeamCreate, BatchResponse, PutawayBinOption, PutawaySuggestionResponse,
+    PutawayBinOption, PutawaySuggestionResponse,
     WorkOrderMarkPrintedBulk, BeamMountResponse, BeamMountCreate, BeamDismountPayload,
     BeamDismountResult, AvailableBeamRow, LoomBeamStatus, WOStagedLot,
 )
@@ -1226,93 +1226,6 @@ async def stage_wo_materials(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo.id)
     )
     return result.scalars().first()
-
-
-@router.post("/work-orders/{wo_id}/leftover-beam", response_model=BatchResponse)
-async def create_leftover_beam(
-    wo_id: str,
-    payload: LeftoverBeamCreate,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.edit')),
-):
-    """Re-lot leftover warp: move kg out of the WO input location's batch-less
-    pool into a new trackable beam batch (born from this weaving WO)."""
-    result = await db.execute(select(WorkOrder).filter(WorkOrder.id == wo_id))
-    wo = result.scalars().first()
-    if not wo:
-        raise HTTPException(status_code=404, detail="Work Order not found")
-    _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
-    if not wo.input_location_id:
-        raise HTTPException(status_code=422, detail="Work Order has no input location")
-
-    qty = float(payload.qty or 0)
-    if qty <= 0:
-        raise HTTPException(status_code=400, detail="qty must be positive")
-
-    item_res = await db.execute(select(Item).filter(Item.id == payload.item_id))
-    item = item_res.scalars().first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    # Available = batch-less pool only; batch stock (unmounted beams) is not eligible.
-    pool_res = await db.execute(
-        select(StockBalance.qty).where(
-            StockBalance.item_id == payload.item_id,
-            StockBalance.location_id == wo.input_location_id,
-            StockBalance.variant_key == "",
-            StockBalance.batch_key == "",
-        )
-    )
-    pool = float(pool_res.scalar() or 0)
-    if qty > pool + 1e-9:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Only {pool:g} available in the merged pool at the input location",
-        )
-
-    beam_number = (payload.beam_number or "").strip()
-    if beam_number:
-        dup = await db.execute(select(Batch.id).filter(Batch.batch_number == beam_number).limit(1))
-        if dup.scalars().first():
-            raise HTTPException(status_code=400, detail=f"Beam number '{beam_number}' already exists")
-    else:
-        beam_number = await generate_batch_number(db, prefix="BM")
-
-    batch = Batch(
-        batch_number=beam_number,
-        item_id=payload.item_id,
-        ends=payload.ends,
-        source_wo_id=wo.id,
-        notes=payload.notes or f"Leftover from {wo.code or wo.name}",
-        created_by=current_user.username,
-    )
-    db.add(batch)
-    await db.flush()
-
-    # Same-location move: pool kg out, beam batch kg in.
-    await stock_service.add_stock_entry(
-        db, item_id=payload.item_id, location_id=wo.input_location_id, qty_change=-qty,
-        reference_type="Leftover Beam", reference_id=str(wo.id),
-        attribute_value_ids=[], batch_id=None,
-    )
-    await stock_service.add_stock_entry(
-        db, item_id=payload.item_id, location_id=wo.input_location_id, qty_change=qty,
-        reference_type="Leftover Beam", reference_id=str(wo.id),
-        attribute_value_ids=[], batch_id=batch.id,
-    )
-    await db.commit()
-
-    await audit_service.log_activity(
-        db, current_user.id, "CREATE", "Batch", str(batch.id),
-        details=f"Leftover beam {beam_number} ({qty:g}) from WO '{wo.code or wo.name}'",
-    )
-    await manager.broadcast({"type": "STOCK_UPDATE"})
-
-    batch.item_code = item.code
-    batch.item_name = item.name
-    batch.remaining = qty
-    batch.location_id = wo.input_location_id
-    return batch
 
 
 # ─────────────────────────────────────────────────────────────────────────────

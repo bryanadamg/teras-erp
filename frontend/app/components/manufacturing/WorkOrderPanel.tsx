@@ -141,6 +141,9 @@ export default function WorkOrderPanel({
     const { operations: opMaster } = useData() as any;
     const { hasPermission, hasWorkCenterScope } = useUser();
     const canCreate = hasPermission('work_order.create');
+    // Taking a beam off the loom is its own permission — the weaving leftover
+    // action is that call, so it follows the same gate the monitor's Beams tab does.
+    const canUnmountBeam = hasPermission('beam.unmount');
     const canLogBase = hasPermission('work_order.log');
     const canEditBase = hasPermission('work_order.edit');
     const canLog = (wo: any) => canLogBase && hasWorkCenterScope(wo.work_center_type);
@@ -768,12 +771,16 @@ export default function WorkOrderPanel({
                                                 onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
                                             />
                                         )}
-                                        {canEdit(wo) && ['WEAVING', 'TENUN'].includes((wo.work_center_type || '').toUpperCase()) && (wo.status === 'IN_PROGRESS' || wo.status === 'COMPLETED') && (
+                                        {/* Leftover warp comes off a BEAM MOUNT, not off this WO — the
+                                            warp belongs to the loom — so this is the machine's unmount
+                                            call, reachable from the WO the weaver already has open.
+                                            Gated on beam.unmount for that reason, not on work_order.edit. */}
+                                        {canUnmountBeam && isWeaving(wo) && (wo.status === 'IN_PROGRESS' || wo.status === 'COMPLETED') && (
                                             <XPActionButton
                                                 classic
                                                 tone="warning"
                                                 icon="bi-recycle"
-                                                title="Register leftover warp as a new beam lot"
+                                                title="Strip leftover warp: weigh it into its own lot and take the beam off the loom"
                                                 onClick={() => setLeftoverWO(wo)}
                                             />
                                         )}

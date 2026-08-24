@@ -24,8 +24,9 @@ import { useToast } from '../shared/Toast';
 import {
     xpFont, familyColor, StatusChip, XPActionButton, PanelSkeleton, XPEmptyState,
     ExpandedRowPanel, ExpandedRowPanelBody, FormSection, FieldLabel, ProgressBar,
-    xpSelect, xpPanel, SectionTitle, CodeChip, SECTION_RADIUS, CHIP_RADIUS,
+    xpSelect, xpPanel, SectionTitle, CodeChip, Chip, statusTint, SECTION_RADIUS, CHIP_RADIUS,
 } from '../shared/xpTheme';
+import { SearchField } from '../shared/shellTheme';
 import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
 import { LotChips } from '../shared/LotChips';
@@ -1132,12 +1133,12 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                 <ExpandedRowPanel classic={cls}>
                                     <ExpandedRowPanelBody classic={cls}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                            <input
+                                            <SearchField
+                                                classic={cls}
                                                 value={beamSearch}
-                                                onChange={e => setBeamSearch(e.target.value)}
+                                                onChange={setBeamSearch}
                                                 placeholder={t('mount_beam_search')}
-                                                className={cls ? undefined : 'form-control form-control-sm w-auto'}
-                                                style={cls ? { ...lvInput, width: 220 } : undefined}
+                                                width={220}
                                             />
                                             {pcs >= slots && (
                                                 <span style={{ fontSize: 10, color: AMBER }}>{t('beam_slots_full')}</span>
@@ -1156,15 +1157,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                 <td style={{ ...lvTd(cls), fontWeight: 'bold', color: BLUE, whiteSpace: 'nowrap' }}>
                                                                     {b.beam_number}
                                                                     {b.is_leftover && (
-                                                                        <span
+                                                                        <Chip
+                                                                            classic={cls}
+                                                                            size="xs"
+                                                                            tone={statusTint('PENDING')}
                                                                             title={b.parent_beam_number ? `${t('leftover_tag')} · ${b.parent_beam_number}` : t('leftover_tag')}
-                                                                            style={{
-                                                                                marginLeft: 5, fontSize: 9, padding: '0 4px',
-                                                                                borderRadius: CHIP_RADIUS, background: '#fff3cc',
-                                                                                border: '1px solid #f0d888', color: '#664400',
-                                                                                fontWeight: 'normal',
-                                                                            }}
-                                                                        >{t('leftover_tag')}</span>
+                                                                            style={{ marginLeft: 5 }}
+                                                                        >{t('leftover_tag')}</Chip>
                                                                     )}
                                                                 </td>
                                                                 <td style={lvTd(cls)} title={b.item_name || undefined}>{b.item_code || '—'}</td>
