@@ -358,14 +358,14 @@ body {
   color: var(--primary-dark);
 }
 
-/* Slim, squared scrollbars */
+/* Slim scrollbars, thumb rounded to the shared BUTTON_RADIUS (xpTheme.tsx) */
 .ui-style-modern ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .ui-style-modern ::-webkit-scrollbar-thumb {
   background: #aebfce;
-  border-radius: 2px;
+  border-radius: 3px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -546,7 +546,7 @@ body {
 .ui-style-classic .sidebar::-webkit-scrollbar-thumb {
   background: linear-gradient(to right, #ffffff, #d4d0c8);
   border: 1px solid #808080;
-  border-radius: 0;
+  border-radius: 3px;
 }
 .ui-style-classic .sidebar::-webkit-scrollbar-button {
   background: linear-gradient(to bottom, #ffffff, #d4d0c8);
@@ -917,7 +917,7 @@ body {
 .ui-style-classic ::-webkit-scrollbar-thumb {
   background: linear-gradient(to right, #ffffff, #d4d0c8);
   border: 1px solid #808080;
-  border-radius: 0;
+  border-radius: 3px;
 }
 .ui-style-classic ::-webkit-scrollbar-corner {
   background: #d4d0c8;
