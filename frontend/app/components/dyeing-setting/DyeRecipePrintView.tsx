@@ -227,7 +227,7 @@ export default function DyeRecipePrintView({ recipe, onClose }: Props) {
 
     return (
         <>
-            <PrintModalShell modeless title={`Kartu Celup — ${recipe.code} ${recipe.name}`} onClose={onClose} closeGlyph="✕">
+            <PrintModalShell modeless title={`Kartu Celup — ${recipe.code} ${recipe.name}`} onClose={onClose}>
                     {/* Body: settings + preview */}
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 

@@ -2,7 +2,7 @@
 import React, { useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { MODAL_Z, MODAL_REPOSITION_EVENT, useInactiveChromeWhileOpen } from './ModalWrapper';
+import { MODAL_Z, MODAL_REPOSITION_EVENT, useInactiveChromeWhileOpen, WindowCloseButton } from './ModalWrapper';
 import { toLayoutPx } from './uiScale';
 import { xpFont, XP_BTN, xpBtn, BTN_TONES, WINDOW_RADIUS, WINDOW_RADIUS_INNER } from './xpTheme';
 
@@ -18,7 +18,6 @@ interface PrintModalShellProps {
     bevel?: boolean;             // classic 2px bevel border on the panel (defaults true — matches the
                                  // majority; pass false for the print types that never had it, to keep
                                  // this refactor visually a no-op).
-    closeGlyph?: 'X' | '✕';
     /**
      * Modeless window: no backdrop, background page stays interactive, panel is
      * draggable by its title bar. Ignored on mobile (falls back to a normal
@@ -38,7 +37,7 @@ interface PrintModalShellProps {
 export default function PrintModalShell({
     title, onClose, children,
     width = 'calc(var(--app-vw) * 90 / 100)', maxWidth = 960, height = 'calc(var(--app-vh) * 88 / 100)',
-    bevel = true, closeGlyph = 'X', modeless = false,
+    bevel = true, modeless = false,
 }: PrintModalShellProps) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
@@ -111,12 +110,7 @@ export default function PrintModalShell({
         >
             <div style={headerStyle} onPointerDown={floating ? startDrag : undefined}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{title}</span>
-                <button
-                    onClick={onClose}
-                    style={{ background: 'none', border: 'none', color: 'inherit', fontSize: 14, cursor: 'pointer', lineHeight: 1, fontWeight: 'bold' }}
-                >
-                    {closeGlyph}
-                </button>
+                <WindowCloseButton onClose={onClose} white={!classic} />
             </div>
             {children}
         </div>

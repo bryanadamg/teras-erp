@@ -338,7 +338,6 @@ export default function SamplePrintModal({
             <PrintModalShell
                 title={<><i className="bi bi-printer" style={{ marginRight: 4 }} />Print SPK Sample — {sample.code}</>}
                 onClose={onClose}
-                closeGlyph="✕"
                 modeless
             >
                     {/* Body */}

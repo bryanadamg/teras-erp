@@ -63,6 +63,54 @@ export function useInactiveChromeWhileOpen(active: boolean) {
     }, [active]);
 }
 
+/**
+ * The window close button — one face for every window title bar (ModalWrapper's
+ * dialogs AND PrintModalShell's print previews). Classic is the XP box: `.xp-btn`
+ * lift/press animation, rounded to BUTTON_RADIUS, going red on hover; modern is
+ * Bootstrap's `btn-close`. Print modals used to render a bare text glyph with no
+ * chrome at all, which is the drift this replaces — a print preview is a window,
+ * so its close button is the same close button.
+ */
+export function WindowCloseButton({ onClose, white = false }: { onClose: () => void; white?: boolean }) {
+    const { uiStyle } = useTheme();
+    const [hov, setHov] = useState(false);
+
+    if (uiStyle !== 'classic') {
+        return (
+            <button
+                type="button"
+                className={`btn-close ${white ? 'btn-close-white' : ''}`}
+                onClick={onClose}
+                aria-label="Close"
+            />
+        );
+    }
+
+    return (
+        <button
+            className={XP_BTN}
+            onClick={onClose}
+            onMouseEnter={() => setHov(true)}
+            onMouseLeave={() => setHov(false)}
+            style={{
+                fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold',
+                width: 21, height: 21, minWidth: 21, cursor: 'pointer',
+                background: hov
+                    ? 'linear-gradient(to bottom, #e8a0a0, #c84040)'
+                    : 'linear-gradient(to bottom, #d4c8c8, #a89898)',
+                border: '1px solid',
+                borderColor: hov ? '#8e0000 #5e0000 #5e0000 #8e0000' : '#dfdfdf #808080 #808080 #dfdfdf',
+                color: '#ffffff', borderRadius: BUTTON_RADIUS,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, flexShrink: 0,
+                textShadow: '0 1px 1px rgba(0,0,0,0.5)',
+            }}
+            title="Close"
+            aria-label="Close"
+        >✕</button>
+    );
+}
+
 interface ModalWrapperProps {
     isOpen: boolean;
     onClose: () => void;
@@ -109,7 +157,6 @@ export default function ModalWrapper({
 }: ModalWrapperProps) {
     const { uiStyle: currentStyle } = useTheme();
     const isMobile = useIsMobile();
-    const [closeBtnHov, setCloseBtnHov] = useState(false);
     const backdropMouseDown = useRef(false);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
@@ -256,27 +303,7 @@ export default function ModalWrapper({
                     <span id={titleId} style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                         {title}
                     </span>
-                    <button
-                        className={XP_BTN}
-                        onClick={onClose}
-                        onMouseEnter={() => setCloseBtnHov(true)}
-                        onMouseLeave={() => setCloseBtnHov(false)}
-                        style={{
-                            fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold',
-                            width: 21, height: 21, minWidth: 21, cursor: 'pointer',
-                            background: closeBtnHov
-                                ? 'linear-gradient(to bottom, #e8a0a0, #c84040)'
-                                : 'linear-gradient(to bottom, #d4c8c8, #a89898)',
-                            border: '1px solid',
-                            borderColor: closeBtnHov ? '#8e0000 #5e0000 #5e0000 #8e0000' : '#dfdfdf #808080 #808080 #dfdfdf',
-                            color: '#ffffff', borderRadius: BUTTON_RADIUS,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            lineHeight: 1, flexShrink: 0,
-                            textShadow: '0 1px 1px rgba(0,0,0,0.5)',
-                        }}
-                        title="Close"
-                        aria-label="Close"
-                    >✕</button>
+                    <WindowCloseButton onClose={onClose} />
                 </div>
 
                 {/* Body — ui-style-classic triggers CSS overrides for Bootstrap controls */}
@@ -343,7 +370,7 @@ export default function ModalWrapper({
                 onPointerDown={floating ? startDrag : undefined}
             >
                 <h5 id={titleId} className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
-                <button type="button" className={`btn-close ${variant === 'dark' ? 'btn-close-white' : ''}`} onClick={onClose} aria-label="Close"></button>
+                <WindowCloseButton onClose={onClose} white={variant === 'dark'} />
             </div>
             <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(var(--app-vh) - 160px)' : 'calc(var(--app-vh) * 85 / 100)', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'white' }}>
                 {children}
