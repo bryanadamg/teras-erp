@@ -16,6 +16,7 @@ import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
 import { pageFillStyle } from '../shared/shellTheme';
+import { Tabs } from '../shared/Tabs';
 
 export default function ManufacturingView({
     items,
@@ -516,7 +517,7 @@ export default function ManufacturingView({
                       className="no-print"
                       style={{
                           background: classic
-                              ? 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)'
+                              ? 'var(--xp-title-blue)'
                               : '#fff',
                           borderBottom: classic ? '1px solid #003080' : '1px solid #dee2e6',
                           padding: classic ? '4px 8px' : '8px 16px',
@@ -581,44 +582,16 @@ export default function ManufacturingView({
                   </div>
 
                   {/* ── Tab bar ── */}
-                  {showTabSwitcher && <div className="no-print" style={{
-                      background: classic ? '#ece9d8' : '#f8f9fa',
-                      borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                      display: 'flex', gap: classic ? '0' : '4px',
-                      padding: classic ? '4px 8px 0' : '6px 12px 0',
-                  }}>
-                      {[
-                          { key: 'production-runs', label: 'Production Runs', icon: 'bi-collection-play' },
-                          { key: 'manufacturing-orders', label: 'Manufacturing Orders', icon: 'bi-list-task' },
-                      ].map(({ key, label, icon }) => {
-                          const isActive = activeTab === key;
-                          return (
-                              <button key={key}
-                                  onClick={() => setActiveTab(key as any)}
-                                  style={classic ? {
-                                      fontFamily: xpFont, fontSize: '11px',
-                                      padding: '3px 12px',
-                                      background: isActive ? '#ece9d8' : 'linear-gradient(to bottom,#d4d0c8,#b8b4ac)',
-                                      border: '1px solid #808080',
-                                      borderBottom: isActive ? '1px solid #ece9d8' : '1px solid #808080',
-                                      color: '#000', cursor: 'pointer',
-                                      fontWeight: isActive ? 'bold' : 'normal',
-                                      marginRight: 2, position: 'relative', top: 1,
-                                  } : {
-                                      fontSize: '12px', padding: '4px 14px', cursor: 'pointer',
-                                      background: isActive ? '#fff' : 'transparent',
-                                      border: '1px solid',
-                                      borderColor: isActive ? '#dee2e6 #dee2e6 #fff' : 'transparent',
-                                      borderBottom: isActive ? '1px solid #fff' : '1px solid transparent',
-                                      fontWeight: isActive ? 'bold' : 'normal',
-                                      color: isActive ? '#000' : '#555',
-                                      borderRadius: '4px 4px 0 0',
-                                  }}
-                              >
-                                  <i className={`bi ${icon} me-1`}></i>{label}
-                              </button>
-                          );
-                      })}
+                  {showTabSwitcher && <div className="no-print">
+                      <Tabs<'production-runs' | 'manufacturing-orders'>
+                          tabs={[
+                              { key: 'production-runs', label: 'Production Runs', icon: 'bi-collection-play' },
+                              { key: 'manufacturing-orders', label: t('manufacturing_orders') || 'Manufacturing Orders', icon: 'bi-list-task' },
+                          ]}
+                          activeKey={activeTab}
+                          onChange={setActiveTab}
+                          classic={classic}
+                      />
                   </div>}
 
                   {/* ── Body ── */}

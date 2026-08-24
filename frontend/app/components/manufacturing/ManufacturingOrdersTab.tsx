@@ -4,6 +4,7 @@ import CalendarView from '../shared/CalendarView';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
 import { ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
+import { Tabs } from '../shared/Tabs';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
@@ -473,43 +474,15 @@ export default function ManufacturingOrdersTab({
         return (
             <ExpandedRowPanel classic={classic} style={{ marginBottom: 6, padding: classic ? '0 0 0 4px' : '0 0 0 3px' }}>
             {/* ── TABS ── */}
-            <div style={{
-                display: 'flex',
-                borderBottom: classic ? '2px solid #808080' : '1px solid #dee2e6',
-                background: classic ? '#ece9d8' : '#f1f3f5',
-                padding: '0 8px',
-            }}>
-                <button
-                    onClick={() => setDetailTab('bom')}
-                    style={{
-                        fontFamily: xpFont, fontSize: 11,
-                        padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'bom' ? -2 : -1,
-                        border: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                        borderBottom: detailTab === 'bom' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
-                        background: detailTab === 'bom' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
-                        cursor: 'pointer', fontWeight: detailTab === 'bom' ? 'bold' : 'normal',
-                        color: detailTab === 'bom' ? (classic ? '#000080' : '#0d6efd') : '#555',
-                        position: 'relative' as const,
-                    }}
-                >
-                    <i className="bi bi-boxes me-1" />BOM &amp; Stock
-                </button>
-                <button
-                    onClick={() => setDetailTab('steps')}
-                    style={{
-                        fontFamily: xpFont, fontSize: 11,
-                        padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'steps' ? -2 : -1,
-                        border: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                        borderBottom: detailTab === 'steps' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
-                        background: detailTab === 'steps' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
-                        cursor: 'pointer', fontWeight: detailTab === 'steps' ? 'bold' : 'normal',
-                        color: detailTab === 'steps' ? (classic ? '#000080' : '#0d6efd') : '#555',
-                        position: 'relative' as const,
-                    }}
-                >
-                    <i className="bi bi-list-ol me-1" />Work Order ({(selectedNode.work_orders || []).length})
-                </button>
-            </div>
+            <Tabs
+                tabs={[
+                    { key: 'bom', label: 'BOM & Stock', icon: 'bi-boxes' },
+                    { key: 'steps', label: `Work Order (${(selectedNode.work_orders || []).length})`, icon: 'bi-list-ol' },
+                ]}
+                activeKey={detailTab}
+                onChange={setDetailTab}
+                classic={classic}
+            />
 
             {detailTab === 'bom' && (
             <ExpandedRowPanelBody classic={classic} style={{ display: 'flex', height: PANEL_BODY_H, padding: 0, border: classic ? '1px solid #808080' : undefined }}>
@@ -522,7 +495,7 @@ export default function ManufacturingOrdersTab({
                     display: 'flex', flexDirection: 'column'
                 }}>
                     <div style={{
-                        background: classic ? 'linear-gradient(to right,#0058e6,#08a5ff)' : '#343a40',
+                        background: classic ? 'var(--xp-title-blue)' : '#343a40',
                         color: '#fff', fontWeight: 'bold', fontSize: '11px',
                         padding: '5px 8px', letterSpacing: '0.3px'
                     }}>
