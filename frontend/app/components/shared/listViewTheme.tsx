@@ -594,39 +594,3 @@ export function LvSectionCaption({ classic, icon, children, right, style }: {
     );
 }
 
-// ── Shared tab bar ────────────────────────────────────────────────────────────
-export interface LvTab { key: string; label: string; icon?: string; }
-
-export function LvTabBar({ classic, tabs, active, onChange, right }: {
-    classic: boolean; tabs: LvTab[]; active: string; onChange: (key: string) => void; right?: React.ReactNode;
-}) {
-    return (
-        <div style={classic
-            ? { display: 'flex', alignItems: 'center', gap: 2, padding: '4px 8px 0', borderBottom: '2px solid #c0bdb5', background: '#ece9d8', flexShrink: 0 }
-            : { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px 0', borderBottom: '1px solid #dbe1ea', background: '#fff', flexShrink: 0 }}>
-            {tabs.map(t => {
-                const on = active === t.key;
-                return (
-                    <button
-                        key={t.key}
-                        type="button"
-                        onClick={() => onChange(t.key)}
-                        style={classic ? {
-                            fontFamily: LV_XP_FONT, fontSize: 11, padding: '3px 14px', cursor: 'pointer',
-                            border: '1px solid', borderBottom: on ? '2px solid #fff' : '1px solid #c0bdb5',
-                            marginBottom: on ? -2 : 0,
-                            borderColor: on ? '#808080 #c0bdb5 transparent #808080' : '#d0cfc8',
-                            background: on ? '#fff' : 'linear-gradient(to bottom, #f5f3ee, #e0dfd8)',
-                            color: on ? '#000' : '#555', fontWeight: on ? 'bold' : 'normal',
-                        } : {
-                            fontFamily: LV_MODERN_FONT, fontSize: 13, padding: '6px 16px', cursor: 'pointer',
-                            border: 'none', borderBottom: on ? '2px solid #2563eb' : '2px solid transparent',
-                            background: 'transparent', color: on ? '#2563eb' : '#64748b', fontWeight: on ? 700 : 500,
-                        }}
-                    >{t.icon && <i className={`bi ${t.icon}`} style={{ marginRight: 5 }} />}{t.label}</button>
-                );
-            })}
-            {right && <span style={{ marginLeft: 'auto', paddingBottom: classic ? 2 : 4 }}>{right}</span>}
-        </div>
-    );
-}

@@ -9,7 +9,7 @@ import { usePaginatedFetch } from '../context/usePaginatedList';
 import { useToast } from '../components/shared/Toast';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
-import { LvTabBar } from '../components/shared/listViewTheme';
+import { Tabs } from '../components/shared/Tabs';
 import { PageTitleBar } from '../components/shared/shellTheme';
 
 const PAGE_SIZE = 50;
@@ -169,9 +169,9 @@ export default function ColorsPage() {
 
             <PageTitleBar classic={classic} icon="bi-palette2" title="Colors" />
 
-            <LvTabBar
+            <Tabs
                 classic={classic}
-                active={tab}
+                activeKey={tab}
                 onChange={(k) => setTab(k as 'codes' | 'variant')}
                 tabs={[
                     ...(canViewCodes ? [{ key: 'codes', label: 'Color Codes' }] : []),

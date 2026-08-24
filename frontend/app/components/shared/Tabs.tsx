@@ -12,11 +12,13 @@ export type TabDef<K extends string = string> = { key: K; label: string; icon?: 
  * buttons — page chrome (title bars, bordered panels) stays with the caller
  * since different pages wrap their tabs differently.
  */
-export function Tabs<K extends string>({ tabs, activeKey, onChange, classic }: {
+export function Tabs<K extends string>({ tabs, activeKey, onChange, classic, right }: {
     tabs: TabDef<K>[];
     activeKey: K;
     onChange: (key: K) => void;
     classic: boolean;
+    /** Optional trailing control (e.g. a refresh button) pushed to the far end of the strip. */
+    right?: React.ReactNode;
 }) {
     const barStyle: React.CSSProperties = classic ? {
         background: '#d6dff7',
@@ -25,6 +27,7 @@ export function Tabs<K extends string>({ tabs, activeKey, onChange, classic }: {
         alignItems: 'flex-end',
         padding: '4px 8px 0',
         gap: 2,
+        flexShrink: 0,
         fontFamily: xpFont,
     } : {
         background: '#fff',
@@ -33,6 +36,7 @@ export function Tabs<K extends string>({ tabs, activeKey, onChange, classic }: {
         alignItems: 'flex-end',
         padding: '0 10px',
         gap: 4,
+        flexShrink: 0,
         fontFamily: modernFont,
     };
 
@@ -91,6 +95,11 @@ export function Tabs<K extends string>({ tabs, activeKey, onChange, classic }: {
                     {tab.label}
                 </button>
             ))}
+            {right && (
+                <span style={{ marginLeft: 'auto', paddingBottom: classic ? 3 : 4, alignSelf: 'center' }}>
+                    {right}
+                </span>
+            )}
         </div>
     );
 }

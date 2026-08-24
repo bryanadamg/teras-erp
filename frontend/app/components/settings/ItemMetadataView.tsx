@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import CategoriesView from './CategoriesView';
 import UOMLibraryView from './UOMLibraryView';
 import AttributesLibraryView from './AttributesLibraryView';
-import { LvTabBar } from '../shared/listViewTheme';
+import { Tabs } from '../shared/Tabs';
 import { pageFillStyle, PageTitleBar } from '../shared/shellTheme';
 
 interface Props {
@@ -59,9 +59,9 @@ export default function ItemMetadataView({
 
             <PageTitleBar classic={classic} icon="bi-tag" title="Attributes" />
 
-            <LvTabBar
+            <Tabs
                 classic={classic}
-                active={tab}
+                activeKey={tab}
                 onChange={k => setTab(k as Tab)}
                 tabs={[
                     { key: 'attributes', label: 'Attributes' },
