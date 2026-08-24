@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell from '../shared/PrintModalShell';
-import { xpFont as font } from '../shared/xpTheme';
+import { xpFont as font, BUTTON_RADIUS } from '../shared/xpTheme';
 import { qtyFmt } from '../shared/format';
 
 
@@ -268,7 +268,7 @@ export default function SuratJalanPrintModal({ shipment, attributes, companyProf
 
     const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ fontFamily: font, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom,#ffffff 0%,#d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 3, ...extra });
     const btnGreen = xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' });
-    const xpInput: React.CSSProperties = { fontFamily: font, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
+    const xpInput: React.CSSProperties = { fontFamily: font, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
 
     const doc = <SJDocument shp={shipment} lines={lines} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} sjNoOverride={sjNo} />;
 

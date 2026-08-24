@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, BUTTON_RADIUS } from '../shared/xpTheme';
 
 interface BulkImportModalProps {
     isOpen: boolean;
@@ -32,13 +32,13 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
         border: '1px solid',
         borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
         color: '#000000',
-        borderRadius: 0,
+        borderRadius: BUTTON_RADIUS,
         ...extra,
     });
 
     const xpInput: React.CSSProperties = {
         fontFamily: xpFont,
-        fontSize: '11px',
+        borderRadius: BUTTON_RADIUS, fontSize: '11px',
         border: '1px solid #7f9db9',
         boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
         padding: '1px 6px',

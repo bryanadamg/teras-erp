@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { STATUS_COLORS, StatusChip, xpFont as XP_FONT, CHIP_RADIUS } from '../shared/xpTheme';
+import { STATUS_COLORS, StatusChip, xpFont as XP_FONT, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
 
 interface MobileScannerViewProps {
@@ -45,7 +45,7 @@ const subLabel: React.CSSProperties = {
 const xpInput: React.CSSProperties = {
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
     border: '1px solid #7f9db9', boxSizing: 'border-box',
-    borderRadius: 0, background: '#fff', width: '100%',
+    borderRadius: BUTTON_RADIUS, background: '#fff', width: '100%',
 };
 
 const isUUID = (s: string) =>

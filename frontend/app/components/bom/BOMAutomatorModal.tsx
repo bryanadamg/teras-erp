@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { CODE_FONT, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -79,7 +79,7 @@ const xpBtnDanger: React.CSSProperties = {
 
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont,
-    fontSize: 11,
+    borderRadius: BUTTON_RADIUS, fontSize: 11,
     border: '1px solid #7f9db9',
     borderTopColor: '#5a7fa8',
     background: 'white',

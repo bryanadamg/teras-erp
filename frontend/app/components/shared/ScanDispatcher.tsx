@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useToast } from './Toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { xpFont as XP_FONT, XPLoading } from './xpTheme';
+import { xpFont as XP_FONT, XPLoading, BUTTON_RADIUS } from './xpTheme';
 
 // One camera per session: the branch views are only mounted after a code has
 // already been decoded here, so their own readers never race this one.
@@ -25,7 +25,7 @@ const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 14px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    color: '#000000', borderRadius: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
+    color: '#000000', borderRadius: BUTTON_RADIUS, display: 'inline-flex', alignItems: 'center', gap: 5,
     ...extra,
 });
 const xpPanel: React.CSSProperties = {
@@ -40,7 +40,7 @@ const xpSectionLabel: React.CSSProperties = {
 const xpInput: React.CSSProperties = {
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
     border: '1px solid #7f9db9', boxSizing: 'border-box',
-    borderRadius: 0, background: '#fff', width: '100%',
+    borderRadius: BUTTON_RADIUS, background: '#fff', width: '100%',
 };
 
 const isUUID = (s: string) =>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { StatusChip, xpFont as XP_FONT } from '../shared/xpTheme';
+import { StatusChip, xpFont as XP_FONT, BUTTON_RADIUS } from '../shared/xpTheme';
 import { toNum } from '../shared/format';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
 
@@ -11,7 +11,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
 const xpInput: React.CSSProperties = {
     fontFamily: XP_FONT, fontSize: 13, padding: '6px 8px',
     border: '1px solid #7f9db9', boxSizing: 'border-box',
-    borderRadius: 0, background: '#fff', width: '100%',
+    borderRadius: BUTTON_RADIUS, background: '#fff', width: '100%',
 };
 const xpLabel: React.CSSProperties = { fontFamily: XP_FONT, fontSize: 11, color: '#333', display: 'block', marginBottom: 3 };
 

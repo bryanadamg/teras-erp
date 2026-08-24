@@ -10,7 +10,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra, TableEmpty } from '../shared/listViewTheme';
@@ -19,14 +19,14 @@ import { API_BASE, STATIC_BASE } from '../shared/apiBase';
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const xpInput = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', padding: '1px 6px', outline: 'none', height: 20,
 } : {
     fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df', borderRadius: 7,
     padding: '4px 8px', background: '#fff', color: '#1e293b', outline: 'none', height: 'auto',
 };
 const xpBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000',
     ...extra,

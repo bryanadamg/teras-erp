@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip, BUTTON_RADIUS } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -765,11 +765,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
     cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000',
-    borderRadius: 0, ...extra,
+    borderRadius: BUTTON_RADIUS, ...extra,
   }) : { cursor: 'pointer', ...extra };
 
   const xpInput: React.CSSProperties = classic ? {
-    fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: '11px', border: '1px solid #7f9db9',
     padding: '1px 6px', background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
   } : {};
 

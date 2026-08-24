@@ -6,7 +6,7 @@ import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
-import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -117,7 +117,7 @@ const xpBtnDisabled: React.CSSProperties = {
 };
 
 const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11,
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11,
     border: '1px solid #7f9db9', borderTopColor: '#5a7fa8',
     background: 'white', height: 20, padding: '0 4px',
     outline: 'none', width: '100%',

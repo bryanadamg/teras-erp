@@ -6,7 +6,7 @@ import JsBarcode from 'jsbarcode';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell from '../shared/PrintModalShell';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, BUTTON_RADIUS } from '../shared/xpTheme';
 
 // Code 128 (1D) alongside the QR so the factory's existing laser scanners can
 // read the carton number too — same payload as the QR, matching the bag label.
@@ -213,10 +213,10 @@ export default function PackedUnitLabelPrintModal({
     };
 
     const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
+        ? { fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
         : {};
     const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
+        ? { fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
         : {};
 
     return (

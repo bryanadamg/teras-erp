@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { CODE_FONT, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 type Category = {
@@ -138,7 +138,7 @@ export default function CategoriesView({
         fontFamily: xpFont,
         fontSize: 11,
         cursor: 'pointer',
-        borderRadius: 0,
+        borderRadius: BUTTON_RADIUS,
         ...extra,
     });
     const xpIconBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
@@ -154,7 +154,7 @@ export default function CategoriesView({
     });
     const xpInput: React.CSSProperties = {
         fontFamily: xpFont,
-        fontSize: 11,
+        borderRadius: BUTTON_RADIUS, fontSize: 11,
         border: '1px solid #7f9db9',
         boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
         background: '#fff',

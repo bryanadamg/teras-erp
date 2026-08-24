@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar, SearchField } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
-import { XPActionButton, CodeChip, xpFont } from '../shared/xpTheme';
+import { XPActionButton, CodeChip, xpFont, BUTTON_RADIUS } from '../shared/xpTheme';
 
 const ALL = '__all__';
 
@@ -58,7 +58,7 @@ export default function LocationsView({
   // ---------- styles (classic XP) ----------
   const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: 6 });
   const xpBtn = (extra: any = {}) => ({ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 3, ...extra });
-  const xpInput: React.CSSProperties = { fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, outline: 'none' };
+  const xpInput: React.CSSProperties = { fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, outline: 'none' };
   const xpLabel: React.CSSProperties = { fontFamily: xpFont, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 };
 
   // ---------- derived data ----------

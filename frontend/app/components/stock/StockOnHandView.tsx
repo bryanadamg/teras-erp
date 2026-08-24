@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg, VariantChip, Chip, REF_TONES, statusTint } from '../shared/xpTheme';
+import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg, VariantChip, Chip, REF_TONES, statusTint, BUTTON_RADIUS } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
@@ -529,7 +529,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
     const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
     const xpInput: React.CSSProperties = {
-        fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
+        fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: '11px', border: '1px solid #7f9db9',
         boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
         background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
     };
@@ -541,7 +541,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const xpBtn = (extra: any = {}): React.CSSProperties => ({
         fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
         background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
-        borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0, ...extra,
+        borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: BUTTON_RADIUS, ...extra,
     });
     const xpSep: React.CSSProperties = {
         width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,

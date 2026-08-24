@@ -16,7 +16,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', height: 20, padding: '0 4px', outline: 'none',
 };
 

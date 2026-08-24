@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -281,7 +281,7 @@ InventoryRow.displayName = 'InventoryRow';
 // XP bevel button helper
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: xpFont,
-    fontSize: '11px',
+    borderRadius: BUTTON_RADIUS, fontSize: '11px',
     padding: '2px 10px',
     cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff, #ece9d8)',
@@ -716,7 +716,7 @@ export default function InventoryView({
 
   const xpInput: React.CSSProperties = {
       fontFamily: xpFont,
-      fontSize: '11px',
+      borderRadius: BUTTON_RADIUS, fontSize: '11px',
       border: '1px solid #7f9db9',
       boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
       padding: '1px 6px',

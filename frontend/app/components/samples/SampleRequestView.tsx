@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, expandedRowFrame, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS, BUTTON_RADIUS } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -280,13 +280,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       border: '1px solid',
       borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
       color: '#000000',
-      borderRadius: 0,
+      borderRadius: BUTTON_RADIUS,
       ...extra,
   });
 
   const xpInput: React.CSSProperties = {
       fontFamily: xpFont,
-      fontSize: '11px',
+      borderRadius: BUTTON_RADIUS, fontSize: '11px',
       border: '1px solid #7f9db9',
       boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
       padding: '1px 6px',
@@ -865,6 +865,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                style={{
                                                    fontFamily: xpFont, fontSize: 11,
                                                    padding: '2px 12px', cursor: 'pointer',
+                                                   borderRadius: `${BUTTON_RADIUS}px ${BUTTON_RADIUS}px 0 0`,
                                                    border: '1px solid', borderBottom: active ? '2px solid #fff' : '1px solid #c0bdb5',
                                                    marginBottom: active ? -2 : 0,
                                                    borderColor: active ? '#808080 #c0bdb5 transparent #808080' : '#d0cfc8',

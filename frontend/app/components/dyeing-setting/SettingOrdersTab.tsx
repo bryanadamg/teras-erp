@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip, xpFont, ListSkeleton, StatusChip, FORM_SECTION_BLUE } from '../shared/xpTheme';
+import { CodeChip, xpFont, ListSkeleton, StatusChip, FORM_SECTION_BLUE, BUTTON_RADIUS } from '../shared/xpTheme';
 import { orDash, fmtQtyFixed } from '../shared/format';
 import { lvThBanded, lvTd, lvTdRuled, lvZebra, LV_STICKY_THEAD } from '../shared/listViewTheme';
 
@@ -15,7 +15,7 @@ const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neu
 
 // ── Style helpers (theme-aware) ───────────────────────────────────────────────
 const xpInput = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', padding: '1px 4px', outline: 'none', height: 20,
 } : {
     fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df',
@@ -24,7 +24,7 @@ const xpInput = (classic: boolean): React.CSSProperties => classic ? {
 };
 
 const xpBtn = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 10, padding: '2px 8px',
     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     cursor: 'pointer',
@@ -35,7 +35,7 @@ const xpBtn = (classic: boolean): React.CSSProperties => classic ? {
 };
 
 const xpBtnPrimary = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 10, padding: '2px 8px',
     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     cursor: 'pointer',

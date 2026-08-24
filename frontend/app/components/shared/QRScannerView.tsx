@@ -3,7 +3,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { STATUS_COLORS, CodeChip, xpFont } from './xpTheme';
+import { STATUS_COLORS, CodeChip, xpFont, BUTTON_RADIUS } from './xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from './shellTheme';
 
 interface QRScannerViewProps {
@@ -79,7 +79,7 @@ export default function QRScannerView({
         fontFamily: xpFont, fontSize: '11px', padding: '2px 10px',
         cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
         border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        color: '#000000', borderRadius: 0, ...extra,
+        color: '#000000', borderRadius: BUTTON_RADIUS, ...extra,
     });
 
     // --- Validation Logic ---

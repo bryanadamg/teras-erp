@@ -7,13 +7,13 @@ import { Tabs, TabDef } from '../shared/Tabs';
 import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
-import { xpFont, FORM_SECTION_BLUE } from '../shared/xpTheme';
+import { xpFont, FORM_SECTION_BLUE, BUTTON_RADIUS } from '../shared/xpTheme';
 import { pageFillStyle } from '../shared/shellTheme';
 
 // ── XP Style Constants ────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
+    fontFamily: xpFont, borderRadius: BUTTON_RADIUS, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', padding: '1px 4px', outline: 'none', height: 20,
 };
 const xpBtn: React.CSSProperties = {
