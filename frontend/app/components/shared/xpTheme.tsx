@@ -266,7 +266,13 @@ export const BUTTON_RADIUS = 3;
 // floats above the page from the flat chrome behind it. One number, both
 // themes; the inner surfaces it clips use WINDOW_RADIUS_INNER (radius minus
 // the 2px bevel border, so the corner reads as one curve, not two).
-export const WINDOW_RADIUS = 6;
+//
+// This is the TOP of the radius scale, and the scale only ever steps DOWN as you
+// nest: window 8 > FormSection 6 > buttons/inputs/chips 3. Concentric corners —
+// a box nested inside a rounder frame pinches the gap between the two curves and
+// reads as bulging out of it, which is exactly what an 8px FormSection inside a
+// 6px dialog did. Never let an inner radius exceed the frame that clips it.
+export const WINDOW_RADIUS = 8;
 export const WINDOW_RADIUS_INNER = WINDOW_RADIUS - 2;
 
 // The class that carries the shared button hover/press motion (see the BUTTONS
@@ -922,11 +928,13 @@ export function ModalFooterActions({
 // The one header colour for every FormSection, both themes.
 export const FORM_SECTION_BLUE = '#3a6fc4';
 
-// Corner radius of a form group box. Bigger than BUTTON_RADIUS on purpose — this is
-// the container; the controls inside it are the 3px chrome. Still one number for
-// both themes, same rule as CHIP_RADIUS/BUTTON_RADIUS. The box must clip
-// (`overflow: hidden`) or the square header bar pokes out of the rounded corners.
-export const SECTION_RADIUS = 8;
+// Corner radius of a form group box. The middle tier of the nesting scale (see
+// WINDOW_RADIUS): bigger than BUTTON_RADIUS because it is the container holding
+// that 3px chrome, smaller than WINDOW_RADIUS because a dialog frame is what
+// contains IT. Still one number for both themes, same rule as
+// CHIP_RADIUS/BUTTON_RADIUS. The box must clip (`overflow: hidden`) or the square
+// header bar pokes out of the rounded corners.
+export const SECTION_RADIUS = 6;
 
 // Groups related fields in a create/edit form under a labeled section.
 // THE standard section chrome for every sectioned create/edit panel (Colors, Lab Dip,

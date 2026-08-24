@@ -363,10 +363,15 @@ export default function ModalWrapper({
     };
 
     const modernContent = (
-        <div className="modal-content shadow-lg border-0" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ overflow: 'visible' }}>
+        // Radius comes from WINDOW_RADIUS, not Bootstrap's --bs-modal-border-radius:
+        // the classic branch and PrintModalShell already read that constant, and a
+        // hardcoded 0.5rem here is what let the two themes drift apart. `border-0`
+        // means there is no bevel to subtract, so the header/footer corners take the
+        // full WINDOW_RADIUS rather than WINDOW_RADIUS_INNER.
+        <div className="modal-content shadow-lg border-0" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ overflow: 'visible', borderRadius: WINDOW_RADIUS }}>
             <div
                 className={`modal-header py-2 px-3 border-bottom ${headerClasses[variant]}`}
-                style={{ borderRadius: '0.5rem 0.5rem 0 0', cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined }}
+                style={{ borderRadius: `${WINDOW_RADIUS}px ${WINDOW_RADIUS}px 0 0`, cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined }}
                 onPointerDown={floating ? startDrag : undefined}
             >
                 <h5 id={titleId} className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
@@ -376,7 +381,7 @@ export default function ModalWrapper({
                 {children}
             </div>
             {footer && (
-                <div className="modal-footer bg-light py-2 px-3 border-top" style={{ borderRadius: '0 0 0.5rem 0.5rem' }}>{footer}</div>
+                <div className="modal-footer bg-light py-2 px-3 border-top" style={{ borderRadius: `0 0 ${WINDOW_RADIUS}px ${WINDOW_RADIUS}px` }}>{footer}</div>
             )}
         </div>
     );
