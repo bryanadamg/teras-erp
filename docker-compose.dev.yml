@@ -1,0 +1,68 @@
+# Development overlay — hot reload for both api and frontend.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# (or `export COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` once, then
+# plain `docker compose up -d`.)
+#
+# Source is bind-mounted, so edits on the host are picked up live:
+#   - api      -> uvicorn --reload (watchfiles, forced polling for Windows mounts)
+#   - frontend -> `next dev` (Fast Refresh, forced webpack polling)
+#
+# Build once (`--build`) after changing requirements.txt / package.json only.
+services:
+  api:
+    # Separate tag: a dev build must not overwrite teras-erp-api:latest, or a
+    # later plain `docker compose up -d` would start the dev image as "prod".
+    image: teras-erp-api:dev
+    build:
+      context: ./backend
+    # Same boot chain as prod (pre-start -> migrate -> seed) but uvicorn reloads.
+    command:
+      - bash
+      - -c
+      - >-
+        python -m app.backend_pre_start &&
+        bash scripts/migrate.sh &&
+        python -m app.db.init_db &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app
+    environment:
+      # Windows/WSL2 bind mounts don't forward inotify events into the container.
+      WATCHFILES_FORCE_POLLING: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      # Mount only source paths — leaving /app itself alone keeps the image's
+      # site-packages and the base file's ./static + ./snapshots mounts intact.
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./static:/app/static
+      - ./snapshots:/app/snapshots
+
+  frontend:
+    image: teras-erp-frontend:dev
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      # NEXT_PUBLIC_* is inlined at build time in prod; `next dev` reads it at
+      # runtime, so dev takes it from env instead of a build arg.
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend:/app
+      # Anonymous volumes: keep the image's node_modules and let .next stay on a
+      # Linux fs — host copies would shadow them and break the dev server.
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      api:
+        # Don't sit through the api healthcheck's start_period on every up.
+        condition: service_started
+
+  # Cloudflare tunnel is prod-only; profile keeps it out of `up` in dev.
+  tunnel:
+    profiles:
+      - tunnel

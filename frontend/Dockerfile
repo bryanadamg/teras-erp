@@ -1,3 +1,15 @@
+# Stage: Dev (hot reload) — NOT the default target; `runner` stays last so
+# `docker compose build frontend` without a target still produces the prod image.
+FROM node:20-alpine AS dev
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
 # Stage 1: Build
 FROM node:20-alpine AS builder
 WORKDIR /app
