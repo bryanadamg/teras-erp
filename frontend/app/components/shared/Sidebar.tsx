@@ -40,7 +40,7 @@ function navItemStyle(
            : '5px 8px 5px 14px',
     color:      isHovered ? '#fff' : ACTIVE_COLOR,
     background: bg,
-    fontWeight: isActive ? 'bold' : 'normal',
+    fontWeight: isActive ? 'bold' : 500,
     borderLeft: isActive && !isHovered ? `3px solid ${HOVER_BG}` : '3px solid transparent',
     borderBottom: '1px solid #c0ccee',
     cursor: 'pointer',
