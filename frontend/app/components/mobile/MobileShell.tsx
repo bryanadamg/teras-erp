@@ -95,7 +95,7 @@ export default function MobileShell({
                     className="app-brand-icon"
                     src="/icons/icon-192.png"
                     alt={appName || 'Terras ERP'}
-                    title={appName || 'Terras ERP'}
+                    data-no-tip
                     style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0 }}
                 />
 

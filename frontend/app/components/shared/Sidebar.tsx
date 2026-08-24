@@ -261,7 +261,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
           className="app-brand-icon"
           src="/icons/icon-192.png"
           alt={appName}
-          title={appName}
+          data-no-tip
           style={{
             width: classic ? 20 : 24,
             height: classic ? 20 : 24,

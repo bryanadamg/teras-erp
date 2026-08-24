@@ -93,7 +93,15 @@ export default function GlobalTooltip() {
         const onOver = (e: MouseEvent) => {
             const target = e.target as HTMLElement | null;
             if (!target || !(target instanceof HTMLElement)) return;
-            if (target.closest('[data-no-tip]') || isFormNative(target)) return;
+            if (target.closest('[data-no-tip]') || isFormNative(target)) {
+                // A no-tip zone nested inside an already-titled ancestor (e.g. a
+                // Chip with its own native title, inside a titled row) must not
+                // leave the ancestor's custom bubble showing underneath it —
+                // onOut alone won't catch this since the pointer never left the
+                // ancestor's subtree.
+                if (live) hide();
+                return;
+            }
 
             // A title anywhere up the chain wins: it is an author's explanation,
             // which beats echoing text the reader can already half-see.
