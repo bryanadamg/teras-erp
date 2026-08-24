@@ -257,21 +257,18 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         userSelect: 'none',
         height: 'var(--app-header-h)',
       }}>
-        <span
-          className="text-truncate"
+        <img
+          className="app-brand-icon"
+          src="/icons/icon-192.png"
+          alt={appName}
           title={appName}
           style={{
-            fontFamily: classic ? xpFont : "'Segoe UI', Arial, sans-serif",
-            fontWeight: 'bold',
-            // Classic: the page header's own title is an 11px uppercase h5, so a
-            // 16px 800-weight brand next to it read as a different application.
-            fontSize: classic ? 12 : 18,
-            letterSpacing: classic ? 0 : '-0.3px',
-            textShadow: classic ? '1px 1px 1px rgba(0,0,0,0.3)' : undefined,
+            width: classic ? 20 : 24,
+            height: classic ? 20 : 24,
+            flexShrink: 0,
+            borderRadius: classic ? 3 : 5,
           }}
-        >
-          {appName}
-        </span>
+        />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>

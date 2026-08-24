@@ -987,6 +987,16 @@ body.window-chrome-inactive {
   background: #d4d0c8;
 }
 
+/* Brand icon (sidebar / mobile header) */
+.app-brand-icon {
+  transition: transform 0.2s ease, filter 0.2s ease;
+  cursor: default;
+}
+.app-brand-icon:hover {
+  transform: scale(1.12) rotate(-4deg);
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.6));
+}
+
 /* Sidebar Area */
 .sidebar {
   width: var(--sidebar-width);

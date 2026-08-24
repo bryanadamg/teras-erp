@@ -91,20 +91,13 @@ export default function MobileShell({
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
                 borderBottom: '1px solid #00309c',
             }}>
-                <span
-                    className="text-truncate"
-                    title={appName}
-                    style={{
-                        fontFamily: modernFont,
-                        fontWeight: 800,
-                        fontSize: 15,
-                        letterSpacing: '-0.3px',
-                        textShadow: '1px 1px 1px rgba(0,0,0,0.3)',
-                        minWidth: 0,
-                    }}
-                >
-                    {appName || 'Terras ERP'}
-                </span>
+                <img
+                    className="app-brand-icon"
+                    src="/icons/icon-192.png"
+                    alt={appName || 'Terras ERP'}
+                    title={appName || 'Terras ERP'}
+                    style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0 }}
+                />
 
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                     <select
