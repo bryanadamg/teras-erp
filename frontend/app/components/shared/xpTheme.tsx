@@ -892,6 +892,12 @@ export function ModalFooterActions({
 // The one header colour for every FormSection, both themes.
 export const FORM_SECTION_BLUE = '#3a6fc4';
 
+// Corner radius of a form group box. Bigger than BUTTON_RADIUS on purpose — this is
+// the container; the controls inside it are the 3px chrome. Still one number for
+// both themes, same rule as CHIP_RADIUS/BUTTON_RADIUS. The box must clip
+// (`overflow: hidden`) or the square header bar pokes out of the rounded corners.
+export const SECTION_RADIUS = 8;
+
 // Groups related fields in a create/edit form under a labeled section.
 // THE standard section chrome for every sectioned create/edit panel (Colors, Lab Dip,
 // Sample Request, Inventory, …). Classic: raised bevel box with a flat blue header
@@ -909,8 +915,8 @@ export function FormSection({ title, classic, children, style, bodyStyle }: {
     bodyStyle?: React.CSSProperties;
 }) {
     const box: React.CSSProperties = classic
-        ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10, ...style }
-        : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden', ...style };
+        ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', borderRadius: SECTION_RADIUS, overflow: 'hidden', marginBottom: 10, ...style }
+        : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: SECTION_RADIUS, marginBottom: 10, overflow: 'hidden', ...style };
     // Flat blue header in BOTH themes so every sectioned form reads the same. Solid,
     // not a gradient: the old left-to-right fade washed out to near-white by the right
     // edge, so a long title lost contrast halfway across and each box read as a
