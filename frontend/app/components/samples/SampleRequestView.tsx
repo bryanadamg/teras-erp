@@ -12,10 +12,11 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, expandedRowFrame, BTN_TONES, XP_BTN } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, expandedRowFrame, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
+import { Tabs } from '../shared/Tabs';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 import { SAMPLE_PAGE_SIZE } from '../../context/DataContext';
 import { lvThead, LV_STICKY_THEAD, ExpanderCell, LV_EXPANDER_COL_W, lvTh, lvTdRuled, lvZebra } from '../shared/listViewTheme';
@@ -831,34 +832,20 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                           placeholder="e.g. 8 mm" />
                                </div>
                                {/* Tab bar */}
-                               <div style={{ display: 'flex', borderBottom: '2px solid #c0bdb5', marginBottom: 8, gap: 2 }}>
-                                   {(['color', 'combo'] as const).map(tab => {
-                                       const label = tab === 'color' ? (colorsAttrName || 'Colors') : (comboAttrName || 'Combo');
-                                       const active = newSample.variant_type === tab;
-                                       return (
-                                           <button
-                                               key={tab}
-                                               type="button"
-                                               onClick={() => switchTab(tab)}
-                                               style={{
-                                                   fontFamily: xpFont, fontSize: 11,
-                                                   padding: '2px 12px', cursor: 'pointer',
-                                                   borderRadius: `${BUTTON_RADIUS}px ${BUTTON_RADIUS}px 0 0`,
-                                                   border: '1px solid', borderBottom: active ? '2px solid #fff' : '1px solid #c0bdb5',
-                                                   marginBottom: active ? -2 : 0,
-                                                   borderColor: active ? '#808080 #c0bdb5 transparent #808080' : '#d0cfc8',
-                                                   background: active ? '#ffffff' : 'linear-gradient(to bottom, #f5f3ee, #e0dfd8)',
-                                                   color: active ? '#000' : '#555', fontWeight: active ? 'bold' : 'normal',
-                                               }}
-                                           >{label}</button>
-                                       );
-                                   })}
-                                   {activeAttrName && (
-                                       <span style={{ borderRadius: CHIP_RADIUS, fontFamily: xpFont, fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px', marginLeft: 'auto', alignSelf: 'center' }}>
+                               <Tabs
+                                   classic
+                                   tabs={[
+                                       { key: 'color', label: colorsAttrName || 'Colors' },
+                                       { key: 'combo', label: comboAttrName || 'Combo' },
+                                   ]}
+                                   activeKey={newSample.variant_type}
+                                   onChange={switchTab}
+                                   right={activeAttrName && (
+                                       <span style={{ borderRadius: CHIP_RADIUS, fontFamily: xpFont, fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px' }}>
                                            attr: {activeAttrName}
                                        </span>
                                    )}
-                               </div>
+                               />
                                {/* Added variants */}
                                <div style={{
                                    background: '#f5f9ff', border: '1px solid #b0c8e8', minHeight: 40,
@@ -918,26 +905,18 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    <input className="form-control form-control-sm" style={{ maxWidth: 160 }} value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })} placeholder="e.g. 8 mm" />
                                </div>
                                {/* Tab bar */}
-                               <ul className="nav nav-tabs mb-2" style={{ fontSize: 11 }}>
-                                   {(['color', 'combo'] as const).map(tab => {
-                                       const label = tab === 'color' ? (colorsAttrName || 'Colors') : (comboAttrName || 'Combo');
-                                       return (
-                                           <li key={tab} className="nav-item">
-                                               <button
-                                                   type="button"
-                                                   className={`nav-link py-1 px-3 ${newSample.variant_type === tab ? 'active' : ''}`}
-                                                   style={{ fontSize: 11 }}
-                                                   onClick={() => switchTab(tab)}
-                                               >{label}</button>
-                                           </li>
-                                       );
-                                   })}
-                                   {activeAttrName && (
-                                       <li className="nav-item ms-auto d-flex align-items-center">
-                                           <span className="badge bg-secondary bg-opacity-10 text-secondary border" style={{ fontSize: 9, fontWeight: 'normal' }}>attr: {activeAttrName}</span>
-                                       </li>
+                               <Tabs
+                                   classic={false}
+                                   tabs={[
+                                       { key: 'color', label: colorsAttrName || 'Colors' },
+                                       { key: 'combo', label: comboAttrName || 'Combo' },
+                                   ]}
+                                   activeKey={newSample.variant_type}
+                                   onChange={switchTab}
+                                   right={activeAttrName && (
+                                       <span className="badge bg-secondary bg-opacity-10 text-secondary border" style={{ fontSize: 9, fontWeight: 'normal' }}>attr: {activeAttrName}</span>
                                    )}
-                               </ul>
+                               />
                                {/* Added variants */}
                                <div className="p-2 mb-2 d-flex flex-wrap" style={{ background: '#f0f5ff', border: '1px solid #c8d8f0', minHeight: 40 }}>
                                    {newSample.colors.length === 0
