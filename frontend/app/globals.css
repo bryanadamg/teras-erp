@@ -1,5 +1,12 @@
 :root {
   --sidebar-width: 260px;
+  /* Horizontal gutter between the page content and the window edges. It lives on
+     the page body, NOT on .main-content: .main-content is the scroll container,
+     and padding there insets the sticky app header away from the sidebar and the
+     top of the viewport (the header is chrome, so it must stay full-bleed) and
+     also parks the sticky bar that far down once you scroll. Themes/breakpoints
+     re-point this var; nothing else should re-declare the gutter. */
+  --content-pad: 32px;
   --primary-color: #4f46e5;
   --primary-dark: #4338ca;
   --bg-color: #f3f4f6;
@@ -569,10 +576,14 @@ body.window-chrome-inactive {
 }
 
 /* Content Area for Classic */
+.ui-style-classic {
+  --content-pad: 10px;
+}
+
 .ui-style-classic .main-content {
   margin-left: var(--sidebar-width) !important;
   width: calc(100% - var(--sidebar-width)) !important;
-  padding: 10px;
+  padding: 0;
 }
 
 /* ── SIDEBAR: XP Scrollbar ── */
@@ -1025,8 +1036,15 @@ body.window-chrome-inactive {
 .main-content {
   margin-left: var(--sidebar-width);
   width: calc(100% - var(--sidebar-width));
-  padding: 32px;
+  padding: 0;
   transition: all 0.3s;
+}
+
+/* The page content under the app header. Carries the gutter that .main-content
+   used to, so the header above it can run edge to edge. Vertical rhythm stays on
+   the element's own py-3 utility. */
+.page-body {
+  padding: 16px var(--content-pad) var(--content-pad);
 }
 
 /* Locations page: 3-pane (stores/zones/bins) stacks vertically on narrow
@@ -1073,9 +1091,13 @@ body.window-chrome-inactive {
     border-right: 1px solid #718bb7;
   }
 
+  .app-container {
+    --content-pad: 16px;
+  }
+
   .main-content {
     margin-left: 0;
-    padding: 16px;
+    padding: 0;
   }
   
   .ui-style-classic .main-content {
@@ -1241,7 +1263,12 @@ table {
     padding: 0 !important;
     width: 100% !important;
   }
-  
+
+  /* The gutter moved off .main-content onto .page-body; print has to zero both. */
+  .page-body {
+    padding: 0 !important;
+  }
+
   .container {
     max-width: 100% !important;
     width: 100% !important;

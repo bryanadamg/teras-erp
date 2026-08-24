@@ -162,7 +162,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
                 <AppLoadBar />
 
-                <div className="px-0 py-3">
+                {/* `page-body` carries the horizontal gutter (--content-pad); it used to
+                    sit on .main-content, which inset the sticky app header away from the
+                    sidebar and the viewport top. Header chrome stays full-bleed. */}
+                <div className="page-body">
                     {pageBody}
                 </div>
             </div>
