@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { FormSection } from '../shared/xpTheme';
+import { FormSection, FormError } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead, TableEmpty } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -223,14 +223,7 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                 }
             >
                 <form id="color-variant-form" onSubmit={e => { e.preventDefault(); handleAdd(); }}>
-                    {formError && (
-                        <div
-                            role="alert"
-                            style={classic
-                                ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10 }
-                                : { background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, color: '#b91c1c', padding: '6px 10px', fontSize: 12, marginBottom: 10 }}
-                        >{formError}</div>
-                    )}
+                    <FormError classic={classic}>{formError}</FormError>
                     <FormSection title="Color" classic={classic}>
                         <div>
                             <label style={lvLabel(classic)}>Name *</label>
@@ -238,7 +231,7 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                                 autoFocus
                                 value={newValue}
                                 onChange={e => { setNewValue(e.target.value); if (formError) setFormError(''); }}
-                                style={{ ...lvInput(classic), width: '100%', ...(formError ? { borderColor: classic ? '#8e0000' : '#dc2626' } : {}) }}
+                                style={lvInput(classic, { width: '100%', ...(formError ? { borderColor: classic ? '#8e0000' : '#dc2626' } : {}) })}
                                 required
                             />
                         </div>

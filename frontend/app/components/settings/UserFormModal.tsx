@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpBtn, xpInput, CODE_FONT, xpFont, FieldLabel, ModalFooterActions } from '../shared/xpTheme';
+import { xpBtn, xpInput, CODE_FONT, xpFont, FieldLabel, FormError, ModalFooterActions } from '../shared/xpTheme';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
@@ -122,11 +122,7 @@ export default function UserFormModal({
                 />
             }
         >
-            {error && (
-                <div className={classic ? '' : 'alert alert-danger py-2 small'} style={classic ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: xpFont } : undefined}>
-                    {error}
-                </div>
-            )}
+            <FormError classic={classic}>{error}</FormError>
 
             <div className="mb-3">
                 <div style={{ display: 'flex', gap: 8 }}>

@@ -1120,6 +1120,36 @@ export function FieldLabel({ children, hint, classic, right }: { children: React
     );
 }
 
+/**
+ * Validation / submit-failure banner for a form or modal body. Three files had
+ * byte-identical copies of this div (RoleFormModal, UserFormModal, and the color
+ * variant modal, whose copy had already drifted to a different modern palette and
+ * lost xpFont in classic) — which is the whole reason it lives here now. Renders
+ * nothing for an empty message, so call sites need no `&&` guard.
+ *
+ * Not for status callouts (a "late" badge, a scanner error): those carry icons and
+ * their own reds. This is specifically "what you just submitted was rejected".
+ */
+export function FormError({ children, classic, style }: {
+    children?: React.ReactNode;
+    classic: boolean;
+    style?: React.CSSProperties;
+}) {
+    if (!children) return null;
+    return (
+        <div
+            role="alert"
+            className={classic ? '' : 'alert alert-danger py-2 small'}
+            style={classic
+                ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: xpFont, ...style }
+                : { marginBottom: 10, ...style }}
+        >
+            {children}
+        </div>
+    );
+}
+
+
 // ── Loading / empty states ───────────────────────────────────────────────────
 
 /**
