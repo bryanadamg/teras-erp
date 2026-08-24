@@ -119,7 +119,7 @@ interface ModalWrapperProps {
     footer?: React.ReactNode;
     level?: 1 | 2 | 3;
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
-    variant?: 'primary' | 'success' | 'warning' | 'info' | 'danger' | 'dark';
+    variant?: 'primary' | 'success' | 'warning' | 'info' | 'danger' | 'dark' | 'secondary';
     /**
      * Modeless window: no backdrop, background page stays interactive,
      * panel is draggable by its title bar. Ignored on mobile (falls back
@@ -135,18 +135,26 @@ interface ModalWrapperProps {
     bodyScroll?: boolean;
 }
 
-const xpTitleGradients: Record<string, string> = {
+// Window title-bar gradients, exported because chrome OUTSIDE a window sometimes
+// has to match one: the weaving monitor's loom card paints its status strip with
+// the same gradient the machine window opens with, so the window reads as that
+// tile zoomed in. Don't fork a near-copy of these values in a view.
+export const xpTitleGradients: Record<string, string> = {
     primary: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
     success: 'linear-gradient(to right, #1a6e1a 0%, #3ab83a 100%)',
     warning: 'linear-gradient(to right, #8e5000 0%, #c87c00 100%)',
     info:    'linear-gradient(to right, #006e8e 0%, #00a8c8 100%)',
     danger:  'linear-gradient(to right, #8e0000 0%, #c84040 100%)',
     dark:    'linear-gradient(to right, #1a1a2e 0%, #3a3a5e 100%)',
+    // Grey = the inactive family (same role it plays in STATUS_FAMILY). For a window
+    // whose subject is idle — a loom with no run — so the window matches the grey
+    // tile it opened from instead of announcing itself in dialog blue.
+    secondary: 'linear-gradient(to right, #6a6a6a 0%, #a8a8a8 100%)',
 };
 
 const xpTitleBorders: Record<string, string> = {
     primary: '#003080', success: '#0a4e0a', warning: '#5e3000',
-    info: '#004a5e', danger: '#5e0000', dark: '#0a0a1e',
+    info: '#004a5e', danger: '#5e0000', dark: '#0a0a1e', secondary: '#4a4a4a',
 };
 
 const xpSizeWidths: Record<string, number> = { sm: 340, md: 480, lg: 640, xl: 820, xxl: 1100 };
@@ -360,6 +368,7 @@ export default function ModalWrapper({
         info:    'bg-info bg-opacity-10 text-info-emphasis',
         danger:  'bg-danger bg-opacity-10 text-danger-emphasis',
         dark:    'bg-dark text-white',
+        secondary: 'bg-secondary bg-opacity-10 text-secondary-emphasis',
     };
 
     const modernContent = (

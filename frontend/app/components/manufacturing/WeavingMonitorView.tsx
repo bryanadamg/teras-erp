@@ -9,7 +9,8 @@ import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, Skeleto
 import { ShellWindow, ShellTitleBar, xpToolbar, FilterChipBar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
 import { useToast } from '../shared/Toast';
-import WorkCenterMonitorModal from './WorkCenterMonitorModal';
+import WorkCenterMonitorModal, { LOOM_TITLE_VARIANT } from './WorkCenterMonitorModal';
+import { xpTitleGradients } from '../shared/ModalWrapper';
 import GroupCalendarModal from './GroupCalendarModal';
 
 // Measurement accents come from the shared five-family palette (DESIGN.md's one
@@ -106,12 +107,13 @@ export default function WeavingMonitorView() {
     } as Record<string, string>)[s] || t('idle');
     // Strip gradient per state: green running, amber waiting on the floor's next
     // click, blue prep in flight, gray nothing up.
-    const loomStrip = (s: string): string => ({
-        RUNNING: 'linear-gradient(to right, #1a6e1a, #3ab83a)',
-        STAGED: 'linear-gradient(to right, #9a6a06, #d99b1c)',
-        DRAW_IN: 'linear-gradient(to right, #0a3d91, #2f74d0)',
-        TUNING: 'linear-gradient(to right, #0a3d91, #2f74d0)',
-    } as Record<string, string>)[s] || 'linear-gradient(to right, #808080, #a8a8a8)';
+    // Card status strip = the title bar of the window that card opens. Both read the
+    // same gradient table off the same status→variant map, so a green card can't open
+    // a blue window (or a slightly different green one).
+    const loomStrip = (s: string): string => {
+        const variant = LOOM_TITLE_VARIANT[s];
+        return variant ? xpTitleGradients[variant] : 'linear-gradient(to right, #808080, #a8a8a8)';
+    };
     // Chip family reuse: prep states are already in STATUS_FAMILY, so the modern
     // card gets its colour from the same map every other list uses.
     const loomChipStatus = (s: string): string => (s === 'RUNNING' ? 'IN_PROGRESS' : s === 'IDLE' ? 'PENDING' : s);
@@ -202,7 +204,14 @@ export default function WeavingMonitorView() {
         />
     );
 
-    const openCard = (m: any) => setSelected({ id: m.id, code: m.code, name: m.name, center_type: m.center_type });
+    // loom_status rides along so the window that opens wears the same title-bar
+    // colour as the card that opened it — green for a running loom, not the generic
+    // dialog blue. A modal that doesn't match the tile it came from reads as a
+    // different screen rather than that tile, zoomed in.
+    const openCard = (m: any) => setSelected({
+        id: m.id, code: m.code, name: m.name, center_type: m.center_type,
+        loom_status: m.loom_status || (runsOf(m).length ? 'RUNNING' : 'IDLE'),
+    });
 
     // What variant the loom is running right now. The MO alone doesn't say it — a
     // supervisor on the floor reads combo/size off the card to match the loom against
@@ -516,7 +525,7 @@ export default function WeavingMonitorView() {
                 borderBottom: '1px solid #00000033',
             };
             return (
-                <div key={m.id} onClick={() => openCard(m)} title={t('click_for_detail')}
+                <div key={m.id} onClick={() => openCard(m)} title={t('click_for_detail')} className="tile-hover"
                     style={{
                         border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff', background: '#ece9d8',
                         cursor: 'pointer', borderRadius: SECTION_RADIUS, overflow: 'hidden',
@@ -544,7 +553,7 @@ export default function WeavingMonitorView() {
             );
         }
         return (
-            <div key={m.id} onClick={() => openCard(m)} className="card h-100 shadow-sm border" style={{ cursor: 'pointer', borderRadius: SECTION_RADIUS }} title={t('click_for_detail')}>
+            <div key={m.id} onClick={() => openCard(m)} className="card h-100 shadow-sm border tile-hover" style={{ cursor: 'pointer', borderRadius: SECTION_RADIUS }} title={t('click_for_detail')}>
                 <div className="card-body p-3 d-flex flex-column">
                     <div className="d-flex align-items-center gap-2 mb-2">
                         <span style={{ fontWeight: 'bold', fontSize: 15 }}>{m.code}</span>

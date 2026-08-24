@@ -2,6 +2,17 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
+
+// Loom status → window chrome. Exported so the monitor grid can paint a card's
+// status strip with the very gradient the window it opens will wear (see
+// `loomStrip` in WeavingMonitorView) — one map, so the two can't drift.
+export const LOOM_TITLE_VARIANT: Record<string, 'primary' | 'success' | 'warning' | 'secondary'> = {
+    RUNNING: 'success',
+    STAGED: 'warning',
+    DRAW_IN: 'primary',
+    TUNING: 'primary',
+    IDLE: 'secondary',
+};
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
 import { useLanguage } from '../../context/LanguageContext';
@@ -113,6 +124,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     // National holidays for the displayed year — shared hook, same overlay the group
     // calendar renders.
     const national = useNationalHolidays(authFetch, apiBase, calRef.getFullYear(), isOpen);
+    // Title bar wears the loom's own status colour — the same gradient the card on
+    // the monitor grid paints on its status strip (see `loomStrip` in
+    // WeavingMonitorView; success/warning/primary here resolve to those exact
+    // gradients). Falls back to `info` when the caller passes no status, so a
+    // non-weaving work centre keeps the neutral window chrome.
+    const titleVariant = LOOM_TITLE_VARIANT[workCenter?.loom_status as string] || 'info';
+
 
     const wcId = workCenter?.id;
 
@@ -676,7 +694,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     };
 
     return (
-        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info" modeless bodyScroll={false}>
+        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant={titleVariant} modeless bodyScroll={false}>
             {tabBar}
 
             <div style={{ height: `min(${TAB_PANEL_HEIGHT}px, calc(var(--app-vh) - 220px))`, overflowY: 'auto', paddingTop: 12 }}>

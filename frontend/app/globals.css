@@ -1811,6 +1811,30 @@ table {
   .ui-style-classic .btn:not(:disabled):active { transform: none; }
 }
 
+/* ── CLICKABLE TILES: shared hover motion ────────────────────────────────────
+   A grid of tiles that open something on click (loom cards on the weaving
+   monitor, and any card grid that follows) gets the same feedback as `.xp-btn`
+   but scaled to a panel: a 1px lift and a deeper shadow, no face brighten — a
+   card is mostly white, so brightness reads as nothing while the shadow reads
+   as "this whole thing is one clickable object". One class, both themes, so
+   card grids don't each invent a hover. */
+.tile-hover {
+  transition: transform 110ms ease-out, box-shadow 110ms ease-out, filter 110ms ease-out;
+}
+.tile-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.20);
+  z-index: 1;
+}
+.tile-hover:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile-hover { transition: none; }
+  .tile-hover:hover, .tile-hover:active { transform: none; }
+}
+
 /* ── TABS: shared hover motion ────────────────────────────────────────────────
    Tabs deliberately do NOT borrow `.xp-btn`'s lift: a tab is seated in its strip
    and the active one's open bottom seam into the pane is the point — a
