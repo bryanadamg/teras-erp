@@ -15,6 +15,27 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-24
+
+### Added
+- Color variants — the values of the `Colors` system attribute — have their own endpoints (`POST`/`PUT`/`DELETE /colors/variant-values`), scoped to that one attribute, which is what makes `color_variant.create/edit/delete` a real grant. The tab used to post straight at `/attributes/{id}/values`, so a role ticked Color Variant Create saw an enabled button and got "Missing permission: attribute.create" on submit; the only way to unblock it was plant-wide attribute power over Materials, Combo, Wash Bath and every other value list
+- A `docker-compose.dev.yml` overlay runs the stack with hot reload — `uvicorn --reload` over a bind-mounted `backend/app` and `next dev` Fast Refresh — so a code change no longer needs `up -d --build`. Dev images tag `:dev` and the deploy workflow passes no `-f`, so production is untouched
+
+### Changed
+- Every page, dialog and print frame wears one shared title bar. Seven page shells each hand-declared the same classic/modern pair and four more kept inline copies, so the blue gradient lived in eleven places; with it in one place, opening a dialog can dim the page chrome behind it the way a real window loses focus, while dialogs keep a literal gradient so they never dim themselves
+- Buttons and inputs render from one shared face with four tones, dropping 70+ local `xpBtn`/`xpInput` copies, and all 16 print modals share one footer and one window close button
+- Tab strips are all the shared `Tabs` component — the manufacturing page and the MO expanded row had a second style of their own — and the active tab's underline now animates in on hover
+- Corner radii are concentric: `WINDOW_RADIUS` for window and dialog frames, `SECTION_RADIUS` inside them, `BUTTON_RADIUS` for controls. Form sections were rounder than the dialogs containing them, which reads as a section escaping its frame. Scrollbar thumbs, the searchable-select trigger and the view shell itself follow the same tokens
+- Form section headers are flat blue with the label alone; the circled step numbers implied an order the fields don't have
+- Form errors render through one shared `FormError` banner instead of three hand-rolled copies, and the user form modal is `xl` with its fields paired two-up instead of one long column
+- The Colors page is reachable by a role holding only `color_variant.*`. Both the section and the tab gate on any of the page's grants, and the page hides whichever tab the user has no grant for — a variant-only role could previously reach `/colors` by URL but never see it in the nav
+- Adding a color variant shows the color picker up front rather than behind a checkbox
+
+### Fixed
+- The app header runs full-bleed instead of being inset by the page gutter
+- Adding a color variant that already exists says which one it collided with, matched case-insensitively, instead of silently doing nothing — variant matching is by label, so two rows differing only in case are two variants the floor reads as one
+- Deleting a color variant still referenced by items, stock, orders or BOMs explains that instead of failing on a database constraint
+
 ## [0.8.0] - 2026-08-23
 
 ### Added
