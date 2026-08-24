@@ -874,7 +874,7 @@ export default function BOMView({
                 >
                     {/* Title bar */}
                     {classic ? (
-                        <div style={xpTitleBar({ justifyContent: 'flex-start', minHeight: undefined })}>
+                        <div style={xpTitleBar({ justifyContent: 'flex-start' })}>
                             <span><i className="bi bi-diagram-3-fill" style={{ marginRight: '6px' }} />{t('active_boms')}</span>
                         </div>
                     ) : (

@@ -452,20 +452,21 @@ export function PageTitleBar({ classic, icon, title, right, style }: {
     right?: React.ReactNode;
     style?: React.CSSProperties;
 }) {
+    // Classic geometry comes from `xpTitleBar`, not a second set of numbers: this
+    // used to carry its own `padding: '6px 12px'` / `fontSize: 13`, which rendered
+    // the seven PageTitleBar pages (Colors, Color/Combo Library, Attributes, Lab
+    // Dips, Dyeing & Setting, Settings) with a visibly taller bar than every
+    // xpTitleBar page next to them. One bar height, app-wide.
     const base: React.CSSProperties = classic
-        ? {
-            background: TITLE_TONES.blue.background, color: '#fff', fontFamily: xpFont,
-            padding: '6px 12px', fontSize: 13, fontWeight: 'bold',
-            display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
-        }
+        ? xpTitleBar({ justifyContent: 'flex-start', gap: 8, flexShrink: 0 })
         : {
             background: '#f7f9fc', color: '#1e293b', fontFamily: modernFont,
-            borderBottom: '1px solid #dbe1ea', padding: '9px 13px', fontSize: 14, fontWeight: 700,
+            borderBottom: '1px solid #dbe1ea', padding: '8px 13px', fontSize: 14, fontWeight: 700,
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
         };
     return (
         <div style={{ ...base, ...style }}>
-            <i className={`bi ${icon}`} style={{ fontSize: 14, color: classic ? undefined : '#2563eb' }} />
+            <i className={`bi ${icon}`} style={classic ? undefined : { fontSize: 14, color: '#2563eb' }} />
             {title}
             {right && <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>{right}</span>}
         </div>

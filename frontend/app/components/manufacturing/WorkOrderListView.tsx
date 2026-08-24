@@ -615,7 +615,7 @@ export default function WorkOrderListView({
         : pageFillStyle;
 
     const titleBarStyle: React.CSSProperties = classic ? xpTitleBar({
-        justifyContent: 'flex-start', gap: 8, minHeight: undefined,
+        justifyContent: 'flex-start', gap: 8,
     }) : {
         background: '#fff', borderBottom: '1px solid #dee2e6',
         padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,

@@ -511,7 +511,7 @@ export default function ManufacturingView({
                   {/* ── Title bar / toolbar ── */}
                   <div
                       className="no-print"
-                      style={classic ? xpTitleBar({ minHeight: undefined }) : {
+                      style={classic ? xpTitleBar() : {
                           background: '#fff',
                           borderBottom: '1px solid #dee2e6',
                           padding: '8px 16px',
