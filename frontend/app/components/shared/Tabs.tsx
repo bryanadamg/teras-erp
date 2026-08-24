@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { xpFont, BUTTON_RADIUS } from './xpTheme';
+import { xpFont, BUTTON_RADIUS, XP_TAB, XP_TAB_ACTIVE } from './xpTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -83,6 +83,7 @@ export function Tabs<K extends string>({ tabs, activeKey, onChange, classic }: {
                 <button
                     key={tab.key}
                     type="button"
+                    className={[XP_TAB, activeKey === tab.key ? XP_TAB_ACTIVE : ''].filter(Boolean).join(' ')}
                     onClick={() => onChange(tab.key)}
                     style={btnStyle(tab.key)}
                 >

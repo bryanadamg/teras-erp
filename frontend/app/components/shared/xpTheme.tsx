@@ -275,6 +275,14 @@ export const WINDOW_RADIUS_INNER = WINDOW_RADIUS - 2;
 // so it layers over whatever inline gradient face the button paints.
 export const XP_BTN = 'xp-btn';
 
+// Same idea for tab strips, but a separate class on purpose: `.xp-btn`'s hover
+// lifts the button off the surface, which is exactly wrong for a tab seated in
+// its strip with an open bottom seam. `.xp-tab` wipes an underline in instead
+// (see the TABS block in globals.css). Pair it with XP_TAB_ACTIVE on the
+// selected tab so it opts out of the hover.
+export const XP_TAB = 'xp-tab';
+export const XP_TAB_ACTIVE = 'xp-tab-active';
+
 // StatusChip is the XP-flavoured chip used in BOTH themes (it always renders on
 // xpFont), so it takes the classic geometry in both rather than threading a
 // `classic` flag through its ~100 call sites. 2px vs 4px at 9px type is invisible;

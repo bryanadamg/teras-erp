@@ -1739,6 +1739,54 @@ table {
   .ui-style-classic .btn:not(:disabled):active { transform: none; }
 }
 
+/* ── TABS: shared hover motion ────────────────────────────────────────────────
+   Tabs deliberately do NOT borrow `.xp-btn`'s lift: a tab is seated in its strip
+   and the active one's open bottom seam into the pane is the point — a
+   translateY would peel it off that seam. The shared motion is instead an
+   underline that wipes out from the centre, drawn as `::after` in currentColor so
+   it never fights the inline border/background the `Tabs` primitive paints (an
+   inline background always wins over a CSS one). Classic adds a face brighten on
+   top, which modern skips: its tab face is transparent, so a brightness bump
+   would only wash out the label. Tag a tab `.xp-tab` (export `XP_TAB` from
+   xpTheme) — the active tab carries `.xp-tab-active` and gets no hover, since
+   there is nothing to invite a click to. */
+.xp-tab {
+  position: relative;
+  /* Where the hover underline sits. Modern tabs reserve a 2px transparent
+     bottom border that the active tab fills blue, and an absolute child is
+     positioned against the padding box — so the hover bar has to be pushed
+     down onto that border to land where the active one does. Classic draws its
+     own 1px seam instead and keeps the bar just above it. */
+  --xp-tab-underline-offset: -2px;
+  transition: filter 110ms ease-out;
+}
+.ui-style-classic .xp-tab { --xp-tab-underline-offset: 0px; }
+.xp-tab::after {
+  content: '';
+  position: absolute;
+  left: 5px; right: 5px; bottom: var(--xp-tab-underline-offset);
+  height: 2px;
+  background: currentColor;
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 130ms ease-out, opacity 130ms ease-out;
+  pointer-events: none;
+}
+.xp-tab:not(.xp-tab-active):hover::after,
+.xp-tab:not(.xp-tab-active):focus-visible::after {
+  opacity: 0.6;
+  transform: scaleX(1);
+}
+.ui-style-classic .xp-tab:not(.xp-tab-active):hover { filter: brightness(1.06) saturate(1.04); }
+.ui-style-classic .xp-tab:not(.xp-tab-active):active { filter: brightness(0.95); }
+.xp-tab:focus-visible { outline: 1px dotted currentColor; outline-offset: -3px; }
+@media (prefers-reduced-motion: reduce) {
+  .xp-tab, .xp-tab::after { transition: none; }
+  .xp-tab:not(.xp-tab-active):hover::after,
+  .xp-tab:not(.xp-tab-active):focus-visible::after { transform: none; }
+}
+
 /* Bootstrap tab strips in Classic (Sample Requests) — top corners only, matching
    the shared `Tabs` primitive; the bottom edge stays open into the pane. */
 .ui-style-classic .nav-tabs .nav-link {
