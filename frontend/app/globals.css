@@ -1,17 +1,3 @@
-/* Self-hosted (not Google Fonts CDN) so classic-theme type renders identically
-   offline or on a LAN-only shop-floor machine — no dependency on an external
-   font host being reachable. Variable font: one file covers weights 100-900,
-   font-display: swap means classic paints in its Tahoma fallback immediately
-   and swaps to Inter once the same-origin file loads (near-instant, no CDN
-   round-trip). See public/fonts/inter/LICENSE.txt (SIL OFL 1.1). */
-@font-face {
-  font-family: "Inter";
-  src: url("/fonts/inter/inter-var-latin.woff2") format("woff2-variations"), url("/fonts/inter/inter-var-latin.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   --sidebar-width: 260px;
   /* Horizontal gutter between the page content and the window edges. It lives on
@@ -472,16 +458,11 @@ body.window-chrome-inactive {
   /* Mirrors `xpFont` in components/shared/xpTheme.tsx — the one classic type
      stack. CSS can't import the TS const, so keep the two in step by hand;
      three rules below used to declare their own shorter variants. */
-  --xp-font: "Inter", "Tahoma", "Segoe UI", "Arial", sans-serif;
+  --xp-font: "Tahoma", "Segoe UI", "Arial", sans-serif;
 
   background-color: var(--win-bg) !important;
   font-family: var(--xp-font) !important;
   font-size: 11px;
-  /* Tahoma was hinted specifically to render heavy at tiny sizes; any modern
-     grotesque's regular (400) weight reads thin next to it at classic's 9-11px
-     text. Bump the inherited baseline to Medium — bold headers/labels that set
-     their own fontWeight explicitly are unaffected since inline styles win. */
-  font-weight: 500;
 }
 
 .ui-style-classic body {

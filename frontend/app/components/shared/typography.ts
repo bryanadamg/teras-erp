@@ -8,11 +8,7 @@
  * either, they are the same constants.
  */
 
-// Inter is self-hosted (public/fonts/inter/, @font-face in globals.css) rather than
-// pulled from Google Fonts — the classic theme runs on shop-floor machines that may
-// have no outbound internet, and font-display: swap falls back to Tahoma instantly
-// if the local file somehow fails to load. Keep in step with --xp-font in globals.css.
-export const xpFont = '"Inter", Tahoma, "Segoe UI", Arial, sans-serif';
+export const xpFont = 'Tahoma, "Segoe UI", Arial, sans-serif';
 export const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 // Single monospace stack for every identifier and every aligned number. Views used
