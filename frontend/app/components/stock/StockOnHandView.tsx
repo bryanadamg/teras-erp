@@ -679,17 +679,13 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     )}
                 </td>
                 <td style={classic ? { padding: '4px 8px', ...colDivider } : colDivider}>
-                    <div style={classic ? { display: 'flex', flexWrap: 'wrap', gap: 3 } : undefined}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                         {bal.attribute_value_ids?.length > 0 ? (
                             bal.attribute_value_ids.map((vid: string) => (
-                                <span key={vid}
-                                    style={classic ? { background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', fontFamily: xpFont, fontSize: '10px', color: '#333' } : undefined}
-                                    className={classic ? undefined : 'badge bg-info text-dark me-1'}>
-                                    {getAttrValueName(vid)}
-                                </span>
+                                <Chip key={vid} classic={classic} size="xs">{getAttrValueName(vid)}</Chip>
                             ))
                         ) : (
-                            <span style={classic ? { fontFamily: xpFont, fontSize: '10px', color: '#888', fontStyle: 'italic' } : undefined} className={classic ? undefined : 'text-muted small'}>Standard</span>
+                            <Dash classic={classic} />
                         )}
                     </div>
                 </td>
