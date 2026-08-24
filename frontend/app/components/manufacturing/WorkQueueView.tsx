@@ -6,7 +6,7 @@ import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, xpToolbar } from '../shared/shellTheme';
-import { lvTh, lvThead, lvTd, lvRow, lvBtn, LV_XP_FONT, LV_MODERN_FONT, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
+import { lvTh, lvThead, lvTd, lvRow, lvBtn, lvSubTable, lvSubTh, lvSubTd, lvSubRow, TableEmpty, LV_XP_FONT, LV_MODERN_FONT, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 import {
     StatusChip, XPStatusBar, XPEmptyState, TableSkeleton, CodeChip,
     ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip, rowStateBg,
@@ -385,25 +385,30 @@ export default function WorkQueueView() {
     const renderMaterials = (r: QueueRow) => (
         <ExpandedRowPanel classic={classic}>
             <ExpandedRowPanelBody classic={classic}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: font, fontSize: classic ? 11 : 12 }}>
-                    <thead style={lvThead(classic)}>
+                <table style={lvSubTable(classic)}>
+                    <thead>
                         <tr>
-                            <th style={lvTh(classic)}>Material</th>
-                            <th style={{ ...lvTh(classic), textAlign: 'right' }}>Required</th>
-                            <th style={{ ...lvTh(classic), textAlign: 'right' }}>Staged</th>
-                            <th style={{ ...lvTh(classic), textAlign: 'right' }}>Free pool</th>
-                            <th style={{ ...lvTh(classic), textAlign: 'right' }}>Allocated</th>
-                            <th style={{ ...lvTh(classic), textAlign: 'right' }}>Short</th>
-                            <th style={lvTh(classic)}>Incoming</th>
+                            <th style={lvSubTh(classic)}>Material</th>
+                            <th style={{ ...lvSubTh(classic), textAlign: 'right' }}>Required</th>
+                            <th style={{ ...lvSubTh(classic), textAlign: 'right' }}>Staged</th>
+                            <th style={{ ...lvSubTh(classic), textAlign: 'right' }}>Free pool</th>
+                            <th style={{ ...lvSubTh(classic), textAlign: 'right' }}>Allocated</th>
+                            <th style={{ ...lvSubTh(classic), textAlign: 'right' }}>Short</th>
+                            <th style={lvSubTh(classic)}>Incoming</th>
                         </tr>
                     </thead>
                     <tbody>
                         {r.materials.length === 0 && (
-                            <tr><td style={lvTd(classic)} colSpan={7}>No materials resolved for this step.</td></tr>
+                            <TableEmpty
+                                colSpan={7}
+                                classic={classic}
+                                message="No materials resolved for this step."
+                                tdStyle={lvSubTd(classic)}
+                            />
                         )}
                         {r.materials.map((m, i) => (
-                            <tr key={m.item_id + String(i)} style={lvRow(classic, i)}>
-                                <td style={lvTd(classic)}>
+                            <tr key={m.item_id + String(i)} style={lvSubRow(classic, i)}>
+                                <td style={lvSubTd(classic)}>
                                     <span style={{ fontWeight: m.is_substrate ? 'bold' : 'normal' }}>
                                         {m.item_code || '—'}
                                     </span>
@@ -416,25 +421,25 @@ export default function WorkQueueView() {
                                 </td>
                                 {m.is_beam ? (
                                     <>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>{m.required_pcs} pcs</td>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>{m.mounted_pcs} pcs</td>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>{num(m.on_hand_qty)}</td>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>—</td>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>—</td>
-                                        <td style={lvTd(classic)}>mounted on loom</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{m.required_pcs} pcs</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{m.mounted_pcs} pcs</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{num(m.on_hand_qty)}</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{'—'}</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{'—'}</td>
+                                        <td style={lvSubTd(classic)}>mounted on loom</td>
                                     </>
                                 ) : (
                                     <>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>{num(m.required_qty)}</td>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>{num(m.staged_qty)}</td>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>{num(m.on_hand_qty)}</td>
-                                        <td style={{ ...lvTd(classic), textAlign: 'right' }}>{num(m.allocated_qty)}</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{num(m.required_qty)}</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{num(m.staged_qty)}</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{num(m.on_hand_qty)}</td>
+                                        <td style={{ ...lvSubTd(classic), textAlign: 'right' }}>{num(m.allocated_qty)}</td>
                                         <td style={{
-                                            ...lvTd(classic), textAlign: 'right',
+                                            ...lvSubTd(classic), textAlign: 'right',
                                             color: m.shortfall_qty > 0 ? statusColor('SHORT') : undefined,
                                             fontWeight: m.shortfall_qty > 0 ? 'bold' : 'normal',
                                         }}>{m.shortfall_qty > 0 ? num(m.shortfall_qty) : '—'}</td>
-                                        <td style={lvTd(classic)}>
+                                        <td style={lvSubTd(classic)}>
                                             {m.incoming_qty > 0
                                                 ? `${num(m.incoming_qty)} on ${m.incoming_mo_code || 'order'}${m.incoming_eta ? ` · ${shortDate(m.incoming_eta)}` : ''}`
                                                 : '—'}
