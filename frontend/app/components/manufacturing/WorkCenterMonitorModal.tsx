@@ -64,6 +64,9 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const { locations } = useData();
     const { showToast } = useToast();
     const canManage = hasAnyPermission('weaving_monitor.start', 'calendar.edit', 'beam.unmount');
+    // Mounting is gated on what the endpoint enforces (work_order.edit), not on the
+    // unmount permission — putting warp up and taking it down are different calls.
+    const canMount = hasPermission('work_order.edit');
     const cls = uiStyle === 'classic';
 
     // Stock lives only in leaf locations — same filter/label the PR modal uses.
@@ -81,6 +84,18 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     // Row expanded into its unmount confirm strip, plus the picked return location.
     const [unmountingId, setUnmountingId] = useState<string | null>(null);
     const [returnLoc, setReturnLoc] = useState('');
+    // Leftover re-lot, filled in on the same strip: the warp stripped off the beam
+    // is weighed, and that weight — not the system's remaining — becomes a lot.
+    const [relot, setRelot] = useState(false);
+    const [leftoverQty, setLeftoverQty] = useState('');
+    const [leftoverEnds, setLeftoverEnds] = useState('');
+    const [leftoverLotNo, setLeftoverLotNo] = useState('');
+    // Mount picker: beams in stock that are on no loom right now, leftovers included.
+    const [mountOpen, setMountOpen] = useState(false);
+    const [freeBeams, setFreeBeams] = useState<any[]>([]);
+    const [freeLoading, setFreeLoading] = useState(false);
+    const [beamSearch, setBeamSearch] = useState('');
+    const [mountingId, setMountingId] = useState<string | null>(null);
 
     const [moId, setMoId] = useState('');
     // WO candidates: the run is started per WORK ORDER, because a loom weaves the
@@ -158,30 +173,106 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     // nothing to re-lot, unlike the old merge-to-pool model. The remnant does have
     // to be booked back to wherever it physically goes, though: leaving it at the
     // loom's input location means stock claims a beam is up that is really on a rack.
+    //
+    // Optionally the remnant is stripped off the beam and weighed instead: then it
+    // is split into its own LFT- lot (mountable again anywhere), the parent beam is
+    // retired at 0, and the scale-vs-system difference is written off on the parent.
     const dismount = async (mountId: string, toLocationId: string) => {
+        const weighed = relot ? parseFloat(leftoverQty) : null;
+        if (relot && (weighed === null || Number.isNaN(weighed) || weighed < 0)) {
+            showToast(t('leftover_weighed_qty'), 'danger');
+            return;
+        }
         setDismounting(mountId);
         try {
             const res = await authFetch(`${apiBase}/beam-mounts/${mountId}/dismount`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ to_location_id: toLocationId || null }),
+                body: JSON.stringify({
+                    to_location_id: toLocationId || null,
+                    leftover_qty: relot ? weighed : null,
+                    leftover_beam_number: relot ? (leftoverLotNo.trim() || null) : null,
+                    leftover_ends: relot && leftoverEnds ? parseInt(leftoverEnds, 10) : null,
+                }),
             });
             if (!res.ok) {
                 const d = await res.json().catch(() => null);
                 showToast(d?.detail || t('unmount_failed'), 'danger');
                 return;
             }
-            showToast(t('unmount_done'), 'success');
-            setUnmountingId(null);
+            const out = await res.json().catch(() => null);
+            showToast(
+                out?.leftover_beam_number
+                    ? t('leftover_created')
+                        .replace('{lot}', out.leftover_beam_number)
+                        .replace('{qty}', fmt(out.leftover_qty, 2))
+                    : t('unmount_done'),
+                'success',
+            );
+            closeUnmount();
+            if (mountOpen) await loadFreeBeams();
             await load();
         } finally {
             setDismounting(null);
         }
     };
 
+    const closeUnmount = () => {
+        setUnmountingId(null);
+        setRelot(false);
+        setLeftoverQty('');
+        setLeftoverEnds('');
+        setLeftoverLotNo('');
+    };
+
+    // Beams free to go up: in stock, on no loom. Deliberately not item-scoped —
+    // this panel has no order context, the planner picks the warp.
+    const loadFreeBeams = useCallback(async () => {
+        if (!wcId) return;
+        setFreeLoading(true);
+        try {
+            const qs = beamSearch.trim() ? `?search=${encodeURIComponent(beamSearch.trim())}` : '';
+            const res = await authFetch(`${apiBase}/work-centers/${wcId}/available-beams${qs}`);
+            setFreeBeams(res.ok ? await res.json() : []);
+        } finally {
+            setFreeLoading(false);
+        }
+    }, [wcId, apiBase, authFetch, beamSearch]);
+
+    const mount = async (batchId: string) => {
+        setMountingId(batchId);
+        try {
+            const res = await authFetch(`${apiBase}/work-centers/${wcId}/beam-mounts`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ batch_id: batchId }),
+            });
+            if (!res.ok) {
+                const d = await res.json().catch(() => null);
+                showToast(d?.detail || t('mount_failed'), 'danger');
+                return;
+            }
+            showToast(t('mount_done'), 'success');
+            await Promise.all([load(), loadFreeBeams()]);
+        } finally {
+            setMountingId(null);
+        }
+    };
+
+    // Picker feed: refetch when it opens and on a paused search — same 300ms shape
+    // the shared list hooks use, so typing a lot number doesn't fire per keystroke.
+    useEffect(() => {
+        if (!mountOpen) return;
+        const h = setTimeout(() => { loadFreeBeams(); }, beamSearch ? 300 : 0);
+        return () => clearTimeout(h);
+    }, [mountOpen, beamSearch, loadFreeBeams]);
+
     useEffect(() => {
         if (isOpen && wcId) {
             setTab('performance');
             setUnmountingId(null);
+            setRelot(false);
+            setMountOpen(false);
+            setBeamSearch('');
+            setFreeBeams([]);
             setOverrideRunId(null);
             setTargetRunId(null);
             setLinesRunId(null);
@@ -1019,7 +1110,87 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                             <span style={{ fontSize: 11, color: '#777' }}>
                                 {t('beam_positions_filled')} · {fmt(loom?.total_remaining, 1)} kg
                             </span>
+                            {canMount && (
+                                <span style={{ marginLeft: 'auto', alignSelf: 'center' }}>
+                                    <XPActionButton
+                                        classic={cls}
+                                        tone={mountOpen ? 'neutral' : 'primary'}
+                                        icon="bi-arrow-bar-up"
+                                        label={mountOpen ? t('cancel') : t('mount_beam')}
+                                        title={t('mount_beam_hint')}
+                                        onClick={() => setMountOpen(o => !o)}
+                                    />
+                                </span>
+                            )}
                         </div>
+
+                        {/* Mount picker — beams free plant-wide, leftovers included. Sits
+                            above the mounted table because it reads top-down as one list:
+                            what can go up, then what is up. */}
+                        {mountOpen && canMount && (
+                            <div style={{ marginBottom: 8 }}>
+                                <ExpandedRowPanel classic={cls}>
+                                    <ExpandedRowPanelBody classic={cls}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                            <input
+                                                value={beamSearch}
+                                                onChange={e => setBeamSearch(e.target.value)}
+                                                placeholder={t('mount_beam_search')}
+                                                className={cls ? undefined : 'form-control form-control-sm w-auto'}
+                                                style={cls ? { ...lvInput, width: 220 } : undefined}
+                                            />
+                                            {pcs >= slots && (
+                                                <span style={{ fontSize: 10, color: AMBER }}>{t('beam_slots_full')}</span>
+                                            )}
+                                        </div>
+                                        {freeLoading ? (
+                                            <PanelSkeleton classic={cls} rows={3} />
+                                        ) : freeBeams.length === 0 ? (
+                                            <XPEmptyState icon="bi-inboxes" message={t('no_free_beams')} />
+                                        ) : (
+                                            <div style={{ maxHeight: 190, overflowY: 'auto' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                    <tbody>
+                                                        {freeBeams.map((b: any, idx: number) => (
+                                                            <tr key={b.batch_id} style={lvRow(cls, idx)}>
+                                                                <td style={{ ...lvTd(cls), fontWeight: 'bold', color: BLUE, whiteSpace: 'nowrap' }}>
+                                                                    {b.beam_number}
+                                                                    {b.is_leftover && (
+                                                                        <span
+                                                                            title={b.parent_beam_number ? `${t('leftover_tag')} · ${b.parent_beam_number}` : t('leftover_tag')}
+                                                                            style={{
+                                                                                marginLeft: 5, fontSize: 9, padding: '0 4px',
+                                                                                borderRadius: CHIP_RADIUS, background: '#fff3cc',
+                                                                                border: '1px solid #f0d888', color: '#664400',
+                                                                                fontWeight: 'normal',
+                                                                            }}
+                                                                        >{t('leftover_tag')}</span>
+                                                                    )}
+                                                                </td>
+                                                                <td style={lvTd(cls)} title={b.item_name || undefined}>{b.item_code || '—'}</td>
+                                                                <td style={lvTd(cls)}>{b.ends ?? '—'}</td>
+                                                                <td style={{ ...lvTd(cls), textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(b.remaining, 1)} kg</td>
+                                                                <td style={{ ...lvTd(cls), color: '#666' }}>{b.location_code || '—'}</td>
+                                                                <td style={{ ...lvTd(cls), borderRight: 'none', textAlign: 'right' }}>
+                                                                    <XPActionButton
+                                                                        classic={cls}
+                                                                        tone="primary"
+                                                                        icon="bi-arrow-bar-up"
+                                                                        label={mountingId === b.batch_id ? '...' : t('mount_confirm')}
+                                                                        disabled={mountingId === b.batch_id}
+                                                                        onClick={() => mount(b.batch_id)}
+                                                                    />
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </ExpandedRowPanelBody>
+                                </ExpandedRowPanel>
+                            </div>
+                        )}
 
                         {mounts.length === 0 ? (
                             <XPEmptyState icon="bi-arrow-bar-up" message={t('no_beams_mounted')} />
@@ -1072,6 +1243,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                 // Pre-pick the beam item's home store so the floor
                                                                 // usually just confirms instead of hunting for a bin.
                                                                 setReturnLoc(m.default_return_location_id || '');
+                                                                // Seed the weigh field with what the system thinks is
+                                                                // left: on a beam that ran to plan the scale agrees and
+                                                                // the operator only confirms. Ends carry over — a
+                                                                // remnant is the same warp, just shorter.
+                                                                setRelot(false);
+                                                                setLeftoverQty(m.remaining != null ? String(Number(m.remaining).toFixed(2)) : '');
+                                                                setLeftoverEnds(m.ends != null ? String(m.ends) : '');
+                                                                setLeftoverLotNo('');
                                                             }}
                                                         />
                                                     )}
@@ -1082,44 +1261,114 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                     <td colSpan={6} style={{ padding: cls ? '4px 2px' : '4px 0' }}>
                                                         <ExpandedRowPanel classic={cls}>
                                                             <ExpandedRowPanelBody classic={cls}>
-                                                                <div style={{
-                                                                    display: 'flex', flexWrap: 'wrap', alignItems: 'center',
-                                                                    gap: 8, fontSize: cls ? 11 : 12,
-                                                                }}>
-                                                                    <span>
-                                                                        <b style={{ color: BLUE }}>{m.beam_number || '—'}</b>
-                                                                        {' · '}
-                                                                        <b>{fmt(m.remaining, 1)} kg</b> {t('unmount_remnant_to')}:
-                                                                    </span>
-                                                                    <select
-                                                                        value={returnLoc}
-                                                                        onChange={e => setReturnLoc(e.target.value)}
-                                                                        className={cls ? undefined : 'form-select form-select-sm w-auto'}
-                                                                        style={cls ? xpSelect() : undefined}
-                                                                    >
-                                                                        <option value="">{t('unmount_leave_at_loom')}</option>
-                                                                        {leafLocations.map((l: any) => (
-                                                                            <option key={l.id} value={l.id}>{locLabel(l)}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                    <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
-                                                                        <XPActionButton
-                                                                            classic={cls}
-                                                                            tone="warning"
-                                                                            icon="bi-box-arrow-up"
-                                                                            label={dismounting === m.id ? '...' : t('unmount_confirm')}
-                                                                            disabled={dismounting === m.id}
-                                                                            onClick={() => dismount(m.id, returnLoc)}
-                                                                        />
-                                                                        <XPActionButton
-                                                                            classic={cls}
-                                                                            tone="neutral"
-                                                                            label={t('cancel')}
-                                                                            disabled={dismounting === m.id}
-                                                                            onClick={() => setUnmountingId(null)}
-                                                                        />
+                                                                {(() => {
+                                                                    const sysLeft = Number(m.remaining || 0);
+                                                                    const weighed = parseFloat(leftoverQty);
+                                                                    const variance = relot && !Number.isNaN(weighed) ? weighed - sysLeft : 0;
+                                                                    return (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: cls ? 11 : 12 }}>
+                                                                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                                                                        <span>
+                                                                            <b style={{ color: BLUE }}>{m.beam_number || '—'}</b>
+                                                                            {' · '}
+                                                                            <b>{fmt(m.remaining, 1)} kg</b> {t('unmount_remnant_to')}:
+                                                                        </span>
+                                                                        <select
+                                                                            value={returnLoc}
+                                                                            onChange={e => setReturnLoc(e.target.value)}
+                                                                            className={cls ? undefined : 'form-select form-select-sm w-auto'}
+                                                                            style={cls ? xpSelect() : undefined}
+                                                                        >
+                                                                            <option value="">{t('unmount_leave_at_loom')}</option>
+                                                                            {leafLocations.map((l: any) => (
+                                                                                <option key={l.id} value={l.id}>{locLabel(l)}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                                                                            <XPActionButton
+                                                                                classic={cls}
+                                                                                tone="warning"
+                                                                                icon="bi-box-arrow-up"
+                                                                                label={dismounting === m.id ? '...' : t('unmount_confirm')}
+                                                                                disabled={dismounting === m.id}
+                                                                                onClick={() => dismount(m.id, returnLoc)}
+                                                                            />
+                                                                            <XPActionButton
+                                                                                classic={cls}
+                                                                                tone="neutral"
+                                                                                label={t('cancel')}
+                                                                                disabled={dismounting === m.id}
+                                                                                onClick={closeUnmount}
+                                                                            />
+                                                                        </div>
                                                                     </div>
+
+                                                                    {/* Re-lotting rides on the unmount, not a second action:
+                                                                        the remnant is stripped at the same moment the beam
+                                                                        comes off, and splitting it later would mean guessing
+                                                                        which of the loom's beams it came from. */}
+                                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={relot}
+                                                                            onChange={e => setRelot(e.target.checked)}
+                                                                            disabled={dismounting === m.id}
+                                                                        />
+                                                                        <span>{t('leftover_relot')}</span>
+                                                                    </label>
+
+                                                                    {relot && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingLeft: 18 }}>
+                                                                            <div style={{ fontSize: 10, color: '#555' }}>{t('leftover_hint')}</div>
+                                                                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                    <span>{t('leftover_weighed_qty')}</span>
+                                                                                    <input
+                                                                                        type="number" min="0" step="any"
+                                                                                        value={leftoverQty}
+                                                                                        onChange={e => setLeftoverQty(e.target.value)}
+                                                                                        className={cls ? undefined : 'form-control form-control-sm w-auto'}
+                                                                                        style={cls ? { ...lvInput, width: 90, textAlign: 'right' } : { width: 90 }}
+                                                                                    />
+                                                                                </label>
+                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                    <span>{t('ends')}</span>
+                                                                                    <input
+                                                                                        type="number" min="1" step="1"
+                                                                                        value={leftoverEnds}
+                                                                                        onChange={e => setLeftoverEnds(e.target.value)}
+                                                                                        className={cls ? undefined : 'form-control form-control-sm w-auto'}
+                                                                                        style={cls ? { ...lvInput, width: 70, textAlign: 'right' } : { width: 70 }}
+                                                                                    />
+                                                                                </label>
+                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                    <span>{t('leftover_lot_no')}</span>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={leftoverLotNo}
+                                                                                        onChange={e => setLeftoverLotNo(e.target.value)}
+                                                                                        placeholder={t('leftover_lot_auto')}
+                                                                                        className={cls ? undefined : 'form-control form-control-sm w-auto'}
+                                                                                        style={cls ? { ...lvInput, width: 150 } : { width: 150 }}
+                                                                                    />
+                                                                                </label>
+                                                                            </div>
+                                                                            <div style={{ fontSize: 10, color: '#666' }}>
+                                                                                {t('leftover_system_says')} <b>{fmt(sysLeft, 2)} kg</b>
+                                                                                {!Number.isNaN(weighed) && (
+                                                                                    <>
+                                                                                        {' · '}{t('leftover_variance')}{' '}
+                                                                                        <b style={{ color: Math.abs(variance) < 0.005 ? '#666' : variance < 0 ? RED : AMBER }}>
+                                                                                            {variance > 0 ? '+' : ''}{fmt(variance, 2)} kg
+                                                                                        </b>
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
+                                                                    );
+                                                                })()}
                                                             </ExpandedRowPanelBody>
                                                         </ExpandedRowPanel>
                                                     </td>

@@ -958,6 +958,52 @@ class BeamDismountPayload(BaseModel):
     # Where the remnant goes. Null leaves it parked at the loom — the beam keeps
     # its lot either way, so there is nothing to re-create.
     to_location_id: UUID | None = None
+    # Weighed remnant. Null = plain dismount (beam keeps its lot and its system
+    # remaining). A number = the floor stripped and weighed the warp: that qty
+    # becomes a NEW leftover lot, the parent beam is retired at 0, and the
+    # difference against the system remaining is written off on the parent.
+    # 0 is meaningful — "nothing left", so reconcile the beam down to empty.
+    leftover_qty: float | None = None
+    leftover_beam_number: str | None = None   # blank → auto LFT-YYYYMMDD-NNNN
+    leftover_ends: int | None = None          # blank → inherit the parent beam's ends
+    leftover_notes: str | None = None
+
+
+class BeamDismountResult(BeamMountResponse):
+    """A closed mount plus what the dismount produced.
+
+    Declared as its own model because a manual dict row under a response_model
+    silently drops undeclared keys — the leftover lot would vanish from the
+    response without a word.
+    """
+    leftover_batch_id: UUID | None = None
+    leftover_beam_number: str | None = None
+    leftover_qty: float | None = None
+    # weighed − system remaining. Negative = warp the system thought was there
+    # and the scale says is not (the usual direction).
+    leftover_variance: float = 0.0
+
+
+class AvailableBeamRow(BaseModel):
+    """One beam lot that is free to mount — nothing is on a loom right now.
+
+    Feeds the weaving monitor's Mount picker, which has no WO/item context: it
+    asks "what warp can go up on this machine", not "what does this order need".
+    """
+    batch_id: UUID
+    beam_number: str
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    ends: int | None = None
+    remaining: float = 0.0
+    location_id: UUID | None = None
+    location_code: str | None = None
+    # Leftover provenance — a stripped remnant off an earlier beam.
+    is_leftover: bool = False
+    parent_beam_number: str | None = None
+    quality_status: str = "GOOD"
+    created_at: datetime | None = None
 
 
 class LoomBeamStatus(BaseModel):
