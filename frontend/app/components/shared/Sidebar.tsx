@@ -302,7 +302,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
               padding: '9px 0',
               background: hovered === 'scanner' ? M_PRIMARY_DK : M_PRIMARY,
               border: 'none',
-              borderRadius: 10,
+              borderRadius: 8,
               color: '#fff',
               fontFamily: modernFont,
               fontSize: 12,
@@ -357,11 +357,13 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
       }}>
         {hasPermission('admin.access') && (
           <button
+            className={XP_BTN}
             onClick={() => setActiveTab('settings')}
             {...H('settings')}
             style={classic ? {
               width: '100%',
-              padding: '4px 0',
+              padding: '6px 0',
+              borderRadius: BUTTON_RADIUS,
               background: hovered === 'settings'
                 ? 'linear-gradient(to bottom, #ffffff, #dde4f4)'
                 : 'linear-gradient(to bottom, #f0f3fb, #d6dff7)',
@@ -380,7 +382,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
               gap: 6,
             } : {
               width: '100%',
-              padding: '8px 0',
+              padding: '9px 0',
               background: hovered === 'settings' ? '#eff6ff' : 'transparent',
               border: `1px solid ${hovered === 'settings' ? '#bfdbfe' : M_BORDER}`,
               borderRadius: 8,
