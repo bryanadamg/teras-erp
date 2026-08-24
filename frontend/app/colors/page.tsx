@@ -10,7 +10,7 @@ import { useToast } from '../components/shared/Toast';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
 import { Tabs } from '../components/shared/Tabs';
-import { PageTitleBar } from '../components/shared/shellTheme';
+import { PageTitleBar, viewShellStyle } from '../components/shared/shellTheme';
 
 const PAGE_SIZE = 50;
 
@@ -163,9 +163,7 @@ export default function ColorsPage() {
     };
 
     return (
-        <div style={classic
-            ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+        <div style={viewShellStyle(classic)}>
 
             <PageTitleBar classic={classic} icon="bi-palette2" title="Colors" />
 

@@ -7,7 +7,7 @@ import CategoriesView from './CategoriesView';
 import UOMLibraryView from './UOMLibraryView';
 import AttributesLibraryView from './AttributesLibraryView';
 import { Tabs } from '../shared/Tabs';
-import { pageFillStyle, PageTitleBar } from '../shared/shellTheme';
+import { viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 
 interface Props {
     categories: any[];
@@ -53,9 +53,7 @@ export default function ItemMetadataView({
     const [tab, setTab] = useState<Tab>('attributes');
 
     return (
-        <div className="fade-in" style={classic
-            ? { ...pageFillStyle, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { ...pageFillStyle, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+        <div className="fade-in" style={viewShellStyle(classic)}>
 
             <PageTitleBar classic={classic} icon="bi-tag" title="Attributes" />
 

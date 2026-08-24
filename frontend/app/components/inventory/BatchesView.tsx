@@ -905,7 +905,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
         </div>
       ) : (
-        <div className="card shadow-sm border-0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div className="card shadow-sm border-0 shell-window" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* ── Title bar ── */}
           <div className="card-header d-flex align-items-center gap-2" style={{ flexShrink: 0 }}>
             <h5 className="mb-0 fw-bold">Lot Management</h5>

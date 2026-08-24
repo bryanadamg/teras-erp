@@ -543,7 +543,7 @@ export default function ReportsView(_props: any) {
 
     return (
         <>
-        <div className={classic ? 'fade-in print-container' : 'card fade-in border-0 shadow-sm print-container'} style={pageFillStyle}>
+        <div className={classic ? 'fade-in print-container' : 'card fade-in border-0 shadow-sm shell-window print-container'} style={pageFillStyle}>
             <div style={classic ? sharedXpBevel(flexFillStyle) : flexFillStyle}>
                 {classic ? (
                     <div style={titleBar} className="no-print">

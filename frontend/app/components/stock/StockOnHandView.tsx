@@ -1181,7 +1181,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
         <div className="fade-in" style={pageFillStyle}>
             <div
                 style={classic ? { ...xpBevel, ...flexFillStyle } : flexFillStyle}
-                className={classic ? undefined : 'card shadow-sm border-0'}
+                className={classic ? undefined : 'card shadow-sm border-0 shell-window'}
             >
                 <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center py-3'}>
                     {classic

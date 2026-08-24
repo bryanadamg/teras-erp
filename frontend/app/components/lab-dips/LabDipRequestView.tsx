@@ -11,7 +11,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle, PageTitleBar } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra, TableEmpty, lvBtn, lvInput } from '../shared/listViewTheme';
 import { API_BASE, STATIC_BASE } from '../shared/apiBase';
@@ -489,9 +489,7 @@ export default function LabDipRequestView({
     const displayCode = editing ? editing.code : nextCode;
 
     return (
-        <div style={classic
-            ? { ...pageFillStyle, fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { ...pageFillStyle, fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+        <div style={viewShellStyle(classic, 'page', { fontFamily: classic ? xpFont : modernFont })}>
             {/* Title bar */}
             <PageTitleBar
                 classic={classic}

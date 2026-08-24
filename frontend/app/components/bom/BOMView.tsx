@@ -12,7 +12,7 @@ import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, VariantChip, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
-import { FilterChipBar, xpToolbar, ToolbarButton, SearchField, xpTitleBar } from '../shared/shellTheme';
+import { FilterChipBar, xpToolbar, ToolbarButton, SearchField, xpTitleBar, viewShellStyle } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
     { value: 'root', label: 'Root BOMs' },
@@ -869,8 +869,8 @@ export default function BOMView({
             {/* BOM List */}
             <div className="col-12">
                 <div
-                    style={classic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0, display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)' } : undefined}
-                    className={classic ? '' : 'card h-100 shadow-sm border-0'}
+                    style={classic ? viewShellStyle(true) : undefined}
+                    className={classic ? '' : 'card h-100 shadow-sm border-0 shell-window'}
                 >
                     {/* Title bar */}
                     {classic ? (

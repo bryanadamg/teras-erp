@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle, PageTitleBar } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
 } from '../shared/listViewTheme';
@@ -91,9 +91,7 @@ export default function ComboLibraryView({
     return (
         <div style={embedded
             ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
-            : classic
-            ? { ...pageFillStyle, fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { ...pageFillStyle, fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            : viewShellStyle(classic, 'page', { fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT })}>
 
             {/* Title bar (hidden when embedded under a tab shell) */}
             {!embedded && (
