@@ -30,6 +30,35 @@ interface Props {
 // curated product-color list. This is the SAME variant attribute used for BOM gating,
 // dye-recipe matching, MO/stock variant_key; it is NOT the 30k Color Code catalog. It
 // lives here as a sibling tab purely for discoverability (single "Colors" home).
+// Swatch picker: the color input is always live — no checkbox to arm it first.
+// "No color" is the untouched default (hex === null), shown as the same dashed empty
+// box the table uses, and reachable again via Clear once a color has been picked.
+function SwatchPicker({ hex, onChange, classic, size = 22 }: { hex: string | null; onChange: (hex: string | null) => void; classic: boolean; size?: number }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label
+                title={hex ? `${hex} — click to change` : 'Click to pick a color'}
+                style={{
+                    width: size, height: size, display: 'inline-block', cursor: 'pointer', position: 'relative',
+                    background: hex || (classic ? '#e8e6df' : '#f1f5f9'),
+                    border: hex ? '1px solid rgba(0,0,0,0.35)' : `1px dashed ${classic ? '#a0988c' : '#94a3b8'}`,
+                }}
+            >
+                <input
+                    type="color"
+                    value={hex || '#cccccc'}
+                    onChange={e => onChange(e.target.value)}
+                    style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+                />
+            </label>
+            {hex
+                ? <button type="button" onClick={() => onChange(null)} title="Remove color"
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: classic ? 11 : 12, color: classic ? '#0a246a' : '#2563eb', textDecoration: 'underline' }}>Clear</button>
+                : <span style={{ fontSize: classic ? 11 : 12, color: classic ? '#666' : '#94a3b8' }}>No color</span>}
+        </div>
+    );
+}
+
 export default function ColorsVariantView({ values, canCreate, canEdit, canDelete, onAdd, onRename, onDelete }: Props) {
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
@@ -39,12 +68,10 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
     const [page, setPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newValue, setNewValue] = useState('');
-    const [newHexOn, setNewHexOn] = useState(false);
-    const [newHex, setNewHex] = useState('#cccccc');
+    const [newHex, setNewHex] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
-    const [editHexOn, setEditHexOn] = useState(false);
-    const [editHex, setEditHex] = useState('#cccccc');
+    const [editHex, setEditHex] = useState<string | null>(null);
     const [formError, setFormError] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -56,7 +83,7 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
 
     const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
 
-    const openCreate = () => { setNewValue(''); setNewHexOn(false); setNewHex('#cccccc'); setFormError(''); setIsModalOpen(true); };
+    const openCreate = () => { setNewValue(''); setNewHex(null); setFormError(''); setIsModalOpen(true); };
 
     const handleAdd = async () => {
         const v = newValue.trim();
@@ -69,20 +96,19 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
         // and show what it said instead of closing on an unconfirmed create.
         setFormError('');
         setSaving(true);
-        const res = await onAdd(v, newHexOn ? newHex : null);
+        const res = await onAdd(v, newHex);
         setSaving(false);
         if (!res?.ok) { setFormError(res?.error || 'Could not add this color.'); return; }
 
         setNewValue('');
-        setNewHexOn(false);
-        setNewHex('#cccccc');
+        setNewHex(null);
         setIsModalOpen(false);
     };
 
-    const startEdit = (v: any) => { setEditingId(v.id); setEditText(v.value); setEditHexOn(!!v.hex); setEditHex(v.hex || '#cccccc'); };
+    const startEdit = (v: any) => { setEditingId(v.id); setEditText(v.value); setEditHex(v.hex || null); };
     const commitEdit = (v: any) => {
         const t = editText.trim();
-        const nextHex = editHexOn ? editHex : null;
+        const nextHex = editHex;
         if (t && (t !== v.value || nextHex !== (v.hex || null))) onRename(v.id, t, nextHex);
         setEditingId(null);
     };
@@ -135,12 +161,7 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                             <tr key={v.id} style={lvRow(classic, idx)}>
                                 <td style={lvTd(classic)}>
                                     {editingId === v.id ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            <input type="checkbox" title="Set exact color" checked={editHexOn} onChange={e => setEditHexOn(e.target.checked)} />
-                                            {editHexOn && (
-                                                <input type="color" value={editHex} onChange={e => setEditHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
-                                            )}
-                                        </div>
+                                        <SwatchPicker hex={editHex} onChange={setEditHex} classic={classic} size={18} />
                                     ) : canEdit ? (
                                         <label
                                             title={v.hex ? `${v.hex} — click to change` : 'Click to set color'}
@@ -235,14 +256,9 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                                 required
                             />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: classic ? 11 : 12, color: classic ? '#333' : '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                <input type="checkbox" checked={newHexOn} onChange={e => setNewHexOn(e.target.checked)} />
-                                Set exact color
-                            </label>
-                            {newHexOn && (
-                                <input type="color" title="Swatch color" value={newHex} onChange={e => setNewHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
-                            )}
+                        <div style={{ marginTop: 10 }}>
+                            <label style={lvLabel(classic)}>Swatch</label>
+                            <SwatchPicker hex={newHex} onChange={setNewHex} classic={classic} />
                         </div>
                     </FormSection>
                 </form>
