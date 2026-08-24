@@ -229,36 +229,45 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         fontFamily: classic ? xpFont : modernFont,
       }}
     >
-      {/* ── Header ── */}
+      {/* ── Header ──
+          Same height and same chrome as the page header it sits beside
+          (`--app-header-h`, globals.css): the two are separate elements, so any
+          difference breaks the top band at the sidebar seam. It was 40 tall with
+          a 2px border against a 30px / 1px header. Height comes from the var —
+          don't re-type the number here. */}
       <div style={classic ? {
-        background: '#0058e6',
-        padding: '8px 10px',
+        background: 'var(--xp-title-flat)',
+        padding: '0 10px',
         color: '#fff',
         display: 'flex',
         alignItems: 'center',
         flexShrink: 0,
-        borderBottom: '2px solid #003080',
+        borderBottom: '1px solid var(--xp-title-blue-border)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
         userSelect: 'none',
-        minHeight: 40,
+        height: 'var(--app-header-h)',
       } : {
         background: '#2563eb',
-        padding: '15px 16px',
+        padding: '0 16px',
         color: '#fff',
         display: 'flex',
         alignItems: 'center',
         flexShrink: 0,
         borderBottom: '1px solid #1d4ed8',
         userSelect: 'none',
-        minHeight: 56,
+        height: 'var(--app-header-h)',
       }}>
         <span
           className="text-truncate"
           title={appName}
           style={{
-            fontFamily: "'Segoe UI', Arial, sans-serif",
-            fontWeight: 800,
-            fontSize: classic ? 16 : 18,
-            letterSpacing: '-0.3px',
+            fontFamily: classic ? xpFont : "'Segoe UI', Arial, sans-serif",
+            fontWeight: 'bold',
+            // Classic: the page header's own title is an 11px uppercase h5, so a
+            // 16px 800-weight brand next to it read as a different application.
+            fontSize: classic ? 12 : 18,
+            letterSpacing: classic ? 0 : '-0.3px',
+            textShadow: classic ? '1px 1px 1px rgba(0,0,0,0.3)' : undefined,
           }}
         >
           {appName}

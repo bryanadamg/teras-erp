@@ -107,6 +107,7 @@ body {
    ============================================================ */
 .ui-style-modern {
   --sidebar-width: 200px;     /* match classic exactly → identical content width, tables fit the same */
+  --app-header-h: 56px;       /* shared with the sidebar brand block — see .ui-style-classic */
   --primary-color: #1f5b8a;   /* drafting blue */
   --primary-light: #2f6ea3;   /* lighter draft blue */
   --primary-dark:  #174a73;   /* deep draft blue */
@@ -160,7 +161,7 @@ body {
 
 /* App header (top bar) */
 .ui-style-modern .app-header {
-  height: 56px;
+  height: var(--app-header-h);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -424,14 +425,26 @@ body {
 :root {
   --xp-title-blue: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
   --xp-title-blue-border: #003080;
+  /* Flat left-end of the title gradient, for the sidebar brand block: it sits to
+     the LEFT of the header, so re-running the gradient there would end bright at
+     the seam and restart dark in the header. Flat = an invisible join. Declared
+     as a var so the brand dims with the header when the window loses focus. */
+  --xp-title-flat: #0058e6;
 }
 body.window-chrome-inactive {
   --xp-title-blue: linear-gradient(to right, #7a96b8 0%, #a8bcd4 100%);
   --xp-title-blue-border: #6a819b;
+  --xp-title-flat: #7a96b8;
 }
 
 .ui-style-classic {
   --sidebar-width: 200px;
+  /* Top-band height. The sidebar's brand block and the page header are two
+     separate elements sitting side by side, so they only read as ONE title band
+     while they are the same height — the brand used to hard-code minHeight 40
+     against a 30px header and the band stepped down at the sidebar seam.
+     Sidebar.tsx reads this var; never re-type the number. */
+  --app-header-h: 30px;
   --win-bg: #ece9d8;
   --win-face: #f0f0e8;
   --win-border-light: #ffffff;
@@ -467,7 +480,7 @@ body.window-chrome-inactive {
 .classic-header {
   background: var(--xp-title-blue) !important;
   color: white !important;
-  height: 30px !important;
+  height: var(--app-header-h) !important;
   padding: 0 5px !important;
   border-bottom: 1px solid var(--xp-title-blue-border) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.3) !important;
