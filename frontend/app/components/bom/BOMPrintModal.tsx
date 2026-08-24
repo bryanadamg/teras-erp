@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
-import { CODE_FONT } from '../shared/xpTheme';
+import { CODE_FONT, PRINT_FONT } from '../shared/xpTheme';
 import { useTimezone } from '../../context/TimezoneContext';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
@@ -84,7 +84,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
     const { formatCustom: tzFmt } = useTimezone();
 
     const documentContent = (
-        <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '9pt', color: '#000', lineHeight: 1.4 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '9pt', color: '#000', lineHeight: 1.4 }}>
 
             {/* Company header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 8, marginBottom: 10 }}>
@@ -426,7 +426,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
 
                         {/* RIGHT: preview */}
                         <div style={{ flex: 1, background: '#d8d8d8', overflowY: 'auto', padding: 20, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                            <div className="bom-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 600, padding: '24px 28px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '9pt', lineHeight: 1.5, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                            <div className="bom-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 600, padding: '24px 28px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '9pt', lineHeight: 1.5, color: '#000', fontFamily: PRINT_FONT }}>
                                 {documentContent}
                             </div>
                         </div>
@@ -445,7 +445,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
             {/* Print portal — print CSS makes this the only visible element */}
             {createPortal(
                 <div className="bom-print-paper-portal" style={{ display: 'none' }}>
-                    <div className="bom-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '9pt', lineHeight: 1.5, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="bom-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '9pt', lineHeight: 1.5, color: '#000', fontFamily: PRINT_FONT }}>
                         {documentContent}
                     </div>
                 </div>,

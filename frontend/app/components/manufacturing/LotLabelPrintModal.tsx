@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
-import { CODE_FONT, xpFont } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, PRINT_FONT } from '../shared/xpTheme';
 
 // Code 128 (1D) alongside the QR so old laser scanners can read the lot too.
 function makeBarcodeDataUrl(text: string): string {
@@ -76,8 +76,8 @@ export default function LotLabelPrintModal({
             ? tzFmt(lot.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')
             : tzFmt(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID');
         return (
-            <div key={lot.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontFamily: 'Arial, sans-serif', color: '#000', lineHeight: 1.3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <div key={lot.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: PRINT_FONT, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontFamily: PRINT_FONT, color: '#000', lineHeight: 1.3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                     {/* Header + QR */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '6px', gap: '8px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>

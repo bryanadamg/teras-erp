@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { PRINT_FONT } from '../shared/xpTheme';
 
 import { useTimezone } from '../../context/TimezoneContext';
 
@@ -73,7 +74,7 @@ function SOTableDocument({
     const dateHeader = `${String(today.getDate()).padStart(2,'0')} ${monthNames[today.getMonth()]} ${today.getFullYear()}`;
 
     return (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '7.5px', color: '#000', lineHeight: 1.3 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '7.5px', color: '#000', lineHeight: 1.3 }}>
             {/* Company header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid #000' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -216,7 +217,7 @@ export default function SOTablePrintModal({
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', overflowX: 'auto', padding: 16 }}>
                         <div
                             className="so-table-print-paper"
-                            style={{ background: '#fff', width: 1090, minWidth: 1090, padding: '12px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '7.5px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}
+                            style={{ background: '#fff', width: 1090, minWidth: 1090, padding: '12px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '7.5px', lineHeight: 1.4, color: '#000', fontFamily: PRINT_FONT }}
                         >
                             {docContent}
                         </div>
@@ -229,7 +230,7 @@ export default function SOTablePrintModal({
             {/* Print portal */}
             {createPortal(
                 <div className="so-table-print-portal" style={{ display: 'none' }}>
-                    <div className="so-table-print-paper" style={{ background: '#fff', width: '100%', boxSizing: 'border-box', padding: '0', fontSize: '7.5px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="so-table-print-paper" style={{ background: '#fff', width: '100%', boxSizing: 'border-box', padding: '0', fontSize: '7.5px', lineHeight: 1.4, color: '#000', fontFamily: PRINT_FONT }}>
                         {docContent}
                     </div>
                 </div>,

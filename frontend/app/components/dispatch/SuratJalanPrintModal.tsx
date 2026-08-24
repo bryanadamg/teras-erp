@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
-import { xpFont as font, xpInput as xpInputBase } from '../shared/xpTheme';
+import { xpFont as font, xpInput as xpInputBase, PRINT_FONT } from '../shared/xpTheme';
 import { qtyFmt } from '../shared/format';
 
 // Perincian spreads each group's cartons across fixed columns; a group with more
@@ -117,7 +117,7 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
     );
 
     return (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.45 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '9px', color: '#000', lineHeight: 1.45 }}>
             {/* ── Band A: SURAT JALAN (the legal delivery note) ───────────────── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>

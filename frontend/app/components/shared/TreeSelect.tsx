@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
 import { layoutRectOf, layoutViewport } from './uiScale';
-import { xpFont } from './xpTheme';
+import { xpFont, BUTTON_RADIUS } from './xpTheme';
 
 export interface TreeSelectOption {
   value: string;
@@ -165,6 +165,7 @@ export default function TreeSelect({
     height: 20,
     padding: '0 22px 0 4px',
     border: '1px solid #7f9db9',
+    borderRadius: BUTTON_RADIUS,
     background: disabled ? '#f0f0f0' : '#fff',
     color: value ? '#000' : '#777',
     cursor: disabled ? 'default' : 'pointer',
@@ -190,10 +191,12 @@ export default function TreeSelect({
               ...xpFontStyle,
               display: 'flex',
               alignItems: 'center',
-              paddingLeft: 4 + depth * 14,
-              paddingRight: 6,
+              paddingLeft: 2 + depth * 14,
+              paddingRight: 4,
               paddingTop: 2,
               paddingBottom: 2,
+              margin: '0 2px',
+              borderRadius: BUTTON_RADIUS,
               cursor: canSelect || hasKids ? 'pointer' : 'default',
               background: isSelected ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent',
               // A node that can't be picked (e.g. a transfer's own source location)
@@ -260,10 +263,12 @@ export default function TreeSelect({
           style={{
             display: 'flex',
             alignItems: 'center',
-            paddingLeft: 6 + depth * 14,
-            paddingRight: 8,
+            paddingLeft: 4 + depth * 14,
+            paddingRight: 6,
             paddingTop: 4,
             paddingBottom: 4,
+            margin: '0 2px',
+            borderRadius: BUTTON_RADIUS,
             cursor: canSelect || hasKids ? 'pointer' : 'default',
             fontSize: size === 'sm' ? 12 : 13,
             userSelect: 'none',
@@ -330,13 +335,17 @@ export default function TreeSelect({
       style={classic ? {
         ...xpFontStyle,
         padding: '2px 4px',
+        margin: '0 2px',
+        borderRadius: BUTTON_RADIUS,
         cursor: 'pointer',
         background: !value ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent',
         color: !value ? '#fff' : '#777',
         fontStyle: 'italic',
         userSelect: 'none',
       } : {
-        padding: '4px 8px',
+        padding: '4px 6px',
+        margin: '0 2px',
+        borderRadius: BUTTON_RADIUS,
         fontSize: size === 'sm' ? 12 : 13,
         cursor: 'pointer',
         color: !value ? '#fff' : '#888',
@@ -360,6 +369,7 @@ export default function TreeSelect({
     minWidth: dropPos.width,
     maxHeight: dropPos.maxHeight,
     overflowY: 'auto',
+    padding: '2px 0',
     transform: dropPos.above ? 'translateY(-100%)' : undefined,
   };
 
@@ -370,6 +380,7 @@ export default function TreeSelect({
         maxWidth: 400,
         background: '#fff',
         border: '1px solid #7f9db9',
+        borderRadius: BUTTON_RADIUS,
         boxShadow: '2px 2px 4px rgba(0,0,0,0.25)',
       }}>
         {emptyRow}
@@ -406,7 +417,7 @@ export default function TreeSelect({
       maxWidth: 420,
       background: '#fff',
       border: '1px solid #dee2e6',
-      borderRadius: 4,
+      borderRadius: BUTTON_RADIUS,
       boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
     }}>
       {emptyRow}

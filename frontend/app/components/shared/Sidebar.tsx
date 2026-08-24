@@ -229,40 +229,46 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         fontFamily: classic ? xpFont : modernFont,
       }}
     >
-      {/* ── Header ── */}
+      {/* ── Header ──
+          Same height and same chrome as the page header it sits beside
+          (`--app-header-h`, globals.css): the two are separate elements, so any
+          difference breaks the top band at the sidebar seam. It was 40 tall with
+          a 2px border against a 30px / 1px header. Height comes from the var —
+          don't re-type the number here. */}
       <div style={classic ? {
-        background: '#0058e6',
-        padding: '8px 10px',
+        background: 'var(--xp-title-flat)',
+        padding: '0 10px',
         color: '#fff',
         display: 'flex',
         alignItems: 'center',
         flexShrink: 0,
-        borderBottom: '2px solid #003080',
+        borderBottom: '1px solid var(--xp-title-blue-border)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
         userSelect: 'none',
-        minHeight: 40,
+        height: 'var(--app-header-h)',
       } : {
         background: '#2563eb',
-        padding: '15px 16px',
+        padding: '0 16px',
         color: '#fff',
         display: 'flex',
         alignItems: 'center',
         flexShrink: 0,
         borderBottom: '1px solid #1d4ed8',
         userSelect: 'none',
-        minHeight: 56,
+        height: 'var(--app-header-h)',
       }}>
-        <span
-          className="text-truncate"
-          title={appName}
+        <img
+          className="app-brand-icon"
+          src="/icons/icon-192.png"
+          alt={appName}
+          data-no-tip
           style={{
-            fontFamily: "'Segoe UI', Arial, sans-serif",
-            fontWeight: 800,
-            fontSize: classic ? 16 : 18,
-            letterSpacing: '-0.3px',
+            width: classic ? 20 : 24,
+            height: classic ? 20 : 24,
+            flexShrink: 0,
+            borderRadius: classic ? 3 : 5,
           }}
-        >
-          {appName}
-        </span>
+        />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -293,7 +299,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
               padding: '9px 0',
               background: hovered === 'scanner' ? M_PRIMARY_DK : M_PRIMARY,
               border: 'none',
-              borderRadius: 10,
+              borderRadius: 8,
               color: '#fff',
               fontFamily: modernFont,
               fontSize: 12,
@@ -348,11 +354,13 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
       }}>
         {hasPermission('admin.access') && (
           <button
+            className={XP_BTN}
             onClick={() => setActiveTab('settings')}
             {...H('settings')}
             style={classic ? {
               width: '100%',
-              padding: '4px 0',
+              padding: '6px 0',
+              borderRadius: BUTTON_RADIUS,
               background: hovered === 'settings'
                 ? 'linear-gradient(to bottom, #ffffff, #dde4f4)'
                 : 'linear-gradient(to bottom, #f0f3fb, #d6dff7)',
@@ -371,7 +379,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
               gap: 6,
             } : {
               width: '100%',
-              padding: '8px 0',
+              padding: '9px 0',
               background: hovered === 'settings' ? '#eff6ff' : 'transparent',
               border: `1px solid ${hovered === 'settings' ? '#bfdbfe' : M_BORDER}`,
               borderRadius: 8,

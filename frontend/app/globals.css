@@ -107,6 +107,7 @@ body {
    ============================================================ */
 .ui-style-modern {
   --sidebar-width: 200px;     /* match classic exactly → identical content width, tables fit the same */
+  --app-header-h: 56px;       /* shared with the sidebar brand block — see .ui-style-classic */
   --primary-color: #1f5b8a;   /* drafting blue */
   --primary-light: #2f6ea3;   /* lighter draft blue */
   --primary-dark:  #174a73;   /* deep draft blue */
@@ -160,7 +161,7 @@ body {
 
 /* App header (top bar) */
 .ui-style-modern .app-header {
-  height: 56px;
+  height: var(--app-header-h);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -424,14 +425,26 @@ body {
 :root {
   --xp-title-blue: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
   --xp-title-blue-border: #003080;
+  /* Flat left-end of the title gradient, for the sidebar brand block: it sits to
+     the LEFT of the header, so re-running the gradient there would end bright at
+     the seam and restart dark in the header. Flat = an invisible join. Declared
+     as a var so the brand dims with the header when the window loses focus. */
+  --xp-title-flat: #0058e6;
 }
 body.window-chrome-inactive {
   --xp-title-blue: linear-gradient(to right, #7a96b8 0%, #a8bcd4 100%);
   --xp-title-blue-border: #6a819b;
+  --xp-title-flat: #7a96b8;
 }
 
 .ui-style-classic {
   --sidebar-width: 200px;
+  /* Top-band height. The sidebar's brand block and the page header are two
+     separate elements sitting side by side, so they only read as ONE title band
+     while they are the same height — the brand used to hard-code minHeight 40
+     against a 30px header and the band stepped down at the sidebar seam.
+     Sidebar.tsx reads this var; never re-type the number. */
+  --app-header-h: 30px;
   --win-bg: #ece9d8;
   --win-face: #f0f0e8;
   --win-border-light: #ffffff;
@@ -467,7 +480,7 @@ body.window-chrome-inactive {
 .classic-header {
   background: var(--xp-title-blue) !important;
   color: white !important;
-  height: 30px !important;
+  height: var(--app-header-h) !important;
   padding: 0 5px !important;
   border-bottom: 1px solid var(--xp-title-blue-border) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.3) !important;
@@ -972,6 +985,16 @@ body.window-chrome-inactive {
 }
 .ui-style-classic ::-webkit-scrollbar-corner {
   background: #d4d0c8;
+}
+
+/* Brand icon (sidebar / mobile header) */
+.app-brand-icon {
+  transition: transform 0.2s ease, filter 0.2s ease;
+  cursor: default;
+}
+.app-brand-icon:hover {
+  transform: scale(1.12) rotate(-4deg);
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.6));
 }
 
 /* Sidebar Area */
@@ -1658,6 +1681,14 @@ table {
 .lv-check {
     transition: box-shadow 0.12s ease;
 }
+/* Classic checkboxes are bare native inputs (no form-check-input class), which
+   Chromium/Edge render with rounded corners regardless of CSS. box-shadow
+   always follows an element's own border-radius, so without this the hover
+   ring boxes the rounded glyph in a sharp square. Modern theme's checkbox
+   already carries Bootstrap's own border-radius, so its ring already matches. */
+.ui-style-classic .lv-check {
+    border-radius: 3px;
+}
 .lv-check:hover:not(:disabled) {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.20);
 }
@@ -1778,6 +1809,30 @@ table {
   .xp-btn:not(:disabled):active,
   .ui-style-classic .btn:not(:disabled):hover,
   .ui-style-classic .btn:not(:disabled):active { transform: none; }
+}
+
+/* ── CLICKABLE TILES: shared hover motion ────────────────────────────────────
+   A grid of tiles that open something on click (loom cards on the weaving
+   monitor, and any card grid that follows) gets the same feedback as `.xp-btn`
+   but scaled to a panel: a 1px lift and a deeper shadow, no face brighten — a
+   card is mostly white, so brightness reads as nothing while the shadow reads
+   as "this whole thing is one clickable object". One class, both themes, so
+   card grids don't each invent a hover. */
+.tile-hover {
+  transition: transform 110ms ease-out, box-shadow 110ms ease-out, filter 110ms ease-out;
+}
+.tile-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.20);
+  z-index: 1;
+}
+.tile-hover:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile-hover { transition: none; }
+  .tile-hover:hover, .tile-hover:active { transform: none; }
 }
 
 /* ── TABS: shared hover motion ────────────────────────────────────────────────

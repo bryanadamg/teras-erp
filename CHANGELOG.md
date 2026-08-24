@@ -15,6 +15,24 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-24
+
+### Added
+- Weaving Monitor has a running-only filter, backed by a toned idle `ToggleChip` variant
+
+### Changed
+- Weaving Monitor loom cards are rounded, a loom running several WOs pages them in one tile instead of stacking a card per WO, and cards lift on hover; the machine drill-in modal's window chrome now matches the loom's status color, its tab strip is pane-toned and full-bleed, and its run cards are boxed
+- Work Queue's expanded row uses the shared sub-table primitives instead of a hand-rolled table
+- Stock On Hand's attribute badges and the UOM conversion badges render through the shared `Chip` primitive
+- `TreeSelect`'s trigger, panel and rows are rounded onto `BUTTON_RADIUS`, matching every other control
+- The sidebar and mobile header show the app icon instead of brand text, with a hover animation, and the sidebar's brand block is joined to the app header as one top band; the System Admin button picks up the standard radius too
+- Remaining hand-rolled view shells (Colors, BOM, and others) are rounded onto the shared frame radius, and every page shell settles on one title-bar height
+- Hand-rolled font stacks are consolidated onto shared typography constants (`modernFont`, `CODE_FONT`)
+
+### Fixed
+- The custom tooltip no longer stays open when the pointer moves into a nested `data-no-tip` zone
+- Classic checkboxes and toggle chips have consistent hover ring/glow styling
+
 ## [0.9.0] - 2026-08-24
 
 ### Added

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { PRINT_FONT } from '../shared/xpTheme';
 import { useTimezone } from '../../context/TimezoneContext';
 
 interface SamplePrintSettings {
@@ -75,7 +76,7 @@ function SPKDocument({
     ];
 
     const docStyle: React.CSSProperties = {
-        fontFamily: 'Arial, Helvetica, sans-serif',
+        fontFamily: PRINT_FONT,
         fontSize: '13px',
         color: '#000',
         lineHeight: '1.4',
@@ -386,7 +387,7 @@ export default function SamplePrintModal({
                             {/* zoom scales layout space too, so 730px × 0.62 ≈ 453px apparent width —
                                 matches the old preview size while showing content at true A4 proportions */}
                             <div style={{ zoom: 0.62, width: 730, flexShrink: 0 }}>
-                                <div className="smp-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '13px', lineHeight: 1.5, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                                <div className="smp-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '13px', lineHeight: 1.5, color: '#000', fontFamily: PRINT_FONT }}>
                                     {docContent}
                                 </div>
                             </div>
@@ -402,7 +403,7 @@ export default function SamplePrintModal({
             {/* ── Print portal ── */}
             {createPortal(
                 <div className="smp-print-paper-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
-                    <div className="smp-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '13px', lineHeight: 1.5, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="smp-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '13px', lineHeight: 1.5, color: '#000', fontFamily: PRINT_FONT }}>
                         {docContent}
                     </div>
                 </div>,

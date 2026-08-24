@@ -2,6 +2,17 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
+
+// Loom status → window chrome. Exported so the monitor grid can paint a card's
+// status strip with the very gradient the window it opens will wear (see
+// `loomStrip` in WeavingMonitorView) — one map, so the two can't drift.
+export const LOOM_TITLE_VARIANT: Record<string, 'primary' | 'success' | 'warning' | 'secondary'> = {
+    RUNNING: 'success',
+    STAGED: 'warning',
+    DRAW_IN: 'primary',
+    TUNING: 'primary',
+    IDLE: 'secondary',
+};
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
 import { useLanguage } from '../../context/LanguageContext';
@@ -13,7 +24,7 @@ import { useToast } from '../shared/Toast';
 import {
     xpFont, familyColor, StatusChip, XPActionButton, PanelSkeleton, XPEmptyState,
     ExpandedRowPanel, ExpandedRowPanelBody, FormSection, FieldLabel, ProgressBar,
-    xpSelect, xpPanel, SectionTitle, CodeChip,
+    xpSelect, xpPanel, SectionTitle, CodeChip, SECTION_RADIUS, CHIP_RADIUS,
 } from '../shared/xpTheme';
 import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -113,6 +124,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     // National holidays for the displayed year — shared hook, same overlay the group
     // calendar renders.
     const national = useNationalHolidays(authFetch, apiBase, calRef.getFullYear(), isOpen);
+    // Title bar wears the loom's own status colour — the same gradient the card on
+    // the monitor grid paints on its status strip (see `loomStrip` in
+    // WeavingMonitorView; success/warning/primary here resolve to those exact
+    // gradients). Falls back to `info` when the caller passes no status, so a
+    // non-weaving work centre keeps the neutral window chrome.
+    const titleVariant = LOOM_TITLE_VARIANT[workCenter?.loom_status as string] || 'info';
+
 
     const wcId = workCenter?.id;
 
@@ -497,27 +515,50 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     // One active run. A loom carries one of these per WO, so everything inside is
     // keyed by run id — nothing here may read a "the run" singleton any more.
     //
-    // `first` drives the divider: concurrent WOs on one loom are long panels of very
-    // similar-looking stats, and with only whitespace between them the eye reads two
-    // orders as one. The rule is where the next WO starts.
-    const RunPanel = ({ run, first }: { run: any; first?: boolean }) => {
+    // Concurrent WOs on one loom are long panels of near-identical stats. A rule
+    // between them was not enough separation — the eye read three orders as one long
+    // page — so each run is now a BOXED card: its own frame, its own header band
+    // carrying "WO 2 of 3", and the whole box is a scroll-snap stop, so scrolling the
+    // pane lands on a run boundary instead of halfway through someone else's numbers.
+    const RunPanel = ({ run, index = 0, total = 1 }: { run: any; index?: number; total?: number }) => {
         const onTarget = !!run.on_target;
         const effColor = onTarget ? GREEN : RED;
         const editingOverride = overrideRunId === run.id;
         const editingTarget = targetRunId === run.id;
         const editingLines = linesRunId === run.id;
         const editingRate = rateRunId === run.id;
+        const multi = total > 1;
         return (
-            <div style={first
-                ? { marginBottom: 16 }
-                : {
-                    marginBottom: 16, marginTop: 16, paddingTop: 16,
-                    borderTop: `2px solid ${cls ? '#b0a898' : '#dee2e6'}`,
+            <div style={{
+                marginBottom: 14,
+                // Snap stop per run. `proximity` on the pane, so a run taller than the
+                // viewport still scrolls freely inside itself — `mandatory` would fight
+                // its own content.
+                scrollSnapAlign: 'start', scrollMarginTop: 4,
+                ...(cls
+                    ? { border: '1px solid #b0a898', borderRadius: SECTION_RADIUS, background: '#f4f2ea', overflow: 'hidden' }
+                    : { border: '1px solid #dee2e6', borderRadius: SECTION_RADIUS, background: '#f8fafc', overflow: 'hidden' }),
+            }}>
+                {/* Run header strip — the box's own title band, seated on its top edge
+                    rather than floating in the body, so the frame says where this WO
+                    starts and ends. */}
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '6px 10px',
+                    ...(cls
+                        ? { background: 'linear-gradient(to bottom, #fbfbf7, #e8e5db)', borderBottom: '1px solid #b0a898' }
+                        : { background: '#fff', borderBottom: '1px solid #e6eaef' }),
                 }}>
-                {/* Run header strip */}
-                <div style={cls
-                    ? { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fbfbf7', border: '1px solid', borderColor: '#808080 #fff #fff #808080', padding: '6px 10px', marginBottom: 10 }
-                    : { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                    {/* "2 of 3" first: with several WOs on one loom, which of them you
+                        are reading is the first thing to establish. */}
+                    {multi && (
+                        <span style={{
+                            fontFamily: cls ? xpFont : undefined, fontSize: 10, fontWeight: 700,
+                            padding: '1px 6px', borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap',
+                            background: cls ? '#d4d0c8' : '#eceef0', color: '#444',
+                        }}>
+                            {t('wo_short')} {index + 1}/{total}
+                        </span>
+                    )}
                     <StatusChip status={run.status} />
                     {run.wo_code && (
                         <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold', color: BLUE }}>{run.wo_code}</span>
@@ -563,6 +604,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                     )}
                 </div>
 
+                <div style={{ padding: '10px 10px 2px' }}>
                 {/* Hero: efficiency + actual + rate */}
                 <div style={{ display: 'grid', gridTemplateColumns: cls ? '1.4fr 1fr 1fr' : 'repeat(auto-fit,minmax(170px,1fr))', gap: 8, marginBottom: 12 }}>
                     {/* Efficiency hero */}
@@ -671,15 +713,18 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 </FormSection>
 
                 <CompletionSection run={run} />
+                </div>
             </div>
         );
     };
 
     return (
-        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info" modeless bodyScroll={false}>
-            {tabBar}
+        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant={titleVariant} modeless bodyScroll={false} banner={tabBar}>
 
-            <div style={{ height: `min(${TAB_PANEL_HEIGHT}px, calc(var(--app-vh) - 220px))`, overflowY: 'auto', paddingTop: 12 }}>
+            {/* `proximity`, not `mandatory`: only the run boxes declare a snap point, so
+                every other pane scrolls normally and a run longer than the pane is not
+                yanked back to its own top edge. */}
+            <div style={{ height: `min(${TAB_PANEL_HEIGHT}px, calc(var(--app-vh) - 220px))`, overflowY: 'auto', scrollSnapType: 'y proximity' }}>
 
             {tab === 'performance' && (
                 <div>
@@ -863,7 +908,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
                     {/* One panel per RUNNING run — a loom carries one per WO, ruled off
                         from the next so two concurrent orders never read as one. */}
-                    {runs.map((r: any, i: number) => <RunPanel key={r.id} run={r} first={i === 0} />)}
+                    {runs.map((r: any, i: number) => <RunPanel key={r.id} run={r} index={i} total={runs.length} />)}
 
                     {/* History */}
                     {data?.history?.length > 0 && (

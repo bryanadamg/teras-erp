@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { PRINT_FONT, PRINT_SERIF_FONT } from '../shared/xpTheme';
 
 interface SOPrintSettings {
     preparedBy: string;
@@ -72,7 +73,7 @@ function SODocument({
     const hCell: React.CSSProperties = { ...cell, background: '#f0f0f0', fontWeight: 'bold', textAlign: 'center' as const };
 
     return (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '8.5px', color: '#000', lineHeight: 1.4 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '8.5px', color: '#000', lineHeight: 1.4 }}>
 
             {/* Company Header */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 5, borderBottom: '2px solid #000' }}>
@@ -97,7 +98,7 @@ function SODocument({
                     </div>
                 </div>
                 <div style={{ alignSelf: 'flex-end' }}>
-                    <div style={{ fontSize: 16, fontWeight: 'bold', fontFamily: 'Georgia, serif' }}>Sales Order Confirmation</div>
+                    <div style={{ fontSize: 16, fontWeight: 'bold', fontFamily: PRINT_SERIF_FONT }}>Sales Order Confirmation</div>
                 </div>
             </div>
 
@@ -339,7 +340,7 @@ export default function SalesPrintModal({
 
                         {/* RIGHT — live preview */}
                         <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                            <div className="so-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 640, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '8.5px', lineHeight: 1.5, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                            <div className="so-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 640, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '8.5px', lineHeight: 1.5, color: '#000', fontFamily: PRINT_FONT }}>
                                 {docContent}
                             </div>
                         </div>
@@ -353,7 +354,7 @@ export default function SalesPrintModal({
             {/* Print portal — rendered into body, shown only during actual print */}
             {createPortal(
                 <div className="so-print-paper-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
-                    <div className="so-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '8.5px', lineHeight: 1.5, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="so-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '8.5px', lineHeight: 1.5, color: '#000', fontFamily: PRINT_FONT }}>
                         {docContent}
                     </div>
                 </div>,

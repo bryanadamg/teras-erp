@@ -24,7 +24,7 @@ import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { SearchField, pageFillStyle, xpTitleBar } from '../shared/shellTheme';
+import { SearchField, pageFillStyle, viewShellStyle, xpTitleBar } from '../shared/shellTheme';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -610,16 +610,12 @@ export default function WorkOrderListView({
         );
     };
 
-    const containerStyle: React.CSSProperties = {
-        ...pageFillStyle,
-        ...(classic ? {
-            border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-            background: '#ece9d8', fontFamily: xpFont,
-        } : {}),
-    };
+    const containerStyle: React.CSSProperties = classic
+        ? viewShellStyle(true, 'page', { fontFamily: xpFont })
+        : pageFillStyle;
 
     const titleBarStyle: React.CSSProperties = classic ? xpTitleBar({
-        justifyContent: 'flex-start', gap: 8, minHeight: undefined,
+        justifyContent: 'flex-start', gap: 8,
     }) : {
         background: '#fff', borderBottom: '1px solid #dee2e6',
         padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,

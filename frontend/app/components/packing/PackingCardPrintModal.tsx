@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { PRINT_FONT, PRINT_SERIF_FONT } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -51,11 +52,11 @@ export default function PackingCardPrintModal({ po, attributes, companyProfile, 
     const gridLbl: React.CSSProperties = { fontWeight: 'bold', paddingRight: 6, whiteSpace: 'nowrap', verticalAlign: 'top' };
 
     const doc = (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10px', color: '#000', lineHeight: 1.45 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '10px', color: '#000', lineHeight: 1.45 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8, paddingBottom: 6, borderBottom: '2px solid #000' }}>
                 <div>
                     <div style={{ fontWeight: 'bold', fontSize: 12 }}>{companyProfile?.name || 'PT. BOLA INTAN ELASTIC'}</div>
-                    <div style={{ fontSize: 15, fontWeight: 'bold', fontFamily: 'Georgia, serif', marginTop: 2 }}>KARTU PACKING</div>
+                    <div style={{ fontSize: 15, fontWeight: 'bold', fontFamily: PRINT_SERIF_FONT, marginTop: 2 }}>KARTU PACKING</div>
                     <div style={{ fontSize: 9, color: '#555' }}>Packing Order Card</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>

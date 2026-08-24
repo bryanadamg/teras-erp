@@ -15,7 +15,7 @@ import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor,
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
-import { pageFillStyle, xpTitleBar } from '../shared/shellTheme';
+import { pageFillStyle, viewShellStyle, xpTitleBar } from '../shared/shellTheme';
 import { Tabs } from '../shared/Tabs';
 
 export default function ManufacturingView({
@@ -503,19 +503,15 @@ export default function ManufacturingView({
 
           <div className="col-12 flex-print-fill">
               {/* ── Outer window shell ── */}
-              <div style={{
-                  border: classic ? '2px solid' : undefined,
-                  borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : undefined,
-                  borderRadius: 0,
-                  boxShadow: classic ? '2px 2px 4px rgba(0,0,0,0.3)' : undefined,
-                  background: classic ? '#ece9d8' : undefined,
-                  ...pageFillStyle,
-              }} className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}>
+              <div
+                  style={classic ? viewShellStyle(true) : pageFillStyle}
+                  className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}
+              >
 
                   {/* ── Title bar / toolbar ── */}
                   <div
                       className="no-print"
-                      style={classic ? xpTitleBar({ minHeight: undefined }) : {
+                      style={classic ? xpTitleBar() : {
                           background: '#fff',
                           borderBottom: '1px solid #dee2e6',
                           padding: '8px 16px',

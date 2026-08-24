@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { layoutRectOf, layoutScroll } from './uiScale';
-import { xpFont, modernFont, CODE_FONT } from './typography';
+import { xpFont, modernFont, CODE_FONT, PRINT_FONT, PRINT_SERIF_FONT } from './typography';
 import { FloatingLayer, Tooltip, TooltipSurface, useHoverAnchor, isClipped } from './Tooltip';
 
 /**
@@ -14,7 +14,7 @@ import { FloatingLayer, Tooltip, TooltipSurface, useHoverAnchor, isClipped } fro
 // The font stacks live in ./typography so Tooltip (which this file imports) can
 // use them without an import cycle. Re-exported here: every existing
 // `import { xpFont } from '../shared/xpTheme'` still resolves to the same const.
-export { xpFont, modernFont, CODE_FONT } from './typography';
+export { xpFont, modernFont, CODE_FONT, PRINT_FONT, PRINT_SERIF_FONT } from './typography';
 
 // ── Identifier typography ─────────────────────────────────────────────────────
 // Codes are UNBOXED — plain monospace text. The box the items/BOM tables used to
@@ -1018,11 +1018,23 @@ export function LegendPanel({ title, right, children, style }: {
 // STATUS_FAMILY — don't add a sixth hue.
 export type ChipTone = 'blue' | 'green' | 'red' | 'amber';
 
-const CHIP_TONES: Record<ChipTone, { bg: string; border: string; cls: string }> = {
-    blue:  { bg: '#0058e6', border: '#003080', cls: 'btn-primary' },
-    green: { bg: '#1a7a1a', border: '#0a4a0a', cls: 'btn-success' },
-    red:   { bg: '#a52020', border: '#5e0000', cls: 'btn-danger' },
-    amber: { bg: '#c07000', border: '#804000', cls: 'btn-warning' },
+// `idle*` is the OFF face for a chip that carries its hue whether or not it is
+// pressed (`toneIdle`) — a standalone toggle whose label alone doesn't say what it
+// does ("Running only") reads better as a pale-tinted button than as one more grey
+// one in the strip. Segmented/filter chips keep the neutral OFF face: in a row of
+// them a tinted idle face would read as several selections at once.
+const CHIP_TONES: Record<ChipTone, {
+    bg: string; border: string; cls: string;
+    idleBg: string; idleBorder: string; idleText: string; idleGlow: string; idleCls: string;
+}> = {
+    blue:  { bg: '#0058e6', border: '#003080', cls: 'btn-primary',
+             idleBg: 'linear-gradient(to bottom,#ffffff,#d6e6fb)', idleBorder: '#7f9db9', idleText: '#00006e', idleGlow: 'rgba(0,64,180,0.28)',  idleCls: 'btn-outline-primary' },
+    green: { bg: '#1a7a1a', border: '#0a4a0a', cls: 'btn-success',
+             idleBg: 'linear-gradient(to bottom,#ffffff,#d7ecd7)', idleBorder: '#7aa87a', idleText: '#0a4a0a', idleGlow: 'rgba(26,122,26,0.30)',  idleCls: 'btn-outline-success' },
+    red:   { bg: '#a52020', border: '#5e0000', cls: 'btn-danger',
+             idleBg: 'linear-gradient(to bottom,#ffffff,#f5d8d8)', idleBorder: '#c08a8a', idleText: '#5e0000', idleGlow: 'rgba(165,32,32,0.28)',  idleCls: 'btn-outline-danger' },
+    amber: { bg: '#c07000', border: '#804000', cls: 'btn-warning',
+             idleBg: 'linear-gradient(to bottom,#ffffff,#f7e6c8)', idleBorder: '#c0a070', idleText: '#804000', idleGlow: 'rgba(192,112,0,0.28)',  idleCls: 'btn-outline-warning' },
 };
 
 /** Position inside a segmented (flush) group — see `FilterChipBar`/`SegmentedBar`. */
@@ -1033,7 +1045,7 @@ export type ChipSeg = 'first' | 'mid' | 'last' | 'only';
 // selected; modern is the bootstrap solid/outline pair. Use this instead of styling
 // a selected state per view, so "this one is selected" always looks the same.
 // Pass `seg` to make it a member of a flush segmented group (borders collapse).
-export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, title, seg, tone = 'blue', flat = false, children }: {
+export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, title, seg, tone = 'blue', flat = false, toneIdle = false, children }: {
     on: boolean;
     onClick: () => void;
     classic: boolean;
@@ -1047,6 +1059,11 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
     // data control rather than a strip of buttons; weekday/filter chips keep the
     // raised default since those are genuinely toolbar buttons.
     flat?: boolean;
+    // Carry `tone`'s hue in the OFF state too, instead of the neutral grey face.
+    // For a standalone toggle whose meaning is the tone (green = running); never
+    // for a chip sitting in a filter row, where a tinted idle face reads as
+    // selected. Ignored by `flat`.
+    toneIdle?: boolean;
     children: React.ReactNode;
 }) {
     const c = CHIP_TONES[tone];
@@ -1074,25 +1091,43 @@ export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, t
             onMouseDown={() => setPressed(true)}
             onMouseUp={() => setPressed(false)}
             onBlur={() => { setHover(false); setPressed(false); }}
-            className={classic ? '' : `btn btn-sm ${on ? c.cls : 'btn-outline-secondary'}`}
+            className={classic ? '' : `btn btn-sm ${on ? c.cls : toneIdle && !flat ? c.idleCls : 'btn-outline-secondary'}`}
             style={classic ? {
                 fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
                 minWidth, padding: '2px 9px', borderRadius: BUTTON_RADIUS,
                 cursor: disabled ? 'default' : 'pointer',
                 border: '1px solid',
                 borderColor: on ? c.border
-                    : (!flat && lit) ? '#7f9db9 #4a7ab5 #4a7ab5 #7f9db9'
+                    : flat ? '#dfdfdf #808080 #808080 #dfdfdf'
+                    : toneIdle ? c.idleBorder
+                    : lit ? '#7f9db9 #4a7ab5 #4a7ab5 #7f9db9'
                     : '#dfdfdf #808080 #808080 #dfdfdf',
                 background: on ? c.bg
                     : flat ? '#eceae0'
+                    : toneIdle ? c.idleBg
                     : lit ? 'linear-gradient(to bottom,#ffffff,#d6e6fb)'
                     : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
-                color: on ? '#fff' : (!flat && lit) ? '#00006e' : '#000',
+                color: on ? '#fff'
+                    : flat ? '#000'
+                    : toneIdle ? c.idleText
+                    : lit ? '#00006e'
+                    : '#000',
                 // Selected chips are already filled, so hover brightens the fill
                 // instead of tinting it — same feedback, tone-agnostic.
-                filter: flat ? flatFilter : (lit && on ? 'brightness(1.18)' : 'none'),
+                filter: flat ? flatFilter
+                    : lit && on ? 'brightness(1.18)'
+                    // A toned idle face has no blue-tint hover to fall back on, so it
+                    // brightens its own hue instead.
+                    : lit && toneIdle ? 'brightness(1.06)'
+                    : 'none',
                 transform: flat ? flatLift : undefined,
-                boxShadow: (!flat && lit && !on) ? 'inset 0 0 0 1px rgba(255,255,255,0.75)' : 'none',
+                // Was an inset white ring traced around the whole chip on hover — a hard
+                // outline on top of the bevel border it sits inside, reading as two nested
+                // frames instead of one control lighting up. A soft outer glow reads as the
+                // chip itself lifting off the strip, the way the flat variant's translateY
+                // does, without the transform (segmented chips share a border line and must
+                // not shift apart from their neighbours on hover).
+                boxShadow: (!flat && lit && !on) ? `0 1px 4px ${toneIdle ? c.idleGlow : 'rgba(0,64,180,0.28)'}` : 'none',
                 transition: 'background 120ms ease, border-color 120ms ease, filter 120ms ease, box-shadow 120ms ease, color 120ms ease, transform 120ms ease',
                 whiteSpace: 'nowrap',
                 // Segment members share one border line; the selected (or hovered)

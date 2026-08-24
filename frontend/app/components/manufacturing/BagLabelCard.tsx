@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { useTimezone } from '../../context/TimezoneContext';
-import { CODE_FONT } from '../shared/xpTheme';
+import { CODE_FONT, PRINT_FONT } from '../shared/xpTheme';
 
 /**
  * Bag output label — one physical sticker per bag produced at a WEAVING WO.
@@ -59,7 +59,7 @@ export default function BagLabelCard({
     const heroLbl: React.CSSProperties = { fontSize: '8px', color: '#555', fontWeight: 'bold', letterSpacing: '0.5px' };
 
     return (
-        <div style={{ fontFamily: 'Arial, sans-serif', color: '#000', lineHeight: 1.3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div style={{ fontFamily: PRINT_FONT, color: '#000', lineHeight: 1.3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
 
             {/* Header: identity + QR(lot) */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '6px', gap: '8px' }}>

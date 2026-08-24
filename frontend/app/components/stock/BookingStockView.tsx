@@ -196,7 +196,7 @@ export default function BookingStockView() {
 
     return (
         <div className={classic ? 'fade-in' : 'fade-in p-2'} style={classic ? pageFillStyle : undefined}>
-            <div style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 } : undefined} className={classic ? undefined : 'card shadow-sm'}>
+            <div style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 } : undefined} className={classic ? undefined : 'card shadow-sm shell-window'}>
                 <div style={classic ? xpTitleBar : undefined} className={classic ? undefined : 'card-header d-flex align-items-center justify-content-between py-2'}>
                     <span className={classic ? undefined : 'fw-semibold'}>
                         <i className={classic ? 'bi bi-bookmark-check' : 'bi bi-bookmark-check me-2'} style={classic ? { marginRight: 6 } : undefined} />

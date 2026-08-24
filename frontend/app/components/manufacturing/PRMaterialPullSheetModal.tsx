@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
-import { CODE_FONT } from '../shared/xpTheme';
+import { CODE_FONT, PRINT_FONT } from '../shared/xpTheme';
 import { useTimezone } from '../../context/TimezoneContext';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
@@ -113,7 +113,7 @@ export default function PRMaterialPullSheetModal({
     const { formatCustom: tzFmt } = useTimezone();
 
     const documentContent = (
-        <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.4 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '9px', color: '#000', lineHeight: 1.4 }}>
 
             {/* ── Title row ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '6px', marginBottom: '8px' }}>
@@ -200,7 +200,7 @@ export default function PRMaterialPullSheetModal({
         <>
             <PrintModalShell title={`Print Material Pull Sheet — ${pr.code}`} onClose={onClose} modeless>
                 <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center' }}>
-                    <div className="pr-pull-sheet-paper" style={{ background: '#fff', width: '100%', maxWidth: '560px', padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '9px', lineHeight: '1.5', color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="pr-pull-sheet-paper" style={{ background: '#fff', width: '100%', maxWidth: '560px', padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '9px', lineHeight: '1.5', color: '#000', fontFamily: PRINT_FONT }}>
                         {documentContent}
                     </div>
                 </div>
@@ -210,7 +210,7 @@ export default function PRMaterialPullSheetModal({
 
             {createPortal(
                 <div className="pr-pull-sheet-print-portal" style={{ display: 'none' }}>
-                    <div className="pr-pull-sheet-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '9px', lineHeight: '1.5', color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="pr-pull-sheet-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '9px', lineHeight: '1.5', color: '#000', fontFamily: PRINT_FONT }}>
                         {documentContent}
                     </div>
                 </div>,

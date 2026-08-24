@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import BagLabelCard from './BagLabelCard';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, PRINT_FONT } from '../shared/xpTheme';
 
 // Code 128 (1D) so the factory's existing laser barcode scanners can read the
 // lot number too — not everyone has a phone/2D imager. Rendered to a PNG data
@@ -85,7 +85,7 @@ export default function BagLabelPrintModal({
     }, [bags]);
 
     const renderLabel = (bag: any, idx: number) => (
-        <div key={bag.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
+        <div key={bag.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: PRINT_FONT, display: 'flex', flexDirection: 'column' }}>
             <BagLabelCard
                 completion={bag}
                 workOrder={workOrder}

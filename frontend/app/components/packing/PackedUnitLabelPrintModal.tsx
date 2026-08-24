@@ -6,7 +6,7 @@ import JsBarcode from 'jsbarcode';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, PRINT_FONT } from '../shared/xpTheme';
 
 // Code 128 (1D) alongside the QR so the factory's existing laser scanners can
 // read the carton number too — same payload as the QR, matching the bag label.
@@ -137,7 +137,7 @@ export default function PackedUnitLabelPrintModal({
         );
 
         return (
-            <div key={u.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
+            <div key={u.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: PRINT_FONT, display: 'flex', flexDirection: 'column' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <tbody>
                         {/* Headline: house mark + style/colour, with the carton's own

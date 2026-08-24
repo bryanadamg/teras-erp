@@ -8,7 +8,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarButton, pageFillStyle, PageTitleBar } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
 } from '../shared/listViewTheme';
@@ -201,9 +201,7 @@ export default function ColorLibraryView({
     return (
         <div style={embedded
             ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
-            : classic
-            ? { ...pageFillStyle, fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { ...pageFillStyle, fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            : viewShellStyle(classic, 'page', { fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT })}>
 
             {/* Title bar (hidden when embedded under the Colors tab shell) */}
             {!embedded && (

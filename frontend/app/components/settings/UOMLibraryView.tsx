@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead, ExpanderCell } from '../shared/listViewTheme';
-import { ExpandedRowPanel, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { ExpandedRowPanel, rowStateBg, Chip } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 interface Props {
@@ -114,21 +114,21 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                                         <td style={lvTd(classic)}>
                                             <span style={{ fontWeight: 'bold', fontVariant: classic ? 'all-small-caps' : undefined as any }}>{uom.name}</span>
                                             {uom.is_system && (
-                                                <span style={{
-                                                    marginLeft: 6, fontSize: classic ? 9 : 10, background: classic ? '#dce8ff' : '#dbeafe',
-                                                    border: `1px solid ${classic ? '#7fa8e0' : '#93c5fd'}`, color: classic ? '#003080' : '#1d4ed8',
-                                                    padding: '1px 5px', borderRadius: CHIP_RADIUS,
-                                                }}>SYSTEM</span>
+                                                <Chip classic={classic} size="xs" style={{ marginLeft: 6 }} tone={{
+                                                    background: classic ? '#dce8ff' : '#dbeafe',
+                                                    borderColor: classic ? '#7fa8e0' : '#93c5fd',
+                                                    color: classic ? '#003080' : '#1d4ed8',
+                                                }}>SYSTEM</Chip>
                                             )}
                                         </td>
                                         <td style={lvTd(classic)}>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                                 {factors.length > 0 ? factors.map((f: any) => (
-                                                    <span key={f.id} style={{
-                                                        fontSize: classic ? 10 : 11, background: classic ? '#fff3e0' : '#fff7ed',
-                                                        border: `1px solid ${classic ? '#f0a040' : '#fdba74'}`, color: classic ? '#804800' : '#9a3412',
-                                                        padding: '1px 5px',
-                                                    }}>1 {uom.name} = {parseFloat(f.value)} {f.to_uom_name}</span>
+                                                    <Chip key={f.id} classic={classic} tone={{
+                                                        background: classic ? '#fff3e0' : '#fff7ed',
+                                                        borderColor: classic ? '#f0a040' : '#fdba74',
+                                                        color: classic ? '#804800' : '#9a3412',
+                                                    }}>1 {uom.name} = {parseFloat(f.value)} {f.to_uom_name}</Chip>
                                                 )) : (
                                                     <span style={{ fontSize: classic ? 10 : 11, color: '#aaa', fontStyle: 'italic' }}>
                                                         {uom.is_system ? 'base unit' : 'no conversion set'}
@@ -173,10 +173,11 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                                                                 <>
                                                                     <span style={{ width: 1, height: 18, background: classic ? '#c0a060' : '#fde68a' }} />
                                                                     {factors.map((f: any) => (
-                                                                        <span key={f.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: classic ? 10 : 11, color: classic ? '#804800' : '#9a3412' }}>
-                                                                            1 {uom.name} = {parseFloat(f.value)} {f.to_uom_name}
-                                                                            <button style={{ border: 'none', background: 'none', color: '#c00', cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }} onClick={() => onDeleteUOMFactor(uom.id, f.id)}>✕</button>
-                                                                        </span>
+                                                                        <Chip key={f.id} classic={classic} tone={{
+                                                                            background: classic ? '#fff3e0' : '#fff7ed',
+                                                                            borderColor: classic ? '#f0a040' : '#fdba74',
+                                                                            color: classic ? '#804800' : '#9a3412',
+                                                                        }} onRemove={() => onDeleteUOMFactor(uom.id, f.id)}>1 {uom.name} = {parseFloat(f.value)} {f.to_uom_name}</Chip>
                                                                     ))}
                                                                 </>
                                                             )}

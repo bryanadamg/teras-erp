@@ -619,7 +619,7 @@ export default function MachineOutputReportView() {
     const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
 
     return (
-        <div className={classic ? 'fade-in' : 'card fade-in border-0 shadow-sm'} style={pageFillStyle}>
+        <div className={classic ? 'fade-in' : 'card fade-in border-0 shadow-sm shell-window'} style={pageFillStyle}>
             <div style={classic
                 ? sharedXpBevel(flexFillStyle)
                 : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}

@@ -8,7 +8,7 @@ import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
 import { xpFont, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
-import { pageFillStyle, PageTitleBar } from '../shared/shellTheme';
+import { viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 
 // ── XP Style Constants ─────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -76,21 +76,9 @@ export default function DyeingSettingView() {
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <div style={classic ? {
-            ...pageFillStyle,
-            fontFamily: xpFont,
-            border: '2px solid',
-            borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-            background: '#ece9d8',
-        } : {
-            ...pageFillStyle,
-            fontFamily: modernFont,
-            border: '1px solid #dbe1ea',
-            borderRadius: 9,
-            background: '#fff',
-            overflow: 'hidden',
-            boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
-        }}>
+        <div style={viewShellStyle(classic, 'page', classic
+            ? { fontFamily: xpFont }
+            : { fontFamily: modernFont, background: '#fff', boxShadow: '0 1px 2px rgba(15,23,42,0.06)' })}>
             {/* Title bar */}
             <PageTitleBar classic={classic} icon="bi-droplet-fill" title="Dyeing & Setting" />
 

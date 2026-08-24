@@ -368,14 +368,43 @@ export const pageFillStyle: React.CSSProperties =
 export const flexFillStyle: React.CSSProperties =
     { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
 
-/** Inner scroll region: the table's own pane inside a page-filled shell. */
-export const scrollAreaStyle: React.CSSProperties =
-    { flex: 1, minHeight: 0, overflow: 'auto' };
-
 const fillStyleFor = (fill: ShellFill): React.CSSProperties =>
     fill === 'page' ? pageFillStyle
     : fill === 'flex' ? flexFillStyle
     : {};
+
+/** Inner scroll region: the table's own pane inside a page-filled shell. */
+export const scrollAreaStyle: React.CSSProperties =
+    { flex: 1, minHeight: 0, overflow: 'auto' };
+
+// Modern-theme counterpart of `xpBevel`, for the ~9 page shells that don't wear a
+// bootstrap `card` in modern (Colors, Color/Combo Library, Attributes, Lab Dips,
+// Dyeing & Setting, …). They each hand-declared this same flat frame with
+// `borderRadius: 9`, which is off the radius scale — the shell tier is
+// PANEL_RADIUS (8), the same number a dialog and `.card.shell-window` use, so a
+// page frame and the dialog over it read as one chrome language.
+// `overflow: hidden` is part of the frame for the same reason it is in `xpBevel`:
+// the square title bar/toolbar inside must be clipped by the corner.
+export const modernBevel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    border: '1px solid #dbe1ea', borderRadius: PANEL_RADIUS, background: '#f8fafc',
+    overflow: 'hidden',
+    ...extra,
+});
+
+/**
+ * THE outer frame of a top-level view, both themes, sized per `fill`. Same job as
+ * `ShellWindow` but as a style object, for the views that keep their own JSX
+ * (they need the classic/modern branch inline, or a `className` of their own).
+ *
+ * Use this instead of writing the bevel out by hand: a hand-rolled copy is how
+ * BOM/MO/PR/WO/Colors/Attributes/Lab Dips all missed the shell radius (BOM had
+ * `borderRadius: 0` pinned) while every migrated view rounded.
+ */
+export const viewShellStyle = (
+    classic: boolean, fill: ShellFill = 'page', extra: React.CSSProperties = {},
+): React.CSSProperties => (classic
+    ? xpBevel({ ...fillStyleFor(fill), ...extra })
+    : modernBevel({ ...fillStyleFor(fill), ...extra }));
 
 /**
  * Outer-window shell: classic bevel or modern bootstrap card, sized per the
@@ -423,20 +452,21 @@ export function PageTitleBar({ classic, icon, title, right, style }: {
     right?: React.ReactNode;
     style?: React.CSSProperties;
 }) {
+    // Classic geometry comes from `xpTitleBar`, not a second set of numbers: this
+    // used to carry its own `padding: '6px 12px'` / `fontSize: 13`, which rendered
+    // the seven PageTitleBar pages (Colors, Color/Combo Library, Attributes, Lab
+    // Dips, Dyeing & Setting, Settings) with a visibly taller bar than every
+    // xpTitleBar page next to them. One bar height, app-wide.
     const base: React.CSSProperties = classic
-        ? {
-            background: TITLE_TONES.blue.background, color: '#fff', fontFamily: xpFont,
-            padding: '6px 12px', fontSize: 13, fontWeight: 'bold',
-            display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
-        }
+        ? xpTitleBar({ justifyContent: 'flex-start', gap: 8, flexShrink: 0 })
         : {
             background: '#f7f9fc', color: '#1e293b', fontFamily: modernFont,
-            borderBottom: '1px solid #dbe1ea', padding: '9px 13px', fontSize: 14, fontWeight: 700,
+            borderBottom: '1px solid #dbe1ea', padding: '8px 13px', fontSize: 14, fontWeight: 700,
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
         };
     return (
         <div style={{ ...base, ...style }}>
-            <i className={`bi ${icon}`} style={{ fontSize: 14, color: classic ? undefined : '#2563eb' }} />
+            <i className={`bi ${icon}`} style={classic ? undefined : { fontSize: 14, color: '#2563eb' }} />
             {title}
             {right && <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>{right}</span>}
         </div>

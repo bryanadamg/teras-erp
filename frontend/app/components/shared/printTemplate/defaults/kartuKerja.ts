@@ -13,6 +13,7 @@
  */
 
 import type { PrintLayout, Band, GridItem, KeyValueRow, TallyBand } from '../types';
+import { PRINT_FONT } from '../../typography';
 
 const A6: PrintLayout['paper'] = { size: 'A6', orientation: 'portrait', marginMm: 6 };
 
@@ -157,7 +158,7 @@ function buildLayout(spec: VariantSpec): PrintLayout {
     // 3mm inset on top of the 6mm page margin. The old cards ran content to the very
     // edge of the paper element, which read as "margins gone" against the printed
     // ticket. Client-adjustable in the designer.
-    return { version: 1, paper: A6, fontFamily: 'Arial, sans-serif', paddingMm: 3, bands };
+    return { version: 1, paper: A6, fontFamily: PRINT_FONT, paddingMm: 3, bands };
 }
 
 export const KARTU_KERJA_WEAVING: PrintLayout = buildLayout({

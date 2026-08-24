@@ -5,11 +5,12 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton, CHIP_RADIUS } from '../shared/xpTheme';
+import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton, CHIP_RADIUS, SECTION_RADIUS, BUTTON_RADIUS, XP_BTN, ToggleChip } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, FilterChipBar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
 import { useToast } from '../shared/Toast';
-import WorkCenterMonitorModal from './WorkCenterMonitorModal';
+import WorkCenterMonitorModal, { LOOM_TITLE_VARIANT } from './WorkCenterMonitorModal';
+import { xpTitleGradients } from '../shared/ModalWrapper';
 import GroupCalendarModal from './GroupCalendarModal';
 
 // Measurement accents come from the shared five-family palette (DESIGN.md's one
@@ -61,6 +62,15 @@ export default function WeavingMonitorView() {
     // Group focus. null = every group (the default): a monitor must open showing the
     // whole plant, so this narrows on request and never hides a bank by default.
     const [groupFilter, setGroupFilter] = useState<string | null>(null);
+    // Which run each multi-WO loom card is showing, keyed by machine id. It lives up
+    // here and not in the card because `card`/`RunStack` are declared inside this
+    // render: a component identity that changes every render remounts and would drop
+    // the slide on every 60s poll.
+    const [runSlide, setRunSlide] = useState<Record<string, number>>({});
+    // "Running only" — hides looms with no active run. Same rule as groupFilter: it
+    // hides CARDS, never measurements, so every count/badge on the strip and the
+    // group bands stays plant-wide while it is on.
+    const [runningOnly, setRunningOnly] = useState(false);
 
     const load = useCallback(async () => {
         try {
@@ -97,12 +107,13 @@ export default function WeavingMonitorView() {
     } as Record<string, string>)[s] || t('idle');
     // Strip gradient per state: green running, amber waiting on the floor's next
     // click, blue prep in flight, gray nothing up.
-    const loomStrip = (s: string): string => ({
-        RUNNING: 'linear-gradient(to right, #1a6e1a, #3ab83a)',
-        STAGED: 'linear-gradient(to right, #9a6a06, #d99b1c)',
-        DRAW_IN: 'linear-gradient(to right, #0a3d91, #2f74d0)',
-        TUNING: 'linear-gradient(to right, #0a3d91, #2f74d0)',
-    } as Record<string, string>)[s] || 'linear-gradient(to right, #808080, #a8a8a8)';
+    // Card status strip = the title bar of the window that card opens. Both read the
+    // same gradient table off the same status→variant map, so a green card can't open
+    // a blue window (or a slightly different green one).
+    const loomStrip = (s: string): string => {
+        const variant = LOOM_TITLE_VARIANT[s];
+        return variant ? xpTitleGradients[variant] : 'linear-gradient(to right, #808080, #a8a8a8)';
+    };
     // Chip family reuse: prep states are already in STATUS_FAMILY, so the modern
     // card gets its colour from the same map every other list uses.
     const loomChipStatus = (s: string): string => (s === 'RUNNING' ? 'IN_PROGRESS' : s === 'IDLE' ? 'PENDING' : s);
@@ -177,6 +188,9 @@ export default function WeavingMonitorView() {
         return hit.length ? hit : sections;
     }, [sections, groupFilter]);
 
+    const shown = (list: any[]) => (runningOnly ? list.filter((m: any) => runsOf(m).length > 0) : list);
+    const runningCount = useMemo(() => machines.filter((m: any) => runsOf(m).length > 0).length, [machines]);
+
     // Efficiency vs its target tick — the shared ProgressBar with a threshold
     // marker, so this reads like every other bar in the app. The machine modal's
     // hero renders the same call; keep the two in step.
@@ -190,7 +204,14 @@ export default function WeavingMonitorView() {
         />
     );
 
-    const openCard = (m: any) => setSelected({ id: m.id, code: m.code, name: m.name, center_type: m.center_type });
+    // loom_status rides along so the window that opens wears the same title-bar
+    // colour as the card that opened it — green for a running loom, not the generic
+    // dialog blue. A modal that doesn't match the tile it came from reads as a
+    // different screen rather than that tile, zoomed in.
+    const openCard = (m: any) => setSelected({
+        id: m.id, code: m.code, name: m.name, center_type: m.center_type,
+        loom_status: m.loom_status || (runsOf(m).length ? 'RUNNING' : 'IDLE'),
+    });
 
     // What variant the loom is running right now. The MO alone doesn't say it — a
     // supervisor on the floor reads combo/size off the card to match the loom against
@@ -325,7 +346,7 @@ export default function WeavingMonitorView() {
         );
     };
 
-    const RunBody = ({ run, index = 0, total = 1 }: { run: any; index?: number; total?: number }) => {
+    const RunBody = ({ run }: { run: any }) => {
         // A parked run's % is a record of days already woven, not a live reading, so it
         // drops out of the green/red judgement instead of sitting there accusing a loom
         // of underperforming on work nobody asked it to do.
@@ -335,15 +356,6 @@ export default function WeavingMonitorView() {
                 <div style={{ fontSize: cls ? 10 : 12, color: '#555', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {/* WO first: with several runs on one loom the WO is what tells them
                         apart on the floor — the MO is shared by every combo. */}
-                    {index > 0 && (
-                        <span style={{
-                            display: 'inline-block', marginRight: 4, padding: '0 4px',
-                            background: cls ? '#d4d0c8' : '#eceef0', color: '#555',
-                            fontSize: 9, fontWeight: 700, borderRadius: CHIP_RADIUS,
-                        }}>
-                            {index}/{total}
-                        </span>
-                    )}
                     {run.wo_code && <b style={{ color: BLUE }}>{run.wo_code} · </b>}
                     <b>{run.mo_code}</b>{run.item_code ? ` · ${run.item_code}` : ''}
                 </div>
@@ -380,22 +392,64 @@ export default function WeavingMonitorView() {
         );
     };
 
-    // Several WOs on one loom stack in the card, ruled off from each other. Each keeps
-    // its own line count, dates and warning — they are different orders, not one run
-    // averaged together, and a dashed hairline was not enough separation to say so at
-    // card density. Solid rule + a per-run index chip, so the reader can see at a
-    // glance that they are looking at 1 of 2.
-    const RunStack = ({ runs }: { runs: any[] }) => (
-        <>
-            {runs.map((r: any, i: number) => (
-                <div key={r.id} style={i === 0 ? undefined : {
-                    marginTop: 7, paddingTop: 7, borderTop: `2px solid ${cls ? '#b0a898' : '#d0d0d0'}`,
+    // Several WOs on one loom: ONE run on screen at a time, paged like a slide deck.
+    // They used to stack, which made a 3-WO card three times the height of every
+    // other tile in the grid and broke the one thing a monitor grid is for — scanning
+    // looms against each other. A run's readout is not summarisable (own lines, own
+    // dates, own late warning), so the fix is paging, not merging.
+    //
+    // The dot rail is why paging is safe here: a late run stays visible as a red dot
+    // even while another slide is up, and one click goes to it. Without that, hiding
+    // runs would hide alarms.
+    const RunCarousel = ({ m, runs }: { m: any; runs: any[] }) => {
+        const total = runs.length;
+        if (total === 1) return <RunBody run={runs[0]} />;
+        const idx = Math.min(runSlide[m.id] ?? 0, total - 1);
+        const go = (n: number) => (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setRunSlide(prev => ({ ...prev, [m.id]: (n + total) % total }));
+        };
+        const navBtn = (dir: -1 | 1) => (
+            <button type="button" onClick={go(idx + dir)} className={cls ? XP_BTN : undefined}
+                title={dir < 0 ? t('prev_run') : t('next_run')}
+                style={{
+                    ...(cls
+                        ? { background: 'linear-gradient(to bottom, #fdfdfd, #e3e1d8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' }
+                        : { background: '#fff', border: '1px solid #d5dae1' }),
+                    borderRadius: BUTTON_RADIUS, width: 18, height: 16, padding: 0, lineHeight: 1,
+                    fontSize: 10, color: '#333', cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                    <RunBody run={r} index={runs.length > 1 ? i + 1 : 0} total={runs.length} />
+                <i className={`bi bi-chevron-${dir < 0 ? 'left' : 'right'}`} />
+            </button>
+        );
+        return (
+            <>
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, paddingBottom: 3,
+                    borderBottom: `1px solid ${cls ? '#c8c4b8' : '#e3e3e3'}`,
+                }}>
+                    {navBtn(-1)}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#555', minWidth: 26, textAlign: 'center' }}>
+                        {idx + 1}/{total}
+                    </span>
+                    {navBtn(1)}
+                    <span style={{ display: 'flex', gap: 3, marginLeft: 'auto', alignItems: 'center' }}>
+                        {runs.map((r: any, i: number) => (
+                            <span key={r.id} onClick={go(i)}
+                                title={`${r.wo_code || r.mo_code}${r.is_late ? ` · ${t('behind_schedule')}` : ''}`}
+                                style={{
+                                    width: 7, height: 7, borderRadius: '50%', cursor: 'pointer',
+                                    background: i === idx ? (r.is_late ? RED : BLUE) : (r.is_late ? '#f3b0b0' : cls ? '#c8c4b8' : '#d8dde3'),
+                                    border: i === idx ? '1px solid #00000055' : '1px solid transparent',
+                                }} />
+                        ))}
+                    </span>
                 </div>
-            ))}
-        </>
-    );
+                <RunBody run={runs[idx]} />
+            </>
+        );
+    };
 
     // No run yet. Which prep step the loom is waiting on is the useful line here —
     // "no active run" alone couldn't tell a supervisor whether the loom is dead or
@@ -403,7 +457,7 @@ export default function WeavingMonitorView() {
     const IdleBody = ({ status }: { status: string }) => {
         const prep = status !== 'IDLE';
         return (
-            <div style={{ fontSize: cls ? 11 : 12, color: prep ? '#555' : '#888', display: 'flex', flexDirection: 'column', gap: 3, justifyContent: 'center', minHeight: cls ? 64 : 70 }}>
+            <div style={{ fontSize: cls ? 11 : 12, color: prep ? '#555' : '#888', display: 'flex', flexDirection: 'column', gap: 3, justifyContent: 'center', flex: 1, minHeight: cls ? 64 : 70 }}>
                 <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <i className={`bi ${prep ? 'bi-tools' : 'bi-pause-circle'}`} style={{ fontSize: cls ? 16 : 18 }} />
                     {prep ? loomLabel(status) : t('no_active_run')}
@@ -471,8 +525,15 @@ export default function WeavingMonitorView() {
                 borderBottom: '1px solid #00000033',
             };
             return (
-                <div key={m.id} onClick={() => openCard(m)} title={t('click_for_detail')}
-                    style={{ border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff', background: '#ece9d8', cursor: 'pointer' }}>
+                <div key={m.id} onClick={() => openCard(m)} title={t('click_for_detail')} className="tile-hover"
+                    style={{
+                        border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff', background: '#ece9d8',
+                        cursor: 'pointer', borderRadius: SECTION_RADIUS, overflow: 'hidden',
+                        // Every card is the same height (grid stretch) whatever its status,
+                        // so the white body must grow with it — an IDLE loom's tile used to
+                        // stop under its warp line and leave bare bevel below.
+                        display: 'flex', flexDirection: 'column',
+                    }}>
                     <div style={strip}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.code} — {m.name}</span>
                         <span style={{ fontSize: 9, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -481,8 +542,10 @@ export default function WeavingMonitorView() {
                             {loomLabel(loomStatus).toUpperCase()}
                         </span>
                     </div>
-                    <div style={{ padding: '6px 8px', background: '#fff', fontFamily: xpFont }}>
-                        {runs.length ? <RunStack runs={runs} /> : <IdleBody status={loomStatus} />}
+                    <div style={{ padding: '6px 8px', background: '#fff', fontFamily: xpFont, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            {runs.length ? <RunCarousel m={m} runs={runs} /> : <IdleBody status={loomStatus} />}
+                        </div>
                         <BeamStrip m={m} />
                         <PrepRow m={m} />
                     </div>
@@ -490,8 +553,8 @@ export default function WeavingMonitorView() {
             );
         }
         return (
-            <div key={m.id} onClick={() => openCard(m)} className="card h-100 shadow-sm border" style={{ cursor: 'pointer' }} title={t('click_for_detail')}>
-                <div className="card-body p-3">
+            <div key={m.id} onClick={() => openCard(m)} className="card h-100 shadow-sm border tile-hover" style={{ cursor: 'pointer', borderRadius: SECTION_RADIUS }} title={t('click_for_detail')}>
+                <div className="card-body p-3 d-flex flex-column">
                     <div className="d-flex align-items-center gap-2 mb-2">
                         <span style={{ fontWeight: 'bold', fontSize: 15 }}>{m.code}</span>
                         <span className="text-muted small text-truncate" style={{ flex: 1 }}>{m.name}</span>
@@ -505,7 +568,9 @@ export default function WeavingMonitorView() {
                         )}
                         <StatusChip status={loomChipStatus(loomStatus)} label={loomLabel(loomStatus)} tint />
                     </div>
-                    {runs.length ? <RunStack runs={runs} /> : <IdleBody status={loomStatus} />}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        {runs.length ? <RunCarousel m={m} runs={runs} /> : <IdleBody status={loomStatus} />}
+                    </div>
                     <BeamStrip m={m} />
                     <PrepRow m={m} />
                 </div>
@@ -550,7 +615,7 @@ export default function WeavingMonitorView() {
             </span>
         ) : null;
         return cls ? (
-            <div style={xpToolbar({ marginBottom: 6, border: '1px solid #b0a898', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: BLUE })}>
+            <div style={xpToolbar({ marginBottom: 6, border: '1px solid #b0a898', borderRadius: SECTION_RADIUS, fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: BLUE })}>
                 <i className="bi bi-collection" />
                 <span>{sectionLabel(sec)}</span>
                 {health}
@@ -569,14 +634,31 @@ export default function WeavingMonitorView() {
     // Group focus chips. These FILTER (they don't hide): every chip keeps its
     // plant-wide below-target badge, so an alarm in a bank you are not looking at is
     // still on screen — the property tabs would have cost.
-    const chipBar = isGrouped ? (
+    const runningToggle = (
+        <span style={{ marginLeft: isGrouped ? 'auto' : undefined }}>
+            <ToggleChip
+                classic={cls}
+                on={runningOnly}
+                tone="green"
+                toneIdle
+                title={t('running_only_hint')}
+                onClick={() => setRunningOnly(v => !v)}
+            >
+                <i className="bi bi-play-circle-fill" style={{ marginRight: 4 }} />
+                {t('running_only')} ({runningCount})
+            </ToggleChip>
+        </span>
+    );
+
+    const chipBar = (
         <div style={cls
-            ? xpToolbar({ marginBottom: 8, border: '1px solid #b0a898' })
+            ? xpToolbar({ marginBottom: 8, border: '1px solid #b0a898', borderRadius: SECTION_RADIUS })
             : { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            <span style={{ fontSize: cls ? 11 : 12, color: '#666', fontFamily: cls ? xpFont : undefined }}>
+            {!isGrouped ? runningToggle : null}
+            {isGrouped && <span style={{ fontSize: cls ? 11 : 12, color: '#666', fontFamily: cls ? xpFont : undefined }}>
                 <i className="bi bi-funnel" style={{ marginRight: 4 }} />{t('group')}
-            </span>
-            <FilterChipBar
+            </span>}
+            {isGrouped && <FilterChipBar
                 classic={cls}
                 value={groupFilter ?? ALL_GROUPS}
                 onChange={v => setGroupFilter(v === ALL_GROUPS || v === groupFilter ? null : v)}
@@ -604,9 +686,10 @@ export default function WeavingMonitorView() {
                         ),
                     })),
                 ]}
-            />
+            />}
+            {isGrouped ? runningToggle : null}
         </div>
-    ) : null;
+    );
 
     // Geometry mirrors cardGrid()/card() above — same minmax floor and gap, and a
     // body deep enough for the run stack + beam strip + prep row — so the real
@@ -622,14 +705,19 @@ export default function WeavingMonitorView() {
         />
     ) : machines.length === 0 ? (
         <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
+    ) : runningOnly && runningCount === 0 ? (
+        <XPEmptyState icon="bi-pause-circle" message={t('no_running_machines')} />
     ) : !isGrouped ? (
-        cardGrid(machines)
+        cardGrid(shown(machines))
     ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: cls ? 10 : 20 }}>
-            {visibleSections.map(sec => (
+            {/* A group with nothing running drops out entirely while the filter is on —
+                its band alone would read as a bank with a missing grid. Its alarms are
+                still on the chip bar, which is why hiding it is safe. */}
+            {visibleSections.filter(sec => shown(sec.machines).length > 0).map(sec => (
                 <div key={sec.id || 'ungrouped'}>
                     {groupHeader(sec)}
-                    {cardGrid(sec.machines)}
+                    {cardGrid(shown(sec.machines))}
                 </div>
             ))}
         </div>
