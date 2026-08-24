@@ -7,6 +7,12 @@ const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neu
 
 export type TabDef<K extends string = string> = { key: K; label: string; icon?: string };
 
+// The one edge colour of a classic tab strip: the rule under the inactive tabs,
+// which the active tab breaks through into the pane. Tan-grey, matching the panel
+// borders around it — a blue edge here is what made the strip look like chrome
+// that had wandered in from the title bar.
+const TAB_EDGE = '#a8a290';
+
 /**
  * Shared classic/modern-themed tab strip. Renders only the row of tab
  * buttons — page chrome (title bars, bordered panels) stays with the caller
@@ -21,8 +27,16 @@ export function Tabs<K extends string>({ tabs, activeKey, onChange, classic, rig
     right?: React.ReactNode;
 }) {
     const barStyle: React.CSSProperties = classic ? {
-        background: '#d6dff7',
-        borderBottom: '1px solid #7f9db9',
+        // The strip is the pane's own material, a shade down — NOT a blue wash. It
+        // used to be flat `#d6dff7`, the SIDEBAR's blue (Sidebar.tsx SIDEBAR_BG):
+        // nav chrome inside a pane. That band only looked deliberate under blue
+        // window chrome — over a tan panel it read as a stray stripe, and over a
+        // status-coloured window (the green/amber machine monitor) as a third
+        // unrelated colour. Tabs belong to the pane below them, so all three faces
+        // now come from the pane's tan: strip (darkest) < inactive tab < active tab
+        // (#ece9d8, the pane itself), which reads as depth instead of three tans.
+        background: 'linear-gradient(to bottom, #dcd9cd, #cdcabe)',
+        borderBottom: `1px solid ${TAB_EDGE}`,
         display: 'flex',
         alignItems: 'flex-end',
         padding: '4px 8px 0',
@@ -65,13 +79,13 @@ export function Tabs<K extends string>({ tabs, activeKey, onChange, classic, rig
             // Top corners only: the active tab's bottom edge is deliberately open
             // into the pane below it, and rounding it would cut that seam.
             borderRadius: `${BUTTON_RADIUS}px ${BUTTON_RADIUS}px 0 0`,
-            borderBottom: active ? '1px solid #ece9d8' : '1px solid #7f9db9',
+            borderBottom: active ? '1px solid #ece9d8' : `1px solid ${TAB_EDGE}`,
             background: active
                 ? '#ece9d8'
                 : 'linear-gradient(to bottom, #e8e6db, #d0cec4)',
             borderColor: active
-                ? '#7f9db9 #7f9db9 #ece9d8 #7f9db9'
-                : '#c0bdb5 #808080 #808080 #c0bdb5',
+                ? `${TAB_EDGE} ${TAB_EDGE} #ece9d8 ${TAB_EDGE}`
+                : '#c0bdb5 #a8a290 #a8a290 #c0bdb5',
             color: active ? '#000' : '#444',
             fontWeight: active ? 'bold' : 'normal',
             marginBottom: active ? -1 : 0,

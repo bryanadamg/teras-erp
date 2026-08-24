@@ -128,6 +128,14 @@ interface ModalWrapperProps {
      */
     modeless?: boolean;
     /**
+     * Full-bleed strip between the title bar and the padded body — for chrome that
+     * belongs to the WINDOW rather than to its content: a tab strip, a mode switch,
+     * a toolbar. Passing tabs as `children` instead leaves them floating inside the
+     * body's 12/14px padding, so their background stops short of the frame on three
+     * sides and reads as a loose band rather than window chrome.
+     */
+    banner?: React.ReactNode;
+    /**
      * Set false when children manage their own internal scroll regions
      * (e.g. a designer with its own scrollable panels) — prevents a
      * second, near-empty scrollbar on the body wrapper itself.
@@ -160,7 +168,7 @@ const xpTitleBorders: Record<string, string> = {
 const xpSizeWidths: Record<string, number> = { sm: 340, md: 480, lg: 640, xl: 820, xxl: 1100 };
 
 export default function ModalWrapper({
-    isOpen, onClose, title, children, footer,
+    isOpen, onClose, title, children, footer, banner,
     level = 1, size = 'md', variant = 'primary', modeless = false, bodyScroll = true
 }: ModalWrapperProps) {
     const { uiStyle: currentStyle } = useTheme();
@@ -314,6 +322,10 @@ export default function ModalWrapper({
                     <WindowCloseButton onClose={onClose} />
                 </div>
 
+                {/* Full-bleed window chrome (tab strip, toolbar) — outside the body so
+                    its background reaches both frame edges. */}
+                {banner && <div className="ui-style-classic" style={{ flexShrink: 0 }}>{banner}</div>}
+
                 {/* Body — ui-style-classic triggers CSS overrides for Bootstrap controls */}
                 <div
                     className="ui-style-classic"
@@ -386,6 +398,7 @@ export default function ModalWrapper({
                 <h5 id={titleId} className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
                 <WindowCloseButton onClose={onClose} white={variant === 'dark'} />
             </div>
+            {banner && <div style={{ flexShrink: 0 }}>{banner}</div>}
             <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(var(--app-vh) - 160px)' : 'calc(var(--app-vh) * 85 / 100)', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'white' }}>
                 {children}
             </div>
