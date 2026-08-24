@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { useTimezone } from '../../context/TimezoneContext';
+import { PRINT_FONT } from '../shared/xpTheme';
 
 import { qtyFmt } from '../shared/format';
 
@@ -111,7 +112,7 @@ function LedgerDocument({ entries, locations, attributes, companyProfile, period
     };
 
     return (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '8px', color: '#000', lineHeight: 1.3 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '8px', color: '#000', lineHeight: 1.3 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 5, borderBottom: '2px solid #000' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     {companyProfile?.logo_url ? (
@@ -255,7 +256,7 @@ export default function StockLedgerPrintModal({
                     </div>
 
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', overflowX: 'auto', padding: 16 }}>
-                        <div className="stock-ledger-print-paper" style={{ background: '#fff', width: 1090, minWidth: 1090, padding: '12px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '8px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                        <div className="stock-ledger-print-paper" style={{ background: '#fff', width: 1090, minWidth: 1090, padding: '12px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '8px', lineHeight: 1.4, color: '#000', fontFamily: PRINT_FONT }}>
                             {docContent}
                         </div>
                     </div>
@@ -265,7 +266,7 @@ export default function StockLedgerPrintModal({
 
             {createPortal(
                 <div className="stock-ledger-print-portal" style={{ display: 'none' }}>
-                    <div className="stock-ledger-print-paper" style={{ background: '#fff', width: '100%', boxSizing: 'border-box', padding: '0', fontSize: '8px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="stock-ledger-print-paper" style={{ background: '#fff', width: '100%', boxSizing: 'border-box', padding: '0', fontSize: '8px', lineHeight: 1.4, color: '#000', fontFamily: PRINT_FONT }}>
                         {docContent}
                     </div>
                 </div>,

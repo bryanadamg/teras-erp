@@ -6,6 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
 import BootSplash, { useBootIndicator } from '../components/shared/BootSplash';
+import { modernFont } from '../components/shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -273,7 +274,7 @@ export default function LoginPage() {
                 style={{
                     minHeight: 'var(--app-vh)', width: '100%',
                     background: 'linear-gradient(135deg, #0d1f5c 0%, #1a3fa8 40%, #0a246a 100%)',
-                    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                    fontFamily: modernFont,
                     display: 'flex', flexDirection: 'column', overflowY: 'auto',
                 }}
             >
@@ -488,7 +489,7 @@ export default function LoginPage() {
             style={{
                 minHeight: 'var(--app-vh)', width: '100%',
                 background: 'linear-gradient(135deg, #0d1f5c 0%, #1a3fa8 40%, #0a246a 100%)',
-                fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                fontFamily: modernFont,
                 display: 'flex', flexDirection: 'column', overflowY: 'auto',
             }}
         >

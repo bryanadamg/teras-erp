@@ -16,3 +16,13 @@ export const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
 // resolve to different faces on Windows — the same MO code rendered two widths on
 // two pages. Always import this; never hand-write a mono stack.
 export const CODE_FONT = "'Courier New', Consolas, monospace";
+
+// Printed documents (Kartu Kerja, MO/PO/SO prints, labels) are deliberately NOT
+// classic/modern themed — paper doesn't have a theme — but every print modal used to
+// hand-write its own 'Arial, sans-serif' / 'Arial, Helvetica, sans-serif' literal, so
+// the fallback chain drifted between documents. One stack for all of them.
+export const PRINT_FONT = 'Arial, Helvetica, sans-serif';
+
+// The rare print-header accent (KARTU PACKING/PICKING, SO confirmation title) that
+// intentionally breaks from PRINT_FONT for emphasis. Still one shared literal.
+export const PRINT_SERIF_FONT = 'Georgia, serif';

@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { docsSidebar, getPageBySlug } from './docsContent';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { modernFont } from '../components/shared/xpTheme';
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -18,7 +19,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             display: 'flex',
             flexDirection: 'column',
             height: 'var(--app-vh)',
-            fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+            fontFamily: modernFont,
             fontSize: 13,
             background: '#d4e8f8',
             overflow: 'hidden',

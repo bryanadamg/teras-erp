@@ -58,7 +58,7 @@ const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
                         <td colSpan={5} style={{ padding: 0 }}>
                             <div style={{ padding: '6px 12px 8px 32px', borderBottom: '1px solid #c0bdb5' }}>
                                 <div style={{ fontFamily: LV_XP_FONT, fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase', marginBottom: 4 }}>Technical Diff (JSON)</div>
-                                <pre style={{ fontFamily: 'Consolas,monospace', fontSize: '10px', background: '#ffffff', border: '1px solid #7f9db9', padding: '4px 6px', margin: 0, maxHeight: '160px', overflowY: 'auto', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' }}>
+                                <pre style={{ fontFamily: CODE_FONT, fontSize: '10px', background: '#ffffff', border: '1px solid #7f9db9', padding: '4px 6px', margin: 0, maxHeight: '160px', overflowY: 'auto', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' }}>
                                     {JSON.stringify(log.changes, null, 2)}
                                 </pre>
                             </div>

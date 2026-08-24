@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { PRINT_FONT } from '../shared/xpTheme';
 
 import { fmtMoney } from '../shared/format';
 
@@ -109,7 +110,7 @@ function PODocument({
     const labelCell: React.CSSProperties = { whiteSpace: 'nowrap', verticalAlign: 'top', paddingRight: 4 };
 
     return (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.35 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '9px', color: '#000', lineHeight: 1.35 }}>
 
             {/* Company Header */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4, paddingBottom: 6, borderBottom: '1.5px solid #000' }}>
@@ -398,7 +399,7 @@ export default function PurchaseOrderPrintModal({
 
                         {/* RIGHT — live preview */}
                         <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                            <div className="po-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 720, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '9px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                            <div className="po-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 720, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '9px', lineHeight: 1.4, color: '#000', fontFamily: PRINT_FONT }}>
                                 {docContent}
                             </div>
                         </div>
@@ -412,7 +413,7 @@ export default function PurchaseOrderPrintModal({
             {/* Print portal — rendered into body, shown only during actual print */}
             {createPortal(
                 <div className="po-print-paper-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
-                    <div className="po-print-paper" style={{ background: '#fff', width: '100%', padding: '12px 16px', fontSize: '9px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="po-print-paper" style={{ background: '#fff', width: '100%', padding: '12px 16px', fontSize: '9px', lineHeight: 1.4, color: '#000', fontFamily: PRINT_FONT }}>
                         {docContent}
                     </div>
                 </div>,

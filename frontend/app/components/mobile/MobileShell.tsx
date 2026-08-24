@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser } from '../../context/UserContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { xpFont as XP_FONT, BUTTON_RADIUS } from '../shared/xpTheme';
+import { xpFont as XP_FONT, modernFont, BUTTON_RADIUS } from '../shared/xpTheme';
 import { xpToolbar } from '../shared/shellTheme';
 import { routeTitle } from '../shared/navConfig';
 import { MOBILE_BG } from './mobileTheme';
@@ -95,7 +95,7 @@ export default function MobileShell({
                     className="text-truncate"
                     title={appName}
                     style={{
-                        fontFamily: "'Segoe UI', Arial, sans-serif",
+                        fontFamily: modernFont,
                         fontWeight: 800,
                         fontSize: 15,
                         letterSpacing: '-0.3px',

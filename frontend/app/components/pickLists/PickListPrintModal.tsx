@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { PRINT_FONT, PRINT_SERIF_FONT, CODE_FONT } from '../shared/xpTheme';
 
 /**
  * Pick list shop card — the floor document for a pick list, sibling of the
@@ -62,11 +63,11 @@ export default function PickListPrintModal({ pl, companyProfile, onClose }: any)
     const itemRows = Object.values(byItem);
 
     const doc = (
-        <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10px', color: '#000', lineHeight: 1.45 }}>
+        <div style={{ fontFamily: PRINT_FONT, fontSize: '10px', color: '#000', lineHeight: 1.45 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8, paddingBottom: 6, borderBottom: '2px solid #000' }}>
                 <div>
                     <div style={{ fontWeight: 'bold', fontSize: 12 }}>{companyProfile?.name || 'PT. BOLA INTAN ELASTIC'}</div>
-                    <div style={{ fontSize: 15, fontWeight: 'bold', fontFamily: 'Georgia, serif', marginTop: 2 }}>KARTU PICKING</div>
+                    <div style={{ fontSize: 15, fontWeight: 'bold', fontFamily: PRINT_SERIF_FONT, marginTop: 2 }}>KARTU PICKING</div>
                     <div style={{ fontSize: 9, color: '#555' }}>Pick List Card</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
@@ -139,7 +140,7 @@ export default function PickListPrintModal({ pl, companyProfile, onClose }: any)
                     ) : cartons.map((l: any, i: number) => (
                         <tr key={l.id}>
                             <td style={{ ...cell, textAlign: 'center' }}>{l.package_no ?? i + 1}</td>
-                            <td style={{ ...cell, fontFamily: 'Consolas, monospace' }}>{l.batch_number || '—'}</td>
+                            <td style={{ ...cell, fontFamily: CODE_FONT }}>{l.batch_number || '—'}</td>
                             <td style={cell}>{l.item_code || '—'}</td>
                             <td style={{ ...cell, textAlign: 'right' }}>{n(l.qty_picked).toLocaleString()} {l.item_uom || ''}</td>
                             <td style={{ ...cell, height: 18 }} />

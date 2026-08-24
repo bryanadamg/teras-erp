@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { layoutRectOf, layoutScroll } from './uiScale';
-import { xpFont, modernFont, CODE_FONT } from './typography';
+import { xpFont, modernFont, CODE_FONT, PRINT_FONT, PRINT_SERIF_FONT } from './typography';
 import { FloatingLayer, Tooltip, TooltipSurface, useHoverAnchor, isClipped } from './Tooltip';
 
 /**
@@ -14,7 +14,7 @@ import { FloatingLayer, Tooltip, TooltipSurface, useHoverAnchor, isClipped } fro
 // The font stacks live in ./typography so Tooltip (which this file imports) can
 // use them without an import cycle. Re-exported here: every existing
 // `import { xpFont } from '../shared/xpTheme'` still resolves to the same const.
-export { xpFont, modernFont, CODE_FONT } from './typography';
+export { xpFont, modernFont, CODE_FONT, PRINT_FONT, PRINT_SERIF_FONT } from './typography';
 
 // ── Identifier typography ─────────────────────────────────────────────────────
 // Codes are UNBOXED — plain monospace text. The box the items/BOM tables used to

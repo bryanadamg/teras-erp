@@ -9,6 +9,7 @@ import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { resolveLayout } from '../shared/printTemplate/templateStore';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
 import { paperDimsMm, paperCssSize, paperSizeLabel } from '../shared/printTemplate/paper';
+import { PRINT_FONT } from '../shared/xpTheme';
 
 interface PrintSettings {
     showMaterials: boolean;
@@ -195,7 +196,7 @@ export default function WOBulkPrintModal({
                                as padding so the preview matches the printout millimetre for
                                millimetre; one WO never wastes 3/4 of an A4 sheet. */
                             <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                                <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: `${sheetW}mm`, minHeight: `${sheetH}mm`, padding: `${sheetMargin}mm`, boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                                <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: `${sheetW}mm`, minHeight: `${sheetH}mm`, padding: `${sheetMargin}mm`, boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: PRINT_FONT, display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
                                     <KartuKerjaTemplateCard
                                         workOrder={selectedWOs[0]}
                                         parentMO={manufacturingOrders.find(m => m.id === selectedWOs[0].mo_id)}
@@ -236,7 +237,7 @@ export default function WOBulkPrintModal({
                 ? createPortal(
                     /* Single WO — A6 portal (wo-step CSS), no A4 4-up grouping. */
                     <div className="wo-print-paper-portal" style={{ display: 'none' }}>
-                        <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '100%', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
+                        <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '100%', color: '#000', fontFamily: PRINT_FONT, display: 'flex', flexDirection: 'column' }}>
                             <KartuKerjaTemplateCard
                                 workOrder={selectedWOs[0]}
                                 parentMO={manufacturingOrders.find(m => m.id === selectedWOs[0].mo_id)}

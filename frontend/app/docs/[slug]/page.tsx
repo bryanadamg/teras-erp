@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { getPageBySlug, docsSidebar } from '../docsContent';
+import { CODE_FONT } from '../../components/shared/xpTheme';
 
 export default function DocsPage() {
     const { slug } = useParams<{ slug: string }>();
@@ -126,7 +127,7 @@ export default function DocsPage() {
                             borderRadius: 4,
                             overflowX: 'auto',
                             margin: '8px 0 10px',
-                            fontFamily: '"Consolas", "Courier New", monospace',
+                            fontFamily: CODE_FONT,
                             border: '1px solid #0a1428',
                         }}>
                             {section.code}
