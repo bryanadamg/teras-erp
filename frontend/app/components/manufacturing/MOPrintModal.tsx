@@ -1,8 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import PrintModalShell from '../shared/PrintModalShell';
-import { CODE_FONT, xpFont } from '../shared/xpTheme';
+import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { CODE_FONT } from '../shared/xpTheme';
 import { useTimezone } from '../../context/TimezoneContext';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
@@ -152,14 +152,6 @@ export default function MOPrintModal({
     const update = (patch: Partial<PrintSettings>) =>
         onPrintSettingsChange({ ...printSettings, ...patch });
 
-    const isClassic = currentStyle === 'classic';
-
-    const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
-        : {};
-    const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
-        : {};
 
     const sectionLabelStyle: React.CSSProperties = { fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', color: '#212529', letterSpacing: '0.5px', marginBottom: '6px' };
     const toggleLabelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#212529', cursor: 'pointer' };
@@ -464,24 +456,11 @@ export default function MOPrintModal({
                     </div>
 
                     {/* Footer */}
-                    <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '10px', color: '#666' }}>Settings saved automatically</span>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                            {isClassic ? (
-                                <>
-                                    <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                    <button style={xpBtnGreen} onClick={() => { onPrint?.(); window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>Print</button>
-                                </>
-                            ) : (
-                                <>
-                                    <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                    <button className="btn btn-sm btn-success" onClick={() => { onPrint?.(); window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>
-                                        <i className="bi bi-printer me-1"></i>Print
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
+                    <PrintModalFooter
+                        note="Settings saved automatically"
+                        onClose={onClose}
+                        onPrint={() => { onPrint?.(); window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}
+                    />
 
             </PrintModalShell>
 

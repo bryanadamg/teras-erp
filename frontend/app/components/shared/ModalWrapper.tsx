@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useId } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { toLayoutPx } from './uiScale';
-import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
+import { xpFont, BUTTON_RADIUS, XP_BTN, WINDOW_RADIUS, WINDOW_RADIUS_INNER } from './xpTheme';
 
 // Shared z-index tier for anything that must render as an overlay but can't use
 // ModalWrapper directly (e.g. a full-screen designer canvas with its own custom
@@ -31,6 +31,84 @@ function ensureEscListener() {
             escStack[escStack.length - 1]();
         }
     });
+}
+
+// ── Window focus: the page chrome behind an open window goes "inactive" ──────
+// XP's own answer to "which window am I typing in": the focused window keeps the
+// saturated blue title bar, everything behind it desaturates. Without it the app
+// header, the list panel's title bar and the dialog's title bar all painted the
+// SAME blue gradient, so a modal read as part of the page it floated over.
+// The signal is one class on <body>; the dimming itself is CSS custom properties
+// (--xp-title-blue / --xp-title-blue-border in globals.css) read by the shared
+// chrome primitives — `PageTitleBar`/`xpTitleBar`/`TITLE_TONES` in shellTheme.tsx
+// and `.classic-header` — so no view declares the gradient and none had to change.
+// Windows keep a literal gradient instead: a window must not dim itself.
+const CHROME_INACTIVE_CLASS = 'window-chrome-inactive';
+let openWindowCount = 0;
+
+/**
+ * Marks the page chrome inactive while `active` is true. Refcounted, so nested
+ * windows (levels 1-3) and print dialogs stack without the first one to close
+ * un-dimming the page under the others.
+ */
+export function useInactiveChromeWhileOpen(active: boolean) {
+    useEffect(() => {
+        if (!active || typeof document === 'undefined') return;
+        openWindowCount += 1;
+        document.body.classList.add(CHROME_INACTIVE_CLASS);
+        return () => {
+            openWindowCount = Math.max(0, openWindowCount - 1);
+            if (openWindowCount === 0) document.body.classList.remove(CHROME_INACTIVE_CLASS);
+        };
+    }, [active]);
+}
+
+/**
+ * The window close button — one face for every window title bar (ModalWrapper's
+ * dialogs AND PrintModalShell's print previews). Classic is the XP box: `.xp-btn`
+ * lift/press animation, rounded to BUTTON_RADIUS, going red on hover; modern is
+ * Bootstrap's `btn-close`. Print modals used to render a bare text glyph with no
+ * chrome at all, which is the drift this replaces — a print preview is a window,
+ * so its close button is the same close button.
+ */
+export function WindowCloseButton({ onClose, white = false }: { onClose: () => void; white?: boolean }) {
+    const { uiStyle } = useTheme();
+    const [hov, setHov] = useState(false);
+
+    if (uiStyle !== 'classic') {
+        return (
+            <button
+                type="button"
+                className={`btn-close ${white ? 'btn-close-white' : ''}`}
+                onClick={onClose}
+                aria-label="Close"
+            />
+        );
+    }
+
+    return (
+        <button
+            className={XP_BTN}
+            onClick={onClose}
+            onMouseEnter={() => setHov(true)}
+            onMouseLeave={() => setHov(false)}
+            style={{
+                fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold',
+                width: 21, height: 21, minWidth: 21, cursor: 'pointer',
+                background: hov
+                    ? 'linear-gradient(to bottom, #e8a0a0, #c84040)'
+                    : 'linear-gradient(to bottom, #d4c8c8, #a89898)',
+                border: '1px solid',
+                borderColor: hov ? '#8e0000 #5e0000 #5e0000 #8e0000' : '#dfdfdf #808080 #808080 #dfdfdf',
+                color: '#ffffff', borderRadius: BUTTON_RADIUS,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, flexShrink: 0,
+                textShadow: '0 1px 1px rgba(0,0,0,0.5)',
+            }}
+            title="Close"
+            aria-label="Close"
+        >✕</button>
+    );
 }
 
 interface ModalWrapperProps {
@@ -79,7 +157,6 @@ export default function ModalWrapper({
 }: ModalWrapperProps) {
     const { uiStyle: currentStyle } = useTheme();
     const isMobile = useIsMobile();
-    const [closeBtnHov, setCloseBtnHov] = useState(false);
     const backdropMouseDown = useRef(false);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
@@ -88,6 +165,8 @@ export default function ModalWrapper({
 
     const floating = modeless && !isMobile;
     const titleId = useId();
+
+    useInactiveChromeWhileOpen(isOpen);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -193,7 +272,7 @@ export default function ModalWrapper({
                     borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                     boxShadow: floating ? '5px 5px 16px rgba(0,0,0,0.45)' : '4px 4px 12px rgba(0,0,0,0.55)',
                     background: '#ece9d8',
-                    borderRadius: 0,
+                    borderRadius: WINDOW_RADIUS,
                     display: 'flex', flexDirection: 'column',
                     maxHeight: floating ? 'calc(var(--app-vh) - 80px)' : 'calc(var(--app-vh) * 92 / 100)',
                     ...(floating ? floatingPos : {}),
@@ -205,6 +284,9 @@ export default function ModalWrapper({
                     onPointerDown={floating ? startDrag : undefined}
                     style={{
                         background: xpTitleGradients[variant] || xpTitleGradients.primary,
+                        // Top corners follow the frame; the inner radius is the
+                        // frame's minus its 2px bevel so the two read as one curve.
+                        borderRadius: `${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px 0 0`,
                         color: '#ffffff',
                         fontFamily: xpFont,
                         fontSize: '12px', fontWeight: 'bold',
@@ -221,33 +303,18 @@ export default function ModalWrapper({
                     <span id={titleId} style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                         {title}
                     </span>
-                    <button
-                        className={XP_BTN}
-                        onClick={onClose}
-                        onMouseEnter={() => setCloseBtnHov(true)}
-                        onMouseLeave={() => setCloseBtnHov(false)}
-                        style={{
-                            fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold',
-                            width: 21, height: 21, minWidth: 21, cursor: 'pointer',
-                            background: closeBtnHov
-                                ? 'linear-gradient(to bottom, #e8a0a0, #c84040)'
-                                : 'linear-gradient(to bottom, #d4c8c8, #a89898)',
-                            border: '1px solid',
-                            borderColor: closeBtnHov ? '#8e0000 #5e0000 #5e0000 #8e0000' : '#dfdfdf #808080 #808080 #dfdfdf',
-                            color: '#ffffff', borderRadius: BUTTON_RADIUS,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            lineHeight: 1, flexShrink: 0,
-                            textShadow: '0 1px 1px rgba(0,0,0,0.5)',
-                        }}
-                        title="Close"
-                        aria-label="Close"
-                    >✕</button>
+                    <WindowCloseButton onClose={onClose} />
                 </div>
 
                 {/* Body — ui-style-classic triggers CSS overrides for Bootstrap controls */}
                 <div
                     className="ui-style-classic"
-                    style={{ padding: '12px 14px', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'linear-gradient(to bottom, #f1efe5 0%, #e5e2d3 100%)', flex: 1 }}
+                    style={{
+                        padding: '12px 14px', overflowY: bodyScroll ? 'auto' : 'hidden',
+                        background: 'linear-gradient(to bottom, #f1efe5 0%, #e5e2d3 100%)', flex: 1,
+                        // Whichever surface sits last carries the bottom corners.
+                        ...(footer ? null : { borderRadius: `0 0 ${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px` }),
+                    }}
                 >
                     {children}
                 </div>
@@ -257,6 +324,7 @@ export default function ModalWrapper({
                     <div style={{
                         background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)',
                         borderTop: '1px solid #b0a898',
+                        borderRadius: `0 0 ${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px`,
                         padding: '6px 10px',
                         display: 'flex', justifyContent: 'flex-end', gap: 4,
                         flexShrink: 0,
@@ -295,20 +363,25 @@ export default function ModalWrapper({
     };
 
     const modernContent = (
-        <div className="modal-content shadow-lg border-0" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ overflow: 'visible' }}>
+        // Radius comes from WINDOW_RADIUS, not Bootstrap's --bs-modal-border-radius:
+        // the classic branch and PrintModalShell already read that constant, and a
+        // hardcoded 0.5rem here is what let the two themes drift apart. `border-0`
+        // means there is no bevel to subtract, so the header/footer corners take the
+        // full WINDOW_RADIUS rather than WINDOW_RADIUS_INNER.
+        <div className="modal-content shadow-lg border-0" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ overflow: 'visible', borderRadius: WINDOW_RADIUS }}>
             <div
                 className={`modal-header py-2 px-3 border-bottom ${headerClasses[variant]}`}
-                style={{ borderRadius: '0.5rem 0.5rem 0 0', cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined }}
+                style={{ borderRadius: `${WINDOW_RADIUS}px ${WINDOW_RADIUS}px 0 0`, cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined }}
                 onPointerDown={floating ? startDrag : undefined}
             >
                 <h5 id={titleId} className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
-                <button type="button" className={`btn-close ${variant === 'dark' ? 'btn-close-white' : ''}`} onClick={onClose} aria-label="Close"></button>
+                <WindowCloseButton onClose={onClose} white={variant === 'dark'} />
             </div>
             <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(var(--app-vh) - 160px)' : 'calc(var(--app-vh) * 85 / 100)', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'white' }}>
                 {children}
             </div>
             {footer && (
-                <div className="modal-footer bg-light py-2 px-3 border-top" style={{ borderRadius: '0 0 0.5rem 0.5rem' }}>{footer}</div>
+                <div className="modal-footer bg-light py-2 px-3 border-top" style={{ borderRadius: `0 0 ${WINDOW_RADIUS}px ${WINDOW_RADIUS}px` }}>{footer}</div>
             )}
         </div>
     );

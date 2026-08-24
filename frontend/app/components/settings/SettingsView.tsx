@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { xpFont } from '../shared/xpTheme';
-import { xpBevel as sharedXpBevel } from '../shared/shellTheme';
+import { xpBevel as sharedXpBevel, PageTitleBar } from '../shared/shellTheme';
 import SettingsGeneralTab from './SettingsGeneralTab';
 import SettingsAccountTab from './SettingsAccountTab';
 import SettingsDatabaseTab from './SettingsDatabaseTab';
@@ -47,31 +46,7 @@ export default function SettingsView({
                 boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
             }}>
                 {/* Title bar */}
-                <div style={classic ? {
-                    background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-                    color: 'white',
-                    padding: '6px 12px',
-                    fontFamily: xpFont,
-                    fontSize: 13,
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                } : {
-                    background: '#f7f9fc',
-                    color: '#1e293b',
-                    padding: '11px 14px',
-                    fontFamily: modernFont,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    borderBottom: '1px solid #dbe1ea',
-                }}>
-                    <i className="bi bi-sliders" style={{ fontSize: 14, color: classic ? undefined : '#2563eb' }} />
-                    Settings
-                </div>
+                <PageTitleBar classic={classic} icon="bi-sliders" title="Settings" />
 
                 {/* Tabs bar */}
                 <Tabs tabs={tabs} activeKey={activeTab} onChange={(key) => setActiveTab(key)} classic={classic} />

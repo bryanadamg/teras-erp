@@ -3,12 +3,9 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
-import { xpFont, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
+import { xpFont, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN, xpInput as xpInputBase } from '../shared/xpTheme';
 
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', height: 20, padding: '0 4px', outline: 'none',
-};
+const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px' });
 
 interface BeamRow {
     localId: string;

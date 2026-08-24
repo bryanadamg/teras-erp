@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
-import PrintModalShell from '../shared/PrintModalShell';
-import { xpFont } from '../shared/xpTheme';
+import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+
 import { fmtMoney } from '../shared/format';
 
 // PO document fields (SSN, rate, kurs, code, payment, category, VAT, discount, notes)
@@ -306,7 +306,6 @@ export default function PurchaseOrderPrintModal({
     attributes: any[];
     partners: any[];
 }) {
-    const isClassic = currentStyle === 'classic';
 
     const [settings, setSettings] = useState<POPrintSettings>(() => {
         try {
@@ -331,13 +330,6 @@ export default function PurchaseOrderPrintModal({
         window.addEventListener('afterprint', handler, { once: true });
         window.print();
     };
-
-    const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }
-        : {};
-    const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
-        : {};
 
     const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' as const, color: '#111', letterSpacing: '0.5px', marginBottom: 6 };
     const fieldLabel: React.CSSProperties = { fontSize: 10, color: '#111', marginBottom: 3, fontWeight: 500 };
@@ -414,24 +406,7 @@ export default function PurchaseOrderPrintModal({
                     </div>
 
                     {/* Footer */}
-                    <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, color: '#555' }}>Settings saved automatically</span>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                            {isClassic ? (
-                                <>
-                                    <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                    <button style={xpBtnGreen} onClick={handlePrint}>Print</button>
-                                </>
-                            ) : (
-                                <>
-                                    <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                    <button className="btn btn-sm btn-success" onClick={handlePrint}>
-                                        <i className="bi bi-printer me-1"></i>Print
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
+                    <PrintModalFooter note="Settings saved automatically" onClose={onClose} onPrint={handlePrint} />
             </PrintModalShell>
 
             {/* Print portal — rendered into body, shown only during actual print */}

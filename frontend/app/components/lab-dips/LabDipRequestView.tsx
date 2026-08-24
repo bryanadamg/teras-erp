@@ -10,31 +10,16 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle, PageTitleBar } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
-import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra, TableEmpty } from '../shared/listViewTheme';
+import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra, TableEmpty, lvBtn, lvInput } from '../shared/listViewTheme';
 import { API_BASE, STATIC_BASE } from '../shared/apiBase';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const xpInput = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', padding: '1px 6px', outline: 'none', height: 20,
-} : {
-    fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df', borderRadius: 7,
-    padding: '4px 8px', background: '#fff', color: '#1e293b', outline: 'none', height: 'auto',
-};
-const xpBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000',
-    ...extra,
-} : {
-    fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px', cursor: 'pointer',
-    background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7,
-    ...extra,
-};
+const xpInput = (classic: boolean): React.CSSProperties => lvInput(classic, classic ? { width: 'auto' } : { height: 'auto' });
+const xpBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(classic, 'default', extra);
 // Modern primary-button overrides (Submit/Create/Add/New). Merged on top of the secondary base above.
 const modernPrimaryBtn: React.CSSProperties = {
     fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none',
@@ -113,7 +98,7 @@ const splitVariantCode = (code: string): { seq: string; variant: string } => {
 };
 
 // Color-variant names this item was dipped for: its own dips, else the request-level picks
-// (③ Colors applies to every item). These names are `Colors` variant attribute values.
+// (Colors applies to every item). These names are `Colors` variant attribute values.
 const itemColorNames = (req: any, item: any): string[] => {
     const own = (item?.dips || []).map((d: any) => d.color_name).filter(Boolean);
     if (own.length) return own;
@@ -503,18 +488,16 @@ export default function LabDipRequestView({
     const nextCode = `${isYarn ? 'LDY' : 'LD'}-${new Date().getFullYear()}-${String(maxSeq + 1).padStart(5, '0')}`;
     const displayCode = editing ? editing.code : nextCode;
 
-
     return (
         <div style={classic
             ? { ...pageFillStyle, fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
             : { ...pageFillStyle, fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
             {/* Title bar */}
-            <div style={classic
-                ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
-                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, fontFamily: modernFont, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <i className={isYarn ? 'bi bi-droplet-half' : 'bi bi-droplet'} style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
-                {isYarn ? 'Yarn Lab Dip Requests' : 'Lab Dip Requests'}
-            </div>
+            <PageTitleBar
+                classic={classic}
+                icon={isYarn ? 'bi-droplet-half' : 'bi-droplet'}
+                title={isYarn ? 'Yarn Lab Dip Requests' : 'Lab Dip Requests'}
+            />
 
             {/* Toolbar */}
             <div style={classic
@@ -758,13 +741,13 @@ export default function LabDipRequestView({
                                         });
 
                                         const sections = [
-                                            { title: '① Identity', fields: [
+                                            { title: 'Identity', fields: [
                                                 { label: 'Customer', value: r.customer_id ? getCustomerName(r.customer_id) : 'Internal' },
                                                 { label: 'Season / Project', value: r.season || '—' },
                                                 { label: 'Request Type', value: r.request_type || '—' },
                                                 { label: 'Request Date', value: fmt(r.request_date) },
                                             ]},
-                                            { title: `② ${colorsAttrName}`, fields: [
+                                            { title: colorsAttrName, fields: [
                                                 { label: colorsAttrName, value: (() => {
                                                     const dips = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
                                                     if (!dips.length) return '—';
@@ -775,7 +758,7 @@ export default function LabDipRequestView({
                                                     );
                                                 })(), full: true },
                                             ]},
-                                            { title: '③ Recipe & Notes', fields: [
+                                            { title: 'Recipe & Notes', fields: [
                                                 { label: 'Approved Recipe', value: recipeLabel || '—', full: true },
                                                 { label: 'Notes', value: r.notes || '—', full: true },
                                             ]},
@@ -862,7 +845,7 @@ export default function LabDipRequestView({
                     <>
                         <button type="button" style={xpBtn(classic)} onClick={() => { setIsModalOpen(false); setEditing(null); }}>Cancel</button>
                         <button type="button" style={classic
-                            ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontWeight: 'bold' })
+                            ? xpBtn(true, { ...BTN_TONES.primary })
                             : xpBtn(false, modernPrimaryBtn)} onClick={handleSubmit as any}>
                             {editing ? 'Save Changes' : 'Create Request'}
                         </button>
@@ -870,8 +853,8 @@ export default function LabDipRequestView({
                 }
             >
                 <form onSubmit={handleSubmit} id="create-lab-dip-form">
-                    {/* ① Identity */}
-                    <FormSection title="① Identity" classic={classic}>
+                    {/* Identity */}
+                    <FormSection title="Identity" classic={classic}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                 <div>
                                     <label style={xpLbl(classic)}>Request Code</label>
@@ -906,8 +889,8 @@ export default function LabDipRequestView({
                             </div>
                     </FormSection>
 
-                    {/* ② Items */}
-                    <FormSection title="② Items" classic={classic}>
+                    {/* Items */}
+                    <FormSection title="Items" classic={classic}>
                             {/* Add item — finished good on the FG book, yarn on the yarn book */}
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ flex: 1 }}>
@@ -963,8 +946,8 @@ export default function LabDipRequestView({
                             })()}
                     </FormSection>
 
-                    {/* ③ Colors — applies to all items on this request */}
-                    <FormSection title={`③ ${colorsAttrName}`} classic={classic}>
+                    {/* Colors — applies to all items on this request */}
+                    <FormSection title={colorsAttrName} classic={classic}>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ flex: 1 }}>
                                     <SearchableSelect
@@ -990,8 +973,8 @@ export default function LabDipRequestView({
                             )}
                     </FormSection>
 
-                    {/* ④ Recipe link & notes */}
-                    <FormSection title="④ Approved Recipe & Notes" classic={classic}>
+                    {/* Recipe link & notes */}
+                    <FormSection title="Approved Recipe & Notes" classic={classic}>
                             <div style={{ marginBottom: 8 }}>
                                 <label style={xpLbl(classic)}>Approved Dye Recipe (Optional)</label>
                                 <SearchableSelect options={[{ value: '', label: 'Not yet linked' }, ...recipeOptions]} value={form.approved_recipe_id} onChange={(v: string) => setField('approved_recipe_id', v)} placeholder="Link approved recipe…" />

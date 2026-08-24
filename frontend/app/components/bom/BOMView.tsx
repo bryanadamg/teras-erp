@@ -12,7 +12,7 @@ import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, VariantChip, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
-import { FilterChipBar, xpToolbar, ToolbarButton, SearchField } from '../shared/shellTheme';
+import { FilterChipBar, xpToolbar, ToolbarButton, SearchField, xpTitleBar } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
     { value: 'root', label: 'Root BOMs' },
@@ -874,7 +874,7 @@ export default function BOMView({
                 >
                     {/* Title bar */}
                     {classic ? (
-                        <div style={{ background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', fontFamily: xpFont, fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080', display: 'flex', alignItems: 'center' }}>
+                        <div style={xpTitleBar({ justifyContent: 'flex-start', minHeight: undefined })}>
                             <span><i className="bi bi-diagram-3-fill" style={{ marginRight: '6px' }} />{t('active_boms')}</span>
                         </div>
                     ) : (

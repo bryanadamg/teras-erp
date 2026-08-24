@@ -7,24 +7,15 @@ import { Tabs, TabDef } from '../shared/Tabs';
 import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
-import { xpFont } from '../shared/xpTheme';
-import { pageFillStyle } from '../shared/shellTheme';
+import { xpFont, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
+import { pageFillStyle, PageTitleBar } from '../shared/shellTheme';
 
-// ── XP Style Constants ────────────────────────────────────────────────────────
+// ── XP Style Constants ─────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', padding: '1px 4px', outline: 'none', height: 20,
-};
-const xpBtn: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    cursor: 'pointer',
-    borderRadius: 3,
-};
+const xpInput: React.CSSProperties = xpInputBase({ padding: '1px 4px' });
+const xpBtn: React.CSSProperties = xpBtnBase({ fontSize: 10, padding: '2px 8px' });
 const xpSectionHeader: React.CSSProperties = {
-    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
+    background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 };
@@ -101,33 +92,7 @@ export default function DyeingSettingView() {
             boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
         }}>
             {/* Title bar */}
-            <div style={classic ? {
-                background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-                color: 'white',
-                padding: '6px 12px',
-                fontFamily: xpFont,
-                fontSize: 13,
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                flexShrink: 0,
-            } : {
-                background: '#f7f9fc',
-                color: '#1e293b',
-                padding: '11px 14px',
-                fontFamily: modernFont,
-                fontSize: 14,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                flexShrink: 0,
-                borderBottom: '1px solid #dbe1ea',
-            }}>
-                <i className="bi bi-droplet-fill" style={{ fontSize: 14, color: classic ? undefined : '#2563eb' }} />
-                Dyeing &amp; Setting
-            </div>
+            <PageTitleBar classic={classic} icon="bi-droplet-fill" title="Dyeing & Setting" />
 
             {/* Tabs bar */}
             <Tabs tabs={TABS} activeKey={activeTab} onChange={handleTabChange} classic={classic} />

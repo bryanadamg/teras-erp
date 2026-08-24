@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, XP_BTN } from './xpTheme';
+import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, PANEL_RADIUS, XP_BTN } from './xpTheme';
 
 // Shared "classic outer window" chrome — bevel container + colored title bar +
 // toolbar strip. Every dual-theme table/detail view (Sales Orders, Packing,
@@ -10,9 +10,14 @@ import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, XP_BT
 // title-bar gradient, same toolbar strip) — this is the single source now.
 // Migrate a view's local copy when you touch it; don't hand-roll a new one.
 
+// `overflow: hidden` is part of the chrome, not a caller concern: the title bar,
+// toolbar and table inside are all square-cornered, so without the clip they poke
+// out of PANEL_RADIUS. It clips at the padding box (radius minus the 2px bevel),
+// which is what makes the bar's corner read as one curve with the frame's.
 export const xpBevel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
+    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8',
+    borderRadius: PANEL_RADIUS, overflow: 'hidden',
     ...extra,
 });
 
@@ -22,8 +27,8 @@ export const xpBevel = (extra: React.CSSProperties = {}): React.CSSProperties =>
 // semantic families as STATUS_FAMILY — don't add a sixth hue here.
 export type ShellTone = 'blue' | 'red' | 'amber' | 'green' | 'grey';
 
-const TITLE_TONES: Record<ShellTone, { background: string; border: string }> = {
-    blue:  { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', border: '#003080' },
+export const TITLE_TONES: Record<ShellTone, { background: string; border: string }> = {
+    blue:  { background: 'var(--xp-title-blue)', border: 'var(--xp-title-blue-border)' },
     red:   { background: 'linear-gradient(to right, #990000 0%, #cc2222 100%)', border: '#550000' },
     amber: { background: 'linear-gradient(to right, #c07000 0%, #e09830 100%)', border: '#804000' },
     green: { background: 'linear-gradient(to right, #1a7a1a 0%, #2ea42e 100%)', border: '#0a4a0a' },
@@ -391,9 +396,49 @@ export function ShellWindow({ classic, fill = 'page', className, style, children
     return (
         <div
             style={classic ? { ...xpBevel(), ...fillStyle, ...style } : { ...fillStyle, ...style }}
-            className={classic ? className : `card border-0 shadow-sm ${className || ''}`.trim()}
+            className={classic ? className : `card border-0 shadow-sm shell-window ${className || ''}`.trim()}
         >
             {children}
+        </div>
+    );
+}
+
+/**
+ * Page title bar — icon + label, no actions, no bootstrap card chrome. The shape
+ * seven page shells (Colors, Color Library, Combo Library, Attributes, Settings,
+ * Dyeing & Setting, Lab Dips) each declared by hand, byte-for-byte the same pair
+ * of style objects: classic = the blue gradient bar, modern = a pale flat header
+ * with a blue icon. That is why the window-focus swap had to touch seven files;
+ * with this, the gradient appears in exactly two places in the whole app
+ * (`TITLE_TONES` here, and ModalWrapper/PrintModalShell for a window that must
+ * NOT dim itself).
+ *
+ * Use `ShellTitleBar` instead when the bar carries right-side actions or needs
+ * the bootstrap card-header look in modern.
+ */
+export function PageTitleBar({ classic, icon, title, right, style }: {
+    classic: boolean;
+    icon: string;                 // bootstrap-icons class, e.g. "bi-palette2"
+    title: React.ReactNode;
+    right?: React.ReactNode;
+    style?: React.CSSProperties;
+}) {
+    const base: React.CSSProperties = classic
+        ? {
+            background: TITLE_TONES.blue.background, color: '#fff', fontFamily: xpFont,
+            padding: '6px 12px', fontSize: 13, fontWeight: 'bold',
+            display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        }
+        : {
+            background: '#f7f9fc', color: '#1e293b', fontFamily: modernFont,
+            borderBottom: '1px solid #dbe1ea', padding: '9px 13px', fontSize: 14, fontWeight: 700,
+            display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        };
+    return (
+        <div style={{ ...base, ...style }}>
+            <i className={`bi ${icon}`} style={{ fontSize: 14, color: classic ? undefined : '#2563eb' }} />
+            {title}
+            {right && <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>{right}</span>}
         </div>
     );
 }

@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, BTN_TONES } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead, LV_STICKY_THEAD, useRowSelection, RowCheckbox, SelectAllCheckbox, lvZebra } from '../shared/listViewTheme';
@@ -88,7 +88,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
     // Button/input/cell/label chrome sourced from the shared lv* helpers (pinned to
     // classic=true — this constant is only ever used inside `classic ? ... : undefined`
     // branches below) instead of re-declaring the same CSS values locally.
-    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
+    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, 'default', extra);
     const xpInput: React.CSSProperties = lvInput(true);
     const xpSep: React.CSSProperties = {
         width: '1px',
@@ -198,7 +198,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                             </span>
                             <div style={xpSep}></div>
                             <button
-                                style={xpBtn({ background: 'linear-gradient(to bottom, #c84040, #8e0000)', borderColor: '#8e0000 #5e0000 #5e0000 #8e0000', color: '#ffffff', fontWeight: 'bold' })}
+                                style={xpBtn({ ...BTN_TONES.danger })}
                                 onClick={() => setShowBulkDeleteConfirm(true)}
                             >
                                 <i className="bi bi-trash" style={{ marginRight: 4 }}></i>Delete Selected
@@ -337,7 +337,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                         >Cancel</button>
                         <button
                             type="button"
-                            style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                            style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
                             className={classic ? '' : 'btn btn-sm btn-primary px-4 fw-bold'}
                             onClick={handleSubmit}
                         >CREATE {typeLabel.toUpperCase()}</button>
@@ -410,7 +410,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                         >Cancel</button>
                         <button
                             type="button"
-                            style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #c84040, #8e0000)', borderColor: '#8e0000 #5e0000 #5e0000 #8e0000', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                            style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
                             className={classic ? '' : 'btn btn-sm btn-danger px-4 fw-bold'}
                             onClick={confirmDelete}
                         >DELETE</button>
@@ -439,7 +439,7 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                         >Cancel</button>
                         <button
                             type="button"
-                            style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #c84040, #8e0000)', borderColor: '#8e0000 #5e0000 #5e0000 #8e0000', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                            style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
                             className={classic ? '' : 'btn btn-sm btn-danger px-4 fw-bold'}
                             onClick={confirmBulkDelete}
                         >DELETE ALL</button>

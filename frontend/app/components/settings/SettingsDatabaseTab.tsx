@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
 import {
     xpTableHeader, xpThCell, tdBase,
     settingsStack, settingsHint, SETTINGS_FIELD_GAP,
@@ -538,7 +538,7 @@ export default function SettingsDatabaseTab() {
                         </div>
                         {classic ? (
                             <button
-                                style={xpBtn({ background: 'linear-gradient(to bottom, #d32f2f, #8b0000)', borderColor: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#ffffff' })}
+                                style={xpBtn({ ...BTN_TONES.danger })}
                                 onClick={() => setShowWipeModal(true)}
                             >
                                 <i className="bi bi-trash3-fill" style={{ marginRight: 4 }}></i>Wipe Database

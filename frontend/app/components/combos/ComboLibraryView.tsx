@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
-import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
+import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, pageFillStyle, PageTitleBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
 } from '../shared/listViewTheme';
@@ -97,12 +97,7 @@ export default function ComboLibraryView({
 
             {/* Title bar (hidden when embedded under a tab shell) */}
             {!embedded && (
-            <div style={classic
-                ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
-                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <i className="bi bi-grid-3x3-gap" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
-                Combo Library
-            </div>
+            <PageTitleBar classic={classic} icon="bi-grid-3x3-gap" title="Combo Library" />
             )}
 
             {/* Toolbar */}

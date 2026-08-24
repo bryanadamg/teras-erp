@@ -17,7 +17,7 @@ import PixelAvatar from '../shared/PixelAvatar';
 //   phone's sidebar, so it uses the sidebar's blues, not a grey taskbar).
 // This used to be a navy `#1a1a2e -> #3a3a5e` bar over grey tabs, which belonged
 // to no other screen in the app.
-const HEADER_GRAD  = 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)';
+const HEADER_GRAD  = 'var(--xp-title-blue)';   // shared with desktop chrome; dims while a window is open
 const SIDEBAR_BG   = '#d6dff7';   // Sidebar.tsx SIDEBAR_BG
 const NAV_COLOR    = '#003080';   // Sidebar.tsx ACTIVE_COLOR / NAV_COLOR
 const NAV_RULE     = '#c0ccee';   // Sidebar.tsx nav item borderBottom

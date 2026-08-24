@@ -2,9 +2,9 @@
 import React, { useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { MODAL_Z, MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { MODAL_Z, MODAL_REPOSITION_EVENT, useInactiveChromeWhileOpen, WindowCloseButton } from './ModalWrapper';
 import { toLayoutPx } from './uiScale';
-import { xpFont } from './xpTheme';
+import { xpFont, XP_BTN, xpBtn, BTN_TONES, WINDOW_RADIUS, WINDOW_RADIUS_INNER } from './xpTheme';
 
 interface PrintModalShellProps {
     title: React.ReactNode;
@@ -18,7 +18,6 @@ interface PrintModalShellProps {
     bevel?: boolean;             // classic 2px bevel border on the panel (defaults true — matches the
                                  // majority; pass false for the print types that never had it, to keep
                                  // this refactor visually a no-op).
-    closeGlyph?: 'X' | '✕';
     /**
      * Modeless window: no backdrop, background page stays interactive, panel is
      * draggable by its title bar. Ignored on mobile (falls back to a normal
@@ -38,12 +37,16 @@ interface PrintModalShellProps {
 export default function PrintModalShell({
     title, onClose, children,
     width = 'calc(var(--app-vw) * 90 / 100)', maxWidth = 960, height = 'calc(var(--app-vh) * 88 / 100)',
-    bevel = true, closeGlyph = 'X', modeless = false,
+    bevel = true, modeless = false,
 }: PrintModalShellProps) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const isMobile = useIsMobile();
     const floating = modeless && !isMobile;
+
+    // Mounted == open for this shell, so the page chrome behind it is inactive
+    // for its whole life (same signal ModalWrapper uses).
+    useInactiveChromeWhileOpen(true);
 
     const panelRef = useRef<HTMLDivElement>(null);
     const dragOffset = useRef({ x: 0, y: 0 });
@@ -78,10 +81,12 @@ export default function PrintModalShell({
     const headerStyle: React.CSSProperties = classic ? {
         background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff',
         fontFamily: xpFont, fontSize: 12, fontWeight: 'bold',
+        borderRadius: `${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px 0 0`,
         padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
         cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined,
     } : {
         background: '#0d6efd', color: '#fff', padding: '10px 14px',
+        borderRadius: `${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px 0 0`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
         cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined,
     };
@@ -92,6 +97,8 @@ export default function PrintModalShell({
             style={{
                 width, maxWidth, height, display: 'flex', flexDirection: 'column',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.4)', background: '#fff',
+                // Same frame radius as ModalWrapper — a print dialog is a window too.
+                borderRadius: WINDOW_RADIUS, overflow: 'hidden',
                 ...(bevel ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' } : {}),
                 ...(floating ? {
                     position: 'fixed' as const, left: '50%', top: 56,
@@ -103,12 +110,7 @@ export default function PrintModalShell({
         >
             <div style={headerStyle} onPointerDown={floating ? startDrag : undefined}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{title}</span>
-                <button
-                    onClick={onClose}
-                    style={{ background: 'none', border: 'none', color: 'inherit', fontSize: 14, cursor: 'pointer', lineHeight: 1, fontWeight: 'bold' }}
-                >
-                    {closeGlyph}
-                </button>
+                <WindowCloseButton onClose={onClose} white={!classic} />
             </div>
             {children}
         </div>
@@ -123,6 +125,54 @@ export default function PrintModalShell({
             onClick={onClose}
         >
             {panel}
+        </div>
+    );
+}
+
+// The Close / Print bar every print modal ends with. All 16 of them hand-rolled it:
+// the same padded strip, the same optional left-hand note, and the same pair of
+// buttons — but with three different button faces (classic-inline + bootstrap,
+// classic-inline in BOTH themes, and a pale-green XP variant), each carrying its own
+// copy of the XP gradient. That is where `xpBtnGrey`/`xpBtnGreen`/`btnGreen` came
+// from; they are gone. One footer, so a print dialog looks the same wherever it is
+// opened from, and the button chrome lives in ONE place.
+export function PrintModalFooter({ note, onClose, onPrint, printDisabled = false, printLabel = 'Print', closeLabel = 'Close' }: {
+    /** Left-aligned hint ("Settings saved automatically"). Omitted → buttons sit right. */
+    note?: React.ReactNode;
+    onClose: () => void;
+    onPrint: () => void;
+    /** Nothing to print yet (no bags/lots/cartons) — greys the Print button. */
+    printDisabled?: boolean;
+    printLabel?: string;
+    closeLabel?: string;
+}) {
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
+    const grey = xpBtn({ padding: '3px 12px' });
+    const green = xpBtn({ ...BTN_TONES.success, padding: '3px 14px', opacity: printDisabled ? 0.5 : 1 });
+    return (
+        <div style={{
+            padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', flexShrink: 0,
+            display: 'flex', justifyContent: note ? 'space-between' : 'flex-end', alignItems: 'center', gap: 6,
+        }}>
+            {note && <span style={{ fontSize: 10, color: '#666' }}>{note}</span>}
+            <div style={{ display: 'flex', gap: 6 }}>
+                {classic ? (
+                    <>
+                        <button className={XP_BTN} style={grey} onClick={onClose}>{closeLabel}</button>
+                        <button className={XP_BTN} style={green} disabled={printDisabled} onClick={onPrint}>
+                            <i className="bi bi-printer" style={{ marginRight: 4 }} />{printLabel}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button className="btn btn-sm btn-secondary" onClick={onClose}>{closeLabel}</button>
+                        <button className="btn btn-sm btn-success" disabled={printDisabled} onClick={onPrint}>
+                            <i className="bi bi-printer me-1" />{printLabel}
+                        </button>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

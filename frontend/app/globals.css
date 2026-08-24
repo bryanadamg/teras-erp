@@ -1,5 +1,12 @@
 :root {
   --sidebar-width: 260px;
+  /* Horizontal gutter between the page content and the window edges. It lives on
+     the page body, NOT on .main-content: .main-content is the scroll container,
+     and padding there insets the sticky app header away from the sidebar and the
+     top of the viewport (the header is chrome, so it must stay full-bleed) and
+     also parks the sticky bar that far down once you scroll. Themes/breakpoints
+     re-point this var; nothing else should re-declare the gutter. */
+  --content-pad: 32px;
   --primary-color: #4f46e5;
   --primary-dark: #4338ca;
   --bg-color: #f3f4f6;
@@ -214,6 +221,20 @@ body {
   color: #b91c1c !important;
 }
 
+/* Outer shell of a page/table view in the modern theme — the counterpart of the
+   classic `xpBevel`, kept at PANEL_RADIUS (xpTheme.tsx) so a view frame reads the
+   same in both themes and stays one step ROUNDER than the FormSection boxes
+   inside it. Scoped to `.shell-window` rather than `.card` on purpose: a plain
+   `.card` is also every KPI tile and nested panel, and rounding those to the
+   frame radius flattens the nesting the scale exists to express. The clip is what
+   keeps the square title bar inside the rounded corner. NOT applied to
+   `.classic-header` / `.app-header` — that bar is full-bleed viewport chrome. */
+.card.shell-window,
+.ui-style-modern .card.shell-window {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 /* Cards / panels — calm, no hover lift, denser padding (ERP density) */
 .ui-style-modern .card {
   border: 1px solid var(--border);
@@ -358,14 +379,14 @@ body {
   color: var(--primary-dark);
 }
 
-/* Slim, squared scrollbars */
+/* Slim scrollbars, thumb rounded to the shared BUTTON_RADIUS (xpTheme.tsx) */
 .ui-style-modern ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .ui-style-modern ::-webkit-scrollbar-thumb {
   background: #aebfce;
-  border-radius: 2px;
+  border-radius: 3px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -385,6 +406,30 @@ body {
 }
 
 /* UI Style: Classic (Windows XP) */
+/* ============================================================
+   Window focus — active vs inactive chrome.
+   The app header, every list panel's title bar and every dialog's
+   title bar used to paint the SAME blue gradient, so a modal read
+   as part of the page behind it. XP's own answer: only the focused
+   window keeps the saturated blue, the chrome behind desaturates.
+   ModalWrapper refcounts open windows and puts
+   `.window-chrome-inactive` on <body> (see useInactiveChromeWhileOpen);
+   everything that heads page chrome reads these two properties, so the
+   swap needs no per-call-site change. Dialog title bars deliberately
+   hardcode their gradient instead — a window must not dim itself.
+   Custom properties are substituted where they are USED, so page chrome
+   must reference --xp-title-blue directly; aliasing it into another
+   property on :root would freeze the active value.
+   ============================================================ */
+:root {
+  --xp-title-blue: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
+  --xp-title-blue-border: #003080;
+}
+body.window-chrome-inactive {
+  --xp-title-blue: linear-gradient(to right, #7a96b8 0%, #a8bcd4 100%);
+  --xp-title-blue-border: #6a819b;
+}
+
 .ui-style-classic {
   --sidebar-width: 200px;
   --win-bg: #ece9d8;
@@ -392,7 +437,9 @@ body {
   --win-border-light: #ffffff;
   --win-border-dark: #808080;
   --win-blue: #0054e3;
-  --win-header-grad: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
+  /* Legacy alias kept for anything still reading it. Page chrome must use
+     --xp-title-blue directly so it re-resolves when a window opens. */
+  --win-header-grad: var(--xp-title-blue);
   --win-text: #000000;
   --win-highlight: #316ac5;
   /* Mirrors `xpFont` in components/shared/xpTheme.tsx — the one classic type
@@ -418,11 +465,11 @@ body {
 
 /* Classic Header (Top Bar) */
 .classic-header {
-  background: var(--win-header-grad) !important;
+  background: var(--xp-title-blue) !important;
   color: white !important;
   height: 30px !important;
   padding: 0 5px !important;
-  border-bottom: 1px solid #00309c !important;
+  border-bottom: 1px solid var(--xp-title-blue-border) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.3) !important;
 }
 
@@ -529,10 +576,14 @@ body {
 }
 
 /* Content Area for Classic */
+.ui-style-classic {
+  --content-pad: 10px;
+}
+
 .ui-style-classic .main-content {
   margin-left: var(--sidebar-width) !important;
   width: calc(100% - var(--sidebar-width)) !important;
-  padding: 10px;
+  padding: 0;
 }
 
 /* ── SIDEBAR: XP Scrollbar ── */
@@ -546,7 +597,7 @@ body {
 .ui-style-classic .sidebar::-webkit-scrollbar-thumb {
   background: linear-gradient(to right, #ffffff, #d4d0c8);
   border: 1px solid #808080;
-  border-radius: 0;
+  border-radius: 3px;
 }
 .ui-style-classic .sidebar::-webkit-scrollbar-button {
   background: linear-gradient(to bottom, #ffffff, #d4d0c8);
@@ -917,7 +968,7 @@ body {
 .ui-style-classic ::-webkit-scrollbar-thumb {
   background: linear-gradient(to right, #ffffff, #d4d0c8);
   border: 1px solid #808080;
-  border-radius: 0;
+  border-radius: 3px;
 }
 .ui-style-classic ::-webkit-scrollbar-corner {
   background: #d4d0c8;
@@ -985,8 +1036,15 @@ body {
 .main-content {
   margin-left: var(--sidebar-width);
   width: calc(100% - var(--sidebar-width));
-  padding: 32px;
+  padding: 0;
   transition: all 0.3s;
+}
+
+/* The page content under the app header. Carries the gutter that .main-content
+   used to, so the header above it can run edge to edge. Vertical rhythm stays on
+   the element's own py-3 utility. */
+.page-body {
+  padding: 16px var(--content-pad) var(--content-pad);
 }
 
 /* Locations page: 3-pane (stores/zones/bins) stacks vertically on narrow
@@ -1033,9 +1091,13 @@ body {
     border-right: 1px solid #718bb7;
   }
 
+  .app-container {
+    --content-pad: 16px;
+  }
+
   .main-content {
     margin-left: 0;
-    padding: 16px;
+    padding: 0;
   }
   
   .ui-style-classic .main-content {
@@ -1201,7 +1263,12 @@ table {
     padding: 0 !important;
     width: 100% !important;
   }
-  
+
+  /* The gutter moved off .main-content onto .page-body; print has to zero both. */
+  .page-body {
+    padding: 0 !important;
+  }
+
   .container {
     max-width: 100% !important;
     width: 100% !important;
@@ -1711,6 +1778,54 @@ table {
   .xp-btn:not(:disabled):active,
   .ui-style-classic .btn:not(:disabled):hover,
   .ui-style-classic .btn:not(:disabled):active { transform: none; }
+}
+
+/* ── TABS: shared hover motion ────────────────────────────────────────────────
+   Tabs deliberately do NOT borrow `.xp-btn`'s lift: a tab is seated in its strip
+   and the active one's open bottom seam into the pane is the point — a
+   translateY would peel it off that seam. The shared motion is instead an
+   underline that wipes out from the centre, drawn as `::after` in currentColor so
+   it never fights the inline border/background the `Tabs` primitive paints (an
+   inline background always wins over a CSS one). Classic adds a face brighten on
+   top, which modern skips: its tab face is transparent, so a brightness bump
+   would only wash out the label. Tag a tab `.xp-tab` (export `XP_TAB` from
+   xpTheme) — the active tab carries `.xp-tab-active` and gets no hover, since
+   there is nothing to invite a click to. */
+.xp-tab {
+  position: relative;
+  /* Where the hover underline sits. Modern tabs reserve a 2px transparent
+     bottom border that the active tab fills blue, and an absolute child is
+     positioned against the padding box — so the hover bar has to be pushed
+     down onto that border to land where the active one does. Classic draws its
+     own 1px seam instead and keeps the bar just above it. */
+  --xp-tab-underline-offset: -2px;
+  transition: filter 110ms ease-out;
+}
+.ui-style-classic .xp-tab { --xp-tab-underline-offset: 0px; }
+.xp-tab::after {
+  content: '';
+  position: absolute;
+  left: 5px; right: 5px; bottom: var(--xp-tab-underline-offset);
+  height: 2px;
+  background: currentColor;
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 130ms ease-out, opacity 130ms ease-out;
+  pointer-events: none;
+}
+.xp-tab:not(.xp-tab-active):hover::after,
+.xp-tab:not(.xp-tab-active):focus-visible::after {
+  opacity: 0.6;
+  transform: scaleX(1);
+}
+.ui-style-classic .xp-tab:not(.xp-tab-active):hover { filter: brightness(1.06) saturate(1.04); }
+.ui-style-classic .xp-tab:not(.xp-tab-active):active { filter: brightness(0.95); }
+.xp-tab:focus-visible { outline: 1px dotted currentColor; outline-offset: -3px; }
+@media (prefers-reduced-motion: reduce) {
+  .xp-tab, .xp-tab::after { transition: none; }
+  .xp-tab:not(.xp-tab-active):hover::after,
+  .xp-tab:not(.xp-tab-active):focus-visible::after { transform: none; }
 }
 
 /* Bootstrap tab strips in Classic (Sample Requests) — top corners only, matching

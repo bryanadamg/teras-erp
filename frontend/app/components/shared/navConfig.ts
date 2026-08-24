@@ -103,10 +103,18 @@ export const NAV_SECTIONS: NavSection[] = [
     },
     {
         key: 'dyeing', label: 'Dyeing & Setting', icon: 'bi-droplet-half', accent: 'blue',
-        permissions: ['dye_recipe.view', 'color_code.view', 'lab_dip_request.view', 'yarn_lab_dip.view'],
+        // color_variant.* is listed alongside the .view codes because the section gate
+        // (Sidebar) hides the whole section when none match — without it a variant-only
+        // role could reach /colors by URL but never see it in the nav.
+        permissions: ['dye_recipe.view', 'color_code.view', 'lab_dip_request.view', 'yarn_lab_dip.view',
+            'color_variant.create', 'color_variant.edit', 'color_variant.delete'],
         items: [
             { tab: 'dyeing-setting', label: 'Dyeing & Setting', icon: 'bi-palette', permission: 'dye_recipe.view' },
-            { tab: 'colors', label: 'Colors', icon: 'bi-palette2', permission: 'color_code.view' },
+            // Two tabs, two grants: the Color Code catalog (color_code.view) and the
+            // Colors-variant list (color_variant.*). ANY-of, because a role granted only
+            // variant management could otherwise not reach the page its grant is for; the
+            // page hides whichever tab the user has no grant for.
+            { tab: 'colors', label: 'Colors', icon: 'bi-palette2', permission: ['color_code.view', 'color_variant.create', 'color_variant.edit', 'color_variant.delete'] },
             { tab: 'lab-dips', label: 'Lab Dip Requests', icon: 'bi-droplet', permission: 'lab_dip_request.view' },
             { tab: 'lab-dips-yarn', label: 'Yarn Lab Dips', icon: 'bi-droplet-half', permission: 'yarn_lab_dip.view' },
             { tab: 'lab-dip-report', label: 'Lab Dip Report', i18nKey: 'lab_dip_report', icon: 'bi-clipboard-data', permission: 'lab_dip_request.view' },

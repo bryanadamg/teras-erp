@@ -1,6 +1,10 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont, SortMark, SortState, BUTTON_RADIUS } from './xpTheme';
+import { xpFont, modernFont, SortMark, SortState, BUTTON_RADIUS, BTN_TONES } from './xpTheme';
+import type { BtnTone } from './xpTheme';
+
+// Re-exported so list-view call sites can type a tone without reaching past this module.
+export type { BtnTone };
 
 // Shared dual-theme (classic XP / modern) style helpers for master-data list views
 // (Color Library, Combo Library, Colors variant, …). xpTheme's xpBtn/xpInput are
@@ -27,22 +31,34 @@ export const lvInput = (classic: boolean, extra: React.CSSProperties = {}): Reac
     ...extra,
 });
 
-const LV_MODERN_PRIMARY: React.CSSProperties = { fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none' };
+// Classic faces come from xpTheme's BTN_TONES (single source, shared with the
+// classic-only `xpBtn`); only the modern half lives here.
+const LV_CLASSIC_TONES = BTN_TONES;
 
-export const lvBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => (classic ? {
+const LV_MODERN_TONES: Record<BtnTone, React.CSSProperties> = {
+    default: {},
+    primary: { fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none' },
+    success: { fontWeight: 600, background: '#16a34a', color: '#fff', border: 'none' },
+    danger:  { fontWeight: 600, background: '#dc2626', color: '#fff', border: 'none' },
+};
+
+// THE button face, both themes, all four intents. `extra` still spreads last so a
+// caller can size or disable it; it is not the place to repaint the face.
+export const lvBtn = (classic: boolean, tone: BtnTone = 'default', extra: React.CSSProperties = {}): React.CSSProperties => (classic ? {
     fontFamily: LV_XP_FONT, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000',
-    borderRadius: BUTTON_RADIUS, ...extra,
+    borderRadius: BUTTON_RADIUS, ...LV_CLASSIC_TONES[tone], ...extra,
 } : {
     fontFamily: LV_MODERN_FONT, fontSize: 12.5, fontWeight: 500, padding: '5px 12px', cursor: 'pointer',
-    background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7, ...extra,
+    background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7,
+    ...LV_MODERN_TONES[tone], ...extra,
 });
 
-// Emphasised primary button (blue), dual-theme.
-export const lvPrimaryBtn = (classic: boolean): React.CSSProperties => (classic
-    ? lvBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
-    : lvBtn(false, LV_MODERN_PRIMARY));
+// Emphasised primary button (blue), dual-theme. Kept as the name most call sites
+// already use; it is just `lvBtn(classic, 'primary')`.
+export const lvPrimaryBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties =>
+    lvBtn(classic, 'primary', extra);
 
 export const lvLabel = (classic: boolean): React.CSSProperties => (classic
     ? { fontFamily: LV_XP_FONT, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 }
@@ -578,39 +594,3 @@ export function LvSectionCaption({ classic, icon, children, right, style }: {
     );
 }
 
-// ── Shared tab bar ────────────────────────────────────────────────────────────
-export interface LvTab { key: string; label: string; icon?: string; }
-
-export function LvTabBar({ classic, tabs, active, onChange, right }: {
-    classic: boolean; tabs: LvTab[]; active: string; onChange: (key: string) => void; right?: React.ReactNode;
-}) {
-    return (
-        <div style={classic
-            ? { display: 'flex', alignItems: 'center', gap: 2, padding: '4px 8px 0', borderBottom: '2px solid #c0bdb5', background: '#ece9d8', flexShrink: 0 }
-            : { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px 0', borderBottom: '1px solid #dbe1ea', background: '#fff', flexShrink: 0 }}>
-            {tabs.map(t => {
-                const on = active === t.key;
-                return (
-                    <button
-                        key={t.key}
-                        type="button"
-                        onClick={() => onChange(t.key)}
-                        style={classic ? {
-                            fontFamily: LV_XP_FONT, fontSize: 11, padding: '3px 14px', cursor: 'pointer',
-                            border: '1px solid', borderBottom: on ? '2px solid #fff' : '1px solid #c0bdb5',
-                            marginBottom: on ? -2 : 0,
-                            borderColor: on ? '#808080 #c0bdb5 transparent #808080' : '#d0cfc8',
-                            background: on ? '#fff' : 'linear-gradient(to bottom, #f5f3ee, #e0dfd8)',
-                            color: on ? '#000' : '#555', fontWeight: on ? 'bold' : 'normal',
-                        } : {
-                            fontFamily: LV_MODERN_FONT, fontSize: 13, padding: '6px 16px', cursor: 'pointer',
-                            border: 'none', borderBottom: on ? '2px solid #2563eb' : '2px solid transparent',
-                            background: 'transparent', color: on ? '#2563eb' : '#64748b', fontWeight: on ? 700 : 500,
-                        }}
-                    >{t.icon && <i className={`bi ${t.icon}`} style={{ marginRight: 5 }} />}{t.label}</button>
-                );
-            })}
-            {right && <span style={{ marginLeft: 'auto', paddingBottom: classic ? 2 : 4 }}>{right}</span>}
-        </div>
-    );
-}

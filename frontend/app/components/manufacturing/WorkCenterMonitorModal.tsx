@@ -15,7 +15,8 @@ import {
     ExpandedRowPanel, ExpandedRowPanelBody, FormSection, FieldLabel, ProgressBar,
     xpSelect, xpPanel, SectionTitle, CodeChip,
 } from '../shared/xpTheme';
-import { LvTabBar, LvTab, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { Tabs, TabDef } from '../shared/Tabs';
 import { LotChips } from '../shared/LotChips';
 import { WorkingDaysSection, HolidayCalendarSection, useNationalHolidays } from '../shared/productionCalendar';
 
@@ -408,20 +409,20 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     };
 
     // ── Tab bar ──────────────────────────────────────────────────────────────
-    const tabs: LvTab[] = [
+    const tabs: TabDef[] = [
         { key: 'performance', label: t('performance'), icon: 'bi-graph-up-arrow' },
         { key: 'calendar', label: t('work_calendar'), icon: 'bi-calendar3' },
         // Warp is machine state, so it lives on the machine — not on any WO.
         ...(((workCenter?.center_type || '').toUpperCase() === 'WEAVING'
             || (workCenter?.center_type || '').toUpperCase() === 'TENUN')
-            ? [{ key: 'beams', label: t('beams_on_loom'), icon: 'bi-arrow-bar-up' } as LvTab]
+            ? [{ key: 'beams', label: t('beams_on_loom'), icon: 'bi-arrow-bar-up' } as TabDef]
             : []),
     ];
     const refreshBtn = (
         <XPActionButton classic={cls} tone="neutral" icon="bi-arrow-clockwise" title="Refresh" disabled={loading} onClick={load} />
     );
     const tabBar = (
-        <LvTabBar classic={cls} active={tab} onChange={k => setTab(k as any)} tabs={tabs} right={refreshBtn} />
+        <Tabs classic={cls} activeKey={tab} onChange={k => setTab(k as any)} tabs={tabs} right={refreshBtn} />
     );
     // Fixed-height body so switching tabs (performance/calendar/beams) never
     // resizes the modal — each pane scrolls internally instead of the panel

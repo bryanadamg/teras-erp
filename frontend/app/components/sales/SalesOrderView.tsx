@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel, BTN_TONES } from '../shared/xpTheme';
 
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
@@ -1201,7 +1201,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
            footer={classic ? (
                <>
                    <button type="button" style={xpBtn()} onClick={() => { setIsCreateOpen(false); setEditingSOId(null); resetForm(); }}>{t('cancel')}</button>
-                   <button type="button" style={newSO.lines.length === 0 ? {...xpBtn(), opacity: 0.5} : xpBtn({background:'linear-gradient(to bottom,#316ac5,#1a4a8a)',borderColor:'#1a3a7a #0a2a5a #0a2a5a #1a3a7a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingSOId ? 'Update' : t('save')} Order</button>
+                   <button type="button" style={newSO.lines.length === 0 ? {...xpBtn(), opacity: 0.5} : xpBtn({ ...BTN_TONES.primary, padding: '2px 16px' })} onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingSOId ? 'Update' : t('save')} Order</button>
                </>
            ) : (
                <>
@@ -1211,7 +1211,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
            )}
        >
            <form onSubmit={handleSubmit} id="create-so-form">
-               <FormSection title="① Order Details" classic={classic}>
+               <FormSection title="Order Details" classic={classic}>
                <div className="row g-3">
                    <div className="col-md-4">
                        <FieldLabel classic={classic} right={<i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>}>Ref No. (PO#)</FieldLabel>
@@ -1238,7 +1238,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                </div>
                </FormSection>
 
-               <FormSection title="② Line Items" classic={classic}>
+               <FormSection title="Line Items" classic={classic}>
                    {/* Item selector — full width */}
                    <div className="row g-2 mb-2">
                        <div className="col-12">
@@ -1669,7 +1669,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                            <button type="button"
                                style={addLineDisabled
                                    ? { ...xpBtn(), width: '100%', padding: '3px 0', opacity: 0.5, textAlign: 'center' as const }
-                                   : { ...xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' }), width: '100%', padding: '3px 0', textAlign: 'center' as const }}
+                                   : { ...xpBtn({ ...BTN_TONES.success }), width: '100%', padding: '3px 0', textAlign: 'center' as const }}
                                onClick={handleAddLine} disabled={addLineDisabled}
                                title={addLineTitle}
                            >

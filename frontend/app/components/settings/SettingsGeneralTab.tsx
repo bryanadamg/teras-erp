@@ -5,7 +5,7 @@ import { useToast } from '../shared/Toast';
 import { useTheme, UI_SCALES } from '../../context/ThemeContext';
 import { useTimezone, AVAILABLE_TIMEZONES } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
-import { xpBtn, xpInput, FieldLabel } from '../shared/xpTheme';
+import { xpBtn, xpInput, FieldLabel, BTN_TONES } from '../shared/xpTheme';
 import { settingsActions, settingsGrid, settingsHint, settingsStack } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import CompanyProfileView from './CompanyProfileView';
@@ -99,12 +99,7 @@ export default function SettingsGeneralTab({
                     <div style={settingsActions(classic)}>
                         <button
                             type="submit"
-                            style={classic ? xpBtn({
-                                background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)',
-                                borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a',
-                                color: '#ffffff', fontWeight: 'bold', padding: '3px 14px',
-                                display: 'flex', alignItems: 'center', gap: 4,
-                            }) : undefined}
+                            style={classic ? xpBtn({ ...BTN_TONES.primary, padding: '3px 14px', display: 'flex', alignItems: 'center', gap: 4 }) : undefined}
                             className={classic ? '' : 'btn btn-sm btn-primary px-3'}
                         >
                             <i className="bi bi-save" style={classic ? { marginRight: 4 } : { marginRight: 4 }}></i>

@@ -309,6 +309,7 @@ export default function SearchableSelect({
                     fontFamily: font, fontSize: 11,
                     border: '1px solid #7f9db9',
                     borderTopColor: '#5a7fa8', borderLeftColor: '#5a7fa8',
+                    borderRadius: BUTTON_RADIUS,
                     background: disabled ? '#f0efe6' : 'white',
                     paddingLeft: 4, paddingRight: 18,
                     cursor: disabled ? 'not-allowed' : 'pointer',

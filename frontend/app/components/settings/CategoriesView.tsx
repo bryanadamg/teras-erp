@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { CODE_FONT, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 type Category = {
@@ -130,17 +130,7 @@ export default function CategoriesView({
         gap: 4,
         alignItems: 'center',
     };
-    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-        background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-        border: '1px solid',
-        borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        padding: '2px 8px',
-        fontFamily: xpFont,
-        fontSize: 11,
-        cursor: 'pointer',
-        borderRadius: 0,
-        ...extra,
-    });
+    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase({ padding: '2px 8px', ...extra });
     const xpIconBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
         background: 'none',
         border: 'none',
@@ -152,15 +142,7 @@ export default function CategoriesView({
         lineHeight: 1,
         ...extra,
     });
-    const xpInput: React.CSSProperties = {
-        fontFamily: xpFont,
-        fontSize: 11,
-        border: '1px solid #7f9db9',
-        boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
-        background: '#fff',
-        padding: '2px 4px',
-        outline: 'none',
-    };
+    const xpInput: React.CSSProperties = xpInputBase({ boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', height: 'auto', padding: '2px 4px' });
 
     // ── Add-row renderer ──────────────────────────────────────────────────────
     const renderAddRow = (level: number): React.ReactNode => {
@@ -411,7 +393,7 @@ export default function CategoriesView({
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddRoot(); } }}
                 />
                 <button
-                    style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
+                    style={xpBtn({ ...BTN_TONES.success })}
                     onClick={handleAddRoot}
                 >
                     <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add

@@ -6,24 +6,11 @@ import { useToast } from '../shared/Toast';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import { LotChips, LotChip } from '../shared/LotChips';
-import { CodeChip, xpFont } from '../shared/xpTheme';
+import { CodeChip, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 import { RowCheckbox, lvPickerRow } from '../shared/listViewTheme';
 
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', height: 20, padding: '0 4px', outline: 'none', boxSizing: 'border-box',
-};
-const xpBtn = (primary?: boolean): React.CSSProperties => primary ? {
-    fontFamily: xpFont, fontSize: 11, padding: '2px 14px',
-    background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-    border: '1px solid', borderColor: '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a',
-    cursor: 'pointer', fontWeight: 'bold', color: '#004000',
-} : {
-    fontFamily: xpFont, fontSize: 11, padding: '2px 10px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    cursor: 'pointer',
-};
+const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px', boxSizing: 'border-box' });
+const xpBtn = (primary?: boolean): React.CSSProperties => xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px' } : {});
 
 // One lot already sitting in this WO's input location, as the backend resolves it
 // (identity fields mirror what LotChips renders on the picker rows below).

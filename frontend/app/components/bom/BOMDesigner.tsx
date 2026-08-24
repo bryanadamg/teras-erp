@@ -6,7 +6,7 @@ import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
-import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -67,61 +67,21 @@ interface BOMNodeData {
 
 // --- XP style constants ---
 
-const xpBtn: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11,
-    padding: '2px 10px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    borderTop: '1px solid #fff', borderLeft: '1px solid #fff',
-    borderRight: '1px solid #555', borderBottom: '1px solid #555',
-    cursor: 'pointer', whiteSpace: 'nowrap', color: '#000',
-    borderRadius: 3,
-};
+const xpBtn: React.CSSProperties = xpBtnBase({ whiteSpace: 'nowrap' });
 
-const xpBtnPrimary: React.CSSProperties = {
-    ...xpBtn,
-    background: 'linear-gradient(to bottom, #b4d0f8, #7aacf0)',
-    borderTopColor: '#c8e0ff', borderLeftColor: '#c8e0ff',
-    fontWeight: 'bold', color: '#00007a', minWidth: 80,
-    borderRadius: 3,
-};
+const xpBtnPrimary: React.CSSProperties = xpBtnBase({ ...BTN_TONES.primary, minWidth: 80 });
 
-const xpBtnSuccess: React.CSSProperties = {
-    ...xpBtn,
-    background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-    borderTopColor: '#d0f0d0', borderLeftColor: '#d0f0d0',
-    fontWeight: 'bold', color: '#004000', minWidth: 100,
-    borderRadius: 3,
-};
+const xpBtnSuccess: React.CSSProperties = xpBtnBase({ ...BTN_TONES.success, minWidth: 100 });
 
-const xpBtnDanger: React.CSSProperties = {
-    ...xpBtn,
-    background: 'linear-gradient(to bottom, #f8d0d0, #e0a0a0)',
-    color: '#800000', minWidth: 'auto', padding: '1px 5px', fontSize: 10,
-    borderRadius: 3,
-};
+const xpBtnDanger: React.CSSProperties = xpBtnBase({ ...BTN_TONES.danger, minWidth: 'auto', padding: '1px 5px', fontSize: 10 });
 
-const xpBtnInfo: React.CSSProperties = {
-    ...xpBtn,
-    background: 'linear-gradient(to bottom, #d0e8f8, #90c8e8)',
-    borderTopColor: '#e8f4ff', borderLeftColor: '#e8f4ff',
-    color: '#003060', minWidth: 'auto', padding: '1px 8px', fontSize: 10,
-    borderRadius: 3,
-};
+const xpBtnInfo: React.CSSProperties = xpBtnBase({ ...BTN_TONES.primary, minWidth: 'auto', padding: '1px 8px', fontSize: 10 });
 
 // Spread over any xpBtn* variant to gray it out — XP disabled controls lose their
 // tint entirely rather than just dimming.
-const xpBtnDisabled: React.CSSProperties = {
-    background: 'linear-gradient(to bottom, #ececec, #d8d4cc)',
-    color: '#999', cursor: 'default',
-    borderRadius: 3,
-};
+const xpBtnDisabled: React.CSSProperties = { background: 'linear-gradient(to bottom, #ececec, #d8d4cc)', color: '#999', cursor: 'default', borderRadius: BUTTON_RADIUS };
 
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11,
-    border: '1px solid #7f9db9', borderTopColor: '#5a7fa8',
-    background: 'white', height: 20, padding: '0 4px',
-    outline: 'none', width: '100%',
-};
+const xpInput: React.CSSProperties = xpInputBase({ borderTopColor: '#5a7fa8', padding: '0 4px', width: '100%' });
 
 const xpSelect: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11,

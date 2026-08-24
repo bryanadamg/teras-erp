@@ -12,35 +12,26 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, TableEmpty } from '../shared/listViewTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
+import { lvTh, lvTd, lvSep, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, TableEmpty, lvRow, lvSubTable } from '../shared/listViewTheme';
 import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', padding: '1px 4px', outline: 'none', height: 20,
-};
+const xpInput: React.CSSProperties = xpInputBase({ padding: '1px 4px' });
 const modernInput: React.CSSProperties = {
     fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df',
     borderRadius: 7, background: '#fff', color: '#1e293b',
     padding: '4px 8px', outline: 'none', height: 'auto',
 };
-const xpBtn: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    cursor: 'pointer',
-    borderRadius: 3,
-};
+const xpBtn: React.CSSProperties = xpBtnBase({ fontSize: 10, padding: '2px 8px' });
 const modernBtn: React.CSSProperties = {
     fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px',
     background: '#fff', color: '#334155', border: '1px solid #cbd3df',
     borderRadius: 7, cursor: 'pointer',
 };
 const xpSectionHeader: React.CSSProperties = {
-    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
+    background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 };

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpInput, xpFont, FieldLabel, ToggleChip, ModalFooterActions } from '../shared/xpTheme';
+import { xpInput, FieldLabel, FormError, ToggleChip, ModalFooterActions } from '../shared/xpTheme';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
 import { useData } from '../../context/DataContext';
 
@@ -156,11 +156,7 @@ export default function RoleFormModal({
                 />
             }
         >
-            {error && (
-                <div className={classic ? '' : 'alert alert-danger py-2 small'} style={classic ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: xpFont } : undefined}>
-                    {error}
-                </div>
-            )}
+            <FormError classic={classic}>{error}</FormError>
 
             <div className="mb-3">
                 <FieldLabel classic={classic}>Role Name</FieldLabel>

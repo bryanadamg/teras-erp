@@ -4,7 +4,6 @@ import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { layoutRectOf, layoutScroll } from './uiScale';
 import { xpFont, modernFont, CODE_FONT } from './typography';
 import { FloatingLayer, Tooltip, TooltipSurface, useHoverAnchor, isClipped } from './Tooltip';
-import { useTheme } from '../../context/ThemeContext';
 
 /**
  * Shared Windows XP "classic" theme primitives.
@@ -16,7 +15,6 @@ import { useTheme } from '../../context/ThemeContext';
 // use them without an import cycle. Re-exported here: every existing
 // `import { xpFont } from '../shared/xpTheme'` still resolves to the same const.
 export { xpFont, modernFont, CODE_FONT } from './typography';
-
 
 // ── Identifier typography ─────────────────────────────────────────────────────
 // Codes are UNBOXED — plain monospace text. The box the items/BOM tables used to
@@ -262,11 +260,51 @@ export const CODE_CHIP_RADIUS = CHIP_RADIUS;
 // bars, table cells, progress tracks.
 export const BUTTON_RADIUS = 3;
 
+// Window-chrome corner radius — the outer frame of a floating window (modal /
+// dialog panel), which XP itself rounded while leaving docked panels square.
+// Bigger than BUTTON_RADIUS on purpose: it is what separates a window that
+// floats above the page from the flat chrome behind it. One number, both
+// themes; the inner surfaces it clips use WINDOW_RADIUS_INNER (radius minus
+// the 2px bevel border, so the corner reads as one curve, not two).
+//
+// This is the TOP of the radius scale, and the scale only ever steps DOWN as you
+// nest: window 8 > FormSection 6 > buttons/inputs/chips 3. Concentric corners —
+// a box nested inside a rounder frame pinches the gap between the two curves and
+// reads as bulging out of it, which is exactly what an 8px FormSection inside a
+// 6px dialog did. Never let an inner radius exceed the frame that clips it.
+export const WINDOW_RADIUS = 8;
+export const WINDOW_RADIUS_INNER = WINDOW_RADIUS - 2;
+
+// Docked-panel corner radius — the outer shell of a page/table view (`xpBevel` /
+// `ShellWindow`), which sits IN the page rather than floating over it. Same value
+// as WINDOW_RADIUS and the same tier of the scale: a view shell and a dialog are
+// both "the frame everything else sits in", so they must not read as two
+// different chrome languages on the same screen. XP itself left docked panels
+// square; that is the one XP detail this app deliberately drops, because the
+// square page shell under a rounded dialog looked like unfinished chrome.
+//
+// The shell must clip (`overflow: hidden`) or the square title bar pokes out of
+// the rounded corners. With the 2px classic bevel, CSS clips the padding box at
+// radius-minus-border-width automatically, so the title bar lands on 6 and the
+// corner reads as one curve without any WINDOW_RADIUS_INNER-style arithmetic.
+//
+// NOT the global app header (`.classic-header`): that bar is full-bleed chrome
+// pinned to the top of the viewport, so it stays square on purpose.
+export const PANEL_RADIUS = WINDOW_RADIUS;
+
 // The class that carries the shared button hover/press motion (see the BUTTONS
 // block in globals.css). Tag any classic button with it instead of hand-rolling
 // onMouseEnter/onMouseLeave state — it animates filter/transform/box-shadow only,
 // so it layers over whatever inline gradient face the button paints.
 export const XP_BTN = 'xp-btn';
+
+// Same idea for tab strips, but a separate class on purpose: `.xp-btn`'s hover
+// lifts the button off the surface, which is exactly wrong for a tab seated in
+// its strip with an open bottom seam. `.xp-tab` wipes an underline in instead
+// (see the TABS block in globals.css). Pair it with XP_TAB_ACTIVE on the
+// selected tab so it opts out of the hover.
+export const XP_TAB = 'xp-tab';
+export const XP_TAB_ACTIVE = 'xp-tab-active';
 
 // StatusChip is the XP-flavoured chip used in BOTH themes (it always renders on
 // xpFont), so it takes the classic geometry in both rather than threading a
@@ -786,6 +824,21 @@ export function ProgressBar({
 
 // ── Inline style helpers (XP widgets) ────────────────────────────────────────
 
+// The four button intents. `default` is the bare XP face `xpBtn` already paints, so
+// it is empty; the other three are patches you spread over it (or hand to
+// `lvBtn(classic, tone)`, which owns the modern half). ~19 local copies used to
+// carry their own blue/green/red — three different blues and three different greens
+// across BOMDesigner, the WO modals and the print modals — which is why the faces
+// live here now. Adding a fifth tone is almost never the answer.
+export type BtnTone = 'default' | 'primary' | 'success' | 'danger';
+
+export const BTN_TONES: Record<BtnTone, React.CSSProperties> = {
+    default: {},
+    primary: { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' },
+    success: { background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', color: '#fff', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', fontWeight: 'bold' },
+    danger:  { background: 'linear-gradient(to bottom, #c84040, #8e0000)', color: '#fff', borderColor: '#8e0000 #5e0000 #5e0000 #8e0000', fontWeight: 'bold' },
+};
+
 export const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
@@ -889,10 +942,21 @@ export function ModalFooterActions({
     );
 }
 
+// The one header colour for every FormSection, both themes.
+export const FORM_SECTION_BLUE = '#3a6fc4';
+
+// Corner radius of a form group box. The middle tier of the nesting scale (see
+// WINDOW_RADIUS): bigger than BUTTON_RADIUS because it is the container holding
+// that 3px chrome, smaller than WINDOW_RADIUS because a dialog frame is what
+// contains IT. Still one number for both themes, same rule as
+// CHIP_RADIUS/BUTTON_RADIUS. The box must clip (`overflow: hidden`) or the square
+// header bar pokes out of the rounded corners.
+export const SECTION_RADIUS = 6;
+
 // Groups related fields in a create/edit form under a labeled section.
 // THE standard section chrome for every sectioned create/edit panel (Colors, Lab Dip,
-// Sample Request, Inventory, …). Classic: raised bevel box with a solid-blue gradient
-// header bar (white text). Modern: neutral header bar over a bordered white card.
+// Sample Request, Inventory, …). Classic: raised bevel box with a flat blue header
+// bar (white text). Modern: the same flat blue bar over a bordered white card.
 // Do not hand-roll per-page group boxes — use this so all forms stay identical.
 // `style` / `bodyStyle` exist for callers that own their own vertical rhythm
 // (a gap-spaced stack passes `marginBottom: 0`) or that put a full-bleed table
@@ -906,13 +970,15 @@ export function FormSection({ title, classic, children, style, bodyStyle }: {
     bodyStyle?: React.CSSProperties;
 }) {
     const box: React.CSSProperties = classic
-        ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10, ...style }
-        : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden', ...style };
-    // Blue header in BOTH themes so every sectioned form reads the same:
-    // classic = XP solid-blue gradient, modern = flat blue gradient. White text both.
+        ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', borderRadius: SECTION_RADIUS, overflow: 'hidden', marginBottom: 10, ...style }
+        : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: SECTION_RADIUS, marginBottom: 10, overflow: 'hidden', ...style };
+    // Flat blue header in BOTH themes so every sectioned form reads the same. Solid,
+    // not a gradient: the old left-to-right fade washed out to near-white by the right
+    // edge, so a long title lost contrast halfway across and each box read as a
+    // different colour depending on how wide it was.
     const header: React.CSSProperties = classic
-        ? { background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)', color: '#fff', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', padding: '3px 8px', letterSpacing: '0.5px', textTransform: 'uppercase' as const }
-        : { background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)', color: '#fff', fontFamily: modernFont, fontSize: 11, fontWeight: 700, padding: '6px 12px', letterSpacing: '0.04em', textTransform: 'uppercase' as const };
+        ? { background: FORM_SECTION_BLUE, color: '#fff', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', padding: '3px 8px', letterSpacing: '0.5px', textTransform: 'uppercase' as const }
+        : { background: FORM_SECTION_BLUE, color: '#fff', fontFamily: modernFont, fontSize: 11, fontWeight: 700, padding: '6px 12px', letterSpacing: '0.04em', textTransform: 'uppercase' as const };
     return (
         <div style={box}>
             <div style={header}>{title}</div>
@@ -1117,6 +1183,35 @@ export function FieldLabel({ children, hint, classic, right }: { children: React
                 </div>
             )}
         </>
+    );
+}
+
+/**
+ * Validation / submit-failure banner for a form or modal body. Three files had
+ * byte-identical copies of this div (RoleFormModal, UserFormModal, and the color
+ * variant modal, whose copy had already drifted to a different modern palette and
+ * lost xpFont in classic) — which is the whole reason it lives here now. Renders
+ * nothing for an empty message, so call sites need no `&&` guard.
+ *
+ * Not for status callouts (a "late" badge, a scanner error): those carry icons and
+ * their own reds. This is specifically "what you just submitted was rejected".
+ */
+export function FormError({ children, classic, style }: {
+    children?: React.ReactNode;
+    classic: boolean;
+    style?: React.CSSProperties;
+}) {
+    if (!children) return null;
+    return (
+        <div
+            role="alert"
+            className={classic ? '' : 'alert alert-danger py-2 small'}
+            style={classic
+                ? { background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '4px 8px', fontSize: 11, marginBottom: 10, fontFamily: xpFont, ...style }
+                : { marginBottom: 10, ...style }}
+        >
+            {children}
+        </div>
     );
 }
 

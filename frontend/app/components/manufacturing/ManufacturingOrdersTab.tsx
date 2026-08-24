@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import CalendarView from '../shared/CalendarView';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
-import { ToolbarButton } from '../shared/shellTheme';
+import { ToolbarButton, TITLE_TONES } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
+import { Tabs } from '../shared/Tabs';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
+import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -473,43 +474,15 @@ export default function ManufacturingOrdersTab({
         return (
             <ExpandedRowPanel classic={classic} style={{ marginBottom: 6, padding: classic ? '0 0 0 4px' : '0 0 0 3px' }}>
             {/* ── TABS ── */}
-            <div style={{
-                display: 'flex',
-                borderBottom: classic ? '2px solid #808080' : '1px solid #dee2e6',
-                background: classic ? '#ece9d8' : '#f1f3f5',
-                padding: '0 8px',
-            }}>
-                <button
-                    onClick={() => setDetailTab('bom')}
-                    style={{
-                        fontFamily: xpFont, fontSize: 11,
-                        padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'bom' ? -2 : -1,
-                        border: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                        borderBottom: detailTab === 'bom' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
-                        background: detailTab === 'bom' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
-                        cursor: 'pointer', fontWeight: detailTab === 'bom' ? 'bold' : 'normal',
-                        color: detailTab === 'bom' ? (classic ? '#000080' : '#0d6efd') : '#555',
-                        position: 'relative' as const,
-                    }}
-                >
-                    <i className="bi bi-boxes me-1" />BOM &amp; Stock
-                </button>
-                <button
-                    onClick={() => setDetailTab('steps')}
-                    style={{
-                        fontFamily: xpFont, fontSize: 11,
-                        padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'steps' ? -2 : -1,
-                        border: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                        borderBottom: detailTab === 'steps' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
-                        background: detailTab === 'steps' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
-                        cursor: 'pointer', fontWeight: detailTab === 'steps' ? 'bold' : 'normal',
-                        color: detailTab === 'steps' ? (classic ? '#000080' : '#0d6efd') : '#555',
-                        position: 'relative' as const,
-                    }}
-                >
-                    <i className="bi bi-list-ol me-1" />Work Order ({(selectedNode.work_orders || []).length})
-                </button>
-            </div>
+            <Tabs
+                tabs={[
+                    { key: 'bom', label: 'BOM & Stock', icon: 'bi-boxes' },
+                    { key: 'steps', label: `Work Order (${(selectedNode.work_orders || []).length})`, icon: 'bi-list-ol' },
+                ]}
+                activeKey={detailTab}
+                onChange={setDetailTab}
+                classic={classic}
+            />
 
             {detailTab === 'bom' && (
             <ExpandedRowPanelBody classic={classic} style={{ display: 'flex', height: PANEL_BODY_H, padding: 0, border: classic ? '1px solid #808080' : undefined }}>
@@ -522,7 +495,7 @@ export default function ManufacturingOrdersTab({
                     display: 'flex', flexDirection: 'column'
                 }}>
                     <div style={{
-                        background: classic ? 'linear-gradient(to right,#0058e6,#08a5ff)' : '#343a40',
+                        background: classic ? TITLE_TONES.blue.background : '#343a40',
                         color: '#fff', fontWeight: 'bold', fontSize: '11px',
                         padding: '5px 8px', letterSpacing: '0.3px'
                     }}>
@@ -1204,19 +1177,12 @@ export default function ManufacturingOrdersTab({
                                 // XP-style action button
                                 const xpBtn = (label: string, colorScheme: 'primary'|'success'|'danger'|'default', onClick: () => void, title?: string, iconCls?: string) => {
                                     if (!classic) return null; // rendered separately below
-                                    const schemes: Record<string, React.CSSProperties> = {
-                                        primary: { background: 'linear-gradient(to bottom,#5a9ae0,#0058e6)', borderColor: '#003080 #001840 #001840 #003080', color: '#fff' },
-                                        success: { background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' },
-                                        danger:  { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#c00000' },
-                                        default: { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' },
-                                    };
                                     return (
-                                        <button key={label || title} className={XP_BTN} onClick={onClick} title={title} style={{
-                                            fontFamily: xpFont, fontSize: '10px', borderRadius: BUTTON_RADIUS,
-                                            padding: '2px 7px', cursor: 'pointer', border: '1px solid',
+                                        <button key={label || title} className={XP_BTN} onClick={onClick} title={title} style={xpBtnBase({
+                                            fontSize: '10px', padding: '2px 7px',
                                             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            ...schemes[colorScheme],
-                                        }}>
+                                            ...BTN_TONES[colorScheme],
+                                        })}>
                                             {iconCls && <i className={label ? `${iconCls} me-1` : iconCls}></i>}{label}
                                         </button>
                                     );
@@ -1426,23 +1392,7 @@ export default function ManufacturingOrdersTab({
 
             {editAttrsModal && (() => {
                 const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button
-                        onClick={onClick}
-                        style={{
-                            fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
-                            background: primary
-                                ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
-                                : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                            border: '1px solid',
-                            borderColor: primary
-                                ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
-                                : '#dfdfdf #808080 #808080 #dfdfdf',
-                            fontWeight: primary ? 'bold' : 'normal',
-                            color: primary ? '#004000' : '#000',
-                            minWidth: 70,
-                        }}
-                    >{label}</button>
+                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
                 );
                 const isClassic = classic;
                 return (
@@ -1520,17 +1470,7 @@ export default function ManufacturingOrdersTab({
                 const isClassic = classic;
                 const mo = editColorModal.mo;
                 const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button
-                        onClick={onClick}
-                        style={{
-                            fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
-                            background: primary ? 'linear-gradient(to bottom, #b0e8b0, #70c870)' : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                            border: '1px solid',
-                            borderColor: primary ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a' : '#dfdfdf #808080 #808080 #dfdfdf',
-                            fontWeight: primary ? 'bold' : 'normal', color: primary ? '#004000' : '#000', minWidth: 70,
-                        }}
-                    >{label}</button>
+                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
                 );
                 return (
                     <ModalWrapper
@@ -1596,23 +1536,7 @@ export default function ManufacturingOrdersTab({
 
             {putawayModal && (() => {
                 const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button
-                        onClick={onClick}
-                        style={{
-                            fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
-                            background: primary
-                                ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
-                                : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                            border: '1px solid',
-                            borderColor: primary
-                                ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
-                                : '#dfdfdf #808080 #808080 #dfdfdf',
-                            fontWeight: primary ? 'bold' : 'normal',
-                            color: primary ? '#004000' : '#000',
-                            minWidth: 70,
-                        }}
-                    >{label}</button>
+                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
                 );
                 const isClassic = classic;
                 const pm = putawayModal;
@@ -1694,23 +1618,7 @@ export default function ManufacturingOrdersTab({
                 const isClassic = classic;
                 const tm = toleranceModal;
                 const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button
-                        onClick={onClick}
-                        style={{
-                            fontFamily: xpFont, fontSize: 11,
-                            padding: '2px 14px', cursor: 'pointer', borderRadius: 3,
-                            background: primary
-                                ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
-                                : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                            border: '1px solid',
-                            borderColor: primary
-                                ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
-                                : '#dfdfdf #808080 #808080 #dfdfdf',
-                            fontWeight: primary ? 'bold' : 'normal',
-                            color: primary ? '#004000' : '#000',
-                            minWidth: 70,
-                        }}
-                    >{label}</button>
+                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
                 );
                 const inpStyle = isClassic ? {
                     fontFamily: xpFont, fontSize: 11,

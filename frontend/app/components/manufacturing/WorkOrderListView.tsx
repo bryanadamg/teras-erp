@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg, StatusChip, CHIP_RADIUS, colorLabel } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg, StatusChip, CHIP_RADIUS, colorLabel, xpInput as xpInputBase } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvTd, lvZebra } from '../shared/listViewTheme';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
@@ -24,7 +24,7 @@ import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { SearchField, pageFillStyle } from '../shared/shellTheme';
+import { SearchField, pageFillStyle, xpTitleBar } from '../shared/shellTheme';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -374,10 +374,7 @@ export default function WorkOrderListView({
         }
     };
 
-    const xpInput: React.CSSProperties = {
-        fontFamily: xpFont, fontSize: 11,
-        border: '1px solid #7f9db9', background: 'white', height: 20, padding: '0 4px', outline: 'none',
-    };
+    const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px' });
 
     // Selection holds the WO rows themselves — the bulk print modal needs the
     // objects, and a WO ticked before paging can no longer be found in `filtered`.
@@ -621,11 +618,9 @@ export default function WorkOrderListView({
         } : {}),
     };
 
-    const titleBarStyle: React.CSSProperties = classic ? {
-        background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-        borderBottom: '1px solid #003080',
-        padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 8,
-    } : {
+    const titleBarStyle: React.CSSProperties = classic ? xpTitleBar({
+        justifyContent: 'flex-start', gap: 8, minHeight: undefined,
+    }) : {
         background: '#fff', borderBottom: '1px solid #dee2e6',
         padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,
     };
@@ -652,7 +647,7 @@ export default function WorkOrderListView({
         <>
         <div className="row g-4 fade-in">
             <div className="col-12">
-                <div style={containerStyle} className={classic ? '' : 'card h-100 border-0 shadow-sm'}>
+                <div style={containerStyle} className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}>
 
                     {/* Title bar */}
                     <div style={titleBarStyle}>

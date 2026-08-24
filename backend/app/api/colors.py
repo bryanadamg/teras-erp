@@ -2,6 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.db.session import get_async_db
@@ -15,7 +16,10 @@ from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
-from app.schemas import ColorCreate, ColorUpdate, ColorResponse, ColorListResponse
+from app.schemas import (
+    ColorCreate, ColorUpdate, ColorResponse, ColorListResponse,
+    AttributeValueCreate, AttributeValueUpdate, AttributeValueResponse,
+)
 
 router = APIRouter()
 
@@ -304,3 +308,148 @@ async def delete_color(
     )
     await manager.broadcast({"type": "COLOR_UPDATE", "id": str(color_id)})
     return {"status": "ok", "action": action.lower()}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Colors (variant) — values of the `Colors` system attribute (system_role='color')
+#
+# These exist so `color_variant.*` is a real grant. The Colors-variant tab used to
+# post straight at `/attributes/{id}/values`, which is gated on `attribute.create`
+# — so a role ticked Color Variant Create saw an enabled button and got
+# "Missing permission: attribute.create" on submit, and the only way to unblock it
+# was plant-wide attribute power (Materials, Combo, Wash Bath, every value list).
+#
+# Every write here is scoped to the `color` attribute by `_load_variant_value`, so
+# the reverse leak doesn't open either: `color_variant.edit` cannot touch any other
+# attribute's values. Aliasing `color_variant.*` onto the generic attribute
+# endpoints would have been one line and exactly that leak.
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _color_variant_attribute_id(db: AsyncSession) -> uuid.UUID | None:
+    """Id of the seeded `Colors` variant attribute (system_role='color') — the small
+    curated product-color list that BOM gating, dye-recipe matching and stock
+    variant_key read. NOT the ~30k `Color Code` library (system_role='labdip_color')."""
+    result = await db.execute(
+        select(Attribute.id).filter(Attribute.system_role == "color")
+    )
+    return result.scalars().first()
+
+
+async def _load_variant_value(db: AsyncSession, value_id: str) -> AttributeValue:
+    """Fetch one variant value, 404ing anything that is not a value of the `Colors`
+    attribute. This is what keeps `color_variant.*` from being a generic
+    attribute-value grant."""
+    attr_id = await _color_variant_attribute_id(db)
+    if attr_id is None:
+        raise HTTPException(status_code=404, detail="Colors variant attribute not found")
+    val = (await db.execute(
+        select(AttributeValue).filter(
+            AttributeValue.id == value_id,
+            AttributeValue.attribute_id == attr_id,
+        )
+    )).scalars().first()
+    if not val:
+        raise HTTPException(status_code=404, detail="Color variant not found")
+    return val
+
+
+@router.post("/colors/variant-values", response_model=AttributeValueResponse)
+async def create_color_variant(
+    payload: AttributeValueCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('color_variant.create')),
+):
+    attr_id = await _color_variant_attribute_id(db)
+    if attr_id is None:
+        raise HTTPException(status_code=404, detail="Colors variant attribute not found")
+
+    value = (payload.value or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="Color name is required")
+
+    # Case-insensitive dup guard: variant_key matching is by label, so two rows
+    # differing only in case are two variants the floor reads as one.
+    dup = (await db.execute(
+        select(AttributeValue).filter(
+            AttributeValue.attribute_id == attr_id,
+            func.lower(AttributeValue.value) == value.lower(),
+        )
+    )).scalars().first()
+    if dup:
+        raise HTTPException(status_code=400, detail=f"Color variant '{dup.value}' already exists")
+
+    av = AttributeValue(attribute_id=attr_id, value=value, hex=payload.hex)
+    db.add(av)
+    await db.commit()
+    await db.refresh(av)
+
+    await audit_service.log_activity(
+        db, str(current_user.id), "CREATE", "attribute_value", str(av.id),
+        details=f"Added color variant '{av.value}'", changes={"value": av.value, "hex": av.hex}
+    )
+    return av
+
+
+@router.put("/colors/variant-values/{value_id}", response_model=AttributeValueResponse)
+async def update_color_variant(
+    value_id: str,
+    payload: AttributeValueUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('color_variant.edit')),
+):
+    val = await _load_variant_value(db, value_id)
+
+    value = (payload.value or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="Color name is required")
+
+    if value.lower() != val.value.lower():
+        dup = (await db.execute(
+            select(AttributeValue).filter(
+                AttributeValue.attribute_id == val.attribute_id,
+                AttributeValue.id != val.id,
+                func.lower(AttributeValue.value) == value.lower(),
+            )
+        )).scalars().first()
+        if dup:
+            raise HTTPException(status_code=400, detail=f"Color variant '{dup.value}' already exists")
+
+    old_value, old_hex = val.value, val.hex
+    val.value = value
+    val.hex = payload.hex
+    await db.commit()
+    await db.refresh(val)
+
+    await audit_service.log_activity(
+        db, str(current_user.id), "UPDATE", "attribute_value", str(val.id),
+        details=f"Renamed color variant '{old_value}' -> '{val.value}'",
+        changes={"value": [old_value, val.value], "hex": [old_hex, val.hex]}
+    )
+    return val
+
+
+@router.delete("/colors/variant-values/{value_id}")
+async def delete_color_variant(
+    value_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('color_variant.delete')),
+):
+    val = await _load_variant_value(db, value_id)
+    label = val.value
+
+    try:
+        await db.delete(val)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete color variant '{label}': it is still used by existing items "
+                   f"or transaction records (stock, orders, BOMs, etc). Remove those references first.",
+        )
+
+    await audit_service.log_activity(
+        db, str(current_user.id), "DELETE", "attribute_value", value_id,
+        details=f"Deleted color variant '{label}'", changes={}
+    )
+    return {"status": "success", "message": "Color variant deleted"}

@@ -3,8 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useTimezone } from '../../context/TimezoneContext';
-import PrintModalShell from '../shared/PrintModalShell';
-import { xpFont } from '../shared/xpTheme';
+import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -147,9 +146,6 @@ export default function PackingCardPrintModal({ po, attributes, companyProfile, 
         </div>
     );
 
-    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom,#ffffff 0%,#d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 3, ...extra });
-    const btnGreen = xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' });
-
     return (
         <>
             <PrintModalShell title={`Kartu Packing — ${po.code}`} onClose={onClose} width="calc(var(--app-vw) * 92 / 100)" maxWidth={900} height="calc(var(--app-vh) * 90 / 100)" modeless>
@@ -158,10 +154,7 @@ export default function PackingCardPrintModal({ po, attributes, companyProfile, 
                         {doc}
                     </div>
                 </div>
-                <div style={{ padding: '8px 12px', borderTop: '1px solid #b0a898', background: 'linear-gradient(to bottom,#f4f2ea,#e3e1d6)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                    <button style={xpBtn()} onClick={onClose}>Close</button>
-                    <button style={btnGreen} onClick={doPrint}>Print</button>
-                </div>
+                <PrintModalFooter onClose={onClose} onPrint={doPrint} />
             </PrintModalShell>
 
             {createPortal(

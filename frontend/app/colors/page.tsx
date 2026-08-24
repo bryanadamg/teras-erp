@@ -9,7 +9,8 @@ import { usePaginatedFetch } from '../context/usePaginatedList';
 import { useToast } from '../components/shared/Toast';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
-import { LvTabBar } from '../components/shared/listViewTheme';
+import { Tabs } from '../components/shared/Tabs';
+import { PageTitleBar } from '../components/shared/shellTheme';
 
 const PAGE_SIZE = 50;
 
@@ -19,7 +20,7 @@ export default function ColorsPage() {
     const { showToast } = useToast();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { hasPermission, hasAnyPermission } = useUser();
+    const { hasPermission } = useUser();
     const searchParams = useSearchParams();
     const router = useRouter();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -29,7 +30,11 @@ export default function ColorsPage() {
     // (~30k library rows) and the small `Colors` variant list. Different data models —
     // tabbed together only for a single management surface. A LabDip "+ Color" deep-link
     // always targets the catalog tab.
-    const [tab, setTab] = useState<'codes' | 'variant'>('codes');
+    // The leaf grants access on ANY of color_code.view / color_variant.* (navConfig),
+    // so either tab can be the only one this user may see. Land on whichever they hold
+    // — defaulting to 'codes' showed a variant-only role an empty catalog.
+    const canViewCodes = hasPermission('color_code.view');
+    const [tab, setTab] = useState<'codes' | 'variant'>(canViewCodes ? 'codes' : 'variant');
 
     // ── Color Code catalog (library) ────────────────────────────────────────────
     const sourceLineId = searchParams.get('source_lab_dip_line_id');
@@ -46,7 +51,7 @@ export default function ColorsPage() {
         },
     } : null, [sourceLineId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    useEffect(() => { if (sourceLineId) setTab('codes'); }, [sourceLineId]);
+    useEffect(() => { if (sourceLineId && canViewCodes) setTab('codes'); }, [sourceLineId, canViewCodes]);
 
     const [search, setSearch] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState('ALL');
@@ -58,8 +63,8 @@ export default function ColorsPage() {
     // Deep-link from LabDip approved-color button: /colors?search=<code> focuses the catalog on that code.
     useEffect(() => {
         const s = searchParams.get('search');
-        if (s) { setTab('codes'); setStatusFilter('ALL'); setSearch(s); }
-    }, [searchParams]);
+        if (s && canViewCodes) { setTab('codes'); setStatusFilter('ALL'); setSearch(s); }
+    }, [searchParams, canViewCodes]);
 
     // Page window, fetch, loading flag and stale-response race guard all come from
     // the shared hook (context/usePaginatedList.ts). ColorLibraryView debounces the
@@ -70,6 +75,7 @@ export default function ColorsPage() {
     } = usePaginatedFetch<any>({
         endpoint: `${API_BASE}/colors`,
         authFetch,
+        enabled: canViewCodes,
         pageSize: PAGE_SIZE,
         params: {
             include_meta: 'true',
@@ -117,21 +123,33 @@ export default function ColorsPage() {
     };
 
     // ── Colors variant (system_role='color' attribute values) ────────────────────
-    const canManageVariant = hasAnyPermission('color_variant.create', 'color_variant.edit', 'color_variant.delete');
+    // Writes go to /colors/variant-values, NOT the generic /attributes value routes:
+    // those are gated on attribute.create/edit/delete, so a role holding only
+    // color_variant.* saw enabled buttons and a 403 on submit, and the only unblock was
+    // plant-wide attribute power. Per-action flags rather than one canManage, so a
+    // create-only grant doesn't render a Delete button that 403s.
+    const canCreateVariant = hasPermission('color_variant.create');
+    const canEditVariant = hasPermission('color_variant.edit');
+    const canDeleteVariant = hasPermission('color_variant.delete');
     const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
     const colorValues = colorAttr?.values ?? [];
 
-    const handleAddColorValue = async (value: string, hex?: string | null) => {
-        if (!colorAttr) return;
-        const res = await authFetch(`${API_BASE}/attributes/${colorAttr.id}/values`, {
+    // Returns the outcome as well as toasting it: the create modal keeps itself open
+    // and shows the reason on a rejection (duplicate name, missing permission) instead
+    // of closing on an unconfirmed write.
+    const handleAddColorValue = async (value: string, hex?: string | null): Promise<{ ok: boolean; error?: string }> => {
+        const res = await authFetch(`${API_BASE}/colors/variant-values`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, hex: hex || null }),
         });
-        if (res.ok) { refreshItemMetadata(); showToast('Color added', 'success'); }
-        else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to add color', 'danger'); }
+        if (res.ok) { refreshItemMetadata(); showToast('Color added', 'success'); return { ok: true }; }
+        const e = await res.json().catch(() => ({}));
+        const error = e.detail || 'Failed to add color';
+        showToast(error, 'danger');
+        return { ok: false, error };
     };
 
     const handleRenameColorValue = async (valueId: string, value: string, hex?: string | null) => {
-        const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, {
+        const res = await authFetch(`${API_BASE}/colors/variant-values/${valueId}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, hex: hex || null }),
         });
         if (res.ok) { refreshItemMetadata(); showToast('Color renamed', 'success'); }
@@ -139,7 +157,7 @@ export default function ColorsPage() {
     };
 
     const handleDeleteColorValue = async (valueId: string) => {
-        const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, { method: 'DELETE' });
+        const res = await authFetch(`${API_BASE}/colors/variant-values/${valueId}`, { method: 'DELETE' });
         if (res.ok) { refreshItemMetadata(); showToast('Color deleted', 'success'); }
         else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to delete color', 'danger'); }
     };
@@ -149,22 +167,20 @@ export default function ColorsPage() {
             ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
             : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
-            <div style={classic
-                ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
-                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <i className="bi bi-palette2" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
-                Colors
-            </div>
+            <PageTitleBar classic={classic} icon="bi-palette2" title="Colors" />
 
-            <LvTabBar
+            <Tabs
                 classic={classic}
-                active={tab}
+                activeKey={tab}
                 onChange={(k) => setTab(k as 'codes' | 'variant')}
-                tabs={[{ key: 'codes', label: 'Color Codes' }, { key: 'variant', label: 'Colors (Variant)' }]}
+                tabs={[
+                    ...(canViewCodes ? [{ key: 'codes', label: 'Color Codes' }] : []),
+                    { key: 'variant', label: 'Colors (Variant)' },
+                ]}
             />
 
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                {tab === 'codes' ? (
+                {tab === 'codes' && canViewCodes ? (
                     <ColorLibraryView
                         colors={colors}
                         total={total}
@@ -195,7 +211,9 @@ export default function ColorsPage() {
                 ) : (
                     <ColorsVariantView
                         values={colorValues}
-                        canManage={canManageVariant}
+                        canCreate={canCreateVariant}
+                        canEdit={canEditVariant}
+                        canDelete={canDeleteVariant}
                         onAdd={handleAddColorValue}
                         onRename={handleRenameColorValue}
                         onDelete={handleDeleteColorValue}

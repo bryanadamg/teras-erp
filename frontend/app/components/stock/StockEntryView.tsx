@@ -3,7 +3,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
-import { CodeChip, CODE_FONT, xpFont } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 import { lvThead, LV_STICKY_THEAD, lvZebra, Dash } from '../shared/listViewTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
@@ -71,16 +71,8 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
   const xpBevel: React.CSSProperties = sharedXpBevel();
   const xpTitleBar = (extra: any = {}): React.CSSProperties => sharedXpTitleBar(extra);
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
-  const xpBtn = (extra: any = {}) => ({
-      fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
-      background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0, ...extra,
-  });
-  const xpInput: React.CSSProperties = {
-      fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
-      boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
-      background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
-  };
+  const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase(extra);
+  const xpInput: React.CSSProperties = xpInputBase({ boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' });
   const xpSelect: React.CSSProperties = {
       ...xpInput, height: '22px', paddingRight: 4,
   };
@@ -266,7 +258,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                           </div>
                           <button
                               type="submit"
-                              style={classic ? { ...xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' }), width: '100%', padding: '4px 10px' } : undefined}
+                              style={classic ? { ...xpBtn({ ...BTN_TONES.success }), width: '100%', padding: '4px 10px' } : undefined}
                               className={classic ? undefined : 'btn btn-primary w-100 py-2 fw-bold shadow-sm'}
                           >
                               {classic ? (<><i className="bi bi-floppy" style={{ marginRight: 6 }}></i>{t('save')}</>) : t('save')}

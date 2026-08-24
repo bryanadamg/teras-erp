@@ -4,27 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
 
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', height: 20, padding: '0 4px', outline: 'none', width: '100%',
-    borderRadius: 0, boxSizing: 'border-box',
-};
+const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px', width: '100%', boxSizing: 'border-box' });
 const xpLabel: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, display: 'block', marginBottom: 2,
 };
-const xpBtn = (primary?: boolean): React.CSSProperties => primary ? {
-    fontFamily: xpFont, fontSize: 11, padding: '2px 14px',
-    background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-    border: '1px solid', borderColor: '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a',
-    cursor: 'pointer', fontWeight: 'bold', color: '#004000',
-} : {
-    fontFamily: xpFont, fontSize: 11, padding: '2px 10px',
-    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    cursor: 'pointer',
-};
+const xpBtn = (primary?: boolean): React.CSSProperties => xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px' } : {});
 
 interface Props {
     wo: any;               // weaving WO: id, code/name, input_location_id

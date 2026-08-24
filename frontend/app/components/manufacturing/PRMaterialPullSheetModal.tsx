@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import PrintModalShell from '../shared/PrintModalShell';
-import { CODE_FONT, xpFont } from '../shared/xpTheme';
+import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
+import { CODE_FONT } from '../shared/xpTheme';
 import { useTimezone } from '../../context/TimezoneContext';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
@@ -39,20 +39,12 @@ export default function PRMaterialPullSheetModal({
         return () => { document.body.classList.remove('pr-pull-sheet-print-active'); };
     }, []);
 
-    const isClassic = currentStyle === 'classic';
     const displayCompanyName = companyProfile?.name || '';
 
     const doPrint = () => {
         window.addEventListener('afterprint', onClose, { once: true });
         window.print();
     };
-
-    const xpBtnGrey: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
-        : {};
-    const xpBtnGreen: React.CSSProperties = isClassic
-        ? { fontFamily: xpFont, fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
-        : {};
 
     const gridLbl: React.CSSProperties = { background: '#f0f0f0', border: '1px solid #ccc', padding: '2px 6px', fontSize: '8px', color: '#444', fontWeight: 'bold', whiteSpace: 'nowrap' };
     const gridVal: React.CSSProperties = { border: '1px solid #ccc', padding: '2px 6px', fontSize: '8px', color: '#000' };
@@ -213,21 +205,7 @@ export default function PRMaterialPullSheetModal({
                     </div>
                 </div>
 
-                <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                    {isClassic ? (
-                        <>
-                            <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                            <button style={xpBtnGreen} onClick={doPrint}>Print</button>
-                        </>
-                    ) : (
-                        <>
-                            <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                            <button className="btn btn-sm btn-success" onClick={doPrint}>
-                                <i className="bi bi-printer me-1"></i>Print
-                            </button>
-                        </>
-                    )}
-                </div>
+                <PrintModalFooter onClose={onClose} onPrint={doPrint} />
             </PrintModalShell>
 
             {createPortal(
