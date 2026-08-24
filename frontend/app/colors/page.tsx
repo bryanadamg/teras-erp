@@ -10,6 +10,7 @@ import { useToast } from '../components/shared/Toast';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
 import { LvTabBar } from '../components/shared/listViewTheme';
+import { PageTitleBar } from '../components/shared/shellTheme';
 
 const PAGE_SIZE = 50;
 
@@ -166,12 +167,7 @@ export default function ColorsPage() {
             ? { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
             : { display: 'flex', flexDirection: 'column', height: 'calc(var(--app-vh) - 80px)', minHeight: 0, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
-            <div style={classic
-                ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
-                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <i className="bi bi-palette2" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
-                Colors
-            </div>
+            <PageTitleBar classic={classic} icon="bi-palette2" title="Colors" />
 
             <LvTabBar
                 classic={classic}

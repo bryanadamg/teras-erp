@@ -260,6 +260,15 @@ export const CODE_CHIP_RADIUS = CHIP_RADIUS;
 // bars, table cells, progress tracks.
 export const BUTTON_RADIUS = 3;
 
+// Window-chrome corner radius — the outer frame of a floating window (modal /
+// dialog panel), which XP itself rounded while leaving docked panels square.
+// Bigger than BUTTON_RADIUS on purpose: it is what separates a window that
+// floats above the page from the flat chrome behind it. One number, both
+// themes; the inner surfaces it clips use WINDOW_RADIUS_INNER (radius minus
+// the 2px bevel border, so the corner reads as one curve, not two).
+export const WINDOW_RADIUS = 6;
+export const WINDOW_RADIUS_INNER = WINDOW_RADIUS - 2;
+
 // The class that carries the shared button hover/press motion (see the BUTTONS
 // block in globals.css). Tag any classic button with it instead of hand-rolling
 // onMouseEnter/onMouseLeave state — it animates filter/transform/box-shadow only,

@@ -15,7 +15,7 @@ import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor,
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
-import { pageFillStyle } from '../shared/shellTheme';
+import { pageFillStyle, xpTitleBar } from '../shared/shellTheme';
 import { Tabs } from '../shared/Tabs';
 
 export default function ManufacturingView({
@@ -515,16 +515,13 @@ export default function ManufacturingView({
                   {/* ── Title bar / toolbar ── */}
                   <div
                       className="no-print"
-                      style={{
-                          background: classic
-                              ? 'var(--xp-title-blue)'
-                              : '#fff',
-                          borderBottom: classic ? '1px solid #003080' : '1px solid #dee2e6',
-                          padding: classic ? '4px 8px' : '8px 16px',
+                      style={classic ? xpTitleBar({ minHeight: undefined }) : {
+                          background: '#fff',
+                          borderBottom: '1px solid #dee2e6',
+                          padding: '8px 16px',
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          boxShadow: classic ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : undefined,
                       }}
                   >
                       {/* Left: title + view switcher */}

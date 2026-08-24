@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import CalendarView from '../shared/CalendarView';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
-import { ToolbarButton } from '../shared/shellTheme';
+import { ToolbarButton, TITLE_TONES } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { Tabs } from '../shared/Tabs';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -495,7 +495,7 @@ export default function ManufacturingOrdersTab({
                     display: 'flex', flexDirection: 'column'
                 }}>
                     <div style={{
-                        background: classic ? 'var(--xp-title-blue)' : '#343a40',
+                        background: classic ? TITLE_TONES.blue.background : '#343a40',
                         color: '#fff', fontWeight: 'bold', fontSize: '11px',
                         padding: '5px 8px', letterSpacing: '0.3px'
                     }}>

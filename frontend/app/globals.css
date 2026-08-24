@@ -385,6 +385,30 @@ body {
 }
 
 /* UI Style: Classic (Windows XP) */
+/* ============================================================
+   Window focus — active vs inactive chrome.
+   The app header, every list panel's title bar and every dialog's
+   title bar used to paint the SAME blue gradient, so a modal read
+   as part of the page behind it. XP's own answer: only the focused
+   window keeps the saturated blue, the chrome behind desaturates.
+   ModalWrapper refcounts open windows and puts
+   `.window-chrome-inactive` on <body> (see useInactiveChromeWhileOpen);
+   everything that heads page chrome reads these two properties, so the
+   swap needs no per-call-site change. Dialog title bars deliberately
+   hardcode their gradient instead — a window must not dim itself.
+   Custom properties are substituted where they are USED, so page chrome
+   must reference --xp-title-blue directly; aliasing it into another
+   property on :root would freeze the active value.
+   ============================================================ */
+:root {
+  --xp-title-blue: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
+  --xp-title-blue-border: #003080;
+}
+body.window-chrome-inactive {
+  --xp-title-blue: linear-gradient(to right, #7a96b8 0%, #a8bcd4 100%);
+  --xp-title-blue-border: #6a819b;
+}
+
 .ui-style-classic {
   --sidebar-width: 200px;
   --win-bg: #ece9d8;
@@ -392,7 +416,9 @@ body {
   --win-border-light: #ffffff;
   --win-border-dark: #808080;
   --win-blue: #0054e3;
-  --win-header-grad: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
+  /* Legacy alias kept for anything still reading it. Page chrome must use
+     --xp-title-blue directly so it re-resolves when a window opens. */
+  --win-header-grad: var(--xp-title-blue);
   --win-text: #000000;
   --win-highlight: #316ac5;
   /* Mirrors `xpFont` in components/shared/xpTheme.tsx — the one classic type
@@ -418,11 +444,11 @@ body {
 
 /* Classic Header (Top Bar) */
 .classic-header {
-  background: var(--win-header-grad) !important;
+  background: var(--xp-title-blue) !important;
   color: white !important;
   height: 30px !important;
   padding: 0 5px !important;
-  border-bottom: 1px solid #00309c !important;
+  border-bottom: 1px solid var(--xp-title-blue-border) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.3) !important;
 }
 

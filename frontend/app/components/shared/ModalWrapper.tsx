@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useId } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { toLayoutPx } from './uiScale';
-import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
+import { xpFont, BUTTON_RADIUS, XP_BTN, WINDOW_RADIUS, WINDOW_RADIUS_INNER } from './xpTheme';
 
 // Shared z-index tier for anything that must render as an overlay but can't use
 // ModalWrapper directly (e.g. a full-screen designer canvas with its own custom
@@ -31,6 +31,36 @@ function ensureEscListener() {
             escStack[escStack.length - 1]();
         }
     });
+}
+
+// ── Window focus: the page chrome behind an open window goes "inactive" ──────
+// XP's own answer to "which window am I typing in": the focused window keeps the
+// saturated blue title bar, everything behind it desaturates. Without it the app
+// header, the list panel's title bar and the dialog's title bar all painted the
+// SAME blue gradient, so a modal read as part of the page it floated over.
+// The signal is one class on <body>; the dimming itself is CSS custom properties
+// (--xp-title-blue / --xp-title-blue-border in globals.css) read by the shared
+// chrome primitives — `PageTitleBar`/`xpTitleBar`/`TITLE_TONES` in shellTheme.tsx
+// and `.classic-header` — so no view declares the gradient and none had to change.
+// Windows keep a literal gradient instead: a window must not dim itself.
+const CHROME_INACTIVE_CLASS = 'window-chrome-inactive';
+let openWindowCount = 0;
+
+/**
+ * Marks the page chrome inactive while `active` is true. Refcounted, so nested
+ * windows (levels 1-3) and print dialogs stack without the first one to close
+ * un-dimming the page under the others.
+ */
+export function useInactiveChromeWhileOpen(active: boolean) {
+    useEffect(() => {
+        if (!active || typeof document === 'undefined') return;
+        openWindowCount += 1;
+        document.body.classList.add(CHROME_INACTIVE_CLASS);
+        return () => {
+            openWindowCount = Math.max(0, openWindowCount - 1);
+            if (openWindowCount === 0) document.body.classList.remove(CHROME_INACTIVE_CLASS);
+        };
+    }, [active]);
 }
 
 interface ModalWrapperProps {
@@ -88,6 +118,8 @@ export default function ModalWrapper({
 
     const floating = modeless && !isMobile;
     const titleId = useId();
+
+    useInactiveChromeWhileOpen(isOpen);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -193,7 +225,7 @@ export default function ModalWrapper({
                     borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                     boxShadow: floating ? '5px 5px 16px rgba(0,0,0,0.45)' : '4px 4px 12px rgba(0,0,0,0.55)',
                     background: '#ece9d8',
-                    borderRadius: 0,
+                    borderRadius: WINDOW_RADIUS,
                     display: 'flex', flexDirection: 'column',
                     maxHeight: floating ? 'calc(var(--app-vh) - 80px)' : 'calc(var(--app-vh) * 92 / 100)',
                     ...(floating ? floatingPos : {}),
@@ -205,6 +237,9 @@ export default function ModalWrapper({
                     onPointerDown={floating ? startDrag : undefined}
                     style={{
                         background: xpTitleGradients[variant] || xpTitleGradients.primary,
+                        // Top corners follow the frame; the inner radius is the
+                        // frame's minus its 2px bevel so the two read as one curve.
+                        borderRadius: `${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px 0 0`,
                         color: '#ffffff',
                         fontFamily: xpFont,
                         fontSize: '12px', fontWeight: 'bold',
@@ -247,7 +282,12 @@ export default function ModalWrapper({
                 {/* Body — ui-style-classic triggers CSS overrides for Bootstrap controls */}
                 <div
                     className="ui-style-classic"
-                    style={{ padding: '12px 14px', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'linear-gradient(to bottom, #f1efe5 0%, #e5e2d3 100%)', flex: 1 }}
+                    style={{
+                        padding: '12px 14px', overflowY: bodyScroll ? 'auto' : 'hidden',
+                        background: 'linear-gradient(to bottom, #f1efe5 0%, #e5e2d3 100%)', flex: 1,
+                        // Whichever surface sits last carries the bottom corners.
+                        ...(footer ? null : { borderRadius: `0 0 ${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px` }),
+                    }}
                 >
                     {children}
                 </div>
@@ -257,6 +297,7 @@ export default function ModalWrapper({
                     <div style={{
                         background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)',
                         borderTop: '1px solid #b0a898',
+                        borderRadius: `0 0 ${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px`,
                         padding: '6px 10px',
                         display: 'flex', justifyContent: 'flex-end', gap: 4,
                         flexShrink: 0,

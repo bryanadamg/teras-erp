@@ -7,7 +7,7 @@ import CategoriesView from './CategoriesView';
 import UOMLibraryView from './UOMLibraryView';
 import AttributesLibraryView from './AttributesLibraryView';
 import { LvTabBar } from '../shared/listViewTheme';
-import { pageFillStyle } from '../shared/shellTheme';
+import { pageFillStyle, PageTitleBar } from '../shared/shellTheme';
 
 interface Props {
     categories: any[];
@@ -57,12 +57,7 @@ export default function ItemMetadataView({
             ? { ...pageFillStyle, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
             : { ...pageFillStyle, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
-            <div style={classic
-                ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
-                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <i className="bi bi-tag" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
-                Attributes
-            </div>
+            <PageTitleBar classic={classic} icon="bi-tag" title="Attributes" />
 
             <LvTabBar
                 classic={classic}

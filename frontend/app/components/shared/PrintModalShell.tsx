@@ -2,9 +2,9 @@
 import React, { useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { MODAL_Z, MODAL_REPOSITION_EVENT } from './ModalWrapper';
+import { MODAL_Z, MODAL_REPOSITION_EVENT, useInactiveChromeWhileOpen } from './ModalWrapper';
 import { toLayoutPx } from './uiScale';
-import { xpFont, XP_BTN, xpBtn, BTN_TONES } from './xpTheme';
+import { xpFont, XP_BTN, xpBtn, BTN_TONES, WINDOW_RADIUS, WINDOW_RADIUS_INNER } from './xpTheme';
 
 interface PrintModalShellProps {
     title: React.ReactNode;
@@ -45,6 +45,10 @@ export default function PrintModalShell({
     const isMobile = useIsMobile();
     const floating = modeless && !isMobile;
 
+    // Mounted == open for this shell, so the page chrome behind it is inactive
+    // for its whole life (same signal ModalWrapper uses).
+    useInactiveChromeWhileOpen(true);
+
     const panelRef = useRef<HTMLDivElement>(null);
     const dragOffset = useRef({ x: 0, y: 0 });
 
@@ -78,10 +82,12 @@ export default function PrintModalShell({
     const headerStyle: React.CSSProperties = classic ? {
         background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff',
         fontFamily: xpFont, fontSize: 12, fontWeight: 'bold',
+        borderRadius: `${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px 0 0`,
         padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
         cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined,
     } : {
         background: '#0d6efd', color: '#fff', padding: '10px 14px',
+        borderRadius: `${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px 0 0`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
         cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined,
     };
@@ -92,6 +98,8 @@ export default function PrintModalShell({
             style={{
                 width, maxWidth, height, display: 'flex', flexDirection: 'column',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.4)', background: '#fff',
+                // Same frame radius as ModalWrapper — a print dialog is a window too.
+                borderRadius: WINDOW_RADIUS, overflow: 'hidden',
                 ...(bevel ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' } : {}),
                 ...(floating ? {
                     position: 'fixed' as const, left: '50%', top: 56,

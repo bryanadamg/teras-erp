@@ -8,7 +8,7 @@ import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
 import { xpFont, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
-import { pageFillStyle } from '../shared/shellTheme';
+import { pageFillStyle, PageTitleBar } from '../shared/shellTheme';
 
 // ── XP Style Constants ─────────────────────────────────────────────────────────
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -92,33 +92,7 @@ export default function DyeingSettingView() {
             boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
         }}>
             {/* Title bar */}
-            <div style={classic ? {
-                background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-                color: 'white',
-                padding: '6px 12px',
-                fontFamily: xpFont,
-                fontSize: 13,
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                flexShrink: 0,
-            } : {
-                background: '#f7f9fc',
-                color: '#1e293b',
-                padding: '11px 14px',
-                fontFamily: modernFont,
-                fontSize: 14,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                flexShrink: 0,
-                borderBottom: '1px solid #dbe1ea',
-            }}>
-                <i className="bi bi-droplet-fill" style={{ fontSize: 14, color: classic ? undefined : '#2563eb' }} />
-                Dyeing &amp; Setting
-            </div>
+            <PageTitleBar classic={classic} icon="bi-droplet-fill" title="Dyeing & Setting" />
 
             {/* Tabs bar */}
             <Tabs tabs={TABS} activeKey={activeTab} onChange={handleTabChange} classic={classic} />

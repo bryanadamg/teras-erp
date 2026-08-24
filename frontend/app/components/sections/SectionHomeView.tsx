@@ -9,6 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { xpFont, StatusChip, CodeChip, CODE_FONT } from '../shared/xpTheme';
 import { NAV_SECTIONS, navLabel, NavSection } from '../shared/navConfig';
 import { lvThead, lvZebra } from '../shared/listViewTheme';
+import { TITLE_TONES } from '../shared/shellTheme';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section Home — a focused mini-dashboard per sidebar section. Reuses the data
@@ -28,11 +29,12 @@ const SECTION_META: Record<string, NavSection> = Object.fromEntries(
   NAV_SECTIONS.map((s) => [s.key, s])
 );
 
+// Section accents are the shell's title-bar tones — same four hues, one source.
 const ACCENT_GRAD: Record<string, string> = {
-  blue:  'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-  green: 'linear-gradient(to right, #1a7a1a 0%, #2ea42e 100%)',
-  amber: 'linear-gradient(to right, #c07000 0%, #e09830 100%)',
-  grey:  'linear-gradient(to bottom, #6a6a6a, #4a4a4a)',
+  blue:  TITLE_TONES.blue.background,
+  green: TITLE_TONES.green.background,
+  amber: TITLE_TONES.amber.background,
+  grey:  TITLE_TONES.grey.background,
 };
 
 // ── Per-section content builder (client-side filter of loaded data) ───────────
@@ -223,7 +225,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
         style={classic ? {
           background: ACCENT_GRAD[meta.accent], color: '#fff', fontWeight: 'bold', fontSize: 12,
           padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
-          textShadow: '1px 1px 1px rgba(0,0,0,0.4)', border: '1px solid #003080',
+          textShadow: '1px 1px 1px rgba(0,0,0,0.4)', border: `1px solid ${TITLE_TONES.blue.border}`,
         } : undefined}
       >
         <i className={`bi ${meta.icon}${classic ? '' : ' fs-4 text-primary'}`} aria-hidden="true" />
