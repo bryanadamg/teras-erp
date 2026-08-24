@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 type Category = {
@@ -172,8 +172,8 @@ export default function CategoriesView({
                 />
                 {classic ? (
                     <>
-                        <button style={xpBtn()} onClick={handleConfirmAdd} title="Save">✓</button>
-                        <button style={xpBtn()} onClick={() => setAddingState(null)} title="Cancel">✕</button>
+                        <button className={XP_BTN} style={xpBtn()} onClick={handleConfirmAdd} title="Save">✓</button>
+                        <button className={XP_BTN} style={xpBtn()} onClick={() => setAddingState(null)} title="Cancel">✕</button>
                     </>
                 ) : (
                     <>
@@ -231,8 +231,8 @@ export default function CategoriesView({
                         />
                         {classic ? (
                             <>
-                                <button style={xpBtn()} onClick={handleConfirmRename} title="Save">✓</button>
-                                <button style={xpBtn()} onClick={() => setEditingState(null)} title="Cancel">✕</button>
+                                <button className={XP_BTN} style={xpBtn()} onClick={handleConfirmRename} title="Save">✓</button>
+                                <button className={XP_BTN} style={xpBtn()} onClick={() => setEditingState(null)} title="Cancel">✕</button>
                             </>
                         ) : (
                             <>
@@ -393,6 +393,7 @@ export default function CategoriesView({
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddRoot(); } }}
                 />
                 <button
+                    className={XP_BTN}
                     style={xpBtn({ ...BTN_TONES.success })}
                     onClick={handleAddRoot}
                 >

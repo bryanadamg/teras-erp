@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, pageFillStyle } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra, TableEmpty } from '../shared/listViewTheme';
@@ -208,7 +208,7 @@ export default function BookingStockView() {
                 <div style={classic ? xpToolbar : undefined} className={classic ? undefined : 'card-body py-2 d-flex flex-wrap align-items-center gap-2 border-bottom'}>
                     <SearchField classic={classic} value={searchInput} onChange={setSearch} placeholder="Search item..." width={classic ? 200 : 240} />
                     {classic && <div style={xpSep} />}
-                    <button style={classic ? xpBtn() : undefined} className={classic ? undefined : 'btn btn-sm btn-outline-secondary'} onClick={fetchAvailability} title={classic ? 'Refresh' : undefined}>
+                    <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-outline-secondary'} onClick={fetchAvailability} title={classic ? 'Refresh' : undefined}>
                         <i className={classic ? 'bi bi-arrow-clockwise' : 'bi bi-arrow-clockwise me-1'} style={classic ? { marginRight: 4 } : undefined} />Refresh
                     </button>
                     {/* Legend */}

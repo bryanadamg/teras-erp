@@ -7,7 +7,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, BTN_TONES } from '../shared/xpTheme';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel, lvThead, LV_STICKY_THEAD, useRowSelection, RowCheckbox, SelectAllCheckbox, lvZebra } from '../shared/listViewTheme';
@@ -198,12 +198,14 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                             </span>
                             <div style={xpSep}></div>
                             <button
+                                className={XP_BTN}
                                 style={xpBtn({ ...BTN_TONES.danger })}
                                 onClick={() => setShowBulkDeleteConfirm(true)}
                             >
                                 <i className="bi bi-trash" style={{ marginRight: 4 }}></i>Delete Selected
                             </button>
                             <button
+                                className={XP_BTN}
                                 style={xpBtn()}
                                 onClick={sel.clear}
                             >Clear</button>
@@ -332,13 +334,13 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                         <button
                             type="button"
                             style={classic ? xpBtn() : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-link text-muted'}
                             onClick={() => setIsCreateOpen(false)}
                         >Cancel</button>
                         <button
                             type="button"
                             style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-primary px-4 fw-bold'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-primary px-4 fw-bold'}
                             onClick={handleSubmit}
                         >CREATE {typeLabel.toUpperCase()}</button>
                     </>
@@ -405,13 +407,13 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                         <button
                             type="button"
                             style={classic ? xpBtn() : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-link text-muted'}
                             onClick={() => setDeletingPartner(null)}
                         >Cancel</button>
                         <button
                             type="button"
                             style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-danger px-4 fw-bold'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-danger px-4 fw-bold'}
                             onClick={confirmDelete}
                         >DELETE</button>
                     </>
@@ -434,13 +436,13 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                         <button
                             type="button"
                             style={classic ? xpBtn() : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-link text-muted'}
                             onClick={() => setShowBulkDeleteConfirm(false)}
                         >Cancel</button>
                         <button
                             type="button"
                             style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-danger px-4 fw-bold'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-danger px-4 fw-bold'}
                             onClick={confirmBulkDelete}
                         >DELETE ALL</button>
                     </>
@@ -463,13 +465,13 @@ export default function PartnersView({ type, onCreate, onUpdate, onDelete, onBul
                         <button
                             type="button"
                             style={classic ? xpBtn() : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-link text-muted'}
                             onClick={() => setEditingPartner(null)}
                         >Cancel</button>
                         <button
                             type="button"
                             style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #006e8e, #004a5e)', borderColor: '#004a5e #001a2e #001a2e #004a5e', color: '#ffffff', fontWeight: 'bold' }) : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-info text-white px-4 fw-bold'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-info text-white px-4 fw-bold'}
                             onClick={handleUpdateSubmit}
                         >SAVE CHANGES</button>
                     </>

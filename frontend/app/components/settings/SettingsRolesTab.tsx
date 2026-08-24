@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpFont, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { xpBtn, xpFont, rowStateBg, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import PermissionBreakdown from './PermissionBreakdown';
@@ -146,7 +146,7 @@ export default function SettingsRolesTab({
                 <button
                     type="button"
                     style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
-                    className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                    className={classic ? XP_BTN : 'btn btn-sm btn-outline-light py-0 px-2'}
                     onClick={() => { setFormRole(undefined); setFormMode('create'); }}
                 ><i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add Role</button>
             }

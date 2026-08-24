@@ -20,6 +20,15 @@ class Batch(Base):
     source_wo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True
     )
+    # Leftover warp: the beam this lot was split off from when its parent came off
+    # the loom with warp still on it. Set => this batch is a leftover beam, and its
+    # parent is retired at 0 kg. Lineage is ALSO written as a BatchConsumption row
+    # (input = parent, output = this) so the genealogy endpoint traces it like any
+    # other lot; this column is the cheap "is a leftover / whose remnant" answer the
+    # beam pickers need without walking consumptions.
+    parent_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("batches.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     # Size identity of this produced lot, copied from the source MO at WO-completion
     # (e.g. a sized greige GRG- lot woven for size L). bom_size_id is the joinable
     # FK; bom_size_snapshot is the immutable label ({size_name, label, ...}) so a

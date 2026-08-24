@@ -9,7 +9,7 @@ import { ShellWindow, ShellTitleBar, SearchField, FilterChipBar, ToolbarCount, x
 import { lvTh, lvThead, lvTd, lvRow, lvBtn, lvSubTable, lvSubTh, lvSubTd, lvSubRow, TableEmpty, LV_XP_FONT, LV_MODERN_FONT, ExpanderCell, LV_EXPANDER_COL_W } from '../shared/listViewTheme';
 import {
     StatusChip, XPStatusBar, XPEmptyState, TableSkeleton, CodeChip,
-    ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip, rowStateBg,
+    ExpandedRowPanel, ExpandedRowPanelBody, statusColor, WorkCenterChip, ToggleChip, rowStateBg, XP_BTN,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { fmtQtyCompact } from '../shared/format';
@@ -290,6 +290,7 @@ export default function WorkQueueView() {
         <div style={{ borderBottom: classic ? '1px solid #a0a0a0' : '1px solid #e5e9f0' }}>
             <button
                 onClick={() => setShowMaterials(v => !v)}
+                className={XP_BTN}
                 style={{
                     ...lvBtn(classic), width: '100%', textAlign: 'left', border: 'none',
                     background: classic ? '#ece9d8' : '#f8fafc', padding: '4px 8px',

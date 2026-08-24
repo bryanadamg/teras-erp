@@ -15,6 +15,15 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-25
+
+### Added
+- Leftover warp stripped and weighed off a beam at dismount re-lots into its own trackable lot (`parent_batch_id` pegs it to the parent beam), instead of staying merged into a batch-less pool the next loom couldn't pick by lot; the scale-vs-system difference writes off against the retiring parent beam, not the new lot. The weaving monitor's Beams tab can also mount a beam directly, not just dismount.
+
+### Fixed
+- The WO leftover-beam button now reads the loom's actual beam mounts instead of the dead batch-less-pool endpoint, which could only ever 400 once warp stayed lotted for its whole life on the loom; `POST /work-orders/{id}/leftover-beam` is removed.
+- Classic-theme buttons missing the `xp-btn` hover class now get a consistent hover state across the app.
+
 ## [0.10.0] - 2026-08-24
 
 ### Added

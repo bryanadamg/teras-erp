@@ -10,7 +10,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip, xpBtn as xpBtnBase, xpInput as xpInputBase, BTN_TONES } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, XPActionButton, ExpandedRowPanel, StatusChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, OriginChip, VariantChip, xpBtn as xpBtnBase, xpInput as xpInputBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, FilterChipBar, ToolbarButton, SearchField, pageFillStyle } from '../shared/shellTheme';
 
 const LOT_STATUS_FILTERS = [
@@ -1020,8 +1020,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           title="New Lot"
           size="sm"
           footer={<>
-            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setIsCreateOpen(false)}>Cancel</button>
-            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleCreate} disabled={creating}>
+            <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setIsCreateOpen(false)}>Cancel</button>
+            <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-primary'} onClick={handleCreate} disabled={creating}>
               {creating ? 'Creating...' : 'Create Lot'}
             </button>
           </>}
@@ -1065,10 +1065,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           size="sm"
           modeless
           footer={<>
-            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setRejectBatch(null)}>Cancel</button>
+            <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setRejectBatch(null)}>Cancel</button>
             <button
               style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
-              className={classic ? '' : 'btn btn-sm btn-danger'}
+              className={classic ? XP_BTN : 'btn btn-sm btn-danger'}
               onClick={handleReject}
               disabled={rejecting}
             >
@@ -1162,10 +1162,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           size="sm"
           modeless
           footer={<>
-            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setSplitBatch(null)}>Cancel</button>
+            <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setSplitBatch(null)}>Cancel</button>
             <button
               style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', fontWeight: 'bold' }) : undefined}
-              className={classic ? '' : 'btn btn-sm btn-primary'}
+              className={classic ? XP_BTN : 'btn btn-sm btn-primary'}
               onClick={handleSplit}
               disabled={splitting || !valid}
             >

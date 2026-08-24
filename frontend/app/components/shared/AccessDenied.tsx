@@ -6,7 +6,7 @@
 // instead of hitting a dead end.
 import { useRouter } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
-import { xpFont, xpBtn } from './xpTheme';
+import { xpFont, xpBtn, XP_BTN } from './xpTheme';
 
 export default function AccessDenied({ codes }: { codes: string[] }) {
     const { uiStyle } = useTheme();
@@ -27,7 +27,7 @@ export default function AccessDenied({ codes }: { codes: string[] }) {
                     <i className="bi bi-lock-fill" style={{ fontSize: 24, color: '#a0a0a0', display: 'block', marginBottom: 8 }} />
                     <div style={{ fontSize: 12, fontWeight: 'bold', color: '#333' }}>You do not have access to this page</div>
                     <div style={{ fontSize: 11, marginTop: 4 }}>Ask an administrator for <b>{needed}</b>.</div>
-                    <button style={{ ...xpBtn({ padding: '2px 10px' }), marginTop: 12 }} onClick={() => router.push('/dashboard')}>
+                    <button className={XP_BTN} style={{ ...xpBtn({ padding: '2px 10px' }), marginTop: 12 }} onClick={() => router.push('/dashboard')}>
                         Back to Dashboard
                     </button>
                 </div>

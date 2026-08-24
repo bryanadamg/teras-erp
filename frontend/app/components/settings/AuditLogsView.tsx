@@ -5,7 +5,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT, lvThead } from '../shared/listViewTheme';
-import { StatusChip, CODE_FONT, xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, CHIP_RADIUS } from '../shared/xpTheme';
+import { StatusChip, CODE_FONT, xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { useData } from '../../context/DataContext';
 import Pager from '../shared/Pager';
 
@@ -176,7 +176,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
 
           {classic && (
               <div style={xpToolbar}>
-                  <button style={xpBtn()} onClick={handleRefresh} disabled={refreshing} title="Refresh">
+                  <button className={XP_BTN} style={xpBtn()} onClick={handleRefresh} disabled={refreshing} title="Refresh">
                       <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />{refreshing ? 'Refreshing…' : 'Refresh'}
                   </button>
                   <div style={xpSep} />

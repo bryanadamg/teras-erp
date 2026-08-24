@@ -3,7 +3,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { STATUS_COLORS, CodeChip, xpFont, xpBtn as xpBtnBase, BTN_TONES } from './xpTheme';
+import { STATUS_COLORS, CodeChip, xpFont, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from './xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from './shellTheme';
 
 interface QRScannerViewProps {
@@ -223,7 +223,7 @@ export default function QRScannerView({
                         <i className="bi bi-qr-code-scan" style={{ marginRight: 6, color: '#aaccff' }}></i>
                         Operator Scan Terminal
                     </span>
-                    <button style={xpBtn({ padding: '0 6px', height: 20 })} type="button" onClick={onClose}>✕</button>
+                    <button className={XP_BTN} style={xpBtn({ padding: '0 6px', height: 20 })} type="button" onClick={onClose}>✕</button>
                 </div>
 
                 {/* XP Body */}
@@ -257,7 +257,7 @@ export default function QRScannerView({
                                         <span style={xpStatusBadge(scannedWO.status)}>{scannedWO.status}</span>
                                     </div>
                                 </div>
-                                <button style={xpBtn()} type="button" onClick={() => { setScannedWO(null); window.location.reload(); }}>
+                                <button className={XP_BTN} style={xpBtn()} type="button" onClick={() => { setScannedWO(null); window.location.reload(); }}>
                                     <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }}></i>Reset
                                 </button>
                             </div>
@@ -276,6 +276,7 @@ export default function QRScannerView({
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {scannedWO.status === 'PENDING' && (
                                     <button
+                                        className={XP_BTN}
                                         style={xpBtn({ ...BTN_TONES.primary, padding: '10px 20px', fontSize: '14px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 })}
                                         type="button"
                                         onClick={() => handleUpdate('IN_PROGRESS')}
@@ -285,6 +286,7 @@ export default function QRScannerView({
                                 )}
                                 {scannedWO.status === 'IN_PROGRESS' && (
                                     <button
+                                        className={XP_BTN}
                                         style={xpBtn({ ...BTN_TONES.success, padding: '10px 20px', fontSize: '14px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 })}
                                         type="button"
                                         onClick={() => handleUpdate('COMPLETED')}

@@ -11,7 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, useSortable, FormSection, FieldLabel, StatusChip, CodeChip, xpFont, rowStateBg, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -764,14 +764,14 @@ export default function InventoryView({
                   <button
                       type="button"
                       style={classic ? xpBtn() : undefined}
-                      className={classic ? '' : 'btn btn-secondary'}
+                      className={classic ? XP_BTN : 'btn btn-secondary'}
                       onClick={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamNameManuallyEdited(false); }}
                   >{t('cancel')}</button>
                   <button
                       data-testid="submit-create-item"
                       type="button"
                       style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
-                      className={classic ? '' : 'btn btn-primary fw-bold px-4'}
+                      className={classic ? XP_BTN : 'btn btn-primary fw-bold px-4'}
                       onClick={() => (document.getElementById('create-item-form') as HTMLFormElement)?.requestSubmit()}
                   >{createBeam && isRawMaterialCategory ? 'Create 2 Items' : t('create')}</button>
               </>
@@ -1172,6 +1172,7 @@ export default function InventoryView({
                 {canDelete && sel.count > 0 && (
                   <>
                     <button
+                      className={XP_BTN}
                       style={xpBtn({ ...BTN_TONES.danger })}
                       onClick={handleBulkDelete}
                     >
@@ -1261,7 +1262,7 @@ export default function InventoryView({
                     emptyLabel="All"
                     style={{ width: 200 }}
                   />
-                  <button style={xpBtn()} onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }}>
+                  <button className={XP_BTN} style={xpBtn()} onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }}>
                     Clear
                   </button>
                 </>
@@ -1337,7 +1338,7 @@ export default function InventoryView({
                       >
                         {classic ? (
                           <XPEmptyState message="No items found" icon="bi-box-seam">
-                            <button style={{ ...xpBtn(), marginTop: 10 }} onClick={openCreateModal}>
+                            <button className={XP_BTN} style={{ ...xpBtn(), marginTop: 10 }} onClick={openCreateModal}>
                               <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />{t('create')}
                             </button>
                           </XPEmptyState>
@@ -1376,9 +1377,10 @@ export default function InventoryView({
           footer={activeEditingItem ? (
               classic ? (
                 <>
-                  <button type="button" style={xpBtn()} onClick={() => setEditingItem(null)}>{t('cancel')}</button>
+                  <button type="button" className={XP_BTN} style={xpBtn()} onClick={() => setEditingItem(null)}>{t('cancel')}</button>
                   <button
                     type="button"
+                    className={XP_BTN}
                     style={xpBtn({ ...BTN_TONES.success, padding: '2px 16px' })}
                     onClick={() => (document.getElementById('edit-item-form') as HTMLFormElement)?.requestSubmit()}
                   >{t('save')}</button>

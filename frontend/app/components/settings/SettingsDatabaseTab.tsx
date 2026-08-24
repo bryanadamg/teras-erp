@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import {
     xpTableHeader, xpThCell, tdBase,
     settingsStack, settingsHint, SETTINGS_FIELD_GAP,
@@ -285,7 +285,7 @@ export default function SettingsDatabaseTab() {
         <button
             type="button"
             style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
-            className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+            className={classic ? XP_BTN : 'btn btn-sm btn-outline-light py-0 px-2'}
             onClick={fetchSystemStatus}
             disabled={isStatusLoading}
         >
@@ -359,6 +359,7 @@ export default function SettingsDatabaseTab() {
                                     onChange={e => setNewDbUrl(e.target.value)}
                                 />
                                 <button
+                                    className={XP_BTN}
                                     style={xpBtn({ background: 'linear-gradient(to bottom, #006e8e, #004a5e)', borderColor: '#004a5e #001a2e #001a2e #004a5e', color: '#ffffff', whiteSpace: 'nowrap' })}
                                     onClick={() => handleSwitchDatabase(newDbUrl)}
                                     disabled={!newDbUrl || isDbLoading}
@@ -443,7 +444,7 @@ export default function SettingsDatabaseTab() {
                         <button
                             type="button"
                             style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-outline-light py-0 px-2'}
                             onClick={handleCreateSnapshot}
                             disabled={isSnapshotLoading}
                         >
@@ -538,6 +539,7 @@ export default function SettingsDatabaseTab() {
                         </div>
                         {classic ? (
                             <button
+                                className={XP_BTN}
                                 style={xpBtn({ ...BTN_TONES.danger })}
                                 onClick={() => setShowWipeModal(true)}
                             >

@@ -5,7 +5,7 @@ import { useToast } from '../shared/Toast';
 import { useTheme, UI_SCALES } from '../../context/ThemeContext';
 import { useTimezone, AVAILABLE_TIMEZONES } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
-import { xpBtn, xpInput, FieldLabel, BTN_TONES } from '../shared/xpTheme';
+import { xpBtn, xpInput, FieldLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { settingsActions, settingsGrid, settingsHint, settingsStack } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import CompanyProfileView from './CompanyProfileView';
@@ -100,7 +100,7 @@ export default function SettingsGeneralTab({
                         <button
                             type="submit"
                             style={classic ? xpBtn({ ...BTN_TONES.primary, padding: '3px 14px', display: 'flex', alignItems: 'center', gap: 4 }) : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-primary px-3'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-primary px-3'}
                         >
                             <i className="bi bi-save" style={classic ? { marginRight: 4 } : { marginRight: 4 }}></i>
                             Save Preferences

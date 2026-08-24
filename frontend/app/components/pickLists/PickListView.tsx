@@ -9,7 +9,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, lvThSticky, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -391,7 +391,7 @@ export default function PickListView() {
             ) : (
             <>
             <div style={xpToolbar()}>
-                <button style={xpBtn()} onClick={loadAll} title="Refresh">
+                <button className={XP_BTN} style={xpBtn()} onClick={loadAll} title="Refresh">
                     <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                 </button>
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333' }}>
@@ -539,7 +539,7 @@ function SOPickerBoard({ pickableSOs, loading, tzDate, canManage, onRefresh, onP
     return (
         <>
             <div style={xpToolbar()}>
-                <button style={xpBtn()} onClick={onRefresh} title="Re-score open orders">
+                <button className={XP_BTN} style={xpBtn()} onClick={onRefresh} title="Re-score open orders">
                     <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                 </button>
                 <span style={{ fontSize: 10, color: '#666', marginLeft: 8, maxWidth: 620, lineHeight: 1.3 }}>
@@ -767,9 +767,9 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
             modeless
             footer={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <button style={xpBtn()} onClick={onClose}>Close</button>
+                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Close</button>
                     <div style={{ display: 'flex', gap: 6 }}>
-                        {!readOnly && <button style={xpBtnGreen()} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
+                        {!readOnly && <button className={XP_BTN} style={xpBtnGreen()} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
                     </div>
                 </div>
             }
@@ -806,7 +806,7 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                                 onChange={e => setScanCode(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); scan(scanCode); } }}
                             />
-                            <button style={xpBtn()} disabled={scanning || !scanCode.trim()} onClick={() => scan(scanCode)}>
+                            <button className={XP_BTN} style={xpBtn()} disabled={scanning || !scanCode.trim()} onClick={() => scan(scanCode)}>
                                 {scanning ? 'Scanning...' : 'Confirm'}
                             </button>
                             <span style={{ fontSize: 10, color: scannedCount === cartonLines.length && cartonLines.length > 0 ? '#0a3e0a' : '#c77800' }}>
@@ -883,7 +883,7 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                                                         : <span style={{ fontSize: 10, color: '#c77800' }}>pending</span>}
                                             </td>
                                             <td style={{ ...td, textAlign: 'right' }}>
-                                                {!readOnly && <button style={xpBtn({ color: '#a00' })} onClick={() => removeLine(r.__idx)}>Remove</button>}
+                                                {!readOnly && <button className={XP_BTN} style={xpBtn({ color: '#a00' })} onClick={() => removeLine(r.__idx)}>Remove</button>}
                                             </td>
                                         </tr>
                                     ))}

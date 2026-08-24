@@ -22,8 +22,13 @@ so:
   * weaving completions deduct kg FIFO across active mounts with no per-beam
     pick by the operator, and peg BatchConsumption straight to the real beam
     (better genealogy than the old MO-level NULL peg);
-  * leftover warp needs no re-lotting — the beam batch still holds its own
-    remaining kg. Dismount just closes the mount and moves it back to a store.
+  * leftover warp needs no re-lotting to stay tracked — the beam batch still
+    holds its own remaining kg, so a plain dismount just closes the mount and
+    moves the remnant back to a store. Re-lotting is offered as a deliberate
+    floor step instead: when the remnant is stripped off the beam and WEIGHED,
+    `dismount_beam(leftover_qty=...)` splits it into its own lot (parent beam
+    retired at 0, scale-vs-system drift written off on the parent) so the
+    physical roll on the rack has a number the next loom can mount.
 
 Replaces the previous merge-into-batch-less-pool model. `consume_from_mounts`
 still falls back to the batch-less pool at the loom input location so beams
@@ -229,11 +234,33 @@ async def mount_beam(
 
 
 async def dismount_beam(
-    db: AsyncSession, mount_id, to_location_id=None, user: str | None = None
-) -> BeamMount:
-    """Close a mount. Remnant warp needs no re-lotting — the beam batch still
-    carries its own remaining kg. Optionally move that remnant back to a store
-    location; otherwise it stays parked at the loom. Caller commits."""
+    db: AsyncSession,
+    mount_id,
+    to_location_id=None,
+    user: str | None = None,
+    leftover_qty: float | None = None,
+    leftover_number: str | None = None,
+    leftover_ends: int | None = None,
+    leftover_notes: str | None = None,
+) -> tuple[BeamMount, Batch | None, float]:
+    """Close a mount. Returns (mount, leftover_batch|None, variance).
+
+    Two shapes, chosen by the caller:
+
+      * `leftover_qty is None` — plain dismount. The remnant needs no re-lotting:
+        the beam batch still carries its own remaining kg. Optionally move it back
+        to a store location; otherwise it stays parked at the loom.
+
+      * `leftover_qty` given — the floor stripped and WEIGHED the remnant. The
+        weighed kg become a NEW leftover lot (`parent_batch_id` = this beam) and
+        the parent beam is retired at 0. Any difference between the scale and the
+        system's remaining is written off against the parent first, so the
+        leftover lot always equals what is physically on the rack — a beam is
+        consumed by theoretical FIFO deduction, so drift is normal and belongs on
+        the beam that produced it, not on the lot the next loom will weave.
+
+    Caller commits, and is responsible for allocating `leftover_number`.
+    """
     mount = (
         await db.execute(
             select(BeamMount).options(joinedload(BeamMount.batch)).where(BeamMount.id == mount_id)
@@ -245,7 +272,63 @@ async def dismount_beam(
         raise HTTPException(status_code=400, detail="Beam already dismounted")
 
     remaining = await _mount_remaining(db, mount)
-    if to_location_id and remaining > 0 and str(to_location_id) != str(mount.location_id):
+    leftover: Batch | None = None
+    variance = 0.0
+
+    if leftover_qty is not None:
+        weighed = float(leftover_qty)
+        if weighed < 0:
+            raise HTTPException(status_code=400, detail="Leftover qty cannot be negative")
+        if not mount.location_id:
+            raise HTTPException(status_code=422, detail="Mount has no location to move warp out of")
+        if not leftover_number and weighed > 0:
+            raise HTTPException(status_code=400, detail="Leftover lot number not allocated")
+
+        # 1. Reconcile the parent beam to the scale before splitting anything off.
+        variance = weighed - remaining
+        if abs(variance) > 1e-9:
+            await stock_service.add_stock_entry(
+                db, item_id=mount.item_id, location_id=mount.location_id, qty_change=variance,
+                reference_type="Beam Leftover Variance", reference_id=str(mount.work_center_id),
+                attribute_value_ids=[], batch_id=mount.batch_id,
+            )
+
+        # 2. Split the weighed remnant into its own lot, at the return store when
+        #    one was picked (a leftover normally leaves the loom).
+        if weighed > 0:
+            parent = mount.batch
+            leftover = Batch(
+                batch_number=leftover_number,
+                item_id=mount.item_id,
+                ends=leftover_ends if leftover_ends else (parent.ends if parent else None),
+                # Production origin follows the parent beam: the leftover was woven
+                # from the same warp, so it traces back to the same beaming WO.
+                source_wo_id=(parent.source_wo_id if parent else None),
+                parent_batch_id=mount.batch_id,
+                notes=leftover_notes or f"Leftover from {(parent.batch_number if parent else 'beam')}",
+                created_by=user,
+            )
+            db.add(leftover)
+            await db.flush()
+
+            dest = to_location_id or mount.location_id
+            await stock_service.add_stock_entry(
+                db, item_id=mount.item_id, location_id=mount.location_id, qty_change=-weighed,
+                reference_type="Beam Leftover", reference_id=str(mount.work_center_id),
+                attribute_value_ids=[], batch_id=mount.batch_id,
+            )
+            await stock_service.add_stock_entry(
+                db, item_id=mount.item_id, location_id=dest, qty_change=weighed,
+                reference_type="Beam Leftover", reference_id=str(mount.work_center_id),
+                attribute_value_ids=[], batch_id=leftover.id,
+            )
+            # Genealogy through the same table every other lot uses.
+            db.add(BatchConsumption(
+                input_batch_id=mount.batch_id,
+                output_batch_id=leftover.id,
+                qty_consumed=weighed,
+            ))
+    elif to_location_id and remaining > 0 and str(to_location_id) != str(mount.location_id):
         await stock_service.add_stock_entry(
             db, item_id=mount.item_id, location_id=mount.location_id, qty_change=-remaining,
             reference_type="Beam Dismount", reference_id=str(mount.work_center_id),
@@ -259,7 +342,7 @@ async def dismount_beam(
 
     mount.dismounted_at = datetime.utcnow()
     mount.dismounted_by = user
-    return mount
+    return mount, leftover, variance
 
 
 async def auto_dismount_depleted(db: AsyncSession, work_center_id) -> int:

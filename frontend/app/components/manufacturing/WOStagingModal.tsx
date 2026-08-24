@@ -6,7 +6,7 @@ import { useToast } from '../shared/Toast';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import { LotChips, LotChip } from '../shared/LotChips';
-import { CodeChip, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { CodeChip, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { RowCheckbox, lvPickerRow } from '../shared/listViewTheme';
 
 const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px', boxSizing: 'border-box' });
@@ -280,8 +280,8 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
             size="xxl"
             footer={
                 <>
-                    <button style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
-                    <button style={xpBtn(true)} onClick={submit} disabled={submitting || loading || rows.length === 0}>
+                    <button className={XP_BTN} style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
+                    <button className={XP_BTN} style={xpBtn(true)} onClick={submit} disabled={submitting || loading || rows.length === 0}>
                         {submitting
                             ? (hasBeams ? 'Mounting...' : 'Staging...')
                             : (hasBeams ? 'Mount Beam' : 'Stage Materials')}
@@ -293,7 +293,7 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                 {onScanMode && (
                     <div style={{ display: 'flex', gap: 0, marginBottom: 8, border: '1px solid #7f9db9', width: 'fit-content' }}>
                         <span style={{ padding: '3px 12px', fontWeight: 'bold', background: 'linear-gradient(to bottom,#cfe0ff,#8fb3e8)', color: '#0a2a66' }}>Manual</span>
-                        <button onClick={onScanMode} style={{ ...xpBtn(false), border: 'none', borderLeft: '1px solid #7f9db9', padding: '3px 12px' }}>Scan bags</button>
+                        <button className={XP_BTN} onClick={onScanMode} style={{ ...xpBtn(false), border: 'none', borderLeft: '1px solid #7f9db9', padding: '3px 12px' }}>Scan bags</button>
                     </div>
                 )}
                 {moIdentity && (

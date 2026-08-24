@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpBtn, xpInput, CODE_FONT, xpFont, FieldLabel, FormError, ModalFooterActions } from '../shared/xpTheme';
+import { xpBtn, xpInput, CODE_FONT, xpFont, FieldLabel, FormError, ModalFooterActions, XP_BTN } from '../shared/xpTheme';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
@@ -177,7 +177,7 @@ export default function UserFormModal({
                             <button
                                 type="button"
                                 style={classic ? xpBtn({ padding: '1px 6px', fontSize: 10 }) : undefined}
-                                className={classic ? '' : 'btn btn-sm btn-link p-0'}
+                                className={classic ? XP_BTN : 'btn btn-sm btn-link p-0'}
                                 onClick={() => setShowPassword(true)}
                             >Reset Password…</button>
                         ) : undefined}
@@ -197,14 +197,14 @@ export default function UserFormModal({
                                     type="button"
                                     title={passwordVisible ? 'Hide' : 'Show'}
                                     style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
-                                    className={classic ? '' : 'btn btn-sm btn-light border'}
+                                    className={classic ? XP_BTN : 'btn btn-sm btn-light border'}
                                     onClick={() => setPasswordVisible(v => !v)}
                                 ><i className={`bi ${passwordVisible ? 'bi-eye-slash' : 'bi-eye'}`}></i></button>
                                 <button
                                     type="button"
                                     title="Generate a random password"
                                     style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
-                                    className={classic ? '' : 'btn btn-sm btn-light border'}
+                                    className={classic ? XP_BTN : 'btn btn-sm btn-light border'}
                                     onClick={handleGeneratePassword}
                                 ><i className="bi bi-shuffle"></i></button>
                                 {mode === 'edit' && (
@@ -212,7 +212,7 @@ export default function UserFormModal({
                                         type="button"
                                         title="Cancel password reset"
                                         style={classic ? xpBtn({ padding: '1px 6px' }) : undefined}
-                                        className={classic ? '' : 'btn btn-sm btn-light border'}
+                                        className={classic ? XP_BTN : 'btn btn-sm btn-light border'}
                                         onClick={() => { setShowPassword(false); setPassword(''); setPasswordVisible(false); }}
                                     ><i className="bi bi-x-lg"></i></button>
                                 )}

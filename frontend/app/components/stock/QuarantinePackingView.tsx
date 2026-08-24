@@ -17,7 +17,7 @@ import {
 import {
     StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, XPEmptyState,
     XPActionButton, ColorSwatchChip, ExpandedRowPanel, CodeChip, rowStateBg, ToggleChip, ChipTone,
-    OriginChip, OriginChipRow, colorLabel, colorTitle,
+    OriginChip, OriginChipRow, colorLabel, colorTitle, XP_BTN,
 } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -741,7 +741,7 @@ export default function QuarantinePackingView() {
                 <i className="bi bi-box-seam" style={{ marginRight: 4 }} />Show packed
             </ToggleChip>
             <div style={lvSep(classic)} />
-            <button style={lvBtn(classic)} onClick={() => refetch()} title="Refresh">
+            <button className={XP_BTN} style={lvBtn(classic)} onClick={() => refetch()} title="Refresh">
                 <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
             </button>
             {!canSetStatus && (

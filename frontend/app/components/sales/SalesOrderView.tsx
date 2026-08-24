@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel, BTN_TONES } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
@@ -1120,7 +1120,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                </>}
                size="xxl"
                modeless
-               footer={<button className={classic ? '' : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>}
+               footer={<button className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>}
            >
                        <div style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? xpFont : undefined }}>
                            {lineageLoading && <p className="text-muted">Loading lineage...</p>}
@@ -1200,8 +1200,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
            size="lg"
            footer={classic ? (
                <>
-                   <button type="button" style={xpBtn()} onClick={() => { setIsCreateOpen(false); setEditingSOId(null); resetForm(); }}>{t('cancel')}</button>
-                   <button type="button" style={newSO.lines.length === 0 ? {...xpBtn(), opacity: 0.5} : xpBtn({ ...BTN_TONES.primary, padding: '2px 16px' })} onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingSOId ? 'Update' : t('save')} Order</button>
+                   <button type="button" className={XP_BTN} style={xpBtn()} onClick={() => { setIsCreateOpen(false); setEditingSOId(null); resetForm(); }}>{t('cancel')}</button>
+                   <button type="button" className={XP_BTN} style={newSO.lines.length === 0 ? {...xpBtn(), opacity: 0.5} : xpBtn({ ...BTN_TONES.primary, padding: '2px 16px' })} onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingSOId ? 'Update' : t('save')} Order</button>
                </>
            ) : (
                <>
@@ -1667,6 +1667,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                        )}
                        {classic ? (
                            <button type="button"
+                               className={XP_BTN}
                                style={addLineDisabled
                                    ? { ...xpBtn(), width: '100%', padding: '3px 0', opacity: 0.5, textAlign: 'center' as const }
                                    : { ...xpBtn({ ...BTN_TONES.success }), width: '100%', padding: '3px 0', textAlign: 'center' as const }}
@@ -1741,7 +1742,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        <input type="checkbox" checked={!!line.no_color_swatch} onChange={() => handleLineSwatchToggle(idx)} className={classic?'':'form-check-input mt-0'} style={classic?{margin:0}:undefined} />
                                        <span style={{color:classic?'#777':'',fontSize:'9px'}} className={classic?'':'text-muted'}>No swatch</span>
                                    </label>
-                                   <button type="button" style={classic?{...xpBtn(),border:'1px solid transparent',background:'transparent',padding:'1px 5px'}:undefined} className={classic?'':'btn btn-sm btn-link text-danger p-0'} onClick={() => handleRemoveLine(idx)}>
+                                   <button type="button" style={classic?{...xpBtn(),border:'1px solid transparent',background:'transparent',padding:'1px 5px'}:undefined} className={classic?XP_BTN:'btn btn-sm btn-link text-danger p-0'} onClick={() => handleRemoveLine(idx)}>
                                        <i className="bi bi-x-circle" style={{color:classic?'#c00000':''}}></i>
                                    </button>
                                </div>

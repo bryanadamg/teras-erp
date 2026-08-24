@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, XP_BTN } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
@@ -362,8 +362,8 @@ export default function ColorLibraryView({
                 modeless
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <button type="button" style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" form="color-form" style={lvPrimaryBtn(classic)}>
+                        <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
+                        <button type="submit" form="color-form" className={XP_BTN} style={lvPrimaryBtn(classic)}>
                             {editing ? 'Save' : 'Create'}
                         </button>
                     </div>

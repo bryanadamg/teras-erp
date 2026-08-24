@@ -6,7 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
-    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, CodeChip, CHIP_RADIUS } from '../shared/xpTheme';
+    TableSkeleton, useTableSkeletonMetrics, XPEmptyState, useSortable, CodeChip, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, FilterChipBar, SegmentedBar, FilterChipOption, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
@@ -366,9 +366,9 @@ export default function ReportsView(_props: any) {
             <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
             <SegmentedBar classic actions={presetActions} />
             <div style={{ flex: 1 }} />
-            {hasFilters && <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
-            <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
-            <button style={xpBtn({ padding: '1px 6px' })} onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
+            {hasFilters && <button className={XP_BTN} style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
+            <button className={XP_BTN} style={xpBtn({ padding: '1px 6px' })} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+            <button className={XP_BTN} style={xpBtn({ padding: '1px 6px' })} onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
         </div>
     ) : (
         <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
@@ -507,7 +507,7 @@ export default function ReportsView(_props: any) {
     ) : !loading && rows.length === 0 ? (
         classic ? (
             <XPEmptyState icon="bi-journal-x" message={hasFilters ? 'No movements match these filters' : 'No stock movements recorded yet'}>
-                {hasFilters && <button style={{ ...xpBtn(), marginTop: 10 }} onClick={clearFilters}>Clear filters</button>}
+                {hasFilters && <button className={XP_BTN} style={{ ...xpBtn(), marginTop: 10 }} onClick={clearFilters}>Clear filters</button>}
             </XPEmptyState>
         ) : (
             <div className="text-center py-5 text-muted">

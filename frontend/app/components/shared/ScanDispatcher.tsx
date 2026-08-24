@@ -7,7 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useToast } from './Toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { xpFont as XP_FONT, XPLoading, xpInput as xpInputBase, xpBtn as xpBtnBase } from './xpTheme';
+import { xpFont as XP_FONT, XPLoading, xpInput as xpInputBase, xpBtn as xpBtnBase, XP_BTN } from './xpTheme';
 
 // One camera per session: the branch views are only mounted after a code has
 // already been decoded here, so their own readers never race this one.
@@ -267,7 +267,7 @@ export default function ScanDispatcher({ onClose }: { onClose: () => void }) {
             <div style={{ maxWidth: 520, margin: '0 auto' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <strong style={{ fontSize: 15 }}>Scanner</strong>
-                    <button style={xpBtn()} onClick={onClose}>Close</button>
+                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Close</button>
                 </div>
 
                 {error && (
@@ -292,7 +292,7 @@ export default function ScanDispatcher({ onClose }: { onClose: () => void }) {
                         onChange={e => setManualCode(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { route(manualCode); setManualCode(''); } }}
                     />
-                    <button style={{ ...xpBtn(), marginTop: 8 }} onClick={() => { route(manualCode); setManualCode(''); }}>
+                    <button className={XP_BTN} style={{ ...xpBtn(), marginTop: 8 }} onClick={() => { route(manualCode); setManualCode(''); }}>
                         Open
                     </button>
                 </div>

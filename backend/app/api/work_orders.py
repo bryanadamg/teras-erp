@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy import select, func, case, cast
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import joinedload, selectinload, aliased
 from typing import Optional
 from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
@@ -17,9 +18,9 @@ from app.models.weaving import WeavingRun
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import (
     WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
-    LeftoverBeamCreate, BatchResponse, PutawayBinOption, PutawaySuggestionResponse,
+    PutawayBinOption, PutawaySuggestionResponse,
     WorkOrderMarkPrintedBulk, BeamMountResponse, BeamMountCreate, BeamDismountPayload,
-    LoomBeamStatus, WOStagedLot,
+    BeamDismountResult, AvailableBeamRow, LoomBeamStatus, WOStagedLot,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
@@ -1227,93 +1228,6 @@ async def stage_wo_materials(
     return result.scalars().first()
 
 
-@router.post("/work-orders/{wo_id}/leftover-beam", response_model=BatchResponse)
-async def create_leftover_beam(
-    wo_id: str,
-    payload: LeftoverBeamCreate,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.edit')),
-):
-    """Re-lot leftover warp: move kg out of the WO input location's batch-less
-    pool into a new trackable beam batch (born from this weaving WO)."""
-    result = await db.execute(select(WorkOrder).filter(WorkOrder.id == wo_id))
-    wo = result.scalars().first()
-    if not wo:
-        raise HTTPException(status_code=404, detail="Work Order not found")
-    _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
-    if not wo.input_location_id:
-        raise HTTPException(status_code=422, detail="Work Order has no input location")
-
-    qty = float(payload.qty or 0)
-    if qty <= 0:
-        raise HTTPException(status_code=400, detail="qty must be positive")
-
-    item_res = await db.execute(select(Item).filter(Item.id == payload.item_id))
-    item = item_res.scalars().first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    # Available = batch-less pool only; batch stock (unmounted beams) is not eligible.
-    pool_res = await db.execute(
-        select(StockBalance.qty).where(
-            StockBalance.item_id == payload.item_id,
-            StockBalance.location_id == wo.input_location_id,
-            StockBalance.variant_key == "",
-            StockBalance.batch_key == "",
-        )
-    )
-    pool = float(pool_res.scalar() or 0)
-    if qty > pool + 1e-9:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Only {pool:g} available in the merged pool at the input location",
-        )
-
-    beam_number = (payload.beam_number or "").strip()
-    if beam_number:
-        dup = await db.execute(select(Batch.id).filter(Batch.batch_number == beam_number).limit(1))
-        if dup.scalars().first():
-            raise HTTPException(status_code=400, detail=f"Beam number '{beam_number}' already exists")
-    else:
-        beam_number = await generate_batch_number(db, prefix="BM")
-
-    batch = Batch(
-        batch_number=beam_number,
-        item_id=payload.item_id,
-        ends=payload.ends,
-        source_wo_id=wo.id,
-        notes=payload.notes or f"Leftover from {wo.code or wo.name}",
-        created_by=current_user.username,
-    )
-    db.add(batch)
-    await db.flush()
-
-    # Same-location move: pool kg out, beam batch kg in.
-    await stock_service.add_stock_entry(
-        db, item_id=payload.item_id, location_id=wo.input_location_id, qty_change=-qty,
-        reference_type="Leftover Beam", reference_id=str(wo.id),
-        attribute_value_ids=[], batch_id=None,
-    )
-    await stock_service.add_stock_entry(
-        db, item_id=payload.item_id, location_id=wo.input_location_id, qty_change=qty,
-        reference_type="Leftover Beam", reference_id=str(wo.id),
-        attribute_value_ids=[], batch_id=batch.id,
-    )
-    await db.commit()
-
-    await audit_service.log_activity(
-        db, current_user.id, "CREATE", "Batch", str(batch.id),
-        details=f"Leftover beam {beam_number} ({qty:g}) from WO '{wo.code or wo.name}'",
-    )
-    await manager.broadcast({"type": "STOCK_UPDATE"})
-
-    batch.item_code = item.code
-    batch.item_name = item.name
-    batch.remaining = qty
-    batch.location_id = wo.input_location_id
-    return batch
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Beam mounts (loom-level warp)
 #
@@ -1438,18 +1352,43 @@ async def mount_beam_on_loom(
     return (await _mounts_out(db, [(mount, 0.0)]))[0]
 
 
-@router.post("/beam-mounts/{mount_id}/dismount", response_model=BeamMountResponse)
+@router.post("/beam-mounts/{mount_id}/dismount", response_model=BeamDismountResult)
 async def dismount_beam_from_loom(
     mount_id: str,
     payload: BeamDismountPayload,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('beam.unmount')),
 ):
-    """Take a beam off the loom. The remnant keeps its own lot and remaining kg —
-    no re-lotting step. Optionally send it back to a store location."""
-    mount = await beam_service.dismount_beam(
+    """Take a beam off the loom.
+
+    Plain dismount: the remnant keeps its own lot and remaining kg — no re-lotting
+    step — and optionally goes back to a store location.
+
+    With `leftover_qty`: the floor stripped and weighed the remnant, so it becomes
+    its own leftover lot (LFT-) that any loom can mount later, the parent beam is
+    retired at 0, and scale-vs-system drift is written off on the parent."""
+    weighed = payload.leftover_qty
+    leftover_number: str | None = None
+    if weighed is not None and float(weighed) > 0:
+        leftover_number = (payload.leftover_beam_number or "").strip()
+        if leftover_number:
+            dup = await db.execute(
+                select(Batch.id).filter(Batch.batch_number == leftover_number).limit(1)
+            )
+            if dup.scalars().first():
+                raise HTTPException(
+                    status_code=400, detail=f"Lot number '{leftover_number}' already exists"
+                )
+        else:
+            leftover_number = await generate_batch_number(db, prefix="LFT")
+
+    mount, leftover, variance = await beam_service.dismount_beam(
         db, mount_id, to_location_id=payload.to_location_id, user=current_user.username,
+        leftover_qty=weighed, leftover_number=leftover_number,
+        leftover_ends=payload.leftover_ends, leftover_notes=payload.leftover_notes,
     )
+    leftover_id = leftover.id if leftover else None
+    leftover_code = leftover.batch_number if leftover else None
     remaining = 0.0
     await db.commit()
 
@@ -1470,15 +1409,119 @@ async def dismount_beam_from_loom(
         )).scalar()
         remaining = float(bal or 0)
 
+    detail = f"Dismounted beam (remnant {remaining:g})"
+    if leftover_code:
+        detail = (
+            f"Dismounted beam — leftover lot {leftover_code} "
+            f"({float(weighed):g}), variance {variance:+g}"
+        )
     await audit_service.log_activity(
         db, user_id=current_user.id, action="DISMOUNT", entity_type="BEAM_MOUNT",
         entity_id=str(mount.id),
-        details=f"Dismounted beam (remnant {remaining:g})",
-        changes={"to_location_id": str(payload.to_location_id) if payload.to_location_id else None},
+        details=detail,
+        changes={
+            "to_location_id": str(payload.to_location_id) if payload.to_location_id else None,
+            "leftover_batch_id": str(leftover_id) if leftover_id else None,
+            "leftover_qty": float(weighed) if weighed is not None else None,
+            "leftover_variance": variance,
+        },
     )
     await manager.broadcast({"type": "STOCK_UPDATE"})
     await manager.broadcast({"type": "WORK_ORDER_UPDATE"})
-    return (await _mounts_out(db, [(fresh or mount, remaining)]))[0]
+    row = (await _mounts_out(db, [(fresh or mount, remaining)]))[0]
+    return BeamDismountResult(
+        **row.model_dump(),
+        leftover_batch_id=leftover_id,
+        leftover_beam_number=leftover_code,
+        leftover_qty=float(weighed) if weighed is not None else None,
+        leftover_variance=variance,
+    )
+
+
+@router.get("/work-centers/{wc_id}/available-beams", response_model=list[AvailableBeamRow])
+async def list_available_beams(
+    wc_id: str,
+    search: str | None = None,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission("work_order.view", "manufacturing_order.view", "beam.view")),
+):
+    """Beam lots free to mount on this loom — including leftovers stripped off
+    earlier warps, which is the whole point of re-lotting them.
+
+    Machine-scoped by permission only, not by item: a loom takes whatever warp
+    the planner puts up, and the monitor's Mount picker has no order context to
+    narrow it with. Free = has stock somewhere and is not currently mounted."""
+    wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == wc_id))).scalars().first()
+    if not wc:
+        raise HTTPException(status_code=404, detail="Work center not found")
+
+    mounted = select(BeamMount.batch_id).where(BeamMount.dismounted_at.is_(None))
+    parent = aliased(Batch)
+    # Cast batch_key → UUID inside the subquery (never Batch.id → text outside it):
+    # that keeps the join on the batches PK index, and `batch_key != ''` both prunes
+    # every non-lot stock row in the plant and guarantees the cast sees real uuids.
+    bal = (
+        select(
+            cast(StockBalance.batch_key, PG_UUID(as_uuid=True)).label("bid"),
+            StockBalance.qty.label("qty"),
+            StockBalance.location_id.label("location_id"),
+        )
+        .where(StockBalance.qty > 0, StockBalance.batch_key != "")
+        .subquery()
+    )
+    q = (
+        select(Batch, bal.c.qty, bal.c.location_id, Location.code, parent.batch_number)
+        .join(bal, bal.c.bid == Batch.id)
+        .join(Item, Item.id == Batch.item_id)
+        .outerjoin(Location, Location.id == bal.c.location_id)
+        .outerjoin(parent, parent.id == Batch.parent_batch_id)
+        .where(
+            Batch.packing_order_id.is_(None),
+            Batch.id.not_in(mounted),
+            Batch.quality_status.not_in(reject_service.UNPICKABLE_GRADES),
+        )
+        .order_by(Batch.created_at.desc())
+        .limit(max(1, min(int(limit or 100), 500)))
+    )
+    if search:
+        pattern = f"%{search.strip()}%"
+        q = q.where(
+            Batch.batch_number.ilike(pattern)
+            | Item.code.ilike(pattern)
+            | Item.name.ilike(pattern)
+        )
+    rows = (await db.execute(q)).all()
+
+    # One definition of "is this item a warp beam", shared with staging/readiness.
+    beam_ids = await beam_service.beam_item_ids(db, [b.item_id for b, *_ in rows])
+    items = {
+        str(i.id): i for i in (await db.execute(
+            select(Item).where(Item.id.in_([b.item_id for b, *_ in rows]))
+        )).scalars().all()
+    } if rows else {}
+
+    out: list[AvailableBeamRow] = []
+    for batch, qty, loc_id, loc_code, parent_number in rows:
+        if str(batch.item_id) not in beam_ids:
+            continue
+        it = items.get(str(batch.item_id))
+        out.append(AvailableBeamRow(
+            batch_id=batch.id,
+            beam_number=batch.batch_number,
+            item_id=batch.item_id,
+            item_code=it.code if it else None,
+            item_name=it.name if it else None,
+            ends=batch.ends if batch.ends else (it.ends if it else None),
+            remaining=float(qty or 0),
+            location_id=loc_id,
+            location_code=loc_code,
+            is_leftover=batch.parent_batch_id is not None,
+            parent_beam_number=parent_number,
+            quality_status=batch.quality_status or "GOOD",
+            created_at=batch.created_at,
+        ))
+    return out
 
 
 @router.get("/work-orders/{wo_id}/beam-mounts", response_model=LoomBeamStatus)
