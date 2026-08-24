@@ -7,7 +7,7 @@ import { Tabs, TabDef } from '../shared/Tabs';
 import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
-import { xpFont } from '../shared/xpTheme';
+import { xpFont, FORM_SECTION_BLUE } from '../shared/xpTheme';
 import { pageFillStyle } from '../shared/shellTheme';
 
 // ── XP Style Constants ────────────────────────────────────────────────────────
@@ -24,7 +24,7 @@ const xpBtn: React.CSSProperties = {
     borderRadius: 3,
 };
 const xpSectionHeader: React.CSSProperties = {
-    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
+    background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 };

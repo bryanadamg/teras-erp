@@ -726,8 +726,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
        >
            <form onSubmit={handleSubmit} id="create-sample-form">
 
-               {/* ══ ① Identity ══ */}
-               <FormSection title="① Identity" classic={classic}>
+               {/* ══ Identity ══ */}
+               <FormSection title="Identity" classic={classic}>
                {classic ? (
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                <div>
@@ -827,7 +827,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                )}
                </FormSection>
 
-               {/* ══ ② Colors & Specs ══ */}
+               {/* ══ Colors & Specs ══ */}
                {(() => {
                    const isColor = newSample.variant_type === 'color';
                    const addedNames = new Set(newSample.colors.map(c => c.name.toLowerCase()));
@@ -843,7 +843,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        setPendingColorIsRepeat(false);
                    };
                    return (
-                       <FormSection title="② Colors & Specs" classic={classic}>
+                       <FormSection title="Colors & Specs" classic={classic}>
                        {classic ? (
                            <>
                                <div style={{ marginBottom: 10 }}>
@@ -996,8 +996,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    );
                })()}
 
-               {/* ══ ③ Materials ══ */}
-               <FormSection title="③ Materials" classic={classic}>
+               {/* ══ Materials ══ */}
+               <FormSection title="Materials" classic={classic}>
                {classic ? (
                            <>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px 12px', marginBottom: 8 }}>
@@ -1153,8 +1153,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                )}
                </FormSection>
 
-               {/* ══ ④ Logistics ══ */}
-               <FormSection title="④ Logistics" classic={classic}>
+               {/* ══ Logistics ══ */}
+               <FormSection title="Logistics" classic={classic}>
                {classic ? (
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                <div>
@@ -1725,7 +1725,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    });
 
                                    const sections: any[] = [
-                                       { title: '① Identity & Specs', fields: [
+                                       { title: 'Identity & Specs', fields: [
                                            { label: 'Category', value: categoryLabel(s.category) },
                                            { label: 'Customer', value: s.customer_id ? getCustomerName(s.customer_id) : <em style={{ color: '#555' }}>Internal</em> },
                                            { label: 'Project', value: s.project || '—' },
@@ -1734,7 +1734,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            { label: 'Width', value: s.width || '—' },
                                            { label: 'Request Date', value: s.request_date ? tzDate(s.request_date) : '—' },
                                        ]},
-                                       { title: '② Materials & Weight', fields: [
+                                       { title: 'Materials & Weight', fields: [
                                            { label: 'Main Mat.', value: s.main_material || '—' },
                                            { label: 'Middle Mat.', value: s.middle_material || '—' },
                                            { label: 'Bottom Mat.', value: s.bottom_material || '—' },
@@ -1744,7 +1744,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            { label: 'Prod. Weight', value: s.production_weight ? `${s.production_weight} ${s.production_weight_unit || ''}`.trim() : '—' },
                                            ...(s.additional_info ? [{ label: 'Additional', value: s.additional_info, full: true }] : []),
                                        ]},
-                                       { title: '③ Logistics', fields: [
+                                       { title: 'Logistics', fields: [
                                            { label: 'Quantity', value: s.quantity || '—' },
                                            { label: 'Sample Size', value: s.sample_size || '—' },
                                            { label: 'Est. Complete', value: s.estimated_completion_date ? tzDate(s.estimated_completion_date) : '—' },
@@ -1772,7 +1772,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                        : <button onClick={() => setFilePreview({ url: designUrl, type: 'pdf', filename: designFilename })} style={{ fontFamily: xpFont, fontSize: 11, color: '#0047c8', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>View / Download</button>
                                            ) });
                                        }
-                                       sections.push({ title: '④ Attachments', fields: attach });
+                                       sections.push({ title: 'Attachments', fields: attach });
                                    }
 
                                    return (

@@ -12,7 +12,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, FORM_SECTION_BLUE } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, TableEmpty } from '../shared/listViewTheme';
 import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
@@ -40,7 +40,7 @@ const modernBtn: React.CSSProperties = {
     borderRadius: 7, cursor: 'pointer',
 };
 const xpSectionHeader: React.CSSProperties = {
-    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
+    background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 };

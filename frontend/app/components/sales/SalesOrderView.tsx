@@ -1211,7 +1211,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
            )}
        >
            <form onSubmit={handleSubmit} id="create-so-form">
-               <FormSection title="① Order Details" classic={classic}>
+               <FormSection title="Order Details" classic={classic}>
                <div className="row g-3">
                    <div className="col-md-4">
                        <FieldLabel classic={classic} right={<i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>}>Ref No. (PO#)</FieldLabel>
@@ -1238,7 +1238,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                </div>
                </FormSection>
 
-               <FormSection title="② Line Items" classic={classic}>
+               <FormSection title="Line Items" classic={classic}>
                    {/* Item selector — full width */}
                    <div className="row g-2 mb-2">
                        <div className="col-12">

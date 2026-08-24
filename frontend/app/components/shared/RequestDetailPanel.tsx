@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont } from './xpTheme';
+import { xpFont, FORM_SECTION_BLUE } from './xpTheme';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared expanded-row detail panel for request-style pages (Sample Requests,
@@ -96,7 +96,7 @@ export default function RequestDetailPanel({
     const rightPane: React.CSSProperties = { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 };
 
     const grpHdr: React.CSSProperties = classic
-        ? { background: 'linear-gradient(to right, #3a6fc4, #6a9fd8 60%, #a8c8f0)', color: '#fff', fontSize: 10, fontWeight: 'bold', padding: '2px 8px', letterSpacing: '0.4px', textTransform: 'uppercase', fontFamily: xpFont }
+        ? { background: FORM_SECTION_BLUE, color: '#fff', fontSize: 10, fontWeight: 'bold', padding: '2px 8px', letterSpacing: '0.4px', textTransform: 'uppercase', fontFamily: xpFont }
         : { background: '#e9ecef', color: '#333', fontSize: 10, fontWeight: 600, padding: '3px 8px', borderBottom: '1px solid #dee2e6', borderTop: '1px solid #dee2e6' };
 
     const grpBody: React.CSSProperties = {

@@ -113,7 +113,7 @@ const splitVariantCode = (code: string): { seq: string; variant: string } => {
 };
 
 // Color-variant names this item was dipped for: its own dips, else the request-level picks
-// (③ Colors applies to every item). These names are `Colors` variant attribute values.
+// (Colors applies to every item). These names are `Colors` variant attribute values.
 const itemColorNames = (req: any, item: any): string[] => {
     const own = (item?.dips || []).map((d: any) => d.color_name).filter(Boolean);
     if (own.length) return own;
@@ -758,13 +758,13 @@ export default function LabDipRequestView({
                                         });
 
                                         const sections = [
-                                            { title: '① Identity', fields: [
+                                            { title: 'Identity', fields: [
                                                 { label: 'Customer', value: r.customer_id ? getCustomerName(r.customer_id) : 'Internal' },
                                                 { label: 'Season / Project', value: r.season || '—' },
                                                 { label: 'Request Type', value: r.request_type || '—' },
                                                 { label: 'Request Date', value: fmt(r.request_date) },
                                             ]},
-                                            { title: `② ${colorsAttrName}`, fields: [
+                                            { title: colorsAttrName, fields: [
                                                 { label: colorsAttrName, value: (() => {
                                                     const dips = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
                                                     if (!dips.length) return '—';
@@ -775,7 +775,7 @@ export default function LabDipRequestView({
                                                     );
                                                 })(), full: true },
                                             ]},
-                                            { title: '③ Recipe & Notes', fields: [
+                                            { title: 'Recipe & Notes', fields: [
                                                 { label: 'Approved Recipe', value: recipeLabel || '—', full: true },
                                                 { label: 'Notes', value: r.notes || '—', full: true },
                                             ]},
@@ -870,8 +870,8 @@ export default function LabDipRequestView({
                 }
             >
                 <form onSubmit={handleSubmit} id="create-lab-dip-form">
-                    {/* ① Identity */}
-                    <FormSection title="① Identity" classic={classic}>
+                    {/* Identity */}
+                    <FormSection title="Identity" classic={classic}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                 <div>
                                     <label style={xpLbl(classic)}>Request Code</label>
@@ -906,8 +906,8 @@ export default function LabDipRequestView({
                             </div>
                     </FormSection>
 
-                    {/* ② Items */}
-                    <FormSection title="② Items" classic={classic}>
+                    {/* Items */}
+                    <FormSection title="Items" classic={classic}>
                             {/* Add item — finished good on the FG book, yarn on the yarn book */}
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ flex: 1 }}>
@@ -963,8 +963,8 @@ export default function LabDipRequestView({
                             })()}
                     </FormSection>
 
-                    {/* ③ Colors — applies to all items on this request */}
-                    <FormSection title={`③ ${colorsAttrName}`} classic={classic}>
+                    {/* Colors — applies to all items on this request */}
+                    <FormSection title={colorsAttrName} classic={classic}>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ flex: 1 }}>
                                     <SearchableSelect
@@ -990,8 +990,8 @@ export default function LabDipRequestView({
                             )}
                     </FormSection>
 
-                    {/* ④ Recipe link & notes */}
-                    <FormSection title="④ Approved Recipe & Notes" classic={classic}>
+                    {/* Recipe link & notes */}
+                    <FormSection title="Approved Recipe & Notes" classic={classic}>
                             <div style={{ marginBottom: 8 }}>
                                 <label style={xpLbl(classic)}>Approved Dye Recipe (Optional)</label>
                                 <SearchableSelect options={[{ value: '', label: 'Not yet linked' }, ...recipeOptions]} value={form.approved_recipe_id} onChange={(v: string) => setField('approved_recipe_id', v)} placeholder="Link approved recipe…" />

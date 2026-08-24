@@ -488,7 +488,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
            )}
        >
            <form onSubmit={handleSubmit} id="create-po-form">
-               <FormSection title="① Order Details" classic={classic}>
+               <FormSection title="Order Details" classic={classic}>
                    <div className="row g-3">
                        <div className="col-md-4">
                            <FieldLabel classic={classic} right={<i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>}>PO Number</FieldLabel>
@@ -510,7 +510,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                </FormSection>
 
                {/* ── PO Document Details (rendered on the printed PO) ── */}
-               <FormSection title="② Document Details" classic={classic}>
+               <FormSection title="Document Details" classic={classic}>
                    <div className="row g-2">
                        <div className="col-md-4">
                            <FieldLabel classic={classic}>SSN</FieldLabel>
@@ -566,7 +566,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                    </div>
                </FormSection>
 
-               <FormSection title="③ Order Items" classic={classic}>
+               <FormSection title="Order Items" classic={classic}>
                    <div className="row g-2 mb-2">
                        <div className="col-4">
                            <FieldLabel classic={classic}>Item</FieldLabel>

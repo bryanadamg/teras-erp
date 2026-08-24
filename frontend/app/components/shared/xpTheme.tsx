@@ -889,10 +889,13 @@ export function ModalFooterActions({
     );
 }
 
+// The one header colour for every FormSection, both themes.
+export const FORM_SECTION_BLUE = '#3a6fc4';
+
 // Groups related fields in a create/edit form under a labeled section.
 // THE standard section chrome for every sectioned create/edit panel (Colors, Lab Dip,
-// Sample Request, Inventory, …). Classic: raised bevel box with a solid-blue gradient
-// header bar (white text). Modern: neutral header bar over a bordered white card.
+// Sample Request, Inventory, …). Classic: raised bevel box with a flat blue header
+// bar (white text). Modern: the same flat blue bar over a bordered white card.
 // Do not hand-roll per-page group boxes — use this so all forms stay identical.
 // `style` / `bodyStyle` exist for callers that own their own vertical rhythm
 // (a gap-spaced stack passes `marginBottom: 0`) or that put a full-bleed table
@@ -908,11 +911,13 @@ export function FormSection({ title, classic, children, style, bodyStyle }: {
     const box: React.CSSProperties = classic
         ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10, ...style }
         : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden', ...style };
-    // Blue header in BOTH themes so every sectioned form reads the same:
-    // classic = XP solid-blue gradient, modern = flat blue gradient. White text both.
+    // Flat blue header in BOTH themes so every sectioned form reads the same. Solid,
+    // not a gradient: the old left-to-right fade washed out to near-white by the right
+    // edge, so a long title lost contrast halfway across and each box read as a
+    // different colour depending on how wide it was.
     const header: React.CSSProperties = classic
-        ? { background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)', color: '#fff', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', padding: '3px 8px', letterSpacing: '0.5px', textTransform: 'uppercase' as const }
-        : { background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)', color: '#fff', fontFamily: modernFont, fontSize: 11, fontWeight: 700, padding: '6px 12px', letterSpacing: '0.04em', textTransform: 'uppercase' as const };
+        ? { background: FORM_SECTION_BLUE, color: '#fff', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', padding: '3px 8px', letterSpacing: '0.5px', textTransform: 'uppercase' as const }
+        : { background: FORM_SECTION_BLUE, color: '#fff', fontFamily: modernFont, fontSize: 11, fontWeight: 700, padding: '6px 12px', letterSpacing: '0.04em', textTransform: 'uppercase' as const };
     return (
         <div style={box}>
             <div style={header}>{title}</div>

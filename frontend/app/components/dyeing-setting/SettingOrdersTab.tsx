@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip, xpFont, ListSkeleton, StatusChip } from '../shared/xpTheme';
+import { CodeChip, xpFont, ListSkeleton, StatusChip, FORM_SECTION_BLUE } from '../shared/xpTheme';
 import { orDash, fmtQtyFixed } from '../shared/format';
 import { lvThBanded, lvTd, lvTdRuled, lvZebra, LV_STICKY_THEAD } from '../shared/listViewTheme';
 
@@ -46,7 +46,7 @@ const xpBtnPrimary = (classic: boolean): React.CSSProperties => classic ? {
 };
 
 const xpSectionHeader = (classic: boolean): React.CSSProperties => classic ? {
-    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
+    background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 } : {

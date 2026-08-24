@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { STATUS_COLORS, xpFont, ListSkeleton, CHIP_RADIUS } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont, ListSkeleton, CHIP_RADIUS, FORM_SECTION_BLUE } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
@@ -41,7 +41,7 @@ const makePrimaryBtn = (classic: boolean): React.CSSProperties => classic ? {
     borderRadius: 7, cursor: 'pointer',
 };
 const makeSectionHeader = (classic: boolean): React.CSSProperties => classic ? {
-    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
+    background: FORM_SECTION_BLUE,
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 } : {
