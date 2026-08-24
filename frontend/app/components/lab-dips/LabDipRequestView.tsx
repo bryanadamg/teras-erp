@@ -10,7 +10,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS, BTN_TONES } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, ExpandedRowPanel, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, ChipTone, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { lvThead, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvTh, lvTdRuled, lvZebra, TableEmpty, lvBtn, lvInput } from '../shared/listViewTheme';
@@ -522,7 +522,7 @@ export default function LabDipRequestView({
                     title="Created to"
                 />
                 {hasActiveFilter && (
-                    <button style={xpBtn(classic)} onClick={clearFilters} title="Clear all filters">Clear</button>
+                    <button className={XP_BTN} style={xpBtn(classic)} onClick={clearFilters} title="Clear all filters">Clear</button>
                 )}
                 <ToolbarCount classic={classic} right>{total} item{total !== 1 ? 's' : ''}</ToolbarCount>
                 {canManage && (
@@ -719,6 +719,7 @@ export default function LabDipRequestView({
                                                         <button
                                                             type="button"
                                                             title={`Open color code ${it.approved_color_code} in library`}
+                                                            className={XP_BTN}
                                                             style={{ ...xpBtn(classic, { padding: classic ? '1px 5px' : '3px 7px', lineHeight: 1, color: classic ? '#0d3a8a' : '#2563eb' }) }}
                                                             onClick={() => router.push(`/colors?search=${encodeURIComponent(it.approved_color_code)}`)}
                                                         >
@@ -728,6 +729,7 @@ export default function LabDipRequestView({
                                                         <button
                                                             type="button"
                                                             title={`Reopen ${variantCode} for another round (keeps rejection history)`}
+                                                            className={XP_BTN}
                                                             style={{ ...xpBtn(classic, { padding: classic ? '1px 5px' : '3px 7px', lineHeight: 1, color: classic ? '#a05a00' : '#b45309' }) }}
                                                             onClick={() => doUpdateItemStatus(r.id, it.id, 'IN_PROGRESS')}
                                                         >
@@ -841,8 +843,8 @@ export default function LabDipRequestView({
                 size="lg"
                 footer={
                     <>
-                        <button type="button" style={xpBtn(classic)} onClick={() => { setIsModalOpen(false); setEditing(null); }}>Cancel</button>
-                        <button type="button" style={classic
+                        <button type="button" className={XP_BTN} style={xpBtn(classic)} onClick={() => { setIsModalOpen(false); setEditing(null); }}>Cancel</button>
+                        <button type="button" className={XP_BTN} style={classic
                             ? xpBtn(true, { ...BTN_TONES.primary })
                             : xpBtn(false, modernPrimaryBtn)} onClick={handleSubmit as any}>
                             {editing ? 'Save Changes' : 'Create Request'}
@@ -901,7 +903,7 @@ export default function LabDipRequestView({
                                         size="sm"
                                     />
                                 </div>
-                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addItem}><i className="bi bi-plus-lg" /> Add Item</button>
+                                <button type="button" className={XP_BTN} style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addItem}><i className="bi bi-plus-lg" /> Add Item</button>
                             </div>
 
                             {form.items.length === 0 && (
@@ -956,7 +958,7 @@ export default function LabDipRequestView({
                                         size="sm"
                                     />
                                 </div>
-                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addColor}><i className="bi bi-plus-lg" /> Add</button>
+                                <button type="button" className={XP_BTN} style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addColor}><i className="bi bi-plus-lg" /> Add</button>
                             </div>
                             {form.legacyDips.length === 0 ? (
                                 <div style={{ fontSize: classic ? 11 : 13, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic', padding: '4px 2px' }}>
@@ -995,8 +997,8 @@ export default function LabDipRequestView({
                 size="sm"
                 footer={
                     <>
-                        <button type="button" style={xpBtn(classic)} onClick={() => setApproval(null)}>Cancel</button>
-                        <button type="button" disabled={!approvalSet.trim()} style={classic
+                        <button type="button" className={XP_BTN} style={xpBtn(classic)} onClick={() => setApproval(null)}>Cancel</button>
+                        <button type="button" className={XP_BTN} disabled={!approvalSet.trim()} style={classic
                             ? xpBtn(true, { background: 'linear-gradient(to bottom, #7bd88f, #1b7a34)', borderColor: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#04220c', fontWeight: 'bold', opacity: approvalSet.trim() ? 1 : 0.55 })
                             : xpBtn(false, { fontWeight: 600, background: '#16a34a', color: '#fff', border: 'none', opacity: approvalSet.trim() ? 1 : 0.55 })}
                             onClick={confirmApproval}>
@@ -1067,8 +1069,8 @@ export default function LabDipRequestView({
                 size="sm"
                 footer={
                     <>
-                        <button type="button" style={xpBtn(classic)} onClick={() => setReject(null)}>Cancel</button>
-                        <button type="button" style={classic
+                        <button type="button" className={XP_BTN} style={xpBtn(classic)} onClick={() => setReject(null)}>Cancel</button>
+                        <button type="button" className={XP_BTN} style={classic
                             ? xpBtn(true, { background: 'linear-gradient(to bottom, #d32f2f, #8b0000)', borderColor: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff', fontWeight: 'bold' })
                             : xpBtn(false, { fontWeight: 600, background: '#dc2626', color: '#fff', border: 'none' })}
                             onClick={confirmReject}>
@@ -1117,8 +1119,8 @@ export default function LabDipRequestView({
                     footer={
                         <>
                             <span style={{ flex: 1, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 10 : 12, color: '#666', textAlign: 'left' as const }}>{photoPreview.filename}</span>
-                            <button type="button" style={xpBtn(classic)} onClick={() => window.open(photoPreview.url, '_blank')}>Open Full View</button>
-                            <button type="button" style={xpBtn(classic)} onClick={() => setPhotoPreview(null)}>Close</button>
+                            <button type="button" className={XP_BTN} style={xpBtn(classic)} onClick={() => window.open(photoPreview.url, '_blank')}>Open Full View</button>
+                            <button type="button" className={XP_BTN} style={xpBtn(classic)} onClick={() => setPhotoPreview(null)}>Close</button>
                         </>
                     }
                 >
@@ -1139,7 +1141,7 @@ export default function LabDipRequestView({
                 onClose={() => setHistoryItem(null)}
                 title={<><i className="bi bi-clock-history me-2" />Rejection History</>}
                 size="sm"
-                footer={<button type="button" style={xpBtn(classic)} onClick={() => setHistoryItem(null)}>Close</button>}
+                footer={<button type="button" className={XP_BTN} style={xpBtn(classic)} onClick={() => setHistoryItem(null)}>Close</button>}
             >
                 {historyItem && (
                     <div style={{ padding: '2px 2px 4px' }}>

@@ -3,7 +3,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarCount } from '../shared/shellTheme';
-import { CodeChip, CODE_FONT, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { lvThead, LV_STICKY_THEAD, lvZebra, Dash } from '../shared/listViewTheme';
 
 export default function StockEntryView({ items, selectItems, onSearchItems, locations, attributes, stockBalance, onRecordStock }: any) {
@@ -259,7 +259,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                           <button
                               type="submit"
                               style={classic ? { ...xpBtn({ ...BTN_TONES.success }), width: '100%', padding: '4px 10px' } : undefined}
-                              className={classic ? undefined : 'btn btn-primary w-100 py-2 fw-bold shadow-sm'}
+                              className={classic ? XP_BTN : 'btn btn-primary w-100 py-2 fw-bold shadow-sm'}
                           >
                               {classic ? (<><i className="bi bi-floppy" style={{ marginRight: 6 }}></i>{t('save')}</>) : t('save')}
                           </button>

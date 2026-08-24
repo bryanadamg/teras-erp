@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg, VariantChip, Chip, REF_TONES, statusTint, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { useServerSort, TableSkeleton, useTableSkeletonMetrics, XPActionButton, FormSection, FieldLabel, CodeChip, CODE_FONT, xpFont, rowStateBg, VariantChip, Chip, REF_TONES, statusTint, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, ToolbarButton, pageFillStyle, flexFillStyle } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
@@ -745,8 +745,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             title="Transfer Stock"
             size="sm"
             footer={<>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTransferTarget(null)}>Cancel</button>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleTransfer} disabled={transferring}>
+                <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setTransferTarget(null)}>Cancel</button>
+                <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-primary'} onClick={handleTransfer} disabled={transferring}>
                     {transferring ? 'Moving...' : 'Transfer'}
                 </button>
             </>}
@@ -798,8 +798,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             title={`Combined Move — ${sel.count} row${sel.count === 1 ? '' : 's'}`}
             size="lg"
             footer={<>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setBulkOpen(false)}>Cancel</button>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleBulkMove} disabled={bulkMoving || !sel.count}>
+                <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setBulkOpen(false)}>Cancel</button>
+                <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-primary'} onClick={handleBulkMove} disabled={bulkMoving || !sel.count}>
                     {bulkMoving ? 'Moving...' : `Move ${sel.count} row${sel.count === 1 ? '' : 's'}`}
                 </button>
             </>}
@@ -883,7 +883,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             const active = adjustMode === m;
             if (classic) {
                 return (
-                    <button key={m} style={xpBtn({ fontSize: '11px', flex: 1, fontWeight: active ? 'bold' : 'normal', background: active ? 'linear-gradient(to bottom,#cfe3ff,#a9c9f0)' : undefined })}
+                    <button key={m} className={XP_BTN} style={xpBtn({ fontSize: '11px', flex: 1, fontWeight: active ? 'bold' : 'normal', background: active ? 'linear-gradient(to bottom,#cfe3ff,#a9c9f0)' : undefined })}
                         onClick={() => fillAdjust(t, m)}>{label}</button>
                 );
             }
@@ -900,8 +900,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 title="Adjust Stock"
                 size="sm"
                 footer={<>
-                    <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setAdjustTarget(null)}>Cancel</button>
-                    <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-warning'} onClick={handleAdjust} disabled={adjusting}>
+                    <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setAdjustTarget(null)}>Cancel</button>
+                    <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-warning'} onClick={handleAdjust} disabled={adjusting}>
                         {adjusting ? 'Saving...' : 'Save Adjustment'}
                     </button>
                 </>}
@@ -974,8 +974,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             title="New Stock Entry"
             size="sm"
             footer={<>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setNewOpen(false)}>Cancel</button>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-success'} onClick={handleNewEntry} disabled={savingNew}>
+                <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setNewOpen(false)}>Cancel</button>
+                <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-success'} onClick={handleNewEntry} disabled={savingNew}>
                     {savingNew ? 'Saving...' : 'Save Entry'}
                 </button>
             </>}
@@ -1094,7 +1094,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             {(classic ? !!effectiveCat : true) && col('col-md-1',
                 <button
                     style={classic ? xpBtn() : undefined}
-                    className={classic ? undefined : 'btn btn-outline-secondary btn-sm w-100'}
+                    className={classic ? XP_BTN : 'btn btn-outline-secondary btn-sm w-100'}
                     onClick={clearCats}
                     disabled={classic ? undefined : !effectiveCat}
                     title="Clear category filter"
@@ -1128,11 +1128,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 classic ? (
                     <>
                         <div style={xpSep} />
-                        <button style={xpBtn({ ...BTN_TONES.primary })} onClick={openBulkMove}
+                        <button className={XP_BTN} style={xpBtn({ ...BTN_TONES.primary })} onClick={openBulkMove}
                             title="Move every selected row to one destination in a single transaction">
                             <i className="bi bi-arrow-left-right" style={{ marginRight: 4 }} />Move {sel.count} selected
                         </button>
-                        <button style={xpBtn()} onClick={sel.clear} title="Clear selection">Clear</button>
+                        <button className={XP_BTN} style={xpBtn()} onClick={sel.clear} title="Clear selection">Clear</button>
                     </>
                 ) : col('col-md-3 d-flex gap-2', (
                     <>
@@ -1148,7 +1148,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             {col('col-md-2',
                 <button
                     style={classic ? xpBtn() : undefined}
-                    className={classic ? undefined : 'btn btn-outline-secondary btn-sm w-100'}
+                    className={classic ? XP_BTN : 'btn btn-outline-secondary btn-sm w-100'}
                     onClick={() => { refetch(); onRefresh(); }}
                     title={classic ? 'Refresh' : undefined}
                 >
@@ -1158,7 +1158,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             {canRebuild && col('col-md-2',
                 <button
                     style={classic ? xpBtn() : undefined}
-                    className={classic ? undefined : 'btn btn-outline-secondary btn-sm w-100'}
+                    className={classic ? XP_BTN : 'btn btn-outline-secondary btn-sm w-100'}
                     onClick={handleRebuild} disabled={rebuilding}
                     title="Recompute stock balances from the ledger (use if balances look stale)"
                 >

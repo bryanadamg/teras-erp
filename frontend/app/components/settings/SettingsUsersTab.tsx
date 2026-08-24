@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
-import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
+import { xpBtn, xpInput, CodeChip, xpFont, rowStateBg, StatusChip, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { SearchField, ToolbarCount, FilterChipBar } from '../shared/shellTheme';
 import { xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
@@ -167,7 +167,7 @@ export default function SettingsUsersTab({
                 <button
                     type="button"
                     style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
-                    className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                    className={classic ? XP_BTN : 'btn btn-sm btn-outline-light py-0 px-2'}
                     onClick={() => { setFormUser(undefined); setFormMode('create'); }}
                 ><i className="bi bi-person-plus" style={{ marginRight: 4 }}></i>Add User</button>
             }

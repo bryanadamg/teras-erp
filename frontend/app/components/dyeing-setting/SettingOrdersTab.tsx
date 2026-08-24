@@ -6,7 +6,7 @@ import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
-import { CodeChip, xpFont, ListSkeleton, StatusChip, FORM_SECTION_BLUE } from '../shared/xpTheme';
+import { CodeChip, xpFont, ListSkeleton, StatusChip, FORM_SECTION_BLUE, XP_BTN } from '../shared/xpTheme';
 import { orDash, fmtQtyFixed } from '../shared/format';
 import { lvThBanded, lvTdRuled, lvZebra, LV_STICKY_THEAD, lvBtn, lvInput, lvTd } from '../shared/listViewTheme';
 
@@ -302,7 +302,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                 </div>
                 <Pager page={clampedWoPage} total={woTotal} pageSize={SO_WO_PAGE_SIZE} onPageChange={setWoPage} hideWhenEmpty />
                 <div style={{ borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dbe1ea', padding: 4 }}>
-                    <button onClick={fetchWorkOrders} style={{ ...xpBtn(classic), width: '100%', fontSize: 10 }}>
+                    <button className={XP_BTN} onClick={fetchWorkOrders} style={{ ...xpBtn(classic), width: '100%', fontSize: 10 }}>
                         Refresh
                     </button>
                 </div>
@@ -316,6 +316,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                     </span>
                     {canManage && selectedWoId && (
                         <button
+                            className={XP_BTN}
                             onClick={() => { setShowCreateRun(true); setCreateForm(EMPTY_CREATE); }}
                             style={classic ? {
                                 ...xpBtn(classic),
@@ -372,6 +373,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                     </div>
                                     <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
                                         <button
+                                            className={XP_BTN}
                                             onClick={handleCreateRun}
                                             disabled={saving}
                                             style={classic ? {
@@ -383,7 +385,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                         >
                                             {saving ? 'Saving...' : 'Create Run'}
                                         </button>
-                                        <button onClick={() => setShowCreateRun(false)} style={xpBtn(classic)}>
+                                        <button className={XP_BTN} onClick={() => setShowCreateRun(false)} style={xpBtn(classic)}>
                                             Cancel
                                         </button>
                                     </div>
@@ -436,6 +438,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                     <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                         {canManage && (!run.status || run.status === 'PENDING') && (
                                                             <button
+                                                                className={XP_BTN}
                                                                 onClick={() => handleStartRun(run)}
                                                                 style={classic ? {
                                                                     ...xpBtn(classic), fontSize: 9,
@@ -453,6 +456,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                         )}
                                                         {canManage && run.status === 'IN_PROGRESS' && (
                                                             <button
+                                                                className={XP_BTN}
                                                                 onClick={() => {
                                                                     setShowCompleteModal(run);
                                                                     setCompleteForm(EMPTY_COMPLETE);
@@ -495,6 +499,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                     footer={
                         <>
                             <button
+                                className={XP_BTN}
                                 onClick={handleCompleteRun}
                                 disabled={completing || !completeForm.output_batch_number.trim()}
                                 style={classic ? {
@@ -515,7 +520,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                             >
                                 {completing ? 'Completing...' : 'Complete Run'}
                             </button>
-                            <button onClick={() => setShowCompleteModal(null)} style={xpBtn(classic)}>
+                            <button className={XP_BTN} onClick={() => setShowCompleteModal(null)} style={xpBtn(classic)}>
                                 Cancel
                             </button>
                         </>

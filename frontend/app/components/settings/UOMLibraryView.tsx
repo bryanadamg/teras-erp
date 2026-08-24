@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvThead, ExpanderCell } from '../shared/listViewTheme';
-import { ExpandedRowPanel, rowStateBg, Chip } from '../shared/xpTheme';
+import { ExpandedRowPanel, rowStateBg, Chip, XP_BTN } from '../shared/xpTheme';
 import { SearchField, ToolbarCount } from '../shared/shellTheme';
 
 interface Props {
@@ -75,7 +75,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                             value={newName}
                             onChange={e => setNewName(e.target.value)}
                         />
-                        <button type="submit" style={lvPrimaryBtn(classic)} disabled={isSubmitting}>
+                        <button type="submit" className={XP_BTN} style={lvPrimaryBtn(classic)} disabled={isSubmitting}>
                             <i className="bi bi-plus-lg" /> {isSubmitting ? '…' : 'New UOM'}
                         </button>
                     </form>
@@ -168,7 +168,7 @@ export default function UOMLibraryView({ uoms, canManage, onCreateUOM, onDeleteU
                                                                     <option key={u.id} value={u.id}>{u.name}</option>
                                                                 ))}
                                                             </select>
-                                                            <button style={lvBtn(classic)} onClick={() => handleAddFactor(uom)}>Add</button>
+                                                            <button className={XP_BTN} style={lvBtn(classic)} onClick={() => handleAddFactor(uom)}>Add</button>
                                                             {factors.length > 0 && (
                                                                 <>
                                                                     <span style={{ width: 1, height: 18, background: classic ? '#c0a060' : '#fde68a' }} />

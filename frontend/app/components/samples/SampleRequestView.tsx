@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, expandedRowFrame, BTN_TONES } from '../shared/xpTheme';
+import { StatusChip, StatusCountPill, TableSkeleton, useTableSkeletonMetrics, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton, familyColor, CodeChip, xpFont, rowStateBg, ToggleChip, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, expandedRowFrame, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, SearchField, FilterChipBar, ToolbarCount, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -600,11 +600,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                <>
                    <button type="button"
                        style={classic ? xpBtn() : undefined}
-                       className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                       className={classic ? XP_BTN : 'btn btn-sm btn-link text-muted'}
                        onClick={() => setApproveTarget(null)}>{t('cancel')}</button>
                    <button type="button"
                        style={classic ? xpBtn({ ...BTN_TONES.success }) : undefined}
-                       className={classic ? '' : 'btn btn-sm btn-success px-4 fw-bold'}
+                       className={classic ? XP_BTN : 'btn btn-sm btn-success px-4 fw-bold'}
                        onClick={confirmApprove}>Approve</button>
                </>
            }
@@ -640,11 +640,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                <>
                    <button type="button"
                        style={classic ? xpBtn() : undefined}
-                       className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                       className={classic ? XP_BTN : 'btn btn-sm btn-link text-muted'}
                        onClick={() => setRejectTarget(null)}>{t('cancel')}</button>
                    <button type="button"
                        style={classic ? xpBtn({ ...BTN_TONES.danger }) : undefined}
-                       className={classic ? '' : 'btn btn-sm btn-danger px-4 fw-bold'}
+                       className={classic ? XP_BTN : 'btn btn-sm btn-danger px-4 fw-bold'}
                        onClick={confirmReject}>Reject Color</button>
                </>
            }
@@ -690,13 +690,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    <button
                        type="button"
                        style={classic ? xpBtn() : undefined}
-                       className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                       className={classic ? XP_BTN : 'btn btn-sm btn-link text-muted'}
                        onClick={() => { setIsCreateOpen(false); setEditingSample(null); }}
                    >{t('cancel')}</button>
                    <button
                        type="button"
                        style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
-                       className={classic ? '' : 'btn btn-sm btn-primary px-4 fw-bold'}
+                       className={classic ? XP_BTN : 'btn btn-sm btn-primary px-4 fw-bold'}
                        onClick={handleSubmit as any}
                    >{editingSample ? 'Save Changes' : 'Create Request'}</button>
                </>
@@ -898,6 +898,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    </div>
                                    <button
                                        type="button"
+                                       className={XP_BTN}
                                        style={pendingColorIsRepeat
                                            ? xpBtn({ ...BTN_TONES.primary, minWidth: 52 })
                                            : xpBtn({ minWidth: 52 })}
@@ -905,7 +906,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        title="Toggle New / Repeat">
                                        {pendingColorIsRepeat ? 'Repeat' : 'New'}
                                    </button>
-                                   <button type="button" style={xpBtn()} onClick={addPendingColor}>
+                                   <button type="button" className={XP_BTN} style={xpBtn()} onClick={addPendingColor}>
                                        <i className="bi bi-plus-lg" /> Add
                                    </button>
                                </div>
@@ -1165,7 +1166,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                        <input type="file" accept="image/*" id="xp-completion-image" style={{ display: 'none' }}
                                               onChange={e => setCompletionImageFile(e.target.files?.[0] || null)} />
-                                       <button type="button" style={xpBtn({ padding: '1px 8px' })}
+                                       <button type="button" className={XP_BTN} style={xpBtn({ padding: '1px 8px' })}
                                                onClick={() => (document.getElementById('xp-completion-image') as HTMLInputElement)?.click()}>
                                            Browse…
                                        </button>
@@ -1185,7 +1186,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                        <input type="file" accept="application/pdf,image/*,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" id="xp-design-pdf" style={{ display: 'none' }}
                                               onChange={e => setDesignPdfFile(e.target.files?.[0] || null)} />
-                                       <button type="button" style={xpBtn({ padding: '1px 8px' })}
+                                       <button type="button" className={XP_BTN} style={xpBtn({ padding: '1px 8px' })}
                                                onClick={() => (document.getElementById('xp-design-pdf') as HTMLInputElement)?.click()}>
                                            Browse…
                                        </button>
@@ -1314,11 +1315,12 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        title="Created to"
                    />
                    {hasActiveFilter && (
-                       <button style={xpBtn()} onClick={clearFilters} title="Clear all filters">Clear</button>
+                       <button className={XP_BTN} style={xpBtn()} onClick={clearFilters} title="Clear all filters">Clear</button>
                    )}
                    <div style={xpSep}></div>
                    <button
                        onClick={onMarkAllRead}
+                       className={XP_BTN}
                        style={xpBtn({ display: 'inline-flex', alignItems: 'center', gap: 4 })}
                        title="Mark all sample requests as read"
                    >
@@ -1689,13 +1691,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                            : <span className="badge bg-success bg-opacity-10 text-success border" style={{ fontSize: 10 }}>Item: {c.item_code}</span>
                                                    ) : canManage ? (
                                                        classic
-                                                           ? <button style={xpBtn({ ...BTN_TONES.success, fontSize: 10, padding: '1px 6px' })} onClick={() => createItemFromColor(s, c)} title="Create Item from this approved color">+ Item</button>
+                                                           ? <button className={XP_BTN} style={xpBtn({ ...BTN_TONES.success, fontSize: 10, padding: '1px 6px' })} onClick={() => createItemFromColor(s, c)} title="Create Item from this approved color">+ Item</button>
                                                            : <button className="btn btn-sm btn-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createItemFromColor(s, c)}>+ Item</button>
                                                    ) : null
                                                ) : isRejected ? (
                                                    canManage ? (
                                                        classic
-                                                           ? <button style={xpBtn({ ...BTN_TONES.primary, fontSize: 10, padding: '1px 6px' })} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
+                                                           ? <button className={XP_BTN} style={xpBtn({ ...BTN_TONES.primary, fontSize: 10, padding: '1px 6px' })} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
                                                            : <button className="btn btn-sm btn-primary" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
                                                    ) : null
                                                ) : null,
@@ -1874,12 +1876,12 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <button
                            onClick={() => window.open(filePreview.url, '_blank')}
                            style={classic ? xpBtn() : undefined}
-                           className={classic ? '' : 'btn btn-sm btn-outline-secondary'}
+                           className={classic ? XP_BTN : 'btn btn-sm btn-outline-secondary'}
                        >
                            ↗ Open Full View
                        </button>
                        {classic && (
-                           <button onClick={() => setFilePreview(null)} style={xpBtn()}>
+                           <button className={XP_BTN} onClick={() => setFilePreview(null)} style={xpBtn()}>
                                Close
                            </button>
                        )}

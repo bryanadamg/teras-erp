@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { STATUS_COLORS, xpFont, ListSkeleton, CHIP_RADIUS, FORM_SECTION_BLUE } from '../shared/xpTheme';
+import { STATUS_COLORS, xpFont, ListSkeleton, CHIP_RADIUS, FORM_SECTION_BLUE, XP_BTN } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
@@ -493,6 +493,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             </span>
                             {canManage && (
                             <button
+                                className={XP_BTN}
                                 style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }}
                                 onClick={handleOpenCreateRun}
                             >
@@ -673,10 +674,10 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                     </label>
                                 </div>
                                 <div style={{ marginTop: classic ? 6 : 10, display: 'flex', gap: classic ? 4 : 8 }}>
-                                    <button style={xpPrimaryBtn} onClick={handleSaveRun} disabled={saving}>
+                                    <button className={XP_BTN} style={xpPrimaryBtn} onClick={handleSaveRun} disabled={saving}>
                                         {saving ? 'Saving...' : 'Save Run'}
                                     </button>
-                                    <button style={xpBtn} onClick={() => { setShowCreateRun(false); setCreateForm(emptyCreateForm); setErrorMsg(null); }}>
+                                    <button className={XP_BTN} style={xpBtn} onClick={() => { setShowCreateRun(false); setCreateForm(emptyCreateForm); setErrorMsg(null); }}>
                                         Cancel
                                     </button>
                                 </div>
@@ -768,12 +769,14 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                             {canManage && run.status === 'PENDING' && (
                                                                 <>
                                                                     <button
+                                                                        className={XP_BTN}
                                                                         style={xpPrimaryBtn}
                                                                         onClick={() => handleStartRun(run)}
                                                                     >
                                                                         Start
                                                                     </button>
                                                                     <button
+                                                                        className={XP_BTN}
                                                                         style={xpBtn}
                                                                         onClick={() => handleOpenComplete(run)}
                                                                     >
@@ -783,6 +786,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                             )}
                                                             {canManage && run.status === 'IN_PROGRESS' && (
                                                                 <button
+                                                                    className={XP_BTN}
                                                                     style={xpPrimaryBtn}
                                                                     onClick={() => handleOpenComplete(run)}
                                                                 >
@@ -813,6 +817,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                     modeless
                     footer={<>
                         <button
+                            className={XP_BTN}
                             style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
                             onClick={handleSaveComplete}
                             disabled={saving || !completeForm.output_batch_number}
@@ -820,6 +825,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             {saving ? 'Saving...' : 'Save'}
                         </button>
                         <button
+                            className={XP_BTN}
                             style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpBtn, padding: '6px 18px' }}
                             onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
                             disabled={saving}
@@ -877,7 +883,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
                                 <div style={{ ...xpSectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <span>Chemicals Used</span>
-                                    <button style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }} onClick={handleAddChemical}>+ Add Chemical</button>
+                                    <button className={XP_BTN} style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }} onClick={handleAddChemical}>+ Add Chemical</button>
                                 </div>
                                 {completeForm.chemicals.length === 0 ? (
                                     <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>No chemicals added. Click "+ Add Chemical" to begin.</div>
@@ -940,6 +946,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                     </td>
                                                     <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <button
+                                                            className={XP_BTN}
                                                             style={classic ? { ...xpBtn, fontSize: 10, color: '#800' } : { ...xpBtn, fontSize: 12, color: '#b91c1c', borderColor: '#f0c2c2' }}
                                                             onClick={() => handleRemoveChemical(idx)}
                                                         >

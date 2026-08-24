@@ -22,7 +22,7 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import {
     xpFont, xpBtn, xpInput, xpSep, TableBlockSkeleton, XPEmptyState,
-    useSortable, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar, rowStateBg,
+    useSortable, WorkCenterChip, StatusChip, ExpandedRowPanel, ProgressBar, rowStateBg, XP_BTN,
 } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
@@ -675,9 +675,9 @@ export default function MachineOutputReportView() {
                             <SegmentedBar classic actions={presetActions} />
                             <div style={{ flex: 1 }} />
                             <span style={{ ...lbl, whiteSpace: 'nowrap' }}>{sorted.length} rows</span>
-                            <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+                            <button className={XP_BTN} style={xpBtn({ padding: '1px 6px' })} onClick={fetchReport} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
                             {canExport && (
-                                <button style={xpBtn({ padding: '1px 6px' })} onClick={exportCsv} disabled={!sorted.length} title="Export CSV"><i className="bi bi-filetype-csv" /></button>
+                                <button className={XP_BTN} style={xpBtn({ padding: '1px 6px' })} onClick={exportCsv} disabled={!sorted.length} title="Export CSV"><i className="bi bi-filetype-csv" /></button>
                             )}
                         </div>
                     </>

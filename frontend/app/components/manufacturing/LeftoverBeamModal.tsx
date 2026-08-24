@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px', width: '100%', boxSizing: 'border-box' });
 const xpLabel: React.CSSProperties = {
@@ -85,8 +85,8 @@ export default function LeftoverBeamModal({ wo, onClose }: Props) {
             size="sm"
             footer={
                 <>
-                    <button type="button" onClick={onClose} style={xpBtn()}>Cancel</button>
-                    <button type="submit" form="leftover-beam-form" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
+                    <button type="button" className={XP_BTN} onClick={onClose} style={xpBtn()}>Cancel</button>
+                    <button type="submit" className={XP_BTN} form="leftover-beam-form" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
                         {submitting ? 'Saving...' : 'Create Beam Lot'}
                     </button>
                 </>

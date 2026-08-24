@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { STATIC_BASE as API_BASE } from '../shared/apiBase';
-import { xpBtn, xpInput, FieldLabel, BTN_TONES } from '../shared/xpTheme';
+import { xpBtn, xpInput, FieldLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { settingsActions, settingsGrid, settingsHint, SETTINGS_FIELD_GAP } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 
@@ -144,7 +144,7 @@ export default function CompanyProfileView({ profile, onUpdate, onUploadLogo, au
                     <button
                         type="submit"
                         style={classic ? xpBtn({ ...BTN_TONES.primary, padding: '3px 14px', display: 'flex', alignItems: 'center', gap: 4 }) : undefined}
-                        className={classic ? '' : 'btn btn-sm btn-primary px-3'}
+                        className={classic ? XP_BTN : 'btn btn-sm btn-primary px-3'}
                         disabled={isSaving}
                     >
                         {isSaving ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-save"></i>}

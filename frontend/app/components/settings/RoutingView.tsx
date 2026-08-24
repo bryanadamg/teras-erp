@@ -9,7 +9,7 @@ import { ShellWindow, ShellTitleBar, SearchField, ToolbarCount, ToolbarButton } 
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
-import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
+import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpFont, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead } from '../shared/listViewTheme';
 
 const WC_PAGE_SIZE = 20;
@@ -402,8 +402,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               )}
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
-                          <button type="submit" style={lvPrimaryBtn(classic)}>Save</button>
-                          <button type="button" style={lvBtn(classic)} onClick={() => setEditingWC(null)}>Cancel</button>
+                          <button type="submit" className={XP_BTN} style={lvPrimaryBtn(classic)}>Save</button>
+                          <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={() => setEditingWC(null)}>Cancel</button>
                       </div>
                   </form>
               </td>
@@ -560,7 +560,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           <label style={lvLabel(classic)}>{t('operation_name')}</label>
                           <input style={lvInput(classic)} placeholder="Cutting" value={newOperation.name} onChange={e => setNewOperation({ ...newOperation, name: e.target.value })} required />
                       </div>
-                      <button type="submit" style={lvPrimaryBtn(classic)}>
+                      <button type="submit" className={XP_BTN} style={lvPrimaryBtn(classic)}>
                           <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('add')}
                       </button>
                   </form>
@@ -664,8 +664,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               : 'Code and name are required'}
                       </span>
                   )}
-                  <button type="button" style={lvBtn(classic)} onClick={() => setIsCreateWCOpen(false)}>Cancel</button>
-                  <button type="button" style={{ ...lvPrimaryBtn(classic), ...(createValid ? {} : { opacity: 0.5, cursor: 'not-allowed' }) }} onClick={handleCreateWC} disabled={!createValid}>
+                  <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={() => setIsCreateWCOpen(false)}>Cancel</button>
+                  <button type="button" className={XP_BTN} style={{ ...lvPrimaryBtn(classic), ...(createValid ? {} : { opacity: 0.5, cursor: 'not-allowed' }) }} onClick={handleCreateWC} disabled={!createValid}>
                       <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('add')}
                   </button>
               </>
@@ -684,6 +684,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               <button
                                   key={l.value}
                                   type="button"
+                                  className={XP_BTN}
                                   onClick={() => setNewWorkCenter({ ...newWorkCenter, node_type: l.value, parent_id: '', input_location_id: '', output_location_id: '' })}
                                   style={{ ...(on ? lvPrimaryBtn(classic) : lvBtn(classic)), flex: 1, minWidth: 108, textAlign: 'center', padding: '4px 6px' }}
                                   title={LEVEL_HINTS[l.value]}

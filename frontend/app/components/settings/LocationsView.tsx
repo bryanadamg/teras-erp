@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar, SearchField } from '../shared/shellTheme';
 import { lvTh, lvTd, lvRow, lvThead } from '../shared/listViewTheme';
-import { XPActionButton, CodeChip, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { XPActionButton, CodeChip, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 
 const ALL = '__all__';
 
@@ -400,7 +400,7 @@ export default function LocationsView({
             <span className={classic ? undefined : 'text-muted text-uppercase small fw-bold'} style={classic ? { fontFamily: xpFont, fontSize: 11, fontWeight: 'bold' } : undefined}>Stores</span>
             {canManage && (
               classic
-                ? <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>
+                ? <button className={XP_BTN} style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>
                 : <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>
             )}
           </div>
@@ -409,7 +409,7 @@ export default function LocationsView({
               <form onSubmit={handleAddStore} style={{ padding: '6px', borderBottom: '1px solid #d8d4c8', display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <input style={xpInput} placeholder="Code (e.g. RAW2)" value={newStore.code} onChange={(e) => setNewStore({ ...newStore, code: e.target.value })} required />
                 <input style={xpInput} placeholder="Name (e.g. Raw Material 2)" value={newStore.name} onChange={(e) => setNewStore({ ...newStore, name: e.target.value })} required />
-                <button type="submit" disabled={savingStore} style={xpBtn({ ...BTN_TONES.success, opacity: savingStore ? 0.6 : 1 })}>{savingStore ? '...' : 'Add store'}</button>
+                <button type="submit" className={XP_BTN} disabled={savingStore} style={xpBtn({ ...BTN_TONES.success, opacity: savingStore ? 0.6 : 1 })}>{savingStore ? '...' : 'Add store'}</button>
               </form>
             ) : (
               <form onSubmit={handleAddStore} className="p-2 border-bottom d-flex flex-column gap-2">
@@ -455,7 +455,7 @@ export default function LocationsView({
             </span>
             {canManage && selectedStoreObj && (
               classic
-                ? <button style={xpBtn({ padding: '1px 6px', ...BTN_TONES.success })} onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
+                ? <button className={XP_BTN} style={xpBtn({ padding: '1px 6px', ...BTN_TONES.success })} onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
                 : <button className="btn btn-sm btn-outline-success py-0" onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
             )}
           </div>
@@ -463,7 +463,7 @@ export default function LocationsView({
             classic ? (
               <form onSubmit={handleAddZone} style={{ display: 'flex', gap: 4, padding: '4px 6px', background: '#eef3fb', borderBottom: '1px solid #b0c4de' }}>
                 <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} placeholder="Zone name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} required />
-                <button type="submit" disabled={savingZone} style={xpBtn({ padding: '1px 6px', ...BTN_TONES.success, opacity: savingZone ? 0.6 : 1 })}>{savingZone ? '...' : 'Add'}</button>
+                <button type="submit" className={XP_BTN} disabled={savingZone} style={xpBtn({ padding: '1px 6px', ...BTN_TONES.success, opacity: savingZone ? 0.6 : 1 })}>{savingZone ? '...' : 'Add'}</button>
               </form>
             ) : (
               <form onSubmit={handleAddZone} className="d-flex gap-1 p-2 border-bottom">
@@ -490,7 +490,7 @@ export default function LocationsView({
             <SearchField classic={classic} value={searchTerm} onChange={setSearchTerm} placeholder="Search..." width={classic ? 160 : 200} />
             {canManage && selectedZoneObj && (
               classic
-                ? <button style={xpBtn({ ...BTN_TONES.success })} onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg" style={{ marginRight: 3 }} />Add bin</button>
+                ? <button className={XP_BTN} style={xpBtn({ ...BTN_TONES.success })} onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg" style={{ marginRight: 3 }} />Add bin</button>
                 : <button className="btn btn-sm btn-success text-nowrap" onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg me-1" />Add bin</button>
             )}
           </div>
@@ -502,8 +502,8 @@ export default function LocationsView({
                   <input autoFocus style={{ ...xpInput, width: '100%' }} placeholder="A1" value={newBinName} onChange={(e) => setNewBinName(e.target.value)} required />
                 </div>
                 <span style={{ fontFamily: xpFont, fontSize: 10, color: '#666' }}>code: {selectedZoneObj.code}-{newBinName || '…'}</span>
-                <button type="submit" disabled={savingBin} style={xpBtn({ ...BTN_TONES.success, opacity: savingBin ? 0.6 : 1 })}>{savingBin ? '...' : 'Save'}</button>
-                <button type="button" onClick={() => setShowBinForm(false)} style={xpBtn()}><i className="bi bi-x-lg" /></button>
+                <button type="submit" className={XP_BTN} disabled={savingBin} style={xpBtn({ ...BTN_TONES.success, opacity: savingBin ? 0.6 : 1 })}>{savingBin ? '...' : 'Save'}</button>
+                <button type="button" className={XP_BTN} onClick={() => setShowBinForm(false)} style={xpBtn()}><i className="bi bi-x-lg" /></button>
               </form>
             ) : (
               <form onSubmit={handleAddBin} className="d-flex align-items-end gap-2 px-3 py-2 border-bottom" style={{ background: '#eef3fb' }}>

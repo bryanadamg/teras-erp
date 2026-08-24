@@ -7,7 +7,7 @@ import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import LotLabelPrintModal from './LotLabelPrintModal';
 import { LotChips, LotChip } from '../shared/LotChips';
-import { CodeChip, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { CodeChip, xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import type { StagedLot } from './WOStagingModal';
 
 const xpInput: React.CSSProperties = xpInputBase({ fontSize: 13, height: 28, padding: '0 6px', width: '100%', boxSizing: 'border-box' });
@@ -261,8 +261,8 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
             size="lg"
             footer={
                 <>
-                    <button style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
-                    <button style={xpBtn(true)} onClick={submit} disabled={submitting || loading || cart.length === 0}>
+                    <button className={XP_BTN} style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
+                    <button className={XP_BTN} style={xpBtn(true)} onClick={submit} disabled={submitting || loading || cart.length === 0}>
                         {submitting ? 'Staging...' : `Stage ${cart.length} Bag${cart.length === 1 ? '' : 's'}`}
                     </button>
                 </>
@@ -271,7 +271,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
             <div style={{ fontFamily: xpFont, fontSize: 11 }}>
                 {onManualMode && (
                     <div style={{ display: 'flex', gap: 0, marginBottom: 8, border: '1px solid #7f9db9', width: 'fit-content' }}>
-                        <button onClick={onManualMode} style={{ ...xpBtn(false), border: 'none', borderRight: '1px solid #7f9db9', padding: '3px 12px' }}>Manual</button>
+                        <button className={XP_BTN} onClick={onManualMode} style={{ ...xpBtn(false), border: 'none', borderRight: '1px solid #7f9db9', padding: '3px 12px' }}>Manual</button>
                         <span style={{ padding: '3px 12px', fontWeight: 'bold', background: 'linear-gradient(to bottom,#cfe0ff,#8fb3e8)', color: '#0a2a66' }}>Scan bags</span>
                     </div>
                 )}
@@ -335,7 +335,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                                 }}
                                 disabled={cameraOn}
                             />
-                            <button style={{ ...xpBtn(false), whiteSpace: 'nowrap' }} onClick={() => setCameraOn(v => !v)}>
+                            <button className={XP_BTN} style={{ ...xpBtn(false), whiteSpace: 'nowrap' }} onClick={() => setCameraOn(v => !v)}>
                                 {cameraOn ? 'Stop Camera' : 'Use Camera'}
                             </button>
                         </div>
@@ -406,6 +406,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                                             </td>
                                             <td style={{ padding: '3px 5px', textAlign: 'center' }}>
                                                 <button
+                                                    className={XP_BTN}
                                                     onClick={() => removeFromCart(b.id)}
                                                     style={{ ...xpBtn(false), padding: '0 5px', color: '#900' }}
                                                     title="Remove"

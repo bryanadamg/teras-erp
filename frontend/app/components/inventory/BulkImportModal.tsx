@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { xpFont, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 
 interface BulkImportModalProps {
     isOpen: boolean;
@@ -64,19 +64,19 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
                 results ? (
                     <button
                         style={classic ? xpBtn({ ...BTN_TONES.primary }) : undefined}
-                        className={classic ? '' : 'btn btn-primary'}
+                        className={classic ? XP_BTN : 'btn btn-primary'}
                         onClick={() => { reset(); onClose(); }}
                     >Close</button>
                 ) : (
                     <>
                         <button
                             style={classic ? xpBtn() : undefined}
-                            className={classic ? '' : 'btn btn-secondary'}
+                            className={classic ? XP_BTN : 'btn btn-secondary'}
                             onClick={onClose}
                         >Cancel</button>
                         <button
                             style={classic ? xpBtn({ background: !file || uploading ? 'linear-gradient(to bottom, #d4d0c8, #b0ac9c)' : 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: !file || uploading ? '#a0988c #707068 #707068 #a0988c' : '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
-                            className={classic ? '' : 'btn btn-success'}
+                            className={classic ? XP_BTN : 'btn btn-success'}
                             onClick={handleUpload}
                             disabled={!file || uploading}
                         >
@@ -99,7 +99,7 @@ export default function BulkImportModal({ isOpen, onClose, onImport, onDownloadT
                     <div style={classic ? { marginBottom: 12 } : undefined} className={classic ? '' : 'd-flex justify-content-between mb-4'}>
                         <button
                             style={classic ? xpBtn() : undefined}
-                            className={classic ? '' : 'btn btn-sm btn-outline-primary'}
+                            className={classic ? XP_BTN : 'btn btn-sm btn-outline-primary'}
                             onClick={onDownloadTemplate}
                         >
                             <i className={classic ? 'bi bi-download' : 'bi bi-download me-1'} style={classic ? { marginRight: 4 } : undefined}></i>Download Template

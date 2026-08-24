@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CHIP_RADIUS } from '../shared/xpTheme';
+import { FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, lvZebra } from '../shared/listViewTheme';
 import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 
@@ -210,9 +210,9 @@ export default function AttributesLibraryView({
                 modeless
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <button type="button" style={lvBtn(classic)} onClick={closeModal}>Cancel</button>
+                        <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={closeModal}>Cancel</button>
                         {canManage && (!editing || !editing.is_system) && (
-                            <button type="submit" form="attribute-form" style={lvPrimaryBtn(classic)} disabled={isSubmitting}>
+                            <button type="submit" form="attribute-form" className={XP_BTN} style={lvPrimaryBtn(classic)} disabled={isSubmitting}>
                                 {editing ? 'Save' : 'Create'}
                             </button>
                         )}
@@ -272,9 +272,9 @@ export default function AttributesLibraryView({
                                             onChange={e => setValueDraft(e.target.value)}
                                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddValueToExisting(); } }}
                                         />
-                                        <button type="button" style={lvBtn(classic)} onClick={handleAddValueToExisting}>Add</button>
+                                        <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={handleAddValueToExisting}>Add</button>
                                         {nextVal !== null && (
-                                            <button type="button" style={lvBtn(classic)} onClick={handleAddNextToExisting}>+{nextVal}</button>
+                                            <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={handleAddNextToExisting}>+{nextVal}</button>
                                         )}
                                     </div>
                                 )}
@@ -289,9 +289,9 @@ export default function AttributesLibraryView({
                                         onChange={e => setValueDraft(e.target.value)}
                                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDraftValue(); } }}
                                     />
-                                    <button type="button" style={lvBtn(classic)} onClick={addDraftValue}>Add</button>
+                                    <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={addDraftValue}>Add</button>
                                     {nextVal !== null && (
-                                        <button type="button" style={lvBtn(classic)} onClick={addNextDraftValue}>+{nextVal}</button>
+                                        <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={addNextDraftValue}>+{nextVal}</button>
                                     )}
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #7f9db9', minHeight: 32, padding: '4px 6px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
