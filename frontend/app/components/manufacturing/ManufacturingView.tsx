@@ -510,7 +510,7 @@ export default function ManufacturingView({
                   boxShadow: classic ? '2px 2px 4px rgba(0,0,0,0.3)' : undefined,
                   background: classic ? '#ece9d8' : undefined,
                   ...pageFillStyle,
-              }} className={classic ? '' : 'card h-100 border-0 shadow-sm'}>
+              }} className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}>
 
                   {/* ── Title bar / toolbar ── */}
                   <div

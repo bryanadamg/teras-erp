@@ -647,7 +647,7 @@ export default function WorkOrderListView({
         <>
         <div className="row g-4 fade-in">
             <div className="col-12">
-                <div style={containerStyle} className={classic ? '' : 'card h-100 border-0 shadow-sm'}>
+                <div style={containerStyle} className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}>
 
                     {/* Title bar */}
                     <div style={titleBarStyle}>

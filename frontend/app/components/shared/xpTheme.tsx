@@ -275,6 +275,23 @@ export const BUTTON_RADIUS = 3;
 export const WINDOW_RADIUS = 8;
 export const WINDOW_RADIUS_INNER = WINDOW_RADIUS - 2;
 
+// Docked-panel corner radius — the outer shell of a page/table view (`xpBevel` /
+// `ShellWindow`), which sits IN the page rather than floating over it. Same value
+// as WINDOW_RADIUS and the same tier of the scale: a view shell and a dialog are
+// both "the frame everything else sits in", so they must not read as two
+// different chrome languages on the same screen. XP itself left docked panels
+// square; that is the one XP detail this app deliberately drops, because the
+// square page shell under a rounded dialog looked like unfinished chrome.
+//
+// The shell must clip (`overflow: hidden`) or the square title bar pokes out of
+// the rounded corners. With the 2px classic bevel, CSS clips the padding box at
+// radius-minus-border-width automatically, so the title bar lands on 6 and the
+// corner reads as one curve without any WINDOW_RADIUS_INNER-style arithmetic.
+//
+// NOT the global app header (`.classic-header`): that bar is full-bleed chrome
+// pinned to the top of the viewport, so it stays square on purpose.
+export const PANEL_RADIUS = WINDOW_RADIUS;
+
 // The class that carries the shared button hover/press motion (see the BUTTONS
 // block in globals.css). Tag any classic button with it instead of hand-rolling
 // onMouseEnter/onMouseLeave state — it animates filter/transform/box-shadow only,

@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, XP_BTN } from './xpTheme';
+import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, PANEL_RADIUS, XP_BTN } from './xpTheme';
 
 // Shared "classic outer window" chrome — bevel container + colored title bar +
 // toolbar strip. Every dual-theme table/detail view (Sales Orders, Packing,
@@ -10,9 +10,14 @@ import { xpFont, modernFont, ToggleChip, ChipTone, ChipSeg, BUTTON_RADIUS, XP_BT
 // title-bar gradient, same toolbar strip) — this is the single source now.
 // Migrate a view's local copy when you touch it; don't hand-roll a new one.
 
+// `overflow: hidden` is part of the chrome, not a caller concern: the title bar,
+// toolbar and table inside are all square-cornered, so without the clip they poke
+// out of PANEL_RADIUS. It clips at the padding box (radius minus the 2px bevel),
+// which is what makes the bar's corner read as one curve with the frame's.
 export const xpBevel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
+    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8',
+    borderRadius: PANEL_RADIUS, overflow: 'hidden',
     ...extra,
 });
 
@@ -391,7 +396,7 @@ export function ShellWindow({ classic, fill = 'page', className, style, children
     return (
         <div
             style={classic ? { ...xpBevel(), ...fillStyle, ...style } : { ...fillStyle, ...style }}
-            className={classic ? className : `card border-0 shadow-sm ${className || ''}`.trim()}
+            className={classic ? className : `card border-0 shadow-sm shell-window ${className || ''}`.trim()}
         >
             {children}
         </div>

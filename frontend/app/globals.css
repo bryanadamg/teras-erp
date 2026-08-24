@@ -214,6 +214,20 @@ body {
   color: #b91c1c !important;
 }
 
+/* Outer shell of a page/table view in the modern theme — the counterpart of the
+   classic `xpBevel`, kept at PANEL_RADIUS (xpTheme.tsx) so a view frame reads the
+   same in both themes and stays one step ROUNDER than the FormSection boxes
+   inside it. Scoped to `.shell-window` rather than `.card` on purpose: a plain
+   `.card` is also every KPI tile and nested panel, and rounding those to the
+   frame radius flattens the nesting the scale exists to express. The clip is what
+   keeps the square title bar inside the rounded corner. NOT applied to
+   `.classic-header` / `.app-header` — that bar is full-bleed viewport chrome. */
+.card.shell-window,
+.ui-style-modern .card.shell-window {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 /* Cards / panels — calm, no hover lift, denser padding (ERP density) */
 .ui-style-modern .card {
   border: 1px solid var(--border);

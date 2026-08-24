@@ -791,7 +791,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
        {/* ── Outer shell ── */}
        <div
            style={classic ? xpBevel : undefined}
-           className={classic ? '' : 'card border-0 shadow-sm'}
+           className={classic ? '' : 'card border-0 shadow-sm shell-window'}
        >
            {/* ── Title bar ── */}
            {classic ? (

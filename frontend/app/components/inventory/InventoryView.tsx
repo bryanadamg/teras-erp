@@ -1150,7 +1150,7 @@ export default function InventoryView({
         {/* ── Outer shell: XP bevel in classic, Bootstrap card in default ── */}
         <div
           style={classic ? { ...xpBevel, ...pageFillStyle } : pageFillStyle}
-          className={classic ? '' : 'card h-100 border-0 shadow-sm'}
+          className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}
         >
           {/* ── Title bar ── */}
           {classic ? (
