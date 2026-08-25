@@ -1019,6 +1019,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           onClose={() => setIsCreateOpen(false)}
           title="New Lot"
           size="sm"
+          modeless
           footer={<>
             <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} onClick={() => setIsCreateOpen(false)}>Cancel</button>
             <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-primary'} onClick={handleCreate} disabled={creating}>
