@@ -992,18 +992,22 @@ export function FormSection({ title, classic, children, style, bodyStyle }: {
 // where FormSection's solid blue header bar would read as a page-level section
 // and compete with the modal's own title bar. Was hand-rolled three times inside
 // WOCompletionModal before this; `right` holds an optional action (e.g. "Print
-// All Bag Labels") pinned to the legend line.
-export function LegendPanel({ title, right, children, style }: {
+// All Bag Labels") pinned to the legend line. `legendStyle` overrides the legend
+// span itself (background must match a `style` background override, e.g. a
+// tinted "Tip" box, or the default beige patch shows through behind the label).
+export function LegendPanel({ title, right, children, style, legendStyle }: {
     title: React.ReactNode;
     right?: React.ReactNode;
     children: React.ReactNode;
     style?: React.CSSProperties;
+    legendStyle?: React.CSSProperties;
 }) {
     return (
-        <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10, ...style }}>
+        <div style={{ border: '1px solid #aca899', borderRadius: SECTION_RADIUS, background: '#f5f4ee', position: 'relative', paddingTop: 10, ...style }}>
             <span style={{
                 position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px',
                 fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080',
+                ...legendStyle,
             }}>
                 {title}
             </span>

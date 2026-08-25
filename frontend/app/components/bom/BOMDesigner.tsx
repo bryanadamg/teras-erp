@@ -6,7 +6,7 @@ import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
-import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, LegendPanel } from '../shared/xpTheme';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -94,19 +94,6 @@ const xpLabel: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, color: '#000',
     display: 'block', marginBottom: 2,
 };
-
-const xpGroupWrapper: React.CSSProperties = {
-    border: '1px solid #aca899', borderRadius: 3,
-    padding: '14px 8px 8px', background: '#f5f4ee',
-    position: 'relative',
-};
-
-const xpGroupLabel = (bg = '#f5f4ee'): React.CSSProperties => ({
-    position: 'absolute', top: -8, left: 8,
-    background: bg, padding: '0 4px',
-    fontSize: 10, fontWeight: 'bold', color: '#000080',
-    fontFamily: xpFont,
-});
 
 const xpInset: React.CSSProperties = {
     border: '2px inset #aaa', background: 'white',
@@ -1404,9 +1391,8 @@ export default function BOMDesigner({
                             }}>
 
                                 {/* BOM Header groupbox */}
-                                <div style={xpGroupWrapper}>
-                                    <span style={xpGroupLabel()}>BOM Header</span>
-
+                                <LegendPanel title="BOM Header">
+                                    <div style={{ padding: '0 8px 8px' }}>
                                     {/* Row 1: Code + Item + Batch + Tolerance */}
                                     <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
                                         {/* BOM Code */}
@@ -1585,18 +1571,19 @@ export default function BOMDesigner({
                                             </div>
                                         </div>
                                     )}
-                                </div>
+                                    </div>
+                                </LegendPanel>
 
                                 {/* Sizes + Detail Teknis + Measurements row */}
                                 {(
                                     <div style={{ display: 'flex', gap: 8 }}>
 
                                         {/* Left: Size Measurements */}
-                                        <div style={{ ...xpGroupWrapper, flexShrink: 0 }}>
-                                            {/* Header with toggle */}
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <span style={xpGroupLabel()}>Measurements (cm)</span>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+                                        <LegendPanel
+                                            title="Measurements (cm)"
+                                            style={{ flexShrink: 0 }}
+                                            right={
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     <span style={{ fontSize: 9, color: '#555' }}>Sizes</span>
                                                     <button
                                                         type="button"
@@ -1626,8 +1613,9 @@ export default function BOMDesigner({
                                                     </button>
                                                     <span style={{ fontSize: 9, color: '#555' }}>Free</span>
                                                 </div>
-                                            </div>
-
+                                            }
+                                        >
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             {/* Sized mode */}
                                             {selectedNode.sizeMode === 'sized' && (sizes || []).length > 0 && (
                                                 <div style={{ display: 'grid', gridTemplateColumns: '32px 52px 48px 12px 48px', gap: '3px 4px', alignItems: 'center' }}>
@@ -1763,11 +1751,12 @@ export default function BOMDesigner({
                                                     </button>
                                                 </div>
                                             )}
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                         {/* Detail Teknis */}
-                                        <div style={{ ...xpGroupWrapper, flexShrink: 0 }}>
-                                            <span style={xpGroupLabel()}>Detail Teknis</span>
+                                        <LegendPanel title="Detail Teknis" style={{ flexShrink: 0 }}>
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
                                                 {/* Kerapatan/Picks */}
@@ -1887,11 +1876,12 @@ export default function BOMDesigner({
                                                 </div>}
 
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                         {/* Bahan Keluar Dari Mesin */}
-                                        <div style={{ ...xpGroupWrapper, flex: 1 }}>
-                                            <span style={xpGroupLabel()}>Bahan Keluar Dari Mesin</span>
+                                        <LegendPanel title="Bahan Keluar Dari Mesin" style={{ flex: 1 }}>
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px', gap: '4px 6px', alignItems: 'center' }}>
                                                 <label style={{ ...xpLabel, marginBottom: 0 }}>Lebar</label>
                                                 <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -1929,11 +1919,12 @@ export default function BOMDesigner({
                                                     <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap' }}>cm</span>
                                                 </div>
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                         {/* Bahan Dari Celup / Setting */}
-                                        <div style={{ ...xpGroupWrapper, flex: 1 }}>
-                                            <span style={xpGroupLabel()}>Bahan Dari Celup / Setting</span>
+                                        <LegendPanel title="Bahan Dari Celup / Setting" style={{ flex: 1 }}>
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px', gap: '4px 6px', alignItems: 'center' }}>
                                                 <label style={{ ...xpLabel, marginBottom: 0 }}>Lebar</label>
                                                 <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -1971,7 +1962,8 @@ export default function BOMDesigner({
                                                     <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap' }}>cm</span>
                                                 </div>
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                     </div>
                                 )}
@@ -1981,8 +1973,8 @@ export default function BOMDesigner({
 
                                     {/* Components */}
                                     <div style={{ flex: 1 }}>
-                                        <div style={xpGroupWrapper}>
-                                            <span style={xpGroupLabel()}>Components</span>
+                                        <LegendPanel title="Components">
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                                 {inheritFields && (
                                                     <button
@@ -2249,14 +2241,14 @@ export default function BOMDesigner({
                                                     </div>
                                                 );
                                             })()}
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
                                     </div>
 
                                     {/* Routing Steps */}
                                     <div style={{ width: 240, flexShrink: 0 }}>
-                                        <div style={xpGroupWrapper}>
-                                            <span style={xpGroupLabel()}>Routing Steps</span>
-
+                                        <LegendPanel title="Routing Steps">
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             {/* Existing steps list */}
                                             <div style={{ ...xpInset, marginBottom: 6, padding: 0, minHeight: 40 }}>
                                                 {selectedNode.operations.length === 0 && (
@@ -2359,7 +2351,8 @@ export default function BOMDesigner({
                                                     }}
                                                 >+ Add Step</button>
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
                                     </div>
 
                                 </div>

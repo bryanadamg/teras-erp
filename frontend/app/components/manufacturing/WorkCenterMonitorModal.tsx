@@ -24,7 +24,7 @@ import { useToast } from '../shared/Toast';
 import {
     xpFont, familyColor, StatusChip, XPActionButton, PanelSkeleton, XPEmptyState,
     ExpandedRowPanel, ExpandedRowPanelBody, FormSection, FieldLabel, ProgressBar,
-    xpSelect, xpPanel, SectionTitle, CodeChip, Chip, statusTint, SECTION_RADIUS, CHIP_RADIUS,
+    xpSelect, xpPanel, SectionTitle, CodeChip, Chip, statusTint, CHIP_RADIUS,
     LegendPanel,
 } from '../shared/xpTheme';
 import { SearchField } from '../shared/shellTheme';
@@ -564,7 +564,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         {t('machines_on_mo')}: {proj.machines.map((m: any) => m.work_center_code).join(', ')}
                     </span>
                 ) : undefined}
-                style={{ marginBottom: 10, borderRadius: SECTION_RADIUS }}
+                style={{ marginBottom: 10 }}
             >
               <div style={{ padding: '4px 8px 8px' }}>
                 {late && (
@@ -692,7 +692,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                     FormSection above is the one blue "section"; these three are
                     subsections nested inside it, so they stay visually lighter
                     rather than repeating that same blue bar three more times. */}
-                <LegendPanel title={<><i className="bi bi-speedometer2 me-1" />{t('performance')}</>} style={{ marginBottom: 10, borderRadius: SECTION_RADIUS }}>
+                <LegendPanel title={<><i className="bi bi-speedometer2 me-1" />{t('performance')}</>} style={{ marginBottom: 10 }}>
                 <div style={{ padding: '4px 8px 8px', display: 'grid', gridTemplateColumns: cls ? '1.4fr 1fr 1fr' : 'repeat(auto-fit,minmax(170px,1fr))', gap: 8 }}>
                     {/* Efficiency hero */}
                     <CardBox pad="8px 12px">
@@ -762,7 +762,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 </LegendPanel>
 
                 {/* Targets */}
-                <LegendPanel title={<><i className="bi bi-sliders me-1" />{t('targets') || 'Targets'}</>} style={{ marginBottom: 10, borderRadius: SECTION_RADIUS }}>
+                <LegendPanel title={<><i className="bi bi-sliders me-1" />{t('targets') || 'Targets'}</>} style={{ marginBottom: 10 }}>
                     <div style={{ padding: '4px 8px 8px', ...grid(118) }}>
                         <Stat label={t('lines')} value={editingLines ? (
                             <div className="d-flex gap-1 align-items-center">
