@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, LegendPanel } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, LegendPanel, XP_BTN } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -112,7 +112,7 @@ const LevelCard = memo(({
                 <span style={{ flex: 1, fontSize: 10, color: '#555', fontFamily: xpFont }}>
                     Processing Level
                 </span>
-                <button style={xpBtnDanger} onClick={() => onRemoveLevel(lIdx)}>
+                <button className={XP_BTN} style={xpBtnDanger} onClick={() => onRemoveLevel(lIdx)}>
                     X Remove
                 </button>
             </div>
@@ -134,7 +134,7 @@ const LevelCard = memo(({
                             placeholder="e.g. WIP {CODE}"
                         />
                         {lvl.length > 1 && (
-                            <button style={{ ...xpBtn, minWidth: 'auto', padding: '0 6px', fontSize: 12 }}
+                            <button className={XP_BTN} style={{ ...xpBtn, minWidth: 'auto', padding: '0 6px', fontSize: 12 }}
                                 onClick={() => onRemovePattern(lIdx, pIdx)}>−</button>
                         )}
                     </div>
@@ -313,8 +313,9 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
             variant="primary"
             modeless
             footer={<>
-                <button style={xpBtn} onClick={onClose}>{t('cancel')}</button>
+                <button className={XP_BTN} style={xpBtn} onClick={onClose}>{t('cancel')}</button>
                 <button
+                    className={XP_BTN}
                     data-testid="generate-structure-btn"
                     style={xpBtnPrimary}
                     onClick={handleSaveAndApply}
@@ -356,6 +357,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                                         {/* The loaded profile reads as pressed — on open that is the
                                             remembered/default one, so it is clear where the levels came from. */}
                                         <button
+                                            className={XP_BTN}
                                             style={{
                                                 ...xpBtn, minWidth: 'auto', borderRight: 'none', fontSize: 10, padding: '1px 8px',
                                                 ...(p.id === activeProfileId ? {
@@ -369,6 +371,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                                             {p.name}
                                         </button>
                                         <button
+                                            className={XP_BTN}
                                             style={{ ...xpBtnDanger, borderLeft: 'none', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
                                             onClick={(e) => handleDeleteProfile(e, p.id)}
                                         >X</button>
@@ -385,6 +388,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                                     onKeyDown={e => e.key === 'Enter' && handleSaveProfile()}
                                 />
                                 <button
+                                    className={XP_BTN}
                                     style={profileName.trim() && !saving ? xpBtnPrimary : { ...xpBtn, opacity: 0.5 }}
                                     onClick={handleSaveProfile}
                                     disabled={!profileName.trim() || saving}
@@ -419,6 +423,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                         ))}
 
                         <button
+                            className={XP_BTN}
                             style={{
                                 ...xpBtn, width: '100%',
                                 borderStyle: 'dashed',
