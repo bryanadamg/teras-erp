@@ -25,6 +25,7 @@ import {
     xpFont, familyColor, StatusChip, XPActionButton, PanelSkeleton, XPEmptyState,
     ExpandedRowPanel, ExpandedRowPanelBody, FormSection, FieldLabel, ProgressBar,
     xpSelect, xpPanel, SectionTitle, CodeChip, Chip, statusTint, SECTION_RADIUS, CHIP_RADIUS,
+    LegendPanel,
 } from '../shared/xpTheme';
 import { SearchField } from '../shared/shellTheme';
 import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
@@ -556,19 +557,16 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         const late = !!run.is_late;
         const woBasis = run.baseline_basis === 'WO';
         return (
-            <FormSection
-                title={
-                    <SecTitle
-                        icon="bi-flag-fill"
-                        right={proj.machines && proj.machines.length > 1
-                            ? `${t('machines_on_mo')}: ${proj.machines.map((m: any) => m.work_center_code).join(', ')}`
-                            : undefined}
-                    >
-                        {t('mo_completion')} — {run.wo_code || proj.mo_code}
-                    </SecTitle>
-                }
-                classic={cls}
+            <LegendPanel
+                title={<><i className="bi bi-flag-fill me-1" />{t('mo_completion')} — {run.wo_code || proj.mo_code}</>}
+                right={proj.machines && proj.machines.length > 1 ? (
+                    <span style={{ fontFamily: xpFont, fontSize: 9, fontWeight: 'normal', color: '#666' }}>
+                        {t('machines_on_mo')}: {proj.machines.map((m: any) => m.work_center_code).join(', ')}
+                    </span>
+                ) : undefined}
+                style={{ marginBottom: 10, borderRadius: SECTION_RADIUS }}
             >
+              <div style={{ padding: '4px 8px 8px' }}>
                 {late && (
                     <div
                         className={cls ? '' : 'alert alert-danger py-2 px-3 mb-2'}
@@ -600,7 +598,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                     <Stat label={t('combined_target_rate')} value={fmt(proj.total_target_daily_kg, 2)} unit="kg" />
                     <Stat label={t('target_working_days')} value={proj.target_working_days ?? '—'} />
                 </div>
-            </FormSection>
+              </div>
+            </LegendPanel>
         );
     };
 
@@ -620,85 +619,81 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         const editingLines = linesRunId === run.id;
         const editingRate = rateRunId === run.id;
         const multi = total > 1;
-        return (
-            <div style={{
-                marginBottom: 14,
-                // Snap stop per run. `proximity` on the pane, so a run taller than the
-                // viewport still scrolls freely inside itself — `mandatory` would fight
-                // its own content.
-                scrollSnapAlign: 'start', scrollMarginTop: 4,
-                ...(cls
-                    ? { border: '1px solid #b0a898', borderRadius: SECTION_RADIUS, background: '#f4f2ea', overflow: 'hidden' }
-                    : { border: '1px solid #dee2e6', borderRadius: SECTION_RADIUS, background: '#f8fafc', overflow: 'hidden' }),
-            }}>
-                {/* Run header strip — the box's own title band, seated on its top edge
-                    rather than floating in the body, so the frame says where this WO
-                    starts and ends. */}
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '6px 10px',
-                    ...(cls
-                        ? { background: 'linear-gradient(to bottom, #fbfbf7, #e8e5db)', borderBottom: '1px solid #b0a898' }
-                        : { background: '#fff', borderBottom: '1px solid #e6eaef' }),
-                }}>
-                    {/* "2 of 3" first: with several WOs on one loom, which of them you
-                        are reading is the first thing to establish. */}
-                    {multi && (
-                        <span style={{
-                            fontFamily: cls ? xpFont : undefined, fontSize: 10, fontWeight: 700,
-                            padding: '1px 6px', borderRadius: CHIP_RADIUS, whiteSpace: 'nowrap',
-                            background: cls ? '#d4d0c8' : '#eceef0', color: '#444',
-                        }}>
-                            {t('wo_short')} {index + 1}/{total}
-                        </span>
-                    )}
-                    <StatusChip status={run.status} />
-                    {run.wo_code && (
-                        <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold', color: BLUE }}>{run.wo_code}</span>
-                    )}
-                    <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold' }}>{run.mo_code}</span>
-                    <span><strong>{run.item_code}</strong> <span className="text-muted small">{run.item_name}</span></span>
-                    <VariantChips
-                        combo={run.combo_label}
-                        size={run.size_label}
-                        colorVariant={run.color_label}
-                        colorCode={run.color_code}
-                        colorName={run.color_name}
-                        colorHex={run.color_hex}
-                        labdipCode={run.labdip_variant_code}
-                        classic={cls}
-                        scale="sm"
+        // Header is just "WO n/3" (or "WO" alone for a lone run) — the standard
+        // blue FormSection bar, kept minimal. Everything identifying and acting
+        // on the run (status, codes, variant, target summary, pause/stop) reads
+        // as plain text/chips over the gray/beige body instead, ahead of the
+        // Performance subsection.
+        const header = <>{t('wo_short')}{multi ? ` ${index + 1}/${total}` : ''}</>;
+        const details = (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                <StatusChip status={run.status} />
+                {run.wo_code && (
+                    <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold', color: BLUE }}>{run.wo_code}</span>
+                )}
+                <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold' }}>{run.mo_code}</span>
+                <span><strong>{run.item_code}</strong> <span className="text-muted small">{run.item_name}</span></span>
+                <VariantChips
+                    combo={run.combo_label}
+                    size={run.size_label}
+                    colorVariant={run.color_label}
+                    colorCode={run.color_code}
+                    colorName={run.color_name}
+                    colorHex={run.color_hex}
+                    labdipCode={run.labdip_variant_code}
+                    classic={cls}
+                    scale="sm"
+                />
+                <span className="text-muted small">
+                    {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('lines')} <strong>{run.lines}</strong> · {t('start_date')} {fmtDate(run.start_date)}
+                </span>
+                {run.is_late && (
+                    <StatusChip status="CANCELLED" label={`${t('behind_schedule')} ${run.days_late}d`} tint />
+                )}
+                {run.is_paused && (
+                    <StatusChip
+                        status="PAUSED"
+                        label={`${t('paused')}${run.paused_on ? ` · ${fmtDate(run.paused_on)}` : ''}`}
+                        title={`${t('paused_days_excluded')}: ${run.paused_working_days ?? 0}`}
+                        tint
                     />
-                    <span className="text-muted small">
-                        {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('lines')} <strong>{run.lines}</strong> · {t('start_date')} {fmtDate(run.start_date)}
+                )}
+                {canManage && (
+                    <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+                        {/* Park vs close. Pause keeps the run and its earned efficiency
+                            and is the reprioritise action; Stop closes the run for good. */}
+                        {run.is_paused ? (
+                            <XPActionButton classic={cls} tone="primary" icon="bi-play-fill" label={t('resume_run')} onClick={() => resumeRun(run.id)} />
+                        ) : (
+                            <XPActionButton classic={cls} tone="warning" icon="bi-pause-fill" label={t('pause_run')} onClick={() => pauseRun(run.id)} />
+                        )}
+                        <XPActionButton classic={cls} tone="danger" icon="bi-stop-fill" label={t('stop_run')} onClick={() => stopRun(run.id)} />
                     </span>
-                    {run.is_late && (
-                        <StatusChip status="CANCELLED" label={`${t('behind_schedule')} ${run.days_late}d`} tint />
-                    )}
-                    {run.is_paused && (
-                        <StatusChip
-                            status="PAUSED"
-                            label={`${t('paused')}${run.paused_on ? ` · ${fmtDate(run.paused_on)}` : ''}`}
-                            title={`${t('paused_days_excluded')}: ${run.paused_working_days ?? 0}`}
-                            tint
-                        />
-                    )}
-                    {canManage && (
-                        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
-                            {/* Park vs close. Pause keeps the run and its earned efficiency
-                                and is the reprioritise action; Stop closes the run for good. */}
-                            {run.is_paused ? (
-                                <XPActionButton classic={cls} tone="primary" icon="bi-play-fill" label={t('resume_run')} onClick={() => resumeRun(run.id)} />
-                            ) : (
-                                <XPActionButton classic={cls} tone="warning" icon="bi-pause-fill" label={t('pause_run')} onClick={() => pauseRun(run.id)} />
-                            )}
-                            <XPActionButton classic={cls} tone="danger" icon="bi-stop-fill" label={t('stop_run')} onClick={() => stopRun(run.id)} />
-                        </span>
-                    )}
-                </div>
-
+                )}
+            </div>
+        );
+        return (
+            <FormSection
+                title={header}
+                classic={cls}
+                style={{
+                    marginBottom: 14,
+                    // Snap stop per run. `proximity` on the pane, so a run taller than the
+                    // viewport still scrolls freely inside itself — `mandatory` would fight
+                    // its own content.
+                    scrollSnapAlign: 'start', scrollMarginTop: 4,
+                }}
+                bodyStyle={{ background: cls ? '#f4f2ea' : '#f8fafc', padding: 0 }}
+            >
                 <div style={{ padding: '10px 10px 2px' }}>
-                {/* Hero: efficiency + actual + rate */}
-                <div style={{ display: 'grid', gridTemplateColumns: cls ? '1.4fr 1fr 1fr' : 'repeat(auto-fit,minmax(170px,1fr))', gap: 8, marginBottom: 12 }}>
+                {details}
+                {/* Hero: efficiency + actual + rate — same gray/beige LegendPanel
+                    subsection chrome as Targets/Completion below. The outer
+                    FormSection above is the one blue "section"; these three are
+                    subsections nested inside it, so they stay visually lighter
+                    rather than repeating that same blue bar three more times. */}
+                <LegendPanel title={<><i className="bi bi-speedometer2 me-1" />{t('performance')}</>} style={{ marginBottom: 10, borderRadius: SECTION_RADIUS }}>
+                <div style={{ padding: '4px 8px 8px', display: 'grid', gridTemplateColumns: cls ? '1.4fr 1fr 1fr' : 'repeat(auto-fit,minmax(170px,1fr))', gap: 8 }}>
                     {/* Efficiency hero */}
                     <CardBox pad="8px 12px">
                         <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('efficiency')}</div>
@@ -764,10 +759,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         </div>
                     </CardBox>
                 </div>
+                </LegendPanel>
 
                 {/* Targets */}
-                <FormSection title={<SecTitle icon="bi-sliders">{t('targets') || 'Targets'}</SecTitle>} classic={cls}>
-                    <div style={grid(118)}>
+                <LegendPanel title={<><i className="bi bi-sliders me-1" />{t('targets') || 'Targets'}</>} style={{ marginBottom: 10, borderRadius: SECTION_RADIUS }}>
+                    <div style={{ padding: '4px 8px 8px', ...grid(118) }}>
                         <Stat label={t('lines')} value={editingLines ? (
                             <div className="d-flex gap-1 align-items-center">
                                 <input type="number" min="1" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 55, height: 22, fontSize: 12 }} value={linesVal} onChange={e => setLinesVal(e.target.value)} />
@@ -802,11 +798,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         )}
                         <Stat label={t('theoretical_100')} value={fmt(run.theoretical_100_kg, 2)} unit="kg" />
                     </div>
-                </FormSection>
+                </LegendPanel>
 
                 <CompletionSection run={run} />
                 </div>
-            </div>
+            </FormSection>
         );
     };
 
