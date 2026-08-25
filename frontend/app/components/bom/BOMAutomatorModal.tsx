@@ -432,7 +432,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                     </div>
 
                     {/* Right: preview panel */}
-                    <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
 
                         <LegendPanel title="Structure Preview" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                             <div style={{ padding: '0 8px 8px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -446,7 +446,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                         <LegendPanel
                             title="Tip"
                             style={{ background: '#fffbe6', borderColor: '#d4b000' }}
-                            legendStyle={{ background: '#fffbe6', color: '#806000' }}
+                            legendStyle={{ background: '#fffbe6', color: '#806000', borderColor: '#d4b000' }}
                         >
                             <div style={{ padding: '0 8px 8px', fontSize: 10, color: '#555', lineHeight: 1.6 }}>
                                 Each level becomes a child BOM node. Branching items at the same level are created as siblings under the parent.

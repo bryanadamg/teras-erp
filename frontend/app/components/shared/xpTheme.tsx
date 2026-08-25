@@ -1004,8 +1004,12 @@ export function LegendPanel({ title, right, children, style, legendStyle }: {
 }) {
     return (
         <div style={{ border: '1px solid #aca899', borderRadius: SECTION_RADIUS, background: '#f5f4ee', position: 'relative', paddingTop: 10, ...style }}>
+            {/* Own border + background (not just a colour-matched patch masking the
+                panel border) so the label reads as a distinct chip instead of the
+                panel's 1px border visibly cutting through the glyphs' ascenders. */}
             <span style={{
-                position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px',
+                position: 'absolute', top: -10, left: 8, background: '#fff', border: '1px solid #aca899',
+                borderRadius: 2, padding: '1px 5px', lineHeight: 1.3,
                 fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080',
                 ...legendStyle,
             }}>

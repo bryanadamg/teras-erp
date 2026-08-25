@@ -1386,7 +1386,7 @@ export default function BOMDesigner({
 
                             {/* Scrollable body */}
                             <div style={{
-                                flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8,
+                                flex: 1, overflowY: 'auto', padding: '10px 10px 8px', display: 'flex', flexDirection: 'column', gap: 8,
                                 ...(selectedShared ? { opacity: 0.55, pointerEvents: 'none' as const } : {}),
                             }}>
 
