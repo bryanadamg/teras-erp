@@ -1004,18 +1004,29 @@ export function LegendPanel({ title, right, children, style, legendStyle }: {
 }) {
     return (
         <div style={{ border: '1px solid #aca899', borderRadius: SECTION_RADIUS, background: '#f5f4ee', position: 'relative', paddingTop: 10, ...style }}>
-            {/* Own border + background (not just a colour-matched patch masking the
-                panel border) so the label reads as a distinct chip instead of the
-                panel's 1px border visibly cutting through the glyphs' ascenders. */}
-            <span style={{
-                position: 'absolute', top: -10, left: 8, background: '#fff', border: '1px solid #aca899',
-                borderRadius: 2, padding: '1px 5px', lineHeight: 1.3,
-                fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080',
-                ...legendStyle,
+            {/* One flex row for legend + right, both vertically centered on the same
+                band — two independently-tuned absolute offsets drifted apart (the
+                legend's own fix left `right` still straddling the border a
+                different amount, so it visibly cut through whatever sat there). */}
+            <div style={{
+                position: 'absolute', top: -10, left: 0, right: 0, height: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0 6px', pointerEvents: 'none',
             }}>
-                {title}
-            </span>
-            {right && <span style={{ position: 'absolute', top: -9, right: 6 }}>{right}</span>}
+                {/* Own border + background (not just a colour-matched patch masking
+                    the panel border) so the label reads as a distinct chip instead
+                    of the panel's 1px border visibly cutting through the glyphs'
+                    ascenders. */}
+                <span style={{
+                    pointerEvents: 'auto', background: '#fff', border: '1px solid #aca899',
+                    borderRadius: 2, padding: '1px 5px', lineHeight: 1.3,
+                    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080',
+                    ...legendStyle,
+                }}>
+                    {title}
+                </span>
+                {right && <span style={{ pointerEvents: 'auto' }}>{right}</span>}
+            </div>
             {children}
         </div>
     );
