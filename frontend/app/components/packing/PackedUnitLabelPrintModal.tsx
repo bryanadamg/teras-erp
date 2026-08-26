@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { xpFont, PRINT_FONT } from '../shared/xpTheme';
+import { orderBasePerAlt, baseToAlt, lengthPerAlt } from '../shared/altUnit';
 
 // Code 128 (1D) alongside the QR so the factory's existing laser scanners can
 // read the carton number too — same payload as the QR, matching the bag label.
@@ -33,8 +34,13 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
  * scans onto a pick list — the barcodes are for the receiving end, the QR for us.
  *
  * Field sources, none of them re-entered on this screen:
- *   CONTENT  carton qty ÷ SO line `uom2_factor` = pieces, in `uom2`, with the
- *            base qty in brackets; `ket_stock` rides underneath.
+ *   CONTENT  the carton's own `alt_qty` — the count the packer put in the box, in
+ *            the order's `uom2` — with the base qty in brackets, and the length
+ *            those pieces make up when the factor says so; `ket_stock` rides
+ *            underneath. Read off the carton rather than divided out of its qty:
+ *            for a kg item that qty is the scale reading, and 10.62 kg over
+ *            0.9 kg/Pcs prints 11.8 pieces for a box holding 12. Cartons packed
+ *            before the count was recorded still fall back to that division.
  *   PO. NO   the customer's own `customer_po_ref`, our SO number under it.
  *   LOT. NO  the source lot this carton was packed from (via its completion).
  *   N W      `Batch.weight_kg` — the packer's scale reading at pack time. For a
@@ -75,17 +81,23 @@ export default function PackedUnitLabelPrintModal({
 
     const lotOf = (u: any) => lotByCompletion[String(u.packing_completion_id || '')] || '';
 
-    // Pieces in a carton, from the ordered alt unit (e.g. 600 yd ÷ 50 yd/pc = 12 Pic).
-    // No alt unit on the line -> the CONTENT line prints base qty only.
-    const factor = Number(po.uom2_factor) || 0;
-    const piecesOf = (u: any) => (factor > 0 ? Number(u.qty || 0) / factor : null);
+    // Count in a carton. The packer's own figure wins; `baseToAlt` only covers
+    // cartons minted before that was recorded (and snaps a scale reading back to a
+    // whole count). No alt unit on the order -> CONTENT prints base qty only.
+    const baseFactor = orderBasePerAlt(po);
+    const piecesOf = (u: any) => {
+        if (u.alt_qty != null) return Number(u.alt_qty);
+        return baseFactor ? baseToAlt(Number(u.qty || 0), baseFactor) : null;
+    };
+    // Length one alt unit spans ('50 Yd'), for the bracketed CONTENT total.
+    const altLength = lengthPerAlt({ factor: po.uom2_factor, lengthUom: po.uom2_length_uom });
 
     // One barcode per printed field, keyed by carton. Built once per unit list —
     // JsBarcode renders to a canvas, which is far too slow to redo on every paint.
     const barcodeUrls = useMemo(() => {
         const map: Record<string, Record<string, string>> = {};
         units.forEach(u => {
-            const pcs = factor > 0 ? Number(u.qty || 0) / factor : null;
+            const pcs = piecesOf(u);
             map[u.id] = {
                 unit: makeBarcodeDataUrl(u.batch_number || String(u.id)),
                 content: makeBarcodeDataUrl(
@@ -97,7 +109,8 @@ export default function PackedUnitLabelPrintModal({
             };
         });
         return map;
-    }, [units, factor, po.customer_po_ref, po.sales_order_code, lotByCompletion]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [units, baseFactor, po.customer_po_ref, po.sales_order_code, lotByCompletion]);
 
     useEffect(() => {
         document.body.classList.add('bag-label-print-active');
@@ -129,10 +142,18 @@ export default function PackedUnitLabelPrintModal({
         const bc = barcodeUrls[u.id] || {};
         const pcs = piecesOf(u);
         const qty = Number(u.qty || 0);
-        // "12.0 Pic ( 600 Yard )" — pieces lead because that is what the receiving
-        // side counts; the base qty stays in brackets as the measured amount.
+        // "12 Pic ( 600 Yd / 10.62 KG )" — pieces lead because that is what the
+        // receiving side counts. The bracket carries the length those pieces make
+        // up (when the order states a per-unit length) and the measured base qty,
+        // which for a kg item is the weighed figure.
+        const bracket = [
+            pcs !== null && altLength
+                ? `${(pcs * altLength.qty).toLocaleString()}  ${altLength.uom}`
+                : null,
+            `${qty.toLocaleString()}  ${po.item_uom || ''}`.trim(),
+        ].filter(Boolean).join('  /  ');
         const content = pcs !== null
-            ? `${pcs.toFixed(1)}  ${po.uom2 || 'Pcs'}   ( ${qty.toLocaleString()}  ${po.item_uom || ''} )`
+            ? `${Number(pcs.toFixed(2)).toLocaleString()}  ${po.uom2 || 'Pcs'}   ( ${bracket} )`
             : `${qty.toLocaleString()}  ${po.item_uom || ''}`;
         const barRow = (src?: string) => (
             <td style={barCell}>

@@ -53,6 +53,27 @@ class PackingOrder(Base):
     pack_size: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     package_label: Mapped[str] = mapped_column(String(32), default="Carton")
 
+    # --- Alt (selling) unit -------------------------------------------------
+    # Snapshotted off the ordered SO line, or picked by hand when packing to
+    # stock. `qty_target` stays the canonical figure in the item's own UOM —
+    # stock, StockBalance, genealogy and pick lists all move in that — and these
+    # only record what the customer counts in (Pic = a roll, Pcs = a cut piece).
+    #
+    # `uom2_factor` carries the same meaning as `SalesOrderLine.uom2_factor`: the
+    # qty of one alt unit as the UOM master states it (1 Pcs = 5 yard -> 5). That
+    # unit is usually a length but not always — `1 Box = 10 kg` is a seeded row
+    # too — so alt -> base is one hop or two (alt -> length -> kg via the item's
+    # g/y or g/m); see `packing_service.base_per_alt`.
+    qty2: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    uom2: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    uom2_factor: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    # Which unit that factor is expressed in ('Yard' / 'm' / 'kg'), resolved off
+    # the UOM master once at create time. Stored rather than re-derived: the SO
+    # view recovers it by matching the factor VALUE back against the UOM's
+    # factor rows and silently falls back to yard when it misses, which turns a
+    # metre-based recipe into a 9% error. One column removes that guess.
+    uom2_length_uom: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+
     source_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )

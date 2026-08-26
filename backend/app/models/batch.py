@@ -50,6 +50,12 @@ class Batch(Base):
     package_no: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     package_label: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # Carton / Roll / Bag
     weight_kg: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    # Count of the packing order's alt selling unit in this carton (12 Pcs, 4 Pic).
+    # Stored, not derived: for a kg-stocked item the carton's qty is the packer's
+    # SCALE reading, so dividing it by the alt factor yields 11.8 Pcs on a box that
+    # holds 12 — a printed count has to be the count that was packed. Null for
+    # every batch that is not a carton, and for cartons packed with no alt unit.
+    alt_qty: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     # Soft SO tag — records what the carton was packed for; does NOT reserve it.
     # Any pick list may still take this carton.
     #

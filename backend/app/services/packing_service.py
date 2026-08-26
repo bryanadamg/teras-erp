@@ -9,7 +9,7 @@ is the discriminator: non-null means "this batch is a carton".
 import uuid
 from collections import Counter, deque
 from datetime import datetime
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from sqlalchemy import select, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,169 @@ def packed_unit_filter():
     """SQL filter selecting only PackedUnit batches — the single definition,
     mirroring `beam_service.beam_item_ids()`. Never inline the column test."""
     return Batch.packing_order_id.isnot(None)
+
+
+class Carton(NamedTuple):
+    """One physical box: its base-UOM qty, its scale reading, its packed count.
+
+    Three separate measurements of the same box, which is why they travel
+    together rather than as parallel lists that a lot-seam split could silently
+    knock out of alignment:
+
+    * `qty` — base UOM, what actually moves in stock (kg / yard / pcs).
+    * `weight_kg` — the packer's scale reading. Derived from `qty` only when the
+      item is stocked in kg (then they are the same measurement).
+    * `alt_qty` — count in the packing order's alt selling unit (12 Pcs, 4 Pic).
+    """
+    qty: float
+    weight_kg: Optional[float] = None
+    alt_qty: Optional[float] = None
+
+
+# --- Alt (selling) unit conversion -----------------------------------------
+# A packing order may be counted in a unit the item is not stocked in: the
+# customer orders 2880 Pcs of 5 yard each, the item is stocked in kg. That is
+# two hops, and both live here so the pack screens, the labels and the API can
+# never each derive it their own way:
+#
+#     alt --(uom2_factor, in uom2_length_uom)--> length --(item g/y or g/m)--> kg
+#
+# `SalesOrderLine.uom2_factor` means exactly the same thing (length per one alt
+# unit), so a snapshot off the SO line needs no translation.
+
+_LENGTH_ALIASES = {
+    "yard": "yard", "yards": "yard", "yd": "yard", "yds": "yard", "y": "yard",
+    "meter": "meter", "meters": "meter", "metre": "meter", "metres": "meter", "m": "meter",
+}
+YARDS_PER_METER = 1.0 / 0.9144
+
+
+def normalize_length_uom(uom: Optional[str]) -> Optional[str]:
+    """'Yard'/'yd'/'y' -> 'yard', 'm'/'meter' -> 'meter', anything else None."""
+    return _LENGTH_ALIASES.get((uom or "").strip().lower())
+
+
+def convert_length(qty: float, from_uom: Optional[str], to_uom: Optional[str]) -> Optional[float]:
+    frm, to = normalize_length_uom(from_uom), normalize_length_uom(to_uom)
+    if not frm or not to:
+        return None
+    if frm == to:
+        return float(qty)
+    return float(qty) * (YARDS_PER_METER if to == "yard" else 0.9144)
+
+
+def base_per_alt(
+    uom2_factor: Optional[float],
+    length_uom: Optional[str],
+    item_uom: Optional[str],
+    weight_per_unit: Optional[float] = None,
+    weight_unit: Optional[str] = None,
+) -> Optional[float]:
+    """Base-UOM qty in one alt unit, or None when the chain can't be resolved.
+
+    `length_uom` is what the factor is quoted in, and on the real UOM master that
+    is NOT always a length: the seeded rows include `1 Pic = 50 m` but also
+    `1 Box = 10 kg`. So a factor already quoted in the item's own stock UOM is
+    taken as it stands, and only a genuine length needs converting.
+
+    `weight_per_unit`/`weight_unit` come off the Item and are only consulted when
+    a length has to become a weight. Only `g/y` and `g/m` are convertible from a
+    length alone — `gsm` / `g/m²` need the fabric width, so those return None
+    rather than a figure wrong by the width, exactly as the SO form's own kg
+    auto-calc refuses them.
+    """
+    try:
+        factor = float(uom2_factor or 0)
+    except (TypeError, ValueError):
+        return None
+    if factor <= 0:
+        return None
+
+    quoted = (length_uom or "").strip().lower()
+    stocked = (item_uom or "").strip().lower()
+    # Already in the stock unit — `1 Box = 10 kg` on a kg item is the whole
+    # conversion, and routing it through the length code would silently read the
+    # 10 as yards.
+    if quoted and (quoted == stocked or (uom_is_kg(quoted) and uom_is_kg(stocked))):
+        return round(factor, 6)
+
+    src = normalize_length_uom(length_uom)
+    if quoted and not src:
+        # A real unit that is neither a length nor the stock unit (a factor into
+        # cones while the item is stocked in kg). Nothing here bridges it.
+        return None
+    # Nothing resolvable: assume yard, the unit every legacy factor was entered
+    # against and the SO view's own fallback.
+    src = src or "yard"
+
+    if uom_is_kg(item_uom):
+        try:
+            gpu = float(weight_per_unit or 0)
+        except (TypeError, ValueError):
+            return None
+        unit = (weight_unit or "").strip().lower()
+        if gpu <= 0 or unit not in ("g/y", "g/m"):
+            return None
+        length = convert_length(factor, src, "yard" if unit == "g/y" else "meter")
+        if length is None:
+            return None
+        return round(length * gpu / 1000.0, 6)
+
+    dest = normalize_length_uom(item_uom)
+    if dest:
+        converted = convert_length(factor, src, dest)
+        return None if converted is None else round(converted, 6)
+
+    # A counted base UOM (pcs, roll): one alt unit is one base unit only if the
+    # two are the same thing, which nothing here can establish. Caller falls back
+    # to base-only entry.
+    return None
+
+
+def alt_to_base(qty_alt: float, base_factor: Optional[float]) -> Optional[float]:
+    if not base_factor or float(base_factor) <= 0:
+        return None
+    return round(float(qty_alt) * float(base_factor), 4)
+
+
+def base_to_alt(qty_base: float, base_factor: Optional[float], snap: bool = True) -> Optional[float]:
+    """Alt count implied by a base qty. Only ever a fallback — see `Carton.alt_qty`.
+
+    `snap` rounds to a whole count when the figure is within 5% of one, because
+    for a kg item the base qty is a SCALE reading: a box holding 12 Pcs weighs
+    10.62 kg against a theoretical 10.80, which divides out to 11.8 Pcs. A label
+    printing 11.8 pieces is simply wrong about a discrete count. Outside that
+    band the raw figure is kept, since it then means the box genuinely doesn't
+    hold a whole number of pieces.
+    """
+    if not base_factor or float(base_factor) <= 0:
+        return None
+    raw = float(qty_base) / float(base_factor)
+    if snap:
+        nearest = round(raw)
+        if nearest >= 1 and abs(raw - nearest) <= 0.05 * nearest:
+            return float(nearest)
+    return round(raw, 2)
+
+
+def order_base_per_alt(po: PackingOrder, item=None) -> Optional[float]:
+    """`base_per_alt` for one packing order — the one call sites should use.
+
+    Keeps the (factor, length unit, item UOM, item weight) tuple in a single
+    place so an endpoint, a label and a pack screen can't each assemble it
+    slightly differently. Returns None when the order carries no alt unit, or
+    when the item's weight spec can't convert a length to its stock UOM.
+    """
+    it = item if item is not None else getattr(po, "item", None)
+    if not po.uom2 or not po.uom2_factor:
+        return None
+    return base_per_alt(
+        po.uom2_factor,
+        po.uom2_length_uom,
+        getattr(it, "uom", None),
+        getattr(it, "weight_per_unit", None),
+        getattr(it, "weight_unit", None),
+    )
 
 
 def split_qty(total: float, box_size: float) -> list[float]:
@@ -74,7 +237,8 @@ def allocate_boxes_to_lots(
     lot_qtys: list[float],
     boxes: list[float],
     weights: Optional[list[Optional[float]]] = None,
-) -> list[list[tuple[float, Optional[float]]]]:
+    alt_qtys: Optional[list[Optional[float]]] = None,
+) -> list[list[Carton]]:
     """Assign a user-edited, FIFO-ordered list of box quantities across lots.
 
     A physical carton can only be pegged to one lot (BatchConsumption is 1:1),
@@ -83,11 +247,18 @@ def allocate_boxes_to_lots(
     lets the packer edit one flat box list without caring which lot backs each
     box; the split only becomes visible (as one extra carton) at a lot seam.
 
-    `weights` is the packer's scale reading per box, positional against `boxes`.
-    A box that splits at a lot seam is physically two cartons, so its weight can
-    only be shared out pro-rata by qty — the scale figure entered for one box no
-    longer describes either half. Returns `(qty, weight)` pairs; a weight is None
-    only where the caller passed none, which `assert_all_weighed` then rejects.
+    `weights` is the packer's scale reading per box and `alt_qtys` the packed
+    count in the order's alt selling unit, both positional against `boxes`. A box
+    that splits at a lot seam is physically two cartons, so neither figure still
+    describes either half:
+
+    * weight is shared out pro-rata by qty;
+    * the alt count is shared by qty too, but the running remainder is carried so
+      the parts still SUM to the count the packer stated — a discrete count must
+      not gain or lose a piece to rounding.
+
+    Returns `Carton` rows; a weight is None only where the caller passed none,
+    which `assert_all_weighed` then rejects.
     """
     total_lots = round(sum(float(q) for q in lot_qtys), 4)
     total_boxes = round(sum(float(b) for b in boxes), 4)
@@ -96,34 +267,62 @@ def allocate_boxes_to_lots(
             f"Boxes total {total_boxes:g} does not match the {total_lots:g} being packed"
         )
 
-    # (remaining qty, original qty, original weight) — the original qty is kept so
-    # a split share stays proportional to the whole box, not to the remainder.
-    queue: deque[tuple[float, float, Optional[float]]] = deque()
+    def _at(seq, i):
+        if seq is None or i >= len(seq) or seq[i] is None:
+            return None
+        return float(seq[i])
+
+    # (remaining qty, original qty, original weight, remaining alt count) — the
+    # original qty is kept so a split share stays proportional to the whole box,
+    # while the alt count is drawn down so the shares always sum back to it.
+    queue: deque[tuple[float, float, Optional[float], Optional[float]]] = deque()
     for i, b in enumerate(boxes):
         qty = round(float(b), 4)
         if qty <= 1e-9:
             continue
-        w = None
-        if weights is not None and i < len(weights) and weights[i] is not None:
-            w = float(weights[i])
-        queue.append((qty, qty, w))
+        queue.append((qty, qty, _at(weights, i), _at(alt_qtys, i)))
 
-    out: list[list[tuple[float, Optional[float]]]] = []
+    out: list[list[Carton]] = []
     for lot_qty in lot_qtys:
         remaining = round(float(lot_qty), 4)
-        cartons: list[tuple[float, Optional[float]]] = []
+        cartons: list[Carton] = []
         while remaining > 1e-6 and queue:
-            box, box_full, box_w = queue[0]
+            box, box_full, box_w, box_alt = queue[0]
             take = round(min(box, remaining), 4)
             share = None if box_w is None else round(box_w * take / box_full, 4)
-            cartons.append((take, share))
+            whole_box = take >= box - 1e-6
+            if box_alt is None:
+                alt_share = None
+            elif whole_box:
+                # Last slice of this box takes whatever count is left, so the
+                # parts add up exactly.
+                alt_share = round(box_alt, 4)
+            else:
+                alt_share = round(box_alt * take / box, 4)
+            cartons.append(Carton(take, share, alt_share))
             remaining = round(remaining - take, 4)
-            if take >= box - 1e-6:
+            if whole_box:
                 queue.popleft()
             else:
-                queue[0] = (round(box - take, 4), box_full, box_w)
+                rest_alt = None if box_alt is None else round(box_alt - (alt_share or 0), 4)
+                queue[0] = (round(box - take, 4), box_full, box_w, rest_alt)
         out.append(cartons)
     return out
+
+
+def fill_alt_qtys(cartons: list[Carton], base_factor: Optional[float]) -> list[Carton]:
+    """Back-fill the alt count on cartons the caller didn't state one for.
+
+    The box-size path (mobile scanner, a bulk log with no per-box entry) never
+    sends counts, but the carton label still has to print one. Derived via
+    `base_to_alt`, so a stated count is always preferred over a computed one.
+    """
+    if not base_factor or float(base_factor) <= 0:
+        return cartons
+    return [
+        c if c.alt_qty is not None else c._replace(alt_qty=base_to_alt(c.qty, base_factor))
+        for c in cartons
+    ]
 
 
 # UOMs whose base qty already IS a weight in kg. For those the carton's qty and
@@ -139,9 +338,9 @@ def uom_is_kg(uom: Optional[str]) -> bool:
 
 
 def derive_weights_from_qty(
-    carton_qtys: list[tuple[float, Optional[float]]],
+    carton_qtys: list[Carton],
     uom: Optional[str],
-) -> list[tuple[float, Optional[float]]]:
+) -> list[Carton]:
     """For a kg-based item, the carton qty is the net weight — take it from there.
 
     Derived rather than merely defaulted: a client that sent a *different* weight
@@ -150,10 +349,10 @@ def derive_weights_from_qty(
     """
     if not uom_is_kg(uom):
         return carton_qtys
-    return [(qty, float(qty)) for qty, _ in carton_qtys]
+    return [c._replace(weight_kg=float(c.qty)) for c in carton_qtys]
 
 
-def assert_all_weighed(carton_qtys: list[tuple[float, Optional[float]]], package_label: str = "carton") -> None:
+def assert_all_weighed(carton_qtys: list[Carton], package_label: str = "carton") -> None:
     """Every carton must carry the packer's scale reading.
 
     Packing is logged *after* the boxes are physically packed and weighed, so an
@@ -162,7 +361,10 @@ def assert_all_weighed(carton_qtys: list[tuple[float, Optional[float]]], package
     barcode. Enforced here rather than in the form so no caller (desktop modal,
     mobile scanner, a future API client) can mint one.
     """
-    missing = [i + 1 for i, (_, w) in enumerate(carton_qtys) if w is None or float(w) <= 0]
+    missing = [
+        i + 1 for i, c in enumerate(carton_qtys)
+        if c.weight_kg is None or float(c.weight_kg) <= 0
+    ]
     if missing:
         label = (package_label or "carton").lower()
         raise ValueError(
@@ -246,7 +448,7 @@ async def mint_packed_units(
     db: AsyncSession,
     po: PackingOrder,
     completion: PackingCompletion,
-    carton_qtys: list[tuple[float, Optional[float]]],
+    carton_qtys: list[Carton],
     attribute_value_ids: list[str],
     color_id,
     username: Optional[str] = None,
@@ -259,7 +461,8 @@ async def mint_packed_units(
     just mints whatever list it's handed. Net weight is the packer's scale
     reading for that physical carton (None when not weighed); it is a measured
     figure, never derived from qty, which is why it is captured per box at pack
-    time rather than computed here. Stock moves twice per carton: OUT of
+    time rather than computed here. `alt_qty` rides along the same way — the
+    count the packer put in the box, in the order's alt selling unit. Stock moves twice per carton: OUT of
     the packing order's source location on the incoming lot, IN at the output
     location keyed by the new carton batch. `BatchConsumption` pegs input lot ->
     carton so lot genealogy survives packing. Returns each minted carton
@@ -274,13 +477,14 @@ async def mint_packed_units(
     completion.package_count = len(carton_qtys)
     units: list[tuple[Batch, float]] = []
 
-    for carton_qty, net_weight in carton_qtys:
+    for carton_qty, net_weight, alt_qty in carton_qtys:
         pu = Batch(
             batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
             item_id=po.item_id,
             packing_order_id=po.id,
             packing_completion_id=completion.id,
             weight_kg=net_weight,
+            alt_qty=alt_qty,
             # Allocated per carton, not as a pre-reserved block: a block computed
             # up front overlaps a completion posted concurrently on the same order.
             package_no=await _next_package_no(db, po.id),

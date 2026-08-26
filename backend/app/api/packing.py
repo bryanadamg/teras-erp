@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, cast, String, nulls_last, inspect as sa_inspect
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 from typing import Optional
 from datetime import datetime
 import uuid
@@ -22,6 +22,7 @@ from app.models.attribute import AttributeValue
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.stock_balance import StockBalance
 from app.models.routing import WorkCenter
+from app.models.uom import UOM, UOMFactor
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import (
@@ -97,6 +98,7 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
                 package_no=batch.package_no,
                 package_label=batch.package_label,
                 weight_kg=float(batch.weight_kg) if batch.weight_kg is not None else None,
+                alt_qty=float(batch.alt_qty) if batch.alt_qty is not None else None,
                 qty=float(bal.qty) if bal else 0.0,
                 location_id=bal.location_id if bal else None,
                 packing_order_id=batch.packing_order_id,
@@ -115,12 +117,17 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
         po.sales_order_code = po.sales_order.po_number
         po.customer_po_ref = po.sales_order.customer_po_ref
         po.customer_name = po.sales_order.customer_name
-    # Alt-unit conversion + stock note ride along from the ordered line: the
-    # carton label prints pieces (carton_qty / uom2_factor), not just base qty.
+    # The alt unit is the order's OWN snapshot, taken from the SO line at create
+    # time (and backfilled onto pre-existing orders by the migration that added
+    # the columns). Deliberately not read through to the line here: assigning to
+    # a real column while decorating a response is a silent write waiting for the
+    # next commit in the request, and an SO edited mid-run must not re-scale
+    # cartons already minted.
     if po.sales_order_line:
-        po.uom2 = po.sales_order_line.uom2
-        po.uom2_factor = float(po.sales_order_line.uom2_factor) if po.sales_order_line.uom2_factor is not None else None
         po.ket_stock = po.sales_order_line.ket_stock
+    # Resolved base-UOM qty per alt unit — served, not left to the client, so the
+    # pack screens, the labels and this API agree on one conversion.
+    po.uom2_base_factor = packing_service.order_base_per_alt(po)
     po.color_name = po.color.name if po.color else None
     po.attribute_value_ids = [v.id for v in (po.attribute_values or [])]
     # qty_consumed on each planned material rolls up from what completions used.
@@ -179,6 +186,85 @@ async def _set_attributes(db: AsyncSession, po: PackingOrder, ids: list) -> None
         return
     result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(ids)))
     po.attribute_values = list(result.scalars().all())
+
+
+async def _resolve_length_uom(db: AsyncSession, uom_name: Optional[str], factor: Optional[float]) -> Optional[str]:
+    """Which length unit a `1 <uom2> = <factor> ?` conversion is expressed in.
+
+    Read off the UOM master's own factor rows (`Roll -> Yard = 50`). Resolved once
+    here and stored on the order, because the alternative — recovering it at read
+    time by matching the factor VALUE back against those rows, which is what the
+    SO form does — falls back to yard whenever the match misses and turns a
+    metre-based recipe into a 9% error. Ambiguous only if one UOM has two factor
+    rows of the same value, in which case either answer is the same number.
+    """
+    if not uom_name or not factor:
+        return None
+    from_uom = aliased(UOM)
+    to_uom = aliased(UOM)
+    return (await db.execute(
+        select(to_uom.name)
+        .select_from(UOMFactor)
+        .join(from_uom, from_uom.id == UOMFactor.from_uom_id)
+        .join(to_uom, to_uom.id == UOMFactor.to_uom_id)
+        .filter(
+            func.lower(from_uom.name) == uom_name.strip().lower(),
+            UOMFactor.value == factor,
+        )
+        .limit(1)
+    )).scalars().first()
+
+
+async def _apply_alt_unit(
+    db: AsyncSession,
+    po: PackingOrder,
+    payload,
+    so_line: Optional[SalesOrderLine] = None,
+    item: Optional[Item] = None,
+    derive_target: bool = False,
+) -> None:
+    """Set the order's alt selling unit, and derive `qty_target` from it if needed.
+
+    The alt unit follows the sales order: when the caller states none and the
+    order packs against an SO line, the line's own `uom2`/`uom2_factor` are
+    snapshotted (not read through live — an SO edited after packing started must
+    not silently re-scale cartons already minted). A pack-to-stock order simply
+    states its own.
+
+    `qty_target` stays canonical in the item's UOM. It is derived from `qty2` when
+    the caller left it at zero, or on an edit that restated the alt count and not
+    the base one (`derive_target`) — a planner who types a base figure keeps it
+    even if the alt count rounds differently.
+    """
+    stated = payload.uom2 or payload.uom2_factor or payload.qty2
+    if not stated and so_line is not None:
+        po.uom2 = so_line.uom2
+        po.uom2_factor = float(so_line.uom2_factor) if so_line.uom2_factor is not None else None
+    else:
+        if payload.uom2 is not None:
+            po.uom2 = payload.uom2 or None
+        if payload.uom2_factor is not None:
+            po.uom2_factor = payload.uom2_factor
+        if payload.qty2 is not None:
+            po.qty2 = payload.qty2
+
+    if payload.uom2_length_uom:
+        po.uom2_length_uom = payload.uom2_length_uom
+    elif po.uom2 and po.uom2_factor:
+        po.uom2_length_uom = await _resolve_length_uom(db, po.uom2, po.uom2_factor)
+
+    if (derive_target or float(po.qty_target or 0) <= 0) and float(po.qty2 or 0) > 0:
+        base_factor = packing_service.order_base_per_alt(po, item)
+        derived = packing_service.alt_to_base(float(po.qty2), base_factor)
+        if derived is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Cannot convert {po.qty2} {po.uom2} into {getattr(item, 'uom', None) or 'the stock unit'} — "
+                    "set a conversion factor on the unit, or a g/y or g/m weight on the item"
+                ),
+            )
+        po.qty_target = derived
 
 
 async def _assert_work_center(db: AsyncSession, wc_id) -> None:
@@ -244,6 +330,7 @@ async def list_packed_units(
             package_no=b.package_no,
             package_label=b.package_label,
             weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
+            alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
             qty=float(bal.qty) if bal else 0.0,
             location_id=bal.location_id if bal else None,
             location_name=loc_names.get(bal.location_id) if bal else None,
@@ -297,6 +384,7 @@ async def resolve_packed_unit(
         package_no=b.package_no,
         package_label=b.package_label,
         weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
+        alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
         qty=float(bal.qty) if bal else 0.0,
         location_id=bal.location_id if bal else None,
         location_name=loc_name,
@@ -368,9 +456,19 @@ async def create_packing_order(
         )).scalars().first()
         if not so:
             raise HTTPException(status_code=404, detail="Sales order not found")
-    if float(payload.qty_target or 0) <= 0:
+    if float(payload.qty_target or 0) <= 0 and float(payload.qty2 or 0) <= 0:
         raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
     await _assert_work_center(db, payload.work_center_id)
+
+    # Loaded once: the line supplies both the variant identity and the alt selling
+    # unit this order counts in.
+    so_line = None
+    if payload.sales_order_line_id:
+        so_line = (await db.execute(
+            select(SalesOrderLine)
+            .options(selectinload(SalesOrderLine.attribute_values))
+            .filter(SalesOrderLine.id == payload.sales_order_line_id)
+        )).scalars().first()
 
     code = await _next_code(db)
     po = PackingOrder(
@@ -391,6 +489,12 @@ async def create_packing_order(
         notes=payload.notes,
         created_by_id=current_user.id,
     )
+    # Alt selling unit + (when the caller sent only an alt count) the base target.
+    # Before the flush so `qty_target` is never written as 0 and then corrected.
+    await _apply_alt_unit(db, po, payload, so_line=so_line, item=item)
+    if float(po.qty_target or 0) <= 0:
+        raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
+
     db.add(po)
     await db.flush()
 
@@ -399,16 +503,10 @@ async def create_packing_order(
     # is packed from, so guessing wrong here would mint cartons into an empty
     # variant pool while the real stock sits untouched.
     attr_ids = list(payload.attribute_value_ids)
-    if payload.sales_order_line_id and not attr_ids:
-        so_line = (await db.execute(
-            select(SalesOrderLine)
-            .options(selectinload(SalesOrderLine.attribute_values))
-            .filter(SalesOrderLine.id == payload.sales_order_line_id)
-        )).scalars().first()
-        if so_line:
-            attr_ids = [v.id for v in (so_line.attribute_values or [])]
-            if not po.color_id:
-                po.color_id = so_line.color_id
+    if so_line is not None and not attr_ids:
+        attr_ids = [v.id for v in (so_line.attribute_values or [])]
+        if not po.color_id:
+            po.color_id = so_line.color_id
     await _set_attributes(db, po, attr_ids)
 
     for m in payload.materials:
@@ -460,6 +558,19 @@ async def update_packing_order(
         val = getattr(payload, field)
         if val is not None:
             setattr(po, field, val)
+
+    # Alt unit edits re-resolve the length unit (and the base target when the
+    # planner restated only the alt count). No SO line is passed: an edit states
+    # what it means rather than silently re-snapshotting a line that may have
+    # moved on since the order was created.
+    if any(getattr(payload, f) is not None
+           for f in ("qty2", "uom2", "uom2_factor", "uom2_length_uom")):
+        await _apply_alt_unit(
+            db, po, payload, item=po.item,
+            # Restating the alt count alone means the target follows it; restating
+            # the base target means the planner's own figure wins.
+            derive_target=payload.qty_target is None and payload.qty2 is not None,
+        )
 
     if payload.status == "COMPLETED" and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
@@ -597,9 +708,13 @@ async def add_packing_completion(
                 lot_qtys,
                 [float(b) for b in payload.boxes],
                 weights=list(payload.box_weights) if payload.box_weights else None,
+                alt_qtys=list(payload.box_alt_qtys) if payload.box_alt_qtys else None,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+
+    # One conversion for the whole event: base-UOM qty per alt selling unit.
+    alt_base_factor = packing_service.order_base_per_alt(po)
 
     completions: list[PackingCompletion] = []
     all_mats: list[PackingCompletionMaterial] = []
@@ -614,7 +729,9 @@ async def add_packing_completion(
             # no scale reading came with it, so `assert_all_weighed` below turns
             # this into a 400. Kept as a path only so the error names the cartons.
             box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
-            carton_qtys = [(q, None) for q in packing_service.split_qty(lot_qty, box_size)]
+            carton_qtys = [
+                packing_service.Carton(q) for q in packing_service.split_qty(lot_qty, box_size)
+            ]
 
         # A kg-based item measures its cartons once: the qty in the box is its net
         # weight, so the packer is never asked for it twice and the two label
@@ -622,6 +739,10 @@ async def add_packing_completion(
         carton_qtys = packing_service.derive_weights_from_qty(
             carton_qtys, po.item.uom if po.item else None,
         )
+
+        # Every carton on an alt-unit order prints a count, so one is derived for
+        # any box the packer didn't state one for (the box-size path never does).
+        carton_qtys = packing_service.fill_alt_qtys(carton_qtys, alt_base_factor)
 
         # Logging happens after the boxes are packed and weighed: a carton with no
         # net weight prints a label with a blank N.W. line, so it is refused here

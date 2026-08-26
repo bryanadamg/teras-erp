@@ -6,7 +6,8 @@ import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared
 import { toNum } from '../shared/format';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
-import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox, uomIsKg } from '../shared/packingBoxes';
+import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload } from '../shared/packingBoxes';
+import { orderBasePerAlt, altToBase, baseToAlt } from '../shared/altUnit';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -43,6 +44,9 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const scanLockRef = useRef(false);
 
     const [qty, setQty] = useState('');
+    // Count in the order's alt selling unit, when it has one. The base qty above
+    // stays the canonical figure — this only drives it.
+    const [qtyAlt, setQtyAlt] = useState('');
     // One row per physical carton, seeded from the order's pack size. The packer
     // logs after the boxes are packed and weighed, so each row's scale reading is
     // required — it is the N.W. line on that carton's label, and the server
@@ -171,14 +175,39 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
         })();
     }, [po, authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Alt selling unit of this order (Pic = a roll, Pcs = a cut piece). When the
+    // order carries one the packer counts in it and every base figure follows —
+    // same rule and same shared conversion as the desktop pack modal.
+    const altUom = po?.uom2 || '';
+    const altFactor = orderBasePerAlt(po);
+    const hasAlt = !!(altUom && altFactor);
+
     const onQtyChange = (v: string) => {
         setQty(v);
-        setBoxRows(prev => seedBoxRows(num(v), num(po?.pack_size), prev));
+        setBoxRows(prev => seedBoxRows(num(v), num(po?.pack_size), prev, hasAlt ? altFactor : null));
+    };
+    // Counting in the alt unit: the base qty follows the count, not the reverse.
+    const onQtyAltChange = (v: string) => {
+        setQtyAlt(v);
+        const derived = altToBase(num(v), altFactor);
+        if (derived !== null && num(v) > 0) onQtyChange(String(derived));
     };
     const updateBox = (i: number, patch: Partial<BoxRow>) =>
         setBoxRows(prev => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
-    const addBox = () => setBoxRows(prev => [...prev, { qty: '', kg: '' }]);
+    const addBox = () => setBoxRows(prev => [...prev, { qty: '', kg: '', alt: '' }]);
     const removeBox = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
+
+    // A typed count fills the box's base qty; a typed base qty only back-fills a
+    // count that isn't there yet — on a kg item the qty ends up being the scale
+    // reading, which must not turn a box of 12 pieces into 11.8.
+    const setBoxAlt = (i: number, val: string) => {
+        const derived = altToBase(num(val), altFactor);
+        updateBox(i, { alt: val, ...(derived !== null && num(val) > 0 ? { qty: String(derived) } : {}) });
+    };
+    const setBoxQty = (i: number, val: string) => {
+        const backfill = hasAlt && !(num(boxRows[i]?.alt) > 0) ? baseToAlt(num(val), altFactor) : null;
+        updateBox(i, { qty: val, ...(backfill !== null ? { alt: String(backfill) } : {}) });
+    };
 
     const boxes = filledBoxRows(boxRows);
     const boxTotal = boxes.reduce((s, b) => s + num(b.qty), 0);
@@ -188,6 +217,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const qtyIsWeight = uomIsKg(po?.item_uom);
     const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
     const weightTotal = boxes.reduce((s, b) => s + (qtyIsWeight ? num(b.qty) : num(b.kg)), 0);
+    const altTotal = hasAlt ? boxAltTotal(boxRows) : 0;
 
     const logPack = async () => {
         const label = (po?.package_label || 'carton').toLowerCase();
@@ -207,6 +237,9 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                     qty: num(qty),
                     boxes: boxes.map(b => num(b.qty)),
                     box_weights: boxes.map(b => (qtyIsWeight ? num(b.qty) : num(b.kg))),
+                    // Null per carton where no count was typed — the server derives
+                    // just that one rather than every carton's.
+                    box_alt_qtys: hasAlt ? boxAltPayload(boxRows) : null,
                     source_batch_id: sourceBatch || null,
                     work_center_id: workCenterId || null,
                     operator: operator || null,
@@ -218,7 +251,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                 const before = new Set((po.packed_units || []).map((u: any) => String(u.id)));
                 setLastCartons((fresh.packed_units || []).filter((u: any) => !before.has(String(u.id))));
                 setPo(fresh);
-                setQty(''); setNotes(''); setBoxRows([]);
+                setQty(''); setQtyAlt(''); setNotes(''); setBoxRows([]);
                 playBeep();
             } else {
                 const e = await res.json().catch(() => ({}));
@@ -295,14 +328,32 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <MobileNotice tone="green">
                             <strong>Packed:</strong>
                             {lastCartons.map((u: any) => (
-                                <div key={u.id}>#{u.package_no} · {u.batch_number} · {num(u.qty).toLocaleString()}</div>
+                                <div key={u.id}>
+                                    #{u.package_no} · {u.batch_number} ·{' '}
+                                    {u.alt_qty != null && altUom ? `${num(u.alt_qty)} ${altUom} · ` : ''}
+                                    {num(u.qty).toLocaleString()}
+                                </div>
                             ))}
                             <div style={{ marginTop: 4, fontSize: 11 }}>Print these labels from the desktop Packing Orders screen.</div>
                         </MobileNotice>
                     )}
 
                     <MobilePanel icon="bi-pencil-square" title="Log packing">
-                        <label style={xpLabel}>Qty packed</label>
+                        {hasAlt && (
+                            <>
+                                <label style={xpLabel}>
+                                    Qty packed ({altUom})
+                                    <span style={{ fontWeight: 'normal', color: '#777' }}>
+                                        {' '}— 1 {altUom} = {altFactor} {po.item_uom || ''}
+                                    </span>
+                                </label>
+                                <input type="number" min={0} style={xpInput} value={qtyAlt}
+                                    onChange={e => onQtyAltChange(e.target.value)} />
+                            </>
+                        )}
+                        <label style={{ ...xpLabel, marginTop: hasAlt ? 8 : 0 }}>
+                            Qty packed{hasAlt ? ` (${po.item_uom || 'base'})` : ''}
+                        </label>
                         <input type="number" min={0} style={xpInput} value={qty} onChange={e => onQtyChange(e.target.value)} />
                         <label style={{ ...xpLabel, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>
@@ -323,8 +374,13 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         {boxRows.map((b, i) => (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                 <span style={{ fontSize: 11, color: '#777', width: 22 }}>#{i + 1}</span>
+                                {hasAlt && (
+                                    <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
+                                        placeholder={altUom} value={b.alt}
+                                        onChange={e => setBoxAlt(i, e.target.value)} />
+                                )}
                                 <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
-                                    value={b.qty} onChange={e => updateBox(i, { qty: e.target.value })} />
+                                    value={b.qty} onChange={e => setBoxQty(i, e.target.value)} />
                                 {!qtyIsWeight && (
                                     <input type="number" min={0} step="any" required
                                         style={{ ...xpInput, flex: 1, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
@@ -339,7 +395,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                                     ? `Boxed ${boxTotal.toFixed(2)} of ${num(qty).toFixed(2)}`
                                     : weightsMissing
                                         ? `Weigh every ${(po.package_label || 'carton').toLowerCase()}`
-                                        : `${boxes.length} ${(po.package_label || 'carton').toLowerCase()}s · ${weightTotal.toFixed(2)} kg`}
+                                        : `${boxes.length} ${(po.package_label || 'carton').toLowerCase()}s${hasAlt ? ` · ${altTotal.toLocaleString()} ${altUom}` : ''} · ${weightTotal.toFixed(2)} kg`}
                             </div>
                         )}
                         {lots.length > 0 && (
