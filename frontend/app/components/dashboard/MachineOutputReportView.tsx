@@ -11,6 +11,11 @@
 //                     and reject % per work order, filterable to finished orders
 // plus a separate source (`/reports/packing-output`) for packing, which cannot be a
 // grouping of the machine report: a PackingCompletion has no work centre to peg to.
+// That source has two grains of its own:
+//   packing        — per packing order
+//   operator       — per packer, from `PackingCompletion.operator_user_id` (the
+//                    account that logged it, not the typed name), expanding to a
+//                    per-day breakdown: the per-head output figure.
 //
 // Every row carries its reject events (reason, operator, defect store), so the
 // expanded panel answers "what was rejected and where did it go" in one place.
@@ -50,7 +55,7 @@ const uomOf = (row: any): string => {
 // red rather than leaving it to the reader to spot in a column of numbers.
 const REJECT_ALERT_PCT = 5;
 
-type Mode = 'machine' | 'group' | 'wo' | 'packing';
+type Mode = 'machine' | 'group' | 'wo' | 'packing' | 'operator';
 
 interface ReportColumn {
     key: string;
@@ -99,6 +104,11 @@ export default function MachineOutputReportView() {
     const isGroupMode = mode === 'group';
     const isWoMode = mode === 'wo';
     const isPacking = mode === 'packing';
+    const isOperator = mode === 'operator';
+    // Both grains come off /reports/packing-output, so anything that depends on the
+    // SOURCE (no work centre to scope by, no lot on a reject) tests this, and only
+    // the column/row shape tests isPacking vs isOperator.
+    const isPackingSource = isPacking || isOperator;
     const isMachineLevel = mode === 'machine' || mode === 'group';
 
     const fetchReport = useCallback(async () => {
@@ -110,8 +120,9 @@ export default function MachineOutputReportView() {
             if (endDate) p.set('end_date', `${endDate}T23:59:59`);
 
             let url: string;
-            if (mode === 'packing') {
+            if (isPackingSource) {
                 // Packing is its own source — no work-centre scope applies to it.
+                if (isOperator) p.set('group_by', 'operator');
                 url = `${API_BASE}/reports/packing-output?${p.toString()}`;
             } else {
                 if (scope.startsWith('wc:')) p.set('work_center_id', scope.slice(3));
@@ -134,7 +145,7 @@ export default function MachineOutputReportView() {
         } finally {
             setLoading(false);
         }
-    }, [API_BASE, authFetch, startDate, endDate, scope, mode, hideIdle, completedOnly]);
+    }, [API_BASE, authFetch, startDate, endDate, scope, mode, isPackingSource, isOperator, hideIdle, completedOnly]);
 
     useEffect(() => { fetchReport(); }, [fetchReport]);
     // Row identity differs per grouping, so a stale expanded key would open nothing.
@@ -176,13 +187,18 @@ export default function MachineOutputReportView() {
     );
 
     const rowKey = useCallback((r: any): string => {
+        if (isOperator) return String(r.operator_key);
         if (isPacking) return String(r.packing_order_id);
         if (isWoMode) return String(r.work_order_id || `${r.work_center_id}:${r.mo_code}`);
         return String(r.work_center_id);
-    }, [isPacking, isWoMode]);
+    }, [isOperator, isPacking, isWoMode]);
 
     const sortCols = useMemo(() => ({
-        name:      (r: any) => (isPacking ? r.po_code : isWoMode ? (r.wo_code || r.mo_code || '') : r.work_center_name) || '',
+        name:      (r: any) => (isOperator ? r.operator_name : isPacking ? r.po_code : isWoMode ? (r.wo_code || r.mo_code || '') : r.work_center_name) || '',
+        cartons:   (r: any) => r.cartons || 0,
+        days:      (r: any) => r.days_active || 0,
+        perDay:    (r: any) => (r.qty_per_day ?? -1),
+        orders:    (r: any) => r.order_count || 0,
         item:      (r: any) => r.item_code || r.item_name || '',
         machine:   (r: any) => r.work_center_name || '',
         status:    (r: any) => r.wo_status || r.po_status || '',
@@ -194,7 +210,7 @@ export default function MachineOutputReportView() {
         wos:       (r: any) => r.wo_count || 0,
         logs:      (r: any) => r.logs || 0,
         last:      (r: any) => r.last_log || '',
-    }), [isPacking, isWoMode]);
+    }), [isOperator, isPacking, isWoMode]);
     const { sorted, sort, toggle } = useSortable(visibleRows, sortCols);
 
     const applyPreset = (kind: 'today' | 'yesterday' | '7d' | '30d' | 'month') => {
@@ -274,6 +290,52 @@ export default function MachineOutputReportView() {
             key: 'last', label: 'Last log', sortKey: 'last',
             render: (r, c) => lastLogCell(r, c), csv: r => r.last_log || '',
         };
+
+        if (isOperator) {
+            return [
+                {
+                    key: 'name', label: 'Packer', sortKey: 'name',
+                    render: (r, c) => twoLine(
+                        r.operator_name,
+                        // A log with no account behind it is named, not hidden: its
+                        // qty is only as good as what someone typed in the box.
+                        r.has_account ? (r.username || '') : 'typed name — no user account',
+                        c,
+                    ),
+                    csv: r => r.operator_name || '',
+                },
+                ...shared,
+                {
+                    key: 'cartons', label: 'Cartons', sortKey: 'cartons', align: 'right',
+                    render: r => (
+                        <>
+                            <span>{r.cartons || 0}</span>
+                            {r.cartons_rejected ? <span style={{ color: '#c00000', marginLeft: 4 }}>(-{r.cartons_rejected})</span> : null}
+                        </>
+                    ),
+                    csv: r => `${r.cartons || 0}${r.cartons_rejected ? ` (-${r.cartons_rejected})` : ''}`,
+                },
+                {
+                    key: 'days', label: 'Days', sortKey: 'days', align: 'right',
+                    render: r => r.days_active || 0, csv: r => r.days_active ?? 0,
+                },
+                {
+                    // Days that produced, not days in the window — a packer who was
+                    // off on Tuesday is not averaged down by it.
+                    key: 'perDay', label: 'Avg / day', sortKey: 'perDay', align: 'right',
+                    render: r => (r.qty_per_day == null
+                        ? <Dash classic={classic} />
+                        : <><span style={{ fontWeight: 'bold' }}>{fmtQty(r.qty_per_day)}</span>
+                            <span style={{ fontSize: 10, color: '#888', marginLeft: 3 }}>{uomOf(r)}</span></>),
+                    csv: r => r.qty_per_day ?? '',
+                },
+                {
+                    key: 'orders', label: 'Orders', sortKey: 'orders', align: 'right',
+                    render: r => r.order_count || 0, csv: r => r.order_count ?? 0,
+                },
+                lastLog,
+            ];
+        }
 
         if (isPacking) {
             return [
@@ -381,7 +443,7 @@ export default function MachineOutputReportView() {
             },
             lastLog,
         ];
-    }, [isPacking, isWoMode, isGroupMode, maxOutput, tzDate, tzTime]);
+    }, [isOperator, isPacking, isWoMode, isGroupMode, maxOutput, classic, tzDate, tzTime]);
 
     const exportCsv = () => {
         const head = columns.filter(c => c.key !== 'share').map(c => c.label);
@@ -392,7 +454,7 @@ export default function MachineOutputReportView() {
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${isPacking ? 'packing' : mode}-output_${startDate || 'all'}_${endDate || 'now'}.csv`;
+        a.download = `${isOperator ? 'packing-operator' : isPacking ? 'packing' : mode}-output_${startDate || 'all'}_${endDate || 'now'}.csv`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -500,11 +562,81 @@ export default function MachineOutputReportView() {
         // The reject log — reason, who rejected it, and which defect store the scrap
         // was moved into (blank = the reject predates reject routing, or the output
         // was un-lotted and written off rather than quarantined).
+        // Sub-table column count, so an empty reject log spans exactly the header.
+        const rejectColCount = 6 + (!isWoMode && !isPackingSource ? 1 : 0) + (isOperator ? 1 : 0);
+
+        // The payroll grain: what this packer put out on each day of the window.
+        const daysTable = (
+            <table style={{ ...lvSubTable(classic), border: 'none' }}>
+                <thead><tr>
+                    <th style={dth}>Day</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>Output</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>Cartons</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>QC Reject</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>Reject %</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>Logs</th>
+                </tr></thead>
+                <tbody>
+                    {(r.days || []).length === 0 ? (
+                        <tr><td style={{ ...dtd, color: '#999' }} colSpan={6}>No output logged</td></tr>
+                    ) : r.days.map((d: any) => (
+                        <tr key={d.date}>
+                            <td style={{ ...dtd, fontWeight: 'bold' }}>{d.date}</td>
+                            <td style={{ ...dtd, textAlign: 'right', fontWeight: 'bold', color: '#1a5e1a' }}>{fmtQty(d.qty_good)}</td>
+                            <td style={{ ...dtd, textAlign: 'right' }}>
+                                {d.cartons || 0}
+                                {d.cartons_rejected ? <span style={{ color: '#c00000' }}> (-{d.cartons_rejected})</span> : null}
+                            </td>
+                            <td style={{ ...dtd, textAlign: 'right', color: d.qty_rejected ? '#c00000' : '#aaa' }}>{fmtQty(d.qty_rejected)}</td>
+                            <td style={{ ...dtd, textAlign: 'right' }}>{fmtPct(d.reject_pct)}</td>
+                            <td style={{ ...dtd, textAlign: 'right' }}>{d.logs}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        );
+
+        const ordersTable = (
+            <table style={{ ...lvSubTable(classic), border: 'none' }}>
+                <thead><tr>
+                    <th style={dth}>Packing Order</th>
+                    <th style={dth}>Item</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>Output</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>Cartons</th>
+                    <th style={{ ...dth, textAlign: 'right' }}>QC Reject</th>
+                    <th style={dth}>Last log</th>
+                </tr></thead>
+                <tbody>
+                    {(r.orders || []).length === 0 ? (
+                        <tr><td style={{ ...dtd, color: '#999' }} colSpan={6}>No packing orders in this period</td></tr>
+                    ) : r.orders.map((o: any) => (
+                        <tr key={o.packing_order_id}>
+                            <td style={dtd}>
+                                <div style={{ fontWeight: 'bold' }}>{o.po_code}</div>
+                                <div style={{ fontSize: 9, color: '#777' }}>
+                                    {[o.sales_order_code, o.customer_name].filter(Boolean).join(' · ') || 'to stock'}
+                                </div>
+                            </td>
+                            <td style={dtd}>{o.item_code || o.item_name || '—'}</td>
+                            <td style={{ ...dtd, textAlign: 'right', fontWeight: 'bold' }}>{fmtQty(o.qty_good)} <span style={{ color: '#888', fontWeight: 'normal' }}>{o.uom}</span></td>
+                            <td style={{ ...dtd, textAlign: 'right' }}>{o.cartons || 0}</td>
+                            <td style={{ ...dtd, textAlign: 'right', color: o.qty_rejected ? '#c00000' : '#aaa' }}>{fmtQty(o.qty_rejected)}</td>
+                            <td style={dtd}>
+                                {o.po_status && <StatusChip status={o.po_status} tint />}
+                                <div style={{ fontSize: 9, color: '#777' }}>{o.last_log ? `${tzDate(o.last_log)} ${tzTime(o.last_log)}` : '—'}</div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        );
+
         const rejectsTable = (
             <table style={{ ...lvSubTable(classic), border: 'none' }}>
                 <thead><tr>
                     <th style={dth}>When</th>
-                    {!isWoMode && !isPacking && <th style={dth}>Work Order</th>}
+                    {!isWoMode && !isPackingSource && <th style={dth}>Work Order</th>}
+                    {isOperator && <th style={dth}>Packing Order</th>}
                     <th style={dth}>Lot</th>
                     <th style={{ ...dth, textAlign: 'right' }}>Rejected</th>
                     <th style={dth}>Reject location</th>
@@ -513,21 +645,22 @@ export default function MachineOutputReportView() {
                 </tr></thead>
                 <tbody>
                     {(r.rejects || []).length === 0 ? (
-                        <tr><td style={{ ...dtd, color: '#999' }} colSpan={7}>No QC rejects in this period</td></tr>
+                        <tr><td style={{ ...dtd, color: '#999' }} colSpan={rejectColCount}>No QC rejects in this period</td></tr>
                     ) : r.rejects.map((rj: any) => (
                         <tr key={rj.completion_id}>
                             <td style={dtd}>
                                 <div>{rj.logged_at ? tzDate(rj.logged_at) : '—'}</div>
                                 <div style={{ fontSize: 9, color: '#777' }}>{rj.logged_at ? tzTime(rj.logged_at) : ''}</div>
                             </td>
-                            {!isWoMode && !isPacking && (
+                            {!isWoMode && !isPackingSource && (
                                 <td style={dtd}>
                                     <div>{rj.wo_code || '(MO-level log)'}</div>
                                     <div style={{ fontSize: 9, color: '#777' }}>{rj.mo_code}</div>
                                 </td>
                             )}
+                            {isOperator && <td style={dtd}>{rj.po_code || <Dash classic={classic} />}</td>}
                             <td style={dtd}>
-                                {isPacking
+                                {isPackingSource
                                     ? <span style={{ color: '#777' }}>{rj.cartons_rejected || 0} carton(s)</span>
                                     : (rj.lot_number
                                         ? <>
@@ -555,6 +688,9 @@ export default function MachineOutputReportView() {
 
         return (
             <ExpandedRowPanel classic={classic} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {isOperator && block(`By day (${(r.days || []).length})`, daysTable)}
+                {isOperator && block('By item', itemsTable)}
+                {isOperator && block(`Packing orders (${(r.orders || []).length})`, ordersTable)}
                 {isMachineLevel && block('By item', itemsTable)}
                 {isGroupMode && block(`Machines (${(r.machines || []).length})`, machinesTable)}
                 {isMachineLevel && block('Work orders', wosTable)}
@@ -563,9 +699,10 @@ export default function MachineOutputReportView() {
         );
     };
 
-    const emptyIcon = isPacking ? 'bi-box-seam' : isWoMode ? 'bi-card-checklist' : 'bi-cpu';
+    const emptyIcon = isOperator ? 'bi-person-badge' : isPacking ? 'bi-box-seam' : isWoMode ? 'bi-card-checklist' : 'bi-cpu';
     const emptyMessage = rows.length === 0
-        ? (isPacking ? 'No packing logged in this period'
+        ? (isOperator ? 'No packing logged by anyone in this period'
+            : isPacking ? 'No packing logged in this period'
             : isWoMode ? 'No work order output in this period'
             : hideIdle ? 'No production logged in this period' : 'No machines in scope')
         : 'No rows with QC rejects in this period';
@@ -575,6 +712,7 @@ export default function MachineOutputReportView() {
         { value: 'group', label: 'Per Group' },
         { value: 'wo', label: 'Per Work Order' },
         { value: 'packing', label: 'Packing' },
+        { value: 'operator', label: 'Per Packer' },
     ];
 
     // Same preset row in both themes — one list, rendered by SegmentedBar.
@@ -590,6 +728,21 @@ export default function MachineOutputReportView() {
             { label: 'Reject %', value: fmtPct(totals.reject_pct), color: (totals.reject_pct ?? 0) >= REJECT_ALERT_PCT ? '#c00000' : '#1a3d7a', cls: (totals.reject_pct ?? 0) >= REJECT_ALERT_PCT ? 'text-danger' : 'text-primary' },
             { label: 'Yield', value: fmtPct(totals.yield_pct), color: '#1a3d7a', cls: 'text-primary' },
         ];
+        if (isOperator) {
+            return [
+                ...base,
+                { label: 'Cartons', value: `${totals.cartons || 0}`, color: '#1a3d7a', cls: 'text-primary' },
+                { label: 'Packers', value: String(totals.operator_count || 0), color: '#4a2a7a', cls: 'text-dark' },
+                // Logs with no account behind them. Zero is the healthy reading;
+                // anything else is output nobody can be paid for reliably.
+                {
+                    label: 'No account',
+                    value: String(totals.unattributed_count || 0),
+                    color: totals.unattributed_count ? '#c00000' : '#777',
+                    cls: totals.unattributed_count ? 'text-danger' : 'text-muted',
+                },
+            ];
+        }
         if (isPacking) {
             return [
                 ...base,
@@ -605,7 +758,7 @@ export default function MachineOutputReportView() {
                 ? [{ label: 'Machines', value: `${totals.active_machine_count || 0}/${totals.machine_count || 0}`, color: '#4a2a7a', cls: 'text-dark' }]
                 : [{ label: 'Reject events', value: String(totals.reject_events || 0), color: '#4a2a7a', cls: 'text-dark' }]),
         ];
-    }, [totals, isPacking, isMachineLevel]);
+    }, [totals, isOperator, isPacking, isMachineLevel]);
 
     // ── Render — one tree, classic vs modern chosen per element ─────────────
     const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '4px 6px', gap: '5px', flexWrap: 'nowrap', overflowX: 'auto' });
@@ -641,7 +794,7 @@ export default function MachineOutputReportView() {
                                 allowEmpty
                                 emptyLabel="All Work Centres"
                                 style={{ width: 200 }}
-                                disabled={isPacking}
+                                disabled={isPackingSource}
                             />
                             <div style={xpSep} />
                             <span style={lbl}>View:</span>
@@ -687,7 +840,7 @@ export default function MachineOutputReportView() {
                             <div>
                                 <h5 className="card-title mb-0">Production Output &amp; QC Reject</h5>
                                 <small className="text-muted">
-                                    {isPacking ? 'Packing output per order' : isWoMode ? 'Output per work order' : 'Work order output per machine'} · {periodLabel}
+                                    {isOperator ? 'Packing output per packer' : isPacking ? 'Packing output per order' : isWoMode ? 'Output per work order' : 'Work order output per machine'} · {periodLabel}
                                 </small>
                             </div>
                             <div className="d-flex gap-1">
@@ -706,7 +859,7 @@ export default function MachineOutputReportView() {
                                     allowEmpty
                                     emptyLabel="All Work Centres"
                                     size="sm"
-                                    disabled={isPacking}
+                                    disabled={isPackingSource}
                                 />
                             </div>
                             <div className="col-md-5">

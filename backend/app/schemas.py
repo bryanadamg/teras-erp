@@ -3036,7 +3036,9 @@ class PackingCompletionResponse(BaseModel):
     source_batch_number: str | None = None
     work_center_id: UUID | None = None
     work_center_name: str | None = None
+    operator_user_id: UUID | None = None
     operator: str | None = None
+    operator_full_name: str | None = None
     notes: str | None = None
     completed_at: datetime
     # QC reject — same split as MOCompletionResponse

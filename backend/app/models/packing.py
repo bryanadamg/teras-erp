@@ -213,6 +213,14 @@ class PackingCompletion(Base):
     work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Who packed it. Two fields on purpose, the same split `work_center_id` +
+    # `work_center_name` uses: `operator_user_id` is the identity every
+    # per-operator figure groups on — always the authenticated user, since
+    # operators log in with their own accounts — and `operator` is the display
+    # snapshot the packer may override (and the only identity legacy rows have).
+    operator_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     operator: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     completed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -232,6 +240,7 @@ class PackingCompletion(Base):
     )
 
     source_batch = relationship("Batch", foreign_keys=[source_batch_id])
+    operator_user = relationship("User", foreign_keys=[operator_user_id], lazy="joined")
     work_center = relationship("WorkCenter", foreign_keys=[work_center_id], lazy="joined")
     reject_location = relationship("Location", foreign_keys=[reject_location_id], lazy="joined")
     materials = relationship("PackingCompletionMaterial", backref="completion", cascade="all, delete-orphan")
@@ -239,6 +248,11 @@ class PackingCompletion(Base):
     @property
     def source_batch_number(self):
         return self.source_batch.batch_number if self.source_batch else None
+
+    @property
+    def operator_full_name(self):
+        """Account holder's name — falls back to the typed text for legacy logs."""
+        return (self.operator_user.full_name if self.operator_user else None) or self.operator
 
     @property
     def work_center_name(self):

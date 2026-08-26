@@ -779,6 +779,11 @@ async def add_packing_completion(
             # skipped must not erase where the work actually happened. Same fix
             # MOCompletion needed for the weaving monitor.
             work_center_id=payload.work_center_id or po.work_center_id,
+            # Identity is the authenticated account, never the typed box: the
+            # per-operator output report groups on this column, and free text
+            # splits one packer across every spelling of their name. The text
+            # stays as the display snapshot the packer may override.
+            operator_user_id=current_user.id,
             operator=payload.operator or current_user.username,
             notes=payload.notes,
             completed_at=datetime.utcnow(),
