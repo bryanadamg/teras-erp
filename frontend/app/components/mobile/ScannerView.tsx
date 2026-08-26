@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT, CHIP_RADIUS, xpInput as xpInputBase } from '../shared/xpTheme';
-import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
+import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
 
 interface MobileScannerViewProps {
     manufacturingOrders: any[];
@@ -413,14 +413,14 @@ export default function MobileScannerView({
                     </MobilePanel>
 
                     {logSuccess && (
-                        <div style={{ background: '#e8f5e9', border: '1px solid #2e7d32', borderLeft: '4px solid #2e7d32', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#1b5e20' }}>
+                        <MobileNotice tone="green" style={{ borderLeftWidth: 4, marginBottom: 0 }}>
                             <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }}></i>{logSuccess}
-                        </div>
+                        </MobileNotice>
                     )}
                     {logError && (
-                        <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#6b0000' }}>
+                        <MobileNotice tone="red" style={{ borderLeftWidth: 4, marginBottom: 0 }}>
                             <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 5 }}></i>{logError}
-                        </div>
+                        </MobileNotice>
                     )}
 
                     {/* Log form */}
@@ -460,16 +460,14 @@ export default function MobileScannerView({
                                 || scannedWO?.output_location_name
                                 || null;
                             return dest ? (
-                                <div style={{ marginBottom: 10, background: '#eef7ee', border: '1px solid #9cc79c', padding: '6px 10px' }}>
-                                    <span style={{ fontFamily: XP_FONT, fontSize: 12, fontWeight: 'bold', color: '#1a5e1a' }}>
-                                        Simpan ke: {dest}
-                                    </span>
-                                    <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#555', marginTop: 2 }}>
+                                <MobileNotice tone="green">
+                                    <span style={{ fontWeight: 'bold' }}>Simpan ke: {dest}</span>
+                                    <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>
                                         {scannedWOParentMO?.planned_putaway_location_name
                                             ? 'Bin ditentukan oleh planning.'
                                             : 'Lokasi output WO (belum ada bin dari planning).'}
                                     </div>
-                                </div>
+                                </MobileNotice>
                             ) : null;
                         })()}
 
@@ -700,9 +698,9 @@ export default function MobileScannerView({
                     </MobilePanel>
 
                     {error && (
-                        <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#6b0000' }}>
+                        <MobileNotice tone="red" style={{ borderLeftWidth: 4, marginBottom: 0 }}>
                             <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 5 }}></i>{error}
-                        </div>
+                        </MobileNotice>
                     )}
                 </>
             )}

@@ -543,15 +543,25 @@ async def packing_output_report(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     status: Optional[str] = Query(None, description="Comma-separated packing order statuses"),
+    group_by: str = Query("order", description="order | operator"),
+    operator_user_id: Optional[uuid.UUID] = Query(None, description="Narrow to one packer"),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission("production_output.view")),
 ):
-    """Packing output and QC reject, one row per packing order.
+    """Packing output and QC reject, per packing order or per packer.
 
     The packing counterpart of `/reports/machine-output`, kept separate because a
     `PackingCompletion` carries no work center — packing can never be a grouping of
     the machine report. Columns match it (`qty_good` / `qty_rejected` / `reject_pct`)
     so the same UI renders both, with carton counts alongside the base qty.
+
+    `group_by=operator` re-grains the same events onto the person who logged them,
+    which is what a per-head output figure is read off. It groups on
+    `PackingCompletion.operator_user_id` — the authenticated account — and only
+    falls back to the typed `operator` text for logs written before operators had
+    their own accounts, because free text splits one packer across every spelling
+    of their name. Each row carries a per-day breakdown, since output is read a
+    day at a time.
 
     Date filters apply to the **pack events**, not the order header, so an order
     that ran across the window boundary reports only what it packed inside it.
@@ -565,6 +575,11 @@ async def packing_output_report(
         conds.append(PackingCompletion.completed_at <= end_date)
     if statuses:
         conds.append(PackingOrder.status.in_(statuses))
+    if operator_user_id:
+        conds.append(PackingCompletion.operator_user_id == operator_user_id)
+
+    if (group_by or "").lower() == "operator":
+        return await _packing_operator_report(db, conds, start_date, end_date, statuses)
 
     qty_good = func.sum(case((PackingCompletion.rejected == False, PackingCompletion.qty), else_=0))  # noqa: E712
     cartons_good = func.sum(case((PackingCompletion.rejected == False, PackingCompletion.package_count), else_=0))  # noqa: E712
@@ -686,6 +701,219 @@ async def packing_output_report(
     totals["reject_pct"] = _reject_pct(totals["qty_good"], totals["qty_rejected"])
 
     return {
+        "group_by": "order",
+        "start_date": _iso(start_date),
+        "end_date": _iso(end_date),
+        "status": statuses,
+        "rows": rows,
+        "totals": totals,
+    }
+
+
+async def _packing_operator_report(
+    db: AsyncSession,
+    conds: list,
+    start_date: Optional[datetime],
+    end_date: Optional[datetime],
+    statuses: list[str],
+) -> dict:
+    """Packing output re-grained onto the packer, for the per-head output figure.
+
+    Aggregated in Python off one completion-grain query rather than four GROUP BY
+    round trips: the same rows feed the header totals, the per-day breakdown, the
+    per-item split and the reject log, and the window is a shift or a month of
+    pack events, not the whole table.
+
+    Identity is `operator_user_id`. A log with none (written before packers had
+    their own accounts) falls back to its typed name under a `name:` key and is
+    flagged `has_account=False`, so a supervisor sees which output is not
+    attributable to a person and fixes it at the source, rather than having it
+    silently folded into someone else's total.
+    """
+    rows_raw = (await db.execute(
+        select(
+            PackingCompletion.id.label("completion_id"),
+            PackingCompletion.operator_user_id.label("user_id"),
+            PackingCompletion.operator.label("operator_text"),
+            User.username.label("username"),
+            User.full_name.label("full_name"),
+            PackingCompletion.completed_at.label("logged_at"),
+            PackingCompletion.qty.label("qty"),
+            PackingCompletion.package_count.label("cartons"),
+            PackingCompletion.rejected.label("whole"),
+            PackingCompletion.qty_rejected.label("qty_rejected"),
+            PackingCompletion.package_count_rejected.label("cartons_rejected"),
+            PackingCompletion.reject_reason.label("reason"),
+            PackingCompletion.rejected_at.label("rejected_at"),
+            PackingCompletion.rejected_by.label("rejected_by"),
+            PackingCompletion.reject_location_id.label("reject_location_id"),
+            Location.name.label("reject_location_name"),
+            PackingOrder.id.label("po_id"),
+            PackingOrder.code.label("po_code"),
+            PackingOrder.status.label("po_status"),
+            PackingOrder.package_label.label("package_label"),
+            PackingOrder.item_id.label("item_id"),
+            SalesOrder.po_number.label("so_code"),
+            SalesOrder.customer_name.label("customer_name"),
+        )
+        .join(PackingOrder, PackingCompletion.packing_order_id == PackingOrder.id)
+        .outerjoin(User, PackingCompletion.operator_user_id == User.id)
+        .outerjoin(SalesOrder, PackingOrder.sales_order_id == SalesOrder.id)
+        .outerjoin(Location, PackingCompletion.reject_location_id == Location.id)
+        .where(and_(*conds) if conds else True)
+        .order_by(PackingCompletion.completed_at.desc())
+    )).all()
+
+    item_ids = {str(r.item_id) for r in rows_raw if r.item_id}
+    items: dict[str, Item] = {}
+    if item_ids:
+        res = await db.execute(select(Item).where(Item.id.in_(list(item_ids))))
+        items = {str(i.id): i for i in res.scalars().all()}
+
+    def _bucket(seed: dict) -> dict:
+        return {"qty_good": 0.0, "qty_rejected": 0.0, "cartons": 0,
+                "cartons_rejected": 0, "logs": 0, **seed}
+
+    ops: dict[str, dict] = {}
+    for r in rows_raw:
+        if r.user_id:
+            key = str(r.user_id)
+            name = r.full_name or r.username or r.operator_text or "(unknown)"
+        else:
+            typed = (r.operator_text or "").strip()
+            key = f"name:{typed.lower()}"
+            name = typed or "(unattributed)"
+
+        op_row = ops.get(key)
+        if op_row is None:
+            op_row = ops[key] = {
+                "operator_key": key,
+                "operator_user_id": str(r.user_id) if r.user_id else None,
+                "operator_name": name,
+                "username": r.username,
+                # False = the log names a person the report cannot peg to an
+                # account. Surfaced rather than hidden: that output is only as
+                # trustworthy as what someone typed into a text box.
+                "has_account": bool(r.user_id),
+                "orders": {}, "items": {}, "days": {}, "rejects": [],
+                "first_log": None, "last_log": None,
+                **_bucket({}),
+            }
+
+        # Good qty counts only non-rejected logs; scrap sums `qty_rejected` over
+        # every log, because a partial reject leaves its log active with the
+        # scrapped qty moved onto that column. Same rule as the machine report.
+        good = 0.0 if r.whole else _f(r.qty)
+        good_cartons = 0 if r.whole else int(r.cartons or 0)
+        rej = _f(r.qty_rejected)
+        rej_cartons = int(r.cartons_rejected or 0)
+
+        it = items.get(str(r.item_id)) if r.item_id else None
+        stamp = _iso(r.logged_at)
+        day = r.logged_at.date().isoformat() if r.logged_at else "-"
+
+        for bucket, bkey, seed in (
+            (op_row["items"], str(r.item_id) if r.item_id else "?", {
+                "item_id": str(r.item_id) if r.item_id else None,
+                "item_code": it.code if it else None,
+                "item_name": it.name if it else None,
+                "uom": it.uom if it else None,
+            }),
+            (op_row["orders"], str(r.po_id), {
+                "packing_order_id": str(r.po_id),
+                "po_code": r.po_code,
+                "po_status": r.po_status,
+                "package_label": r.package_label,
+                "item_code": it.code if it else None,
+                "item_name": it.name if it else None,
+                "uom": it.uom if it else None,
+                "sales_order_code": r.so_code,
+                "customer_name": r.customer_name,
+                "last_log": None,
+            }),
+            (op_row["days"], day, {"date": day, "last_log": None}),
+        ):
+            b = bucket.get(bkey)
+            if b is None:
+                b = bucket[bkey] = _bucket(dict(seed))
+            b["qty_good"] += good
+            b["qty_rejected"] += rej
+            b["cartons"] += good_cartons
+            b["cartons_rejected"] += rej_cartons
+            b["logs"] += 1
+            if "last_log" in b and stamp and (b["last_log"] or "") < stamp:
+                b["last_log"] = stamp
+
+        op_row["qty_good"] += good
+        op_row["qty_rejected"] += rej
+        op_row["cartons"] += good_cartons
+        op_row["cartons_rejected"] += rej_cartons
+        op_row["logs"] += 1
+        if stamp:
+            if op_row["first_log"] is None or stamp < op_row["first_log"]:
+                op_row["first_log"] = stamp
+            if op_row["last_log"] is None or stamp > op_row["last_log"]:
+                op_row["last_log"] = stamp
+
+        if rej > 0:
+            op_row["rejects"].append({
+                "completion_id": str(r.completion_id),
+                "logged_at": stamp,
+                "po_code": r.po_code,
+                "qty_completed": _f(r.qty),
+                "qty_rejected": rej,
+                "cartons_rejected": rej_cartons,
+                "whole_lot": bool(r.whole),
+                "reason": r.reason,
+                "rejected_at": _iso(r.rejected_at),
+                "rejected_by": r.rejected_by,
+                "operator_name": r.operator_text,
+                "reject_location_id": str(r.reject_location_id) if r.reject_location_id else None,
+                "reject_location_name": r.reject_location_name,
+            })
+
+    def _finish(bucket: dict) -> list:
+        out = []
+        for b in bucket.values():
+            b["reject_pct"] = _reject_pct(b["qty_good"], b["qty_rejected"])
+            b["yield_pct"] = _yield_pct(b["qty_good"], b["qty_rejected"])
+            out.append(b)
+        return out
+
+    rows = []
+    for op_row in ops.values():
+        op_row["items"] = sorted(_finish(op_row["items"]), key=lambda x: -x["qty_good"])
+        op_row["orders"] = sorted(_finish(op_row["orders"]), key=lambda x: (x["last_log"] or ""), reverse=True)
+        # Ascending: a pay period is read oldest day first.
+        op_row["days"] = sorted(_finish(op_row["days"]), key=lambda x: x["date"])
+        op_row["order_count"] = len(op_row["orders"])
+        # Days that actually produced, not days in the window — the denominator a
+        # per-day rate is read against.
+        op_row["days_active"] = len(op_row["days"])
+        op_row["qty_per_day"] = (
+            round(op_row["qty_good"] / op_row["days_active"], 3) if op_row["days_active"] else None
+        )
+        op_row["reject_pct"] = _reject_pct(op_row["qty_good"], op_row["qty_rejected"])
+        op_row["yield_pct"] = _yield_pct(op_row["qty_good"], op_row["qty_rejected"])
+        rows.append(op_row)
+    rows.sort(key=lambda x: -x["qty_good"])
+
+    totals = {
+        "qty_good": sum(x["qty_good"] for x in rows),
+        "qty_rejected": sum(x["qty_rejected"] for x in rows),
+        "cartons": sum(x["cartons"] for x in rows),
+        "cartons_rejected": sum(x["cartons_rejected"] for x in rows),
+        "logs": sum(x["logs"] for x in rows),
+        "operator_count": len(rows),
+        "order_count": len({o["packing_order_id"] for x in rows for o in x["orders"]}),
+        "reject_events": sum(len(x["rejects"]) for x in rows),
+        "unattributed_count": sum(1 for x in rows if not x["has_account"]),
+    }
+    totals["yield_pct"] = _yield_pct(totals["qty_good"], totals["qty_rejected"])
+    totals["reject_pct"] = _reject_pct(totals["qty_good"], totals["qty_rejected"])
+
+    return {
+        "group_by": "operator",
         "start_date": _iso(start_date),
         "end_date": _iso(end_date),
         "status": statuses,

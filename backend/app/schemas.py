@@ -2864,7 +2864,10 @@ class PackingOrderMaterialPayload(BaseModel):
 
 class PackingOrderCreate(BaseModel):
     item_id: UUID
-    qty_target: float
+    # In the item's own UOM. May be omitted (0) when `qty2` is given with a
+    # resolvable alt unit — the server then derives it, so the client never has
+    # to reproduce the alt -> length -> kg chain.
+    qty_target: float = 0
     # Null = pack to stock. When set, only tags the cartons; it does not reserve them.
     sales_order_id: UUID | None = None
     sales_order_line_id: UUID | None = None
@@ -2872,8 +2875,21 @@ class PackingOrderCreate(BaseModel):
     attribute_value_ids: list[UUID] = []
     pack_size: float | None = None
     package_label: str = "Carton"
+    # Alt (selling) unit. Omit all three when packing against an SO line and the
+    # server snapshots the line's own — that is the normal path, so the packing
+    # order counts in whatever the customer ordered in. `uom2_factor` is the qty of
+    # one alt unit as the UOM master states it (1 Pcs = 5 yard -> 5), same meaning
+    # as on the SO line; `uom2_length_uom` names that unit — usually a length, but
+    # `1 Box = 10 kg` is a seeded row too — and is resolved off the UOM master when
+    # not sent. See packing_service.base_per_alt.
+    qty2: float | None = None
+    uom2: str | None = None
+    uom2_factor: float | None = None
+    uom2_length_uom: str | None = None
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    # Packing machine (WorkCenter MACHINE row) this order is dispatched to.
+    work_center_id: UUID | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
     notes: str | None = None
@@ -2887,8 +2903,13 @@ class PackingOrderUpdate(BaseModel):
     attribute_value_ids: list[UUID] | None = None
     pack_size: float | None = None
     package_label: str | None = None
+    qty2: float | None = None
+    uom2: str | None = None
+    uom2_factor: float | None = None
+    uom2_length_uom: str | None = None
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    work_center_id: UUID | None = None
     status: str | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
@@ -2927,14 +2948,28 @@ class PackingCompletionCreate(BaseModel):
     # over `box_size`; a box that doesn't fit within one lot's draw is split
     # across the lot boundary (see packing_service.allocate_boxes_to_lots).
     boxes: list[float] | None = None
-    # Scale reading per carton, positional against `boxes`. Measured at packing,
-    # never derived from qty — the label's N.W. line is a weighing, not a
-    # conversion. A box split at a lot seam shares its weight pro-rata.
+    # Scale reading per carton, positional against `boxes`, and REQUIRED for every
+    # one of them — packing is logged after the boxes are packed and weighed, so a
+    # blank prints a label with no N.W. line (rejected by
+    # packing_service.assert_all_weighed). Measured, never derived from qty: the
+    # same yardage weighs differently per lot. A box split at a lot seam shares
+    # its weight pro-rata. The nullable element type only carries the positional
+    # gap through to that check, so the error can name which carton is missing.
     box_weights: list[float | None] | None = None
+    # Count packed into each carton in the order's alt selling unit (12 Pcs, 4
+    # Pic), positional against `boxes`. Optional: omit it and the server derives
+    # a count from each carton's base qty. Worth sending because for a kg item the
+    # base qty is the SCALE reading, and dividing that by the alt factor gives
+    # 11.8 pieces for a box that holds 12. A carton split at a lot seam shares its
+    # count so the parts still sum to what was stated.
+    box_alt_qtys: list[float | None] | None = None
     source_batch_id: UUID | None = None
     # Multi-lot pack: one completion row is written per lot, so each keeps a
     # truthful source_batch_id and its own carton range.
     lots: list[PackingCompletionLotPayload] | None = None
+    # Machine this pack event ran on. Omitted = the packing order's own machine;
+    # never left null when the order names one, so per-machine output is readable.
+    work_center_id: UUID | None = None
     operator: str | None = None
     notes: str | None = None
     # Omit to fall back to the order's planned materials, pro-rated by qty.
@@ -2975,6 +3010,10 @@ class PackedUnitResponse(BaseModel):
     package_label: str | None = None
     weight_kg: float | None = None
     qty: float = 0
+    # Count in the packing order's alt selling unit that went into this carton
+    # (12 Pcs, 4 Pic). Stored on the carton, not divided out of `qty` at read
+    # time: for a kg item `qty` is the scale reading. See models/batch.py.
+    alt_qty: float | None = None
     location_id: UUID | None = None
     location_name: str | None = None
     packing_order_id: UUID | None = None
@@ -2995,7 +3034,11 @@ class PackingCompletionResponse(BaseModel):
     package_count: int
     source_batch_id: UUID | None = None
     source_batch_number: str | None = None
+    work_center_id: UUID | None = None
+    work_center_name: str | None = None
+    operator_user_id: UUID | None = None
     operator: str | None = None
+    operator_full_name: str | None = None
     notes: str | None = None
     completed_at: datetime
     # QC reject — same split as MOCompletionResponse
@@ -3033,11 +3076,17 @@ class PackingOrderResponse(BaseModel):
     item_name: str | None = None
     item_code: str | None = None
     item_uom: str | None = None
-    # Alt selling unit off the ordered SO line (e.g. 12 Pic of 50 Yard each).
-    # `uom2_factor` is base qty per alt unit, so a carton's piece count is
-    # carton_qty / uom2_factor — this is where the label's CONTENT line comes from.
+    # Alt selling unit — the order's own columns, snapshotted from the SO line at
+    # create time (the migration that added the columns backfilled the ones already
+    # on the floor). `uom2_factor` is the qty of one alt unit as the UOM master
+    # states it, `uom2_length_uom` names that unit, and `uom2_base_factor` is the
+    # resolved BASE-UOM qty per alt unit — served rather than left to the client so
+    # the pack screens and the carton label share the server's one conversion.
+    qty2: float | None = None
     uom2: str | None = None
     uom2_factor: float | None = None
+    uom2_length_uom: str | None = None
+    uom2_base_factor: float | None = None
     # "Keterangan stock" free text on the SO line, printed alongside CONTENT.
     ket_stock: str | None = None
     color_id: UUID | None = None
@@ -3053,6 +3102,8 @@ class PackingOrderResponse(BaseModel):
     package_label: str
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    work_center_id: UUID | None = None
+    work_center_name: str | None = None
     status: str
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { CODE_FONT, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, LegendPanel, XP_BTN } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -47,28 +47,6 @@ const xpBtnPrimary: React.CSSProperties = xpBtnBase({ ...BTN_TONES.primary, minW
 const xpBtnDanger: React.CSSProperties = xpBtnBase({ ...BTN_TONES.danger, minWidth: 'auto', padding: '1px 6px', fontSize: 10 });
 
 const xpInput: React.CSSProperties = xpInputBase({ borderTopColor: '#5a7fa8', padding: '0 4px', width: '100%' });
-
-const xpGroupbox = (label: string): { wrapper: React.CSSProperties; labelStyle: React.CSSProperties } => ({
-    wrapper: {
-        border: '1px solid #aca899',
-        borderRadius: 3,
-        padding: '12px 8px 8px',
-        background: '#f5f4ee',
-        position: 'relative',
-        marginBottom: 6,
-    },
-    labelStyle: {
-        position: 'absolute',
-        top: -8,
-        left: 8,
-        background: '#f5f4ee',
-        padding: '0 4px',
-        fontSize: 10,
-        fontWeight: 'bold',
-        color: '#000080',
-        fontFamily: xpFont,
-    },
-});
 
 const LEVEL_BADGE_COLORS = ['#316ac5', '#2a7a2a', '#b46a00', '#7a2a7a', '#7a4a00'];
 
@@ -120,12 +98,10 @@ const LevelCard = memo(({
     onInheritChange: (lIdx: number, value: boolean) => void;
 }) => {
     const badgeColor = LEVEL_BADGE_COLORS[lIdx % LEVEL_BADGE_COLORS.length];
-    const gb = xpGroupbox(`Level ${lIdx + 1}`);
 
     return (
-        <div style={gb.wrapper}>
-            <span style={gb.labelStyle}>Level {lIdx + 1}</span>
-
+        <LegendPanel title={`Level ${lIdx + 1}`} style={{ marginBottom: 6 }}>
+            <div style={{ padding: '0 8px 8px' }}>
             {/* Card header row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <span style={{
@@ -136,7 +112,7 @@ const LevelCard = memo(({
                 <span style={{ flex: 1, fontSize: 10, color: '#555', fontFamily: xpFont }}>
                     Processing Level
                 </span>
-                <button style={xpBtnDanger} onClick={() => onRemoveLevel(lIdx)}>
+                <button className={XP_BTN} style={xpBtnDanger} onClick={() => onRemoveLevel(lIdx)}>
                     X Remove
                 </button>
             </div>
@@ -158,7 +134,7 @@ const LevelCard = memo(({
                             placeholder="e.g. WIP {CODE}"
                         />
                         {lvl.length > 1 && (
-                            <button style={{ ...xpBtn, minWidth: 'auto', padding: '0 6px', fontSize: 12 }}
+                            <button className={XP_BTN} style={{ ...xpBtn, minWidth: 'auto', padding: '0 6px', fontSize: 12 }}
                                 onClick={() => onRemovePattern(lIdx, pIdx)}>−</button>
                         )}
                     </div>
@@ -202,7 +178,8 @@ const LevelCard = memo(({
                     <span style={{ color: '#000080', fontWeight: 'bold' }}>({attributeSummary})</span>
                 )}
             </label>
-        </div>
+            </div>
+        </LegendPanel>
     );
 });
 LevelCard.displayName = 'LevelCard';
@@ -327,10 +304,6 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
 
     if (!isOpen) return null;
 
-    const gb = xpGroupbox('Saved Profiles');
-    const gbPreview = xpGroupbox('Structure Preview');
-    const gbTip = xpGroupbox('Tip');
-
     return (
         <ModalWrapper
             isOpen={isOpen}
@@ -340,8 +313,9 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
             variant="primary"
             modeless
             footer={<>
-                <button style={xpBtn} onClick={onClose}>{t('cancel')}</button>
+                <button className={XP_BTN} style={xpBtn} onClick={onClose}>{t('cancel')}</button>
                 <button
+                    className={XP_BTN}
                     data-testid="generate-structure-btn"
                     style={xpBtnPrimary}
                     onClick={handleSaveAndApply}
@@ -372,8 +346,8 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0, paddingRight: 4, paddingTop: 10 }}>
 
                         {/* Saved Profiles */}
-                        <div style={gb.wrapper}>
-                            <span style={gb.labelStyle}>Saved Profiles</span>
+                        <LegendPanel title="Saved Profiles" style={{ marginBottom: 6 }}>
+                            <div style={{ padding: '0 8px 8px' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 6, minHeight: 20 }}>
                                 {profiles.length === 0 && (
                                     <span style={{ fontSize: 10, color: '#888', fontStyle: 'italic' }}>No saved configurations — showing the built-in template.</span>
@@ -383,6 +357,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                                         {/* The loaded profile reads as pressed — on open that is the
                                             remembered/default one, so it is clear where the levels came from. */}
                                         <button
+                                            className={XP_BTN}
                                             style={{
                                                 ...xpBtn, minWidth: 'auto', borderRight: 'none', fontSize: 10, padding: '1px 8px',
                                                 ...(p.id === activeProfileId ? {
@@ -396,6 +371,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                                             {p.name}
                                         </button>
                                         <button
+                                            className={XP_BTN}
                                             style={{ ...xpBtnDanger, borderLeft: 'none', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
                                             onClick={(e) => handleDeleteProfile(e, p.id)}
                                         >X</button>
@@ -412,6 +388,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                                     onKeyDown={e => e.key === 'Enter' && handleSaveProfile()}
                                 />
                                 <button
+                                    className={XP_BTN}
                                     style={profileName.trim() && !saving ? xpBtnPrimary : { ...xpBtn, opacity: 0.5 }}
                                     onClick={handleSaveProfile}
                                     disabled={!profileName.trim() || saving}
@@ -419,7 +396,8 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                                     {saving ? 'Saving...' : 'Save'}
                                 </button>
                             </div>
-                        </div>
+                            </div>
+                        </LegendPanel>
 
                         {/* Level Cards */}
                         <div style={{ fontSize: 10, fontWeight: 'bold', color: '#000080', marginBottom: 2 }}>
@@ -445,6 +423,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                         ))}
 
                         <button
+                            className={XP_BTN}
                             style={{
                                 ...xpBtn, width: '100%',
                                 borderStyle: 'dashed',
@@ -458,26 +437,30 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                     </div>
 
                     {/* Right: preview panel */}
-                    <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
 
-                        <div style={{ ...gbPreview.wrapper, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                            <span style={gbPreview.labelStyle}>Structure Preview</span>
-                            <div style={{ fontSize: 10, color: '#555', marginBottom: 6 }}>
-                                Preview with code: <strong>{DUMMY_CODE}</strong>
+                        <LegendPanel title="Structure Preview" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ padding: '0 8px 8px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                                <div style={{ fontSize: 10, color: '#555', marginBottom: 6 }}>
+                                    Preview with code: <strong>{DUMMY_CODE}</strong>
+                                </div>
+                                <BranchingPreview levels={levels} />
                             </div>
-                            <BranchingPreview levels={levels} />
-                        </div>
+                        </LegendPanel>
 
-                        <div style={{ ...gbTip.wrapper, background: '#fffbe6', borderColor: '#d4b000' }}>
-                            <span style={{ ...gbTip.labelStyle, background: '#fffbe6', color: '#806000' }}>Tip</span>
-                            <div style={{ fontSize: 10, color: '#555', lineHeight: 1.6 }}>
+                        <LegendPanel
+                            title="Tip"
+                            style={{ background: '#fffbe6', borderColor: '#d4b000' }}
+                            legendStyle={{ background: '#fffbe6', color: '#806000', borderColor: '#d4b000' }}
+                        >
+                            <div style={{ padding: '0 8px 8px', fontSize: 10, color: '#555', lineHeight: 1.6 }}>
                                 Each level becomes a child BOM node. Branching items at the same level are created as siblings under the parent.
                                 <div style={{ marginTop: 6 }}>
                                     Children are generated with <strong>no attribute values</strong> unless you tick
                                     &quot;Inherit attributes from root&quot; on that level.
                                 </div>
                             </div>
-                        </div>
+                        </LegendPanel>
                     </div>
                 </div>
             </div>

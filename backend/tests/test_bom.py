@@ -22,6 +22,7 @@ def test_create_bom_and_integrity(client, auth_headers):
             {
                 "item_code": "RM-001",
                 "qty": 2.0,
+                "percentage": 100.0,
                 "attribute_value_ids": []
             }
         ]
@@ -33,7 +34,7 @@ def test_create_bom_and_integrity(client, auth_headers):
     # 3. Try to Delete Component (Should Fail)
     del_res = client.delete(f"/api/items/{comp['id']}", headers=auth_headers)
     assert del_res.status_code == 400
-    assert "still being used" in del_res.json()["detail"]
+    assert "still referenced" in del_res.json()["detail"]
 
     # 4. Delete BOM
     del_bom_res = client.delete(f"/api/boms/{bom_id}", headers=auth_headers)
@@ -55,13 +56,13 @@ def test_nested_bom_structure(client, auth_headers):
     # 2. Create sub-BOM (SUB is made of RAW)
     client.post("/api/boms", json={
         "code": "BOM-SUB", "item_code": "SUB", "qty": 1,
-        "lines": [{"item_code": "RAW", "qty": 5}]
+        "lines": [{"item_code": "RAW", "qty": 5, "percentage": 100.0}]
     }, headers=auth_headers)
 
     # 3. Create final-BOM (FIN is made of SUB)
     client.post("/api/boms", json={
         "code": "BOM-FIN", "item_code": "FIN", "qty": 1,
-        "lines": [{"item_code": "SUB", "qty": 2}]
+        "lines": [{"item_code": "SUB", "qty": 2, "percentage": 100.0}]
     }, headers=auth_headers)
 
     # 4. Verify Tree in List

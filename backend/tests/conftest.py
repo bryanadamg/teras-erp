@@ -1,11 +1,29 @@
 import pytest
 import os
+from pathlib import Path
+from sqlalchemy.engine import make_url
 
-# Set a default DATABASE_URL before importing app to avoid interpolation errors in session.py
-# Can be overridden by environment (e.g. DATABASE_URL=...@db:5432/... in Docker)
-os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://erp:erp@localhost:5432/erp")
+# Tests must never touch the app's own database (`erp`) — force a dedicated
+# `erp_test` database on the same server, derived from whatever DATABASE_URL
+# the environment already provides (so this works unchanged in Docker and CI).
+# Override with TEST_DB_NAME if a run needs a different base name.
+_dev_url = make_url(
+    os.environ.get("DATABASE_URL", "postgresql+psycopg2://erp:erp@localhost:5432/erp")
+)
+_TEST_DB_NAME = os.environ.get("TEST_DB_NAME", "erp_test")
+# Under `pytest -n auto` (pytest-xdist), each worker is a separate process with
+# its own copy of this module — xdist sets PYTEST_XDIST_WORKER (e.g. "gw0") in
+# that process's environment before collection. One DB per worker, or two
+# workers' DROP/CREATE DATABASE in `_test_database` below race each other's
+# tables out from under whichever test is mid-run.
+_XDIST_WORKER = os.environ.get("PYTEST_XDIST_WORKER")
+if _XDIST_WORKER:
+    _TEST_DB_NAME = f"{_TEST_DB_NAME}_{_XDIST_WORKER}"
+# str(URL) masks the password as a literal "***" in SQLAlchemy 2.x — must render explicitly.
+os.environ["DATABASE_URL"] = _dev_url.set(database=_TEST_DB_NAME).render_as_string(hide_password=False)
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event as sa_event
 from sqlalchemy.orm import Session
 from app.main import app
 from app.db.session import get_db, engine
@@ -13,12 +31,39 @@ from app.core.security import create_access_token
 from app.models.auth import User
 import uuid
 
-# Use the existing engine but wrap in a transaction that rolls back
+# Every connection a test touches gets a lock timeout, so a lock wait fails the
+# test that caused it instead of hanging the run. The fixture connection had one
+# already; this covers the app's own pool, which is where a route's write can
+# block on a row a test's open transaction is holding. Ten seconds is far longer
+# than any statement here legitimately needs.
+_TEST_LOCK_TIMEOUT_MS = 10_000
+
+
+@sa_event.listens_for(engine, "connect")
+def _set_test_lock_timeout(dbapi_conn, _record):
+    if engine.dialect.name != "postgresql":
+        return
+    with dbapi_conn.cursor() as cur:
+        cur.execute(f"SET lock_timeout = {_TEST_LOCK_TIMEOUT_MS}")
+    # Committed, not left open: the statement runs inside psycopg2's implicit
+    # transaction, and the pool rolls that back when the connection is returned —
+    # which silently reverts the setting and was why a blocked DELETE sat for a
+    # minute instead of failing after ten seconds.
+    dbapi_conn.commit()
+
+
+# Use the existing engine but wrap in a transaction that rolls back. Explicit
+# join_transaction_mode="create_savepoint" (SQLAlchemy 2.0's documented
+# external-transaction test pattern): every session.commit() from app code
+# releases a SAVEPOINT and opens the next one automatically, so the single
+# connection.begin() below is the only thing this fixture must roll back.
 @pytest.fixture(scope="function")
-def db_session():
+def db_session(committed_admin):
+    # Depends on the admin purely for ordering: the user must be committed before
+    # this transaction opens, and must outlive it (see committed_admin).
     connection = engine.connect()
     transaction = connection.begin()
-    session = Session(bind=connection)
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
 
     yield session
 
@@ -26,76 +71,223 @@ def db_session():
     transaction.rollback()
     connection.close()
 
-@pytest.fixture(scope="function")
-def client(db_session):
-    def override_get_db():
-        yield db_session
-    
-    app.dependency_overrides[get_db] = override_get_db
+# TestClient(app) runs the real FastAPI lifespan (Redis connect + the booking-
+# cache warm pass) on entry — session-scoped so that happens once for the
+# whole run, not once per test. The client's `.portal` (its persistent anyio
+# event loop) is reused across every test below; nothing keeps a per-test loop
+# around anymore, so the async engine's connection pool is safe to keep too —
+# see the dropped `dispose_async_engine_pool` in git history if that stops
+# being true.
+@pytest.fixture(scope="session")
+def _app_client(_test_database):
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
-    app.dependency_overrides.clear()
+
+
+# Async routes get their own connection on the async engine (different driver,
+# can't share a DBAPI connection with db_session's psycopg2 one) — but it needs
+# the exact same SAVEPOINT treatment, or async writes commit for real and
+# outlive the test. Opened and closed through the shared client's portal so it
+# runs on the one loop every request uses (asyncpg connections are loop-bound).
+#
+# Exposed as its own fixture (not just wired straight into `client`) so a test
+# that seeds data through a sync-domain endpoint (uoms, attributes, auth) and
+# then exercises an async-domain one (items, boms, manufacturing, ...) can
+# write the setup data directly on THIS session instead — the two domains sit
+# on separate, non-committing connections, so data written through `client`'s
+# sync half is invisible to its async half within the same test, same as it
+# would be invisible to a second real request; that's correct isolation, not a
+# bug, but it means cross-domain test setup can't go through the sync HTTP
+# call and has to land here instead.
+@pytest.fixture(scope="function")
+def async_db_session(_app_client):
+    from app.core.db_manager import db_manager
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    # Attach the async engine's lock-timeout listener before opening the first
+    # async connection of the run. Idempotent (module-level flag), so this is
+    # only real work on the very first test.
+    _attach_async_lock_timeout()
+
+    async def _open_async_txn():
+        conn = await db_manager.async_engine.connect()
+        await conn.begin()
+        return conn, AsyncSession(
+            bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False
+        )
+
+    async_conn, async_session = _app_client.portal.call(_open_async_txn)
+
+    yield async_session
+
+    async def _close_async_txn():
+        await async_session.close()
+        await async_conn.rollback()
+        await async_conn.close()
+
+    _app_client.portal.call(_close_async_txn)
+
 
 @pytest.fixture(scope="function")
-def test_user(db_session):
-    # Create a test admin user in the rollback session (for sync routes / get_current_user)
-    user = User(
-        username="testadmin",
-        full_name="Test Admin",
-        hashed_password="hashed_secret", # We won't login via API, just mock token
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+def client(_app_client, db_session, async_db_session):
+    from app.db.session import get_async_db
 
-    # Also mirror the user into the REAL DB so async routes (audit service) can
-    # satisfy FK constraints on audit_logs.user_id. Use the same UUID.
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    async def override_get_async_db():
+        yield async_db_session
+
+    app.dependency_overrides[get_async_db] = override_get_async_db
+
+    yield _app_client
+
+    app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_async_db, None)
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_database():
+    """Create a clean `erp_test` database, migrate it, and seed it — once per
+    session. Runs before every other fixture (autouse + session scope), and
+    `committed_admin` additionally depends on it directly so ordering holds
+    even if pytest's autouse-before-explicit rule ever changes.
+
+    Drop-then-create rather than reuse: a stale `erp_test` from an interrupted
+    prior run must not leak rows into this one.
+    """
+    import psycopg2
+    from psycopg2 import sql as pg_sql
+
+    maint = _dev_url.set(database="postgres")
+    conn = psycopg2.connect(
+        host=maint.host, port=maint.port or 5432,
+        user=maint.username, password=maint.password,
+        dbname="postgres",
+    )
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                pg_sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)")
+                .format(pg_sql.Identifier(_TEST_DB_NAME))
+            )
+            cur.execute(
+                pg_sql.SQL("CREATE DATABASE {}").format(pg_sql.Identifier(_TEST_DB_NAME))
+            )
+    finally:
+        conn.close()
+
+    # `alembic upgrade head` cannot build schema from scratch: the baseline
+    # revision (badce8f1a27f) is a pure ALTER/index diff with zero
+    # `create_table` calls — it was autogenerated against an already-existing
+    # legacy DB (see scripts/migrate.sh's stamp-vs-upgrade detection, and the
+    # project_schema_index_drift memory). Bootstrap the same way that script
+    # does for a first deploy: create tables from the current models, then
+    # stamp head so later `alembic upgrade` calls in the same run are no-ops.
+    from alembic.config import Config
+    from alembic import command
+    from app.db.base import Base
+
+    Base.metadata.create_all(engine)
+
+    alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
+    alembic_cfg.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+    command.stamp(alembic_cfg, "head")
+
+    from app.db.init_db import init_db
+    init_db()
+
+    yield
+
+
+@pytest.fixture(scope="function")
+def committed_admin(_test_database):
+    """One admin user, committed for real — function-scoped.
+
+    Has to be a real commit, not written into `db_session`'s savepoint: sync
+    and async routes read through two different driver connections (psycopg2
+    vs asyncpg) that cannot see each other's uncommitted rows, so the one row
+    both sides must agree exists has to be actually visible to both.
+
+    Safe to delete per-test now that `client` gives async routes the same
+    SAVEPOINT-and-rollback treatment as `db_session` — every row a test wrote
+    that references this user (sync or async) is gone by the time this
+    fixture's teardown runs (fixtures tear down in reverse dependency order:
+    `client` → `db_session` → here), so the FK never blocks the DELETE. Before
+    that fix this had to be session-scoped and swallow delete failures; see
+    git history if that workaround needs to come back.
+    """
     from app.db.session import engine as _eng
     from sqlalchemy.orm import Session as _SASession
-    _real_conn = _eng.connect()
-    _real_sess = _SASession(_real_conn)
-    _real_user_inserted = False
-    try:
-        _real_user = User(
-            id=user.id,
-            username=f"testadmin-{str(user.id)[:8]}",
-            full_name="Test Admin",
-            hashed_password="hashed_secret",
-        )
-        _real_sess.add(_real_user)
-        _real_sess.commit()
-        _real_user_inserted = True
-    except Exception:
-        _real_sess.rollback()
+    from app.models.auth import Role as _Role
+
+    conn = _eng.connect()
+    sess = _SASession(conn)
+    admin_role = sess.query(_Role).filter(_Role.name == "Administrator").first()
+    user = User(
+        # Unique per run: `users.username` is unique, and a leftover row from an
+        # earlier run must not collide.
+        username=f"testadmin-{uuid.uuid4().hex[:8]}",
+        full_name="Test Admin",
+        hashed_password="hashed_secret",  # never logged in through the API
+        # The seeded Administrator role carries `admin.access`, so every
+        # permission-gated route is reachable. Without a role the user
+        # authenticates and is then refused with 403.
+        role_id=admin_role.id if admin_role else None,
+    )
+    sess.add(user)
+    sess.commit()
+    sess.refresh(user)
+    user_id = user.id
 
     yield user
 
-    # Cleanup real DB user after test
-    try:
-        if _real_user_inserted:
-            _real_sess.query(User).filter(User.id == user.id).delete(synchronize_session=False)
-            _real_sess.commit()
-    except Exception:
-        _real_sess.rollback()
-    finally:
-        _real_sess.close()
-        _real_conn.close()
+    sess.query(User).filter(User.id == user_id).delete(synchronize_session=False)
+    sess.commit()
+    sess.close()
+    conn.close()
+
+
+@pytest.fixture(scope="function")
+def test_user(committed_admin):
+    return committed_admin
+
 
 @pytest.fixture(scope="function")
 def auth_headers(test_user):
     token = create_access_token(subject=test_user.id)
     return {"Authorization": f"Bearer {token}"}
 
-@pytest.fixture(autouse=True)
-def dispose_async_engine_pool():
+_async_timeout_attached = False
+
+
+def _attach_async_lock_timeout() -> None:
+    """Same lock timeout for the async engine, which every async route uses.
+
+    Attached here rather than at import: `db_manager` builds that engine lazily,
+    so there is nothing to listen on until the first async route has run.
     """
-    Dispose the asyncpg connection pool after each test.
-    Each TestClient creates a new anyio event loop; asyncpg connections are tied
-    to a specific event loop, so connections from test N cannot be reused in test N+1.
-    Disposing the pool forces fresh connections bound to the new event loop.
-    """
-    yield
+    global _async_timeout_attached
+    if _async_timeout_attached:
+        return
     from app.core.db_manager import db_manager
-    if db_manager.async_engine is not None:
-        # dispose() on AsyncEngine is async; access the underlying sync pool directly
-        db_manager.async_engine.sync_engine.pool.dispose()
+    if db_manager.async_engine is None:
+        return
+    sync_engine = db_manager.async_engine.sync_engine
+    if sync_engine.dialect.name != "postgresql":
+        _async_timeout_attached = True
+        return
+
+    @sa_event.listens_for(sync_engine, "connect")
+    def _set_async_lock_timeout(dbapi_conn, _record):  # pragma: no cover - driver hook
+        dbapi_conn.await_(
+            dbapi_conn.driver_connection.execute(
+                f"SET lock_timeout = {_TEST_LOCK_TIMEOUT_MS}"
+            )
+        )
+
+    _async_timeout_attached = True

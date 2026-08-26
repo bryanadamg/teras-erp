@@ -15,6 +15,24 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-26
+
+### Added
+- Packing orders and pack events record which packing machine was used, selectable per order and per scan event
+- Cartons can be packed and labeled in the sales order's alt selling unit instead of only the item's stock UOM, with the conversion carried through the packing card, the packed-unit label, and the scanner flow
+- Every packed carton now requires a weighed net weight from the packer's scale before it can be logged — a carton could previously print a label with a blank N.W. line and an empty net-weight barcode; kg-based items can instead derive net weight from qty when there's nothing to weigh
+- Machine output reports break packing output down per packer, from the account that actually logged the completion, not just per work order
+- Setting work orders can now stage scanned bag lots as input, matching the existing dyeing flow — setting output also mints its own `SET-` traceable lot so `BatchConsumption` genealogy doesn't dangle with a null output batch on a bag-fed setting step
+
+### Changed
+- BOMDesigner and BOMAutomator's groupbox chrome is now the shared `LegendPanel` used elsewhere in the app instead of a hand-rolled notched fieldset
+- The weaving monitor boxes each WO run as its own card section, with Performance, Targets, and MO Completion Projection nested inside it as subsections instead of each sitting at the same level as the run header
+
+### Fixed
+- The Log Packing button now states why it's disabled instead of just sitting greyed out, and box-count parsing is aligned with the rest of the packing flow
+- LegendPanel's legend chip no longer gets clipped by its container's border or edge, and containers whose first LegendPanel had no room above it now have top padding
+- The New Lot modal is modeless like every other batch modal
+
 ## [0.11.0] - 2026-08-25
 
 ### Added

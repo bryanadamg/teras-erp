@@ -53,11 +53,40 @@ class PackingOrder(Base):
     pack_size: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     package_label: Mapped[str] = mapped_column(String(32), default="Carton")
 
+    # --- Alt (selling) unit -------------------------------------------------
+    # Snapshotted off the ordered SO line, or picked by hand when packing to
+    # stock. `qty_target` stays the canonical figure in the item's own UOM —
+    # stock, StockBalance, genealogy and pick lists all move in that — and these
+    # only record what the customer counts in (Pic = a roll, Pcs = a cut piece).
+    #
+    # `uom2_factor` carries the same meaning as `SalesOrderLine.uom2_factor`: the
+    # qty of one alt unit as the UOM master states it (1 Pcs = 5 yard -> 5). That
+    # unit is usually a length but not always — `1 Box = 10 kg` is a seeded row
+    # too — so alt -> base is one hop or two (alt -> length -> kg via the item's
+    # g/y or g/m); see `packing_service.base_per_alt`.
+    qty2: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    uom2: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    uom2_factor: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    # Which unit that factor is expressed in ('Yard' / 'm' / 'kg'), resolved off
+    # the UOM master once at create time. Stored rather than re-derived: the SO
+    # view recovers it by matching the factor VALUE back against the UOM's
+    # factor rows and silently falls back to yard when it misses, which turns a
+    # metre-based recipe into a 9% error. One column removes that guess.
+    uom2_length_uom: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+
     source_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )
     output_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # The packing machine this order is dispatched to — the WorkCenter MACHINE row,
+    # same role `WorkOrder.work_center_id` plays for production. Planned here, and
+    # copied onto every completion that does not name its own machine, so a
+    # per-machine report never has to read a nullable operator field.
+    work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     # PENDING, IN_PROGRESS, COMPLETED, CANCELLED
@@ -82,6 +111,7 @@ class PackingOrder(Base):
     attribute_values = relationship("AttributeValue", secondary=packing_order_values)
     source_location = relationship("Location", foreign_keys=[source_location_id])
     output_location = relationship("Location", foreign_keys=[output_location_id])
+    work_center = relationship("WorkCenter", foreign_keys=[work_center_id], lazy="joined")
     created_by = relationship("User")
     materials = relationship("PackingOrderMaterial", backref="packing_order", cascade="all, delete-orphan")
     completions = relationship("PackingCompletion", backref="packing_order", cascade="all, delete-orphan")
@@ -97,6 +127,10 @@ class PackingOrder(Base):
     @property
     def item_uom(self):
         return self.item.uom if self.item else None
+
+    @property
+    def work_center_name(self):
+        return self.work_center.name if self.work_center else None
 
     @property
     def qty_packed(self) -> float:
@@ -172,6 +206,21 @@ class PackingCompletion(Base):
     source_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("batches.id", ondelete="SET NULL"), nullable=True
     )
+    # Machine this event ran on. Defaults to the order's own machine in
+    # `add_packing_completion` rather than staying null when the packer does not
+    # pick one — the same fix MOCompletion needed after per-machine weaving
+    # figures read 0 for every log with a null column.
+    work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Who packed it. Two fields on purpose, the same split `work_center_id` +
+    # `work_center_name` uses: `operator_user_id` is the identity every
+    # per-operator figure groups on — always the authenticated user, since
+    # operators log in with their own accounts — and `operator` is the display
+    # snapshot the packer may override (and the only identity legacy rows have).
+    operator_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     operator: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     completed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -191,12 +240,23 @@ class PackingCompletion(Base):
     )
 
     source_batch = relationship("Batch", foreign_keys=[source_batch_id])
+    operator_user = relationship("User", foreign_keys=[operator_user_id], lazy="joined")
+    work_center = relationship("WorkCenter", foreign_keys=[work_center_id], lazy="joined")
     reject_location = relationship("Location", foreign_keys=[reject_location_id], lazy="joined")
     materials = relationship("PackingCompletionMaterial", backref="completion", cascade="all, delete-orphan")
 
     @property
     def source_batch_number(self):
         return self.source_batch.batch_number if self.source_batch else None
+
+    @property
+    def operator_full_name(self):
+        """Account holder's name — falls back to the typed text for legacy logs."""
+        return (self.operator_user.full_name if self.operator_user else None) or self.operator
+
+    @property
+    def work_center_name(self):
+        return self.work_center.name if self.work_center else None
 
 
 class PackingCompletionMaterial(Base):

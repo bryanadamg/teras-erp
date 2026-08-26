@@ -6,7 +6,7 @@ import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
-import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, BUTTON_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, LegendPanel, XP_BTN } from '../shared/xpTheme';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -94,19 +94,6 @@ const xpLabel: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, color: '#000',
     display: 'block', marginBottom: 2,
 };
-
-const xpGroupWrapper: React.CSSProperties = {
-    border: '1px solid #aca899', borderRadius: 3,
-    padding: '14px 8px 8px', background: '#f5f4ee',
-    position: 'relative',
-};
-
-const xpGroupLabel = (bg = '#f5f4ee'): React.CSSProperties => ({
-    position: 'absolute', top: -8, left: 8,
-    background: bg, padding: '0 4px',
-    fontSize: 10, fontWeight: 'bold', color: '#000080',
-    fontFamily: xpFont,
-});
 
 const xpInset: React.CSSProperties = {
     border: '2px inset #aaa', background: 'white',
@@ -1337,6 +1324,7 @@ export default function BOMDesigner({
                     <div style={{ padding: 4 }}>
                         <button
                             data-testid="automate-levels-btn"
+                            className={XP_BTN}
                             style={{ ...xpBtnPrimary, width: '100%', fontSize: 10, display: selectedNodeId === 'root' ? 'block' : 'none' }}
                             onClick={() => setIsAutomatorOpen(true)}
                         >
@@ -1399,14 +1387,13 @@ export default function BOMDesigner({
 
                             {/* Scrollable body */}
                             <div style={{
-                                flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8,
+                                flex: 1, overflowY: 'auto', padding: '10px 10px 8px', display: 'flex', flexDirection: 'column', gap: 10,
                                 ...(selectedShared ? { opacity: 0.55, pointerEvents: 'none' as const } : {}),
                             }}>
 
                                 {/* BOM Header groupbox */}
-                                <div style={xpGroupWrapper}>
-                                    <span style={xpGroupLabel()}>BOM Header</span>
-
+                                <LegendPanel title="BOM Header">
+                                    <div style={{ padding: '0 8px 8px' }}>
                                     {/* Row 1: Code + Item + Batch + Tolerance */}
                                     <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
                                         {/* BOM Code */}
@@ -1585,49 +1572,54 @@ export default function BOMDesigner({
                                             </div>
                                         </div>
                                     )}
-                                </div>
+                                    </div>
+                                </LegendPanel>
 
                                 {/* Sizes + Detail Teknis + Measurements row */}
                                 {(
-                                    <div style={{ display: 'flex', gap: 8 }}>
+                                    <div style={{ display: 'flex', gap: 10 }}>
 
                                         {/* Left: Size Measurements */}
-                                        <div style={{ ...xpGroupWrapper, flexShrink: 0 }}>
-                                            {/* Header with toggle */}
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <span style={xpGroupLabel()}>Measurements (cm)</span>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
-                                                    <span style={{ fontSize: 9, color: '#555' }}>Sizes</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const next = selectedNode.sizeMode === 'sized' ? 'free' : 'sized';
-                                                            updateSelectedNode({ sizeMode: next, sizes: [] });
-                                                        }}
-                                                        title={selectedNode.sizeMode === 'sized' ? 'Switch to free labels' : 'Switch to size labels'}
-                                                        style={{
-                                                            width: 34, height: 14, padding: 0, cursor: 'pointer',
-                                                            border: '1px solid #7f9db9',
-                                                            background: selectedNode.sizeMode === 'sized'
-                                                                ? 'linear-gradient(to right, #316ac5 50%, #d4d0c8 50%)'
-                                                                : 'linear-gradient(to right, #d4d0c8 50%, #316ac5 50%)',
-                                                            position: 'relative', display: 'flex', alignItems: 'center',
-                                                        }}
-                                                    >
-                                                        <span style={{
-                                                            position: 'absolute',
-                                                            width: 14, height: 12,
-                                                            background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                                            border: '1px solid #888',
-                                                            left: selectedNode.sizeMode === 'sized' ? 0 : 18,
-                                                            top: 0,
-                                                            transition: 'left 0.1s',
-                                                        }} />
-                                                    </button>
-                                                    <span style={{ fontSize: 9, color: '#555' }}>Free</span>
-                                                </div>
+                                        <LegendPanel
+                                            title="Measurements (cm)"
+                                            style={{ flexShrink: 0 }}
+                                        >
+                                            <div style={{ padding: '0 8px 8px' }}>
+                                            {/* Toggle lives in the body, not the border line — was in
+                                                LegendPanel's `right` slot which pins to the top border. */}
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginBottom: 4 }}>
+                                                <span style={{ fontSize: 9, color: '#555' }}>Sizes</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const next = selectedNode.sizeMode === 'sized' ? 'free' : 'sized';
+                                                        updateSelectedNode({ sizeMode: next, sizes: [] });
+                                                    }}
+                                                    title={selectedNode.sizeMode === 'sized' ? 'Switch to free labels' : 'Switch to size labels'}
+                                                    style={{
+                                                        width: 32, height: 14, padding: 0, cursor: 'pointer', flexShrink: 0,
+                                                        border: '1px solid #7f9db9', borderRadius: 3,
+                                                        background: selectedNode.sizeMode === 'sized' ? '#316ac5' : '#aca899',
+                                                        position: 'relative',
+                                                        transition: 'background 0.15s',
+                                                    }}
+                                                >
+                                                    {/* Knob insets 2px from the track on both sides in either
+                                                        position — the old split-colour track + border-flush knob
+                                                        made the switch look sliced in half rather than sliding. */}
+                                                    <span style={{
+                                                        position: 'absolute',
+                                                        width: 10, height: 10,
+                                                        borderRadius: 2,
+                                                        background: '#fff',
+                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.45)',
+                                                        left: selectedNode.sizeMode === 'sized' ? 1 : 19,
+                                                        top: 1,
+                                                        transition: 'left 0.15s',
+                                                    }} />
+                                                </button>
+                                                <span style={{ fontSize: 9, color: '#555' }}>Free</span>
                                             </div>
-
                                             {/* Sized mode */}
                                             {selectedNode.sizeMode === 'sized' && (sizes || []).length > 0 && (
                                                 <div style={{ display: 'grid', gridTemplateColumns: '32px 52px 48px 12px 48px', gap: '3px 4px', alignItems: 'center' }}>
@@ -1701,7 +1693,7 @@ export default function BOMDesigner({
                                                                     newSizes[idx] = { ...newSizes[idx], measurement_max: e.target.value === '' ? null : parseFloat(e.target.value) };
                                                                     updateSelectedNode({ sizes: newSizes });
                                                                 }} />
-                                                            <button type="button" style={{ ...xpBtnDanger, padding: '0 3px', minWidth: 'auto', height: 19 }}
+                                                            <button type="button" className={XP_BTN} style={{ ...xpBtnDanger, padding: '0 3px', minWidth: 'auto', height: 19 }}
                                                                 onClick={() => updateSelectedNode({ sizes: (selectedNode.sizes || []).filter((_, i) => i !== idx) })}>
                                                                 ×
                                                             </button>
@@ -1723,7 +1715,7 @@ export default function BOMDesigner({
                                             {(!(selectedNode.sizeMode === 'sized' && (sizes || []).length === 0) || sizeEntryCount > 0) && (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
                                                     {selectedNode.sizeMode === 'free' && (
-                                                        <button type="button" style={{ ...xpBtn, padding: '1px 6px', minWidth: 'auto', fontSize: 10 }}
+                                                        <button type="button" className={XP_BTN} style={{ ...xpBtn, padding: '1px 6px', minWidth: 'auto', fontSize: 10 }}
                                                             onClick={() => updateSelectedNode({ sizes: [...(selectedNode.sizes || []), { size_id: '', label: '', target_measurement: null, measurement_min: null, measurement_max: null }] })}>
                                                             + Add Row
                                                         </button>
@@ -1732,6 +1724,7 @@ export default function BOMDesigner({
                                                         (typically root → each child), mode included. */}
                                                     <button
                                                         type="button"
+                                                        className={XP_BTN}
                                                         disabled={sizeEntryCount === 0}
                                                         onClick={copySizes}
                                                         title={sizeEntryCount === 0 ? 'No measurements to copy' : 'Copy these measurements'}
@@ -1741,6 +1734,7 @@ export default function BOMDesigner({
                                                     </button>
                                                     <button
                                                         type="button"
+                                                        className={XP_BTN}
                                                         disabled={!sizeClipboard}
                                                         onClick={pasteSizes}
                                                         title={sizeClipboard
@@ -1754,6 +1748,7 @@ export default function BOMDesigner({
                                                         mode. Sized mode: grid stays and goes blank. Free: rows go away. */}
                                                     <button
                                                         type="button"
+                                                        className={XP_BTN}
                                                         disabled={sizeEntryCount === 0}
                                                         onClick={() => updateSelectedNode({ sizes: [] })}
                                                         title={sizeEntryCount === 0 ? 'No measurements to clear' : 'Clear all measurements on this node'}
@@ -1763,11 +1758,12 @@ export default function BOMDesigner({
                                                     </button>
                                                 </div>
                                             )}
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                         {/* Detail Teknis */}
-                                        <div style={{ ...xpGroupWrapper, flexShrink: 0 }}>
-                                            <span style={xpGroupLabel()}>Detail Teknis</span>
+                                        <LegendPanel title="Detail Teknis" style={{ flexShrink: 0 }}>
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
                                                 {/* Kerapatan/Picks */}
@@ -1837,7 +1833,7 @@ export default function BOMDesigner({
                                                         <input type="file" accept="image/*" id="bom-sample-photo"
                                                             style={{ display: 'none' }}
                                                             onChange={e => setPendingPhotoFile(e.target.files?.[0] || null)} />
-                                                        <button type="button" style={{ ...xpBtn, padding: '1px 8px' }}
+                                                        <button type="button" className={XP_BTN} style={{ ...xpBtn, padding: '1px 8px' }}
                                                             onClick={() => (document.getElementById('bom-sample-photo') as HTMLInputElement)?.click()}>
                                                             Browse...
                                                         </button>
@@ -1863,7 +1859,7 @@ export default function BOMDesigner({
                                                         <input type="file" accept="image/*,.pdf" id="bom-design-file"
                                                             style={{ display: 'none' }}
                                                             onChange={e => setPendingDesignFile(e.target.files?.[0] || null)} />
-                                                        <button type="button" style={{ ...xpBtn, padding: '1px 8px' }}
+                                                        <button type="button" className={XP_BTN} style={{ ...xpBtn, padding: '1px 8px' }}
                                                             onClick={() => (document.getElementById('bom-design-file') as HTMLInputElement)?.click()}>
                                                             Browse...
                                                         </button>
@@ -1887,11 +1883,12 @@ export default function BOMDesigner({
                                                 </div>}
 
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                         {/* Bahan Keluar Dari Mesin */}
-                                        <div style={{ ...xpGroupWrapper, flex: 1 }}>
-                                            <span style={xpGroupLabel()}>Bahan Keluar Dari Mesin</span>
+                                        <LegendPanel title="Bahan Keluar Dari Mesin" style={{ flex: 1 }}>
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px', gap: '4px 6px', alignItems: 'center' }}>
                                                 <label style={{ ...xpLabel, marginBottom: 0 }}>Lebar</label>
                                                 <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -1929,11 +1926,12 @@ export default function BOMDesigner({
                                                     <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap' }}>cm</span>
                                                 </div>
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                         {/* Bahan Dari Celup / Setting */}
-                                        <div style={{ ...xpGroupWrapper, flex: 1 }}>
-                                            <span style={xpGroupLabel()}>Bahan Dari Celup / Setting</span>
+                                        <LegendPanel title="Bahan Dari Celup / Setting" style={{ flex: 1 }}>
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px', gap: '4px 6px', alignItems: 'center' }}>
                                                 <label style={{ ...xpLabel, marginBottom: 0 }}>Lebar</label>
                                                 <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -1971,21 +1969,23 @@ export default function BOMDesigner({
                                                     <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap' }}>cm</span>
                                                 </div>
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
 
                                     </div>
                                 )}
 
                                 {/* Components */}
-                                <div style={{ display: 'flex', gap: 8, flex: 1, alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', gap: 10, flex: 1, alignItems: 'flex-start' }}>
 
                                     {/* Components */}
                                     <div style={{ flex: 1 }}>
-                                        <div style={xpGroupWrapper}>
-                                            <span style={xpGroupLabel()}>Components</span>
+                                        <LegendPanel title="Components">
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                                 {inheritFields && (
                                                     <button
+                                                        className={XP_BTN}
                                                         style={{ ...xpBtnInfo, fontSize: 9, padding: '1px 6px' }}
                                                         title="Copy current node fields to all child BOMs"
                                                         onClick={() => setRootBOM(prev => applyFieldsToDescendants(prev, extractInheritableFields(rootBOM)))}
@@ -2055,6 +2055,7 @@ export default function BOMDesigner({
                                                     />
                                                 </div>
                                                 <button
+                                                    className={XP_BTN}
                                                     style={{ ...xpBtnPrimary, minWidth: 'auto', padding: '2px 10px', alignSelf: 'flex-end' }}
                                                     onClick={() => {
                                                         if (pendingItemCode) {
@@ -2197,7 +2198,7 @@ export default function BOMDesigner({
                                                                 >SHARED</span>
                                                             )}
                                                             {!sharedBomForItem(line.item_code, line.attribute_value_ids) && !hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
-                                                                <button style={xpBtnInfo} onClick={() => {
+                                                                <button className={XP_BTN} style={xpBtnInfo} onClick={() => {
                                                                     const subNode: BOMNodeData = {
                                                                         id: Math.random().toString(36).substr(2, 9),
                                                                         code: suggestBOMCode(line.item_code, line.attribute_value_ids),
@@ -2217,11 +2218,12 @@ export default function BOMDesigner({
                                                                 </button>
                                                             )}
                                                             {line.subBOM && (
-                                                                <button style={xpBtnInfo} onClick={() => setSelectedNodeId(line.subBOM!.id)}>
+                                                                <button className={XP_BTN} style={xpBtnInfo} onClick={() => setSelectedNodeId(line.subBOM!.id)}>
                                                                     Draft ▶
                                                                 </button>
                                                             )}
                                                             <button
+                                                                className={XP_BTN}
                                                                 style={xpBtnDanger}
                                                                 onClick={() => {
                                                                     const newLines = selectedNode.lines.filter((_, idx) => idx !== i);
@@ -2249,14 +2251,14 @@ export default function BOMDesigner({
                                                     </div>
                                                 );
                                             })()}
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
                                     </div>
 
                                     {/* Routing Steps */}
                                     <div style={{ width: 240, flexShrink: 0 }}>
-                                        <div style={xpGroupWrapper}>
-                                            <span style={xpGroupLabel()}>Routing Steps</span>
-
+                                        <LegendPanel title="Routing Steps">
+                                            <div style={{ padding: '0 8px 8px' }}>
                                             {/* Existing steps list */}
                                             <div style={{ ...xpInset, marginBottom: 6, padding: 0, minHeight: 40 }}>
                                                 {selectedNode.operations.length === 0 && (
@@ -2272,6 +2274,7 @@ export default function BOMDesigner({
                                                             {opType && <span style={{ fontSize: 9, color: '#555', maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opType.name}</span>}
                                                             <span style={{ width: 36, textAlign: 'right', color: '#666' }}>{op.time_minutes || 0}m</span>
                                                             <button
+                                                                className={XP_BTN}
                                                                 style={{ ...xpBtnDanger, padding: '0 4px', fontSize: 10, minWidth: 'auto' }}
                                                                 onClick={() => {
                                                                     const newOps = selectedNode.operations.filter((o: any) => o._key !== op._key);
@@ -2336,6 +2339,7 @@ export default function BOMDesigner({
                                                     </div>
                                                 </div>
                                                 <button
+                                                    className={XP_BTN}
                                                     style={{ ...xpBtnPrimary, minWidth: 'auto', alignSelf: 'flex-end' }}
                                                     onClick={() => {
                                                         if (!pendingOpWc) return;
@@ -2359,7 +2363,8 @@ export default function BOMDesigner({
                                                     }}
                                                 >+ Add Step</button>
                                             </div>
-                                        </div>
+                                            </div>
+                                        </LegendPanel>
                                     </div>
 
                                 </div>
@@ -2387,8 +2392,9 @@ export default function BOMDesigner({
                                 <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }} />{pctError}
                             </span>
                         )}
-                        <button style={xpBtn} onClick={onCancel}>{t('cancel')}</button>
+                        <button className={XP_BTN} style={xpBtn} onClick={onCancel}>{t('cancel')}</button>
                         <button
+                            className={XP_BTN}
                             data-testid="save-bom-tree-btn"
                             style={{ ...xpBtnSuccess, opacity: isSaving ? 0.6 : 1 }}
                             onClick={handleGlobalSave}
@@ -2412,10 +2418,10 @@ export default function BOMDesigner({
                         <img src={photoPreview} alt="Sample" style={{ maxWidth: 'calc(var(--app-vw) * 72 / 100)', maxHeight: 'calc(var(--app-vh) * 62 / 100)', objectFit: 'contain', display: 'block' }} />
                     </div>
                     <div style={{ padding: '5px 8px', display: 'flex', justifyContent: 'flex-end', gap: 4, background: '#f0efe6', borderTop: '1px solid #ccc' }}>
-                        <button style={{ ...xpBtn, padding: '2px 10px' }} onClick={() => window.open(photoPreview, '_blank')}>
+                        <button className={XP_BTN} style={{ ...xpBtn, padding: '2px 10px' }} onClick={() => window.open(photoPreview, '_blank')}>
                             ↗ Open Full View
                         </button>
-                        <button style={{ ...xpBtn, padding: '2px 10px' }} onClick={() => setPhotoPreview(null)}>
+                        <button className={XP_BTN} style={{ ...xpBtn, padding: '2px 10px' }} onClick={() => setPhotoPreview(null)}>
                             Close
                         </button>
                     </div>

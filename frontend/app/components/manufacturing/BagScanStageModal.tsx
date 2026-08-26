@@ -35,17 +35,28 @@ interface Props {
 }
 
 /**
- * Scan-to-stage: floor operator scans greige bag QR codes (each = one lot) to
- * stage them into a DYEING WO's input location — no manual lot typing. Each bag
- * label QR encodes the lot number, resolved via GET /batches/resolve. Whole lots
- * move (over-stage allowed, with a warning past the WO's required qty). Commits
- * through the standard POST /work-orders/{id}/stage with allow_overstage=true.
+ * Scan-to-stage: floor operator scans bag QR codes (each = one lot) to stage them
+ * into a bag-fed WO's input location — no manual lot typing. Greige bags into a
+ * DYEING WO, dyed lots into a SETTING WO; the flow is identical because both take
+ * their substrate as many weighed, labelled bags. Each bag label QR encodes the
+ * lot number, resolved via GET /batches/resolve. Whole lots move (over-stage
+ * allowed, with a warning past the WO's required qty). Commits through the
+ * standard POST /work-orders/{id}/stage with allow_overstage=true.
  */
 export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode }: Props) {
     const { authFetch } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+
+    // A partial bag splits, and the leftover label must say what the remnant IS:
+    // a dyeing WO peels greige, a setting WO peels dyed fabric.
+    const wcType = String(wo.work_center_type || '').toUpperCase();
+    const leftoverHeading = wcType === 'SETTING'
+        ? 'SISA CELUP / LEFTOVER'
+        : wcType === 'DYEING' || wcType === 'CELUP'
+            ? 'SISA GREIGE / LEFTOVER'
+            : 'SISA / LEFTOVER';
 
     const [rows, setRows] = useState<RequiredMaterial[]>([]);
     const [loading, setLoading] = useState(true);
@@ -241,7 +252,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                 return;
             }
             const updated = await res.json().catch(() => null);
-            showToast(`Staged ${cart.length} bag${cart.length === 1 ? '' : 's'} (${cartKg.toFixed(2)} kg) to dyeing`, 'success');
+            showToast(`Staged ${cart.length} bag${cart.length === 1 ? '' : 's'} (${cartKg.toFixed(2)} kg) to the line`, 'success');
             onStaged(updated);
             // Relabel any leftover bags before closing; else close straight away.
             if (leftovers.length) setLabelLots(leftovers);
@@ -276,7 +287,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                     </div>
                 )}
                 <div style={{ fontSize: 10, color: '#555', marginBottom: 8 }}>
-                    Scan each bag to stage it into this dyeing WO&apos;s input location
+                    Scan each bag to stage it into this WO&apos;s input location
                     (<b>{wo.input_location?.code || wo.input_location_id || 'no input location'}</b>).
                     Lot number is captured automatically. Lower a bag&apos;s kg to stage only part of it —
                     the remainder splits off as a new leftover lot (relabel prompt after).
@@ -425,7 +436,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
         {labelLots && (
             <LotLabelPrintModal
                 lots={labelLots}
-                heading="SISA GREIGE / LEFTOVER"
+                heading={leftoverHeading}
                 onClose={() => { setLabelLots(null); onClose(); }}
             />
         )}

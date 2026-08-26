@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { PRINT_FONT, PRINT_SERIF_FONT } from '../shared/xpTheme';
+import { orderBasePerAlt, baseToAlt } from '../shared/altUnit';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -18,6 +19,13 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
  * by PackedUnitLabelPrintModal.
  */
 export default function PackingCardPrintModal({ po, attributes, companyProfile, authFetch, onClose }: any) {
+    // Base qty per alt selling unit (Pic = a roll, Pcs = a cut piece), and the
+    // count a base figure works out to. Null when the order has no alt unit.
+    const altBaseFactor = orderBasePerAlt(po);
+    const altCount = (base: any) => {
+        const c = altBaseFactor ? baseToAlt(Number(base || 0), altBaseFactor) : null;
+        return c ? c.toLocaleString() : '';
+    };
     const { formatCustom: tzFmt } = useTimezone();
     const [qrUrl, setQrUrl] = useState('');
 
@@ -71,9 +79,24 @@ export default function PackingCardPrintModal({ po, attributes, companyProfile, 
                         ['Barang / Item', `${po.item_name || ''} (${po.item_code || ''})`],
                         ['Warna / Colour', po.color_name || '—'],
                         ['Varian', (po.attribute_value_ids || []).map(attrName).filter(Boolean).join(', ') || '—'],
-                        ['Target', `${Number(po.qty_target || 0).toLocaleString()} ${po.item_uom || ''}`],
-                        ['Isi per koli', po.pack_size ? `${Number(po.pack_size).toLocaleString()} ${po.item_uom || ''}` : '—'],
+                        // Both units on the card: the packer counts in the selling unit
+                        // the order was taken in, while stock moves in the item's own.
+                        ['Target', [
+                            `${Number(po.qty_target || 0).toLocaleString()} ${po.item_uom || ''}`,
+                            altCount(po.qty_target) ? `(${altCount(po.qty_target)} ${po.uom2})` : '',
+                        ].filter(Boolean).join(' ')],
+                        ['Isi per koli', po.pack_size
+                            ? [
+                                `${Number(po.pack_size).toLocaleString()} ${po.item_uom || ''}`,
+                                altCount(po.pack_size) ? `(${altCount(po.pack_size)} ${po.uom2})` : '',
+                            ].filter(Boolean).join(' ')
+                            : '—'],
+                        ['Satuan jual', po.uom2
+                            ? `1 ${po.uom2} = ${Number(po.uom2_factor || 0)} ${po.uom2_length_uom || 'Yard'}`
+                              + (altBaseFactor ? ` = ${altBaseFactor} ${po.item_uom || ''}` : '')
+                            : '—'],
                         ['Jenis kemasan', po.package_label || 'Carton'],
+                        ['Mesin / Machine', po.work_center_name || '—'],
                         ['No. SO', po.sales_order_code || '— (pack to stock)'],
                         ['Pelanggan', po.customer_name || '—'],
                         ['Target selesai', fmt(po.target_end_date) || '—'],

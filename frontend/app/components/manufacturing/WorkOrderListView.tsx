@@ -19,7 +19,7 @@ import Pager from '../shared/Pager';
 import { XPEmptyState, TableSkeleton, useTableSkeletonMetrics, XPStatusBar, useSortable, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, xpFont, rowStateBg, StatusChip, CHIP_RADIUS, colorLabel, xpInput as xpInputBase } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvTd, lvZebra } from '../shared/listViewTheme';
-import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
+import { childrenOfWC, isMachineWC, isTypeWC, woHasStaging, woScanStages } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 import SearchableSelect from '../shared/SearchableSelect';
 import VariantChips from '../shared/VariantChips';
@@ -331,13 +331,12 @@ export default function WorkOrderListView({
         onUpdateStatus(wo.id, 'COMPLETED');
     };
     const canStage = (wo: FlatWO) =>
-        canManage &&
-        (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) &&
+        canManage && woHasStaging(wo) &&
         wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
-    // Scan-to-stage is for dyeing, where the greige substrate arrives as many
-    // bagged lots the operator scans in rather than picking manually.
-    const canScanStage = (wo: FlatWO) =>
-        canStage(wo) && ['DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase());
+    // Scan-to-stage is for the steps fed by weighed bags — greige into dyeing,
+    // dyed lots into setting — where the substrate arrives as many bagged lots
+    // the operator scans in rather than picking manually.
+    const canScanStage = (wo: FlatWO) => canStage(wo) && woScanStages(wo);
 
     const openLog = async (wo: FlatWO) => {
         const mo = await onFetchMO(wo.mo_id);
@@ -386,7 +385,7 @@ export default function WorkOrderListView({
         const bomItemIds = new Set<string>(wo.bom_line_item_ids || []);
         const completions: any[] = wo.completions || [];
         // Bag labels apply to lot-producing steps (each weighed bag = one lot).
-        const isLotWOType = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING'].includes((wo.work_center_type || '').toUpperCase());
+        const isLotWOType = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING', 'SETTING'].includes((wo.work_center_type || '').toUpperCase());
 
         const components: any[] = woComponents[wo.id] || [];
         const componentsLoading = !!woComponentsLoading[wo.id];
@@ -950,7 +949,7 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.created_at)}</td>
                                                 <td style={tdBase} onClick={e => e.stopPropagation()}>
                                                     {(() => {
-                                                        const hasStaging = !!(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()));
+                                                        const hasStaging = woHasStaging(wo);
                                                         const stagingLabel = wo.staging_status === 'STAGED' ? 'Staged — materials issued'
                                                             : wo.staging_status === 'PARTIAL' ? 'Partially staged' : 'Not staged';
                                                         const stagingColor = wo.staging_status === 'STAGED' ? '#0058e6' : wo.staging_status === 'PARTIAL' ? '#b8860b' : '#999';
@@ -1041,7 +1040,7 @@ export default function WorkOrderListView({
                     {openStatusMenuId && (() => {
                         const menuWO = sortedWOs.find((w: any) => w.id === openStatusMenuId);
                         if (!menuWO) return null;
-                        const hasStaging = !!(menuWO.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((menuWO.work_center_type || '').toUpperCase()));
+                        const hasStaging = woHasStaging(menuWO);
                         const stagingLabel = menuWO.staging_status === 'STAGED' ? 'Staged — materials issued'
                             : menuWO.staging_status === 'PARTIAL' ? 'Partially staged' : 'Not staged';
                         return (

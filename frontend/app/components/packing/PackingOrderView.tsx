@@ -18,6 +18,9 @@ import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import { LotChips, LotChip } from '../shared/LotChips';
+import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
+import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload } from '../shared/packingBoxes';
+import { basePerAlt, altToBase, baseToAlt, orderBasePerAlt, formatAlt, lengthPerAlt } from '../shared/altUnit';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
 
@@ -61,7 +64,7 @@ const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
 
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
-    const { locations, attributes, companyProfile, itemIndex, authFetch } = useData();
+    const { locations, attributes, companyProfile, itemIndex, workCenters, authFetch } = useData();
     const { uiStyle } = useTheme();
     const { formatDate: tzDate, formatDateTime: tzDateTime } = useTimezone();
     const { showToast } = useToast();
@@ -115,6 +118,14 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
         return m;
     }, [locations]);
 
+    // Machine picker scope. Packing machines are the MACHINE rows running under a
+    // PACKING centre type; a plant that has not declared that type yet gets every
+    // machine rather than an empty list — the same "never hand back an empty
+    // picker" rule WOCompletionModal applies to its process scope.
+    const machineOptions = useMemo(
+        () => toMachineOptions(machinesOfCenterType(workCenters || [], 'PACKING')),
+        [workCenters],
+    );
     const loadCounts = useCallback(async () => {
         const [pendRes, progRes, doneRes] = await Promise.all([
             authFetch(`${API_BASE}/packing?status=PENDING&page=1&size=1`),
@@ -219,6 +230,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                 {infoRow('Sales Order', po.sales_order_code || 'to stock')}
                                 {po.color_name && infoRow('Colour', po.color_name)}
                                 {infoRow(`${po.package_label} size`, num(po.pack_size) > 0 ? `${num(po.pack_size)} ${uom}` : 'per event')}
+                                {infoRow('Machine', po.work_center_name || 'not assigned')}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 3, margin: '2px 0' }}>
                                     <span style={{ color: '#888', fontSize: 9, minWidth: 60 }}>Route</span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9 }}>
@@ -230,6 +242,18 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                 <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
                                 {infoRow('Target', `${num(po.qty_target).toLocaleString()} ${uom}`)}
                                 {infoRow('Packed', `${num(po.qty_packed).toLocaleString()} ${uom}`)}
+                                {/* Same two figures in what the customer counts in. The base
+                                    figures above stay first: they are what stock moves in. */}
+                                {po.uom2 && orderBasePerAlt(po, it) && (() => {
+                                    const f = orderBasePerAlt(po, it);
+                                    return (
+                                        <>
+                                            {infoRow('Target', formatAlt(baseToAlt(num(po.qty_target), f), po.uom2))}
+                                            {infoRow('Packed', formatAlt(baseToAlt(num(po.qty_packed), f), po.uom2))}
+                                            {infoRow(`1 ${po.uom2}`, `${num(po.uom2_factor)} ${po.uom2_length_uom || 'Yard'} = ${f} ${uom}`)}
+                                        </>
+                                    );
+                                })()}
                                 {num(po.qty_rejected) > 0 && infoRow('QC reject', (
                                     <span style={{ color: '#a00000' }}>
                                         {num(po.qty_rejected).toFixed(2)}{po.package_count_rejected ? ` (${po.package_count_rejected})` : ''}
@@ -259,6 +283,12 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                 <span style={{ fontFamily: CODE_FONT, color: '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={u.batch_number}>
                                                     {u.batch_number}
                                                 </span>
+                                                {/* The count that went in the box, when the order is
+                                                    counted in one. Read off the carton, not divided out
+                                                    of its qty. */}
+                                                {u.alt_qty != null && po.uom2 && (
+                                                    <span style={{ color: '#555' }}>{num(u.alt_qty)} {po.uom2}</span>
+                                                )}
                                                 {/* Zero on hand = the carton has left on a pick list. */}
                                                 <span style={{ fontWeight: 'bold', color: num(u.qty) > 0 ? '#0a3e0a' : '#999' }}>
                                                     {num(u.qty) > 0 ? num(u.qty).toFixed(2) : 'shipped'}
@@ -487,6 +517,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
             {creating && (
                 <PackingOrderForm
                     locPickerTreeOptions={locPickerTreeOptions}
+                    machineOptions={machineOptions}
                     defaultSourceLocId={systemLocId('QC')}
                     defaultOutputLocId={systemLocId('FG')}
                     authFetch={authFetch}
@@ -501,6 +532,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 <PackingOrderDetail
                     po={detail}
                     itemById={itemById}
+                    machineOptions={machineOptions}
                     locationById={locationById}
                     locPickerTreeOptions={locPickerTreeOptions}
                     authFetch={authFetch}
@@ -536,18 +568,34 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
 }
 
 // ── create form ──────────────────────────────────────────────────────────────
-function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOutputLocId, authFetch, showToast, onClose, onCreated, initialValues }: any) {
+function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceLocId, defaultOutputLocId, authFetch, showToast, onClose, onCreated, initialValues }: any) {
     const { results: fgResults, onSearch: fgSearch } = useFinishedGoodsSearch();
+    // UOM master for the alt-unit factor rows (Roll -> Yard = 50), and itemIndex
+    // for the weight spec that turns a length into the item's stock UOM.
+    const { uoms, itemIndex } = useData();
     const [itemId, setItemId] = useState(initialValues?.item_id || '');
     const [qtyTarget, setQtyTarget] = useState(initialValues?.qty_target != null ? String(initialValues.qty_target) : '');
     const [packSize, setPackSize] = useState('');
     const [packageLabel, setPackageLabel] = useState('Carton');
+    // Alt (selling) unit — what the customer counts in (Pic = a roll, Pcs = a cut
+    // piece). Snapshotted from the picked SO line so the packing order counts the
+    // way the order was taken; picked by hand when packing to stock. `qtyTarget`
+    // stays the canonical figure in the item's own UOM and is derived from these.
+    const [qty2, setQty2] = useState('');
+    const [uom2, setUom2] = useState('');
+    const [uom2Factor, setUom2Factor] = useState<number | null>(null);
+    const [uom2LengthUom, setUom2LengthUom] = useState('');
+    const [altPerCarton, setAltPerCarton] = useState('');
     // Both stores default to the seeded ones: bulk FG waits in Quarantine until QC
     // releases it, sealed cartons land in the Finished Goods store. A Quarantine
     // Packing suggestion still names its own source and wins. Both stay editable —
     // these are only the defaults, not a fixed route.
     const [sourceLoc, setSourceLoc] = useState(initialValues?.source_location_id || defaultSourceLocId || '');
     const [outputLoc, setOutputLoc] = useState(defaultOutputLocId || '');
+    // Which packing machine runs this order. Optional — an order cut before the
+    // floor knows the machine is still packable, and the packer can name one at
+    // log time — but naming it here is what pre-fills every pack event.
+    const [workCenterId, setWorkCenterId] = useState(initialValues?.work_center_id || '');
     const [soId, setSoId] = useState(initialValues?.sales_order_id || '');
     const [soLineId, setSoLineId] = useState(initialValues?.sales_order_line_id || '');
     const [notes, setNotes] = useState('');
@@ -581,12 +629,77 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
 
     // Picking an SO line fixes what is being packed — item and variant both come
     // from the order, so they are not asked for twice.
+    // The item row behind the picked id — its UOM and g/y (or g/m) weight are what
+    // convert an alt count into the stock figure. The search results win over the
+    // index: a just-searched row is the freshest copy of the same item.
+    const selectedItem = useMemo(
+        () => (fgResults || []).find((i: any) => String(i.id) === String(itemId)) || itemIndex?.[String(itemId)],
+        [fgResults, itemIndex, itemId],
+    );
+    const selectedUom2 = useMemo(
+        () => (uoms || []).find((u: any) => u.name === uom2),
+        [uoms, uom2],
+    );
+    // Base-UOM qty in one alt unit. Null means the chain can't be resolved (a gsm
+    // weight needs the fabric width, a counted stock UOM has no length at all) —
+    // the form then keeps base-only entry rather than inventing a factor.
+    const altBaseFactor = useMemo(() => basePerAlt({
+        factor: uom2Factor,
+        lengthUom: uom2LengthUom,
+        itemUom: selectedItem?.uom,
+        weightPerUnit: selectedItem?.weight_per_unit,
+        weightUnit: selectedItem?.weight_unit,
+    }), [uom2Factor, uom2LengthUom, selectedItem]);
+
+    // One place that pushes the alt figures down onto the canonical ones, so the
+    // target and the carton size can never be derived two different ways.
+    const applyAlt = (qty2Str: string, factorVal: number | null, lengthUom: string, perCartonStr: string) => {
+        const factor = basePerAlt({
+            factor: factorVal,
+            lengthUom,
+            itemUom: selectedItem?.uom,
+            weightPerUnit: selectedItem?.weight_per_unit,
+            weightUnit: selectedItem?.weight_unit,
+        });
+        if (!factor) return;
+        const target = altToBase(num(qty2Str), factor);
+        if (target !== null && num(qty2Str) > 0) setQtyTarget(String(target));
+        const per = altToBase(num(perCartonStr), factor);
+        if (per !== null && num(perCartonStr) > 0) setPackSize(String(per));
+    };
+
+    const onQty2Change = (val: string) => {
+        setQty2(val);
+        applyAlt(val, uom2Factor, uom2LengthUom, altPerCarton);
+    };
+    const onFactorPick = (factorVal: number | null, toUom: string) => {
+        setUom2Factor(factorVal);
+        setUom2LengthUom(toUom);
+        applyAlt(qty2, factorVal, toUom, altPerCarton);
+    };
+    const onAltPerCartonChange = (val: string) => {
+        setAltPerCarton(val);
+        applyAlt(qty2, uom2Factor, uom2LengthUom, val);
+    };
+
     const applySoLine = (lineId: string) => {
         setSoLineId(lineId);
         const line = soLines.find((l: any) => String(l.id) === lineId);
         if (line) {
             setItemId(String(line.item_id));
             if (!qtyTarget) setQtyTarget(String(line.qty));
+            // Follow the order's own selling unit: the packer counts cartons in
+            // whatever the customer ordered in. The factor's length unit lives on
+            // the UOM master, so resolve it here rather than guessing later.
+            if (line.uom2) {
+                setUom2(line.uom2);
+                const factor = line.uom2_factor != null ? parseFloat(String(line.uom2_factor)) : null;
+                setUom2Factor(factor);
+                const uomObj = (uoms || []).find((u: any) => u.name === line.uom2);
+                const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factor);
+                setUom2LengthUom(factorObj?.to_uom_name || '');
+                if (line.qty2 != null && line.qty2 !== '') setQty2(String(line.qty2));
+            }
         }
     };
 
@@ -661,8 +774,17 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
                 qty_target: num(qtyTarget),
                 pack_size: packSize === '' ? null : num(packSize),
                 package_label: packageLabel || 'Carton',
+                // Alt unit as stated here (already inherited from the SO line when
+                // one was picked). Sent explicitly rather than left for the server
+                // to re-read off the line: an SO edited later must not re-scale an
+                // order that is already being packed.
+                qty2: qty2 === '' ? null : num(qty2),
+                uom2: uom2 || null,
+                uom2_factor: uom2Factor,
+                uom2_length_uom: uom2LengthUom || null,
                 source_location_id: sourceLoc || null,
                 output_location_id: outputLoc || null,
+                work_center_id: workCenterId || null,
                 sales_order_id: soId || null,
                 sales_order_line_id: soLineId || null,
                 // Variant is deliberately not sent: it is resolved from the source
@@ -740,13 +862,78 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
                             <input style={{ ...xpInput, width: '100%' }} value={packageLabel} onChange={e => setPackageLabel(e.target.value)} placeholder="Carton" />
                         </div>
                     </div>
+                    {/* Alt (selling) unit. Its own row because the control is a compound
+                        one (count + unit + factor), and because it drives the two fields
+                        above rather than sitting beside them. */}
+                    <div style={{ ...fieldGrid, gridTemplateColumns: 'minmax(220px, 1fr) 130px', marginTop: 8 }}>
+                        <div>
+                            <FieldLabel classic={CLASSIC}>Alt unit</FieldLabel>
+                            <div style={{ display: 'flex' }}>
+                                <input type="number" min={0}
+                                    style={{ ...xpInput, flex: 1, minWidth: 0, borderRight: 'none', textAlign: 'right' }}
+                                    placeholder="0" value={qty2} onChange={e => onQty2Change(e.target.value)} />
+                                <select style={{ ...xpSelect, flexShrink: 0, width: 90 }} value={uom2}
+                                    onChange={e => { setUom2(e.target.value); setUom2Factor(null); setUom2LengthUom(''); }}>
+                                    <option value="">— none —</option>
+                                    {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                </select>
+                            </div>
+                            {uom2 && (selectedUom2?.factors || []).length > 0 && (
+                                <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                    {(selectedUom2?.factors || []).map((f: any) => {
+                                        const fVal = parseFloat(f.value);
+                                        const toUom = f.to_uom_name || 'Yard';
+                                        const active = uom2Factor === fVal;
+                                        return (
+                                            <button key={f.id} type="button"
+                                                style={{
+                                                    fontFamily: xpFont, fontSize: 10, padding: '1px 6px', cursor: 'pointer',
+                                                    borderRadius: 0,
+                                                    border: active ? '1px solid #1a3a8a' : '1px solid #7f9db9',
+                                                    background: active ? 'linear-gradient(to bottom,#4a9ae8,#1a5ec8)' : 'linear-gradient(to bottom,#fff,#e8e4d8)',
+                                                    color: active ? '#fff' : '#000',
+                                                }}
+                                                onClick={() => onFactorPick(fVal, toUom)}
+                                            >
+                                                1 {uom2} = {fVal} {toUom}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {uom2 && (selectedUom2?.factors || []).length === 0 && (
+                                <div style={{ ...hintText, marginTop: 3 }}>
+                                    {uom2} has no conversion on the UOM master — add one there to convert it.
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <FieldLabel classic={CLASSIC}>{uom2 || 'Alt'} per carton</FieldLabel>
+                            <input type="number" min={0} disabled={!uom2}
+                                style={{ ...xpInput, width: '100%', textAlign: 'right', background: uom2 ? undefined : '#efeee9' }}
+                                value={altPerCarton} onChange={e => onAltPerCartonChange(e.target.value)} />
+                        </div>
+                    </div>
                     <div style={hintText}>
                         Qty per carton splits the target — leave it empty to decide the carton count per pack event.
                     </div>
+                    {uom2 && uom2Factor && !altBaseFactor && (
+                        <div style={{ ...hintText, color: '#a00000', fontStyle: 'normal' }}>
+                            {uom2} can&apos;t be converted into {selectedItem?.uom || 'the stock unit'}: a kg-stocked item
+                            needs a g/y or g/m weight on the item (gsm needs the fabric width). Type the target in{' '}
+                            {selectedItem?.uom || 'the stock unit'} instead.
+                        </div>
+                    )}
+                    {altBaseFactor && (
+                        <div style={hintText}>
+                            1 {uom2} = {uom2Factor} {uom2LengthUom || 'Yard'} = {altBaseFactor} {selectedItem?.uom || ''}
+                            {num(qty2) > 0 ? ` — target ${num(qtyTarget).toLocaleString()} ${selectedItem?.uom || ''}` : ''}
+                        </div>
+                    )}
                 </FormSection>
 
-                <FormSection title={<SectionTitle icon="bi-geo-alt">Locations</SectionTitle>} classic={CLASSIC}>
-                    <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr' }}>
+                <FormSection title={<SectionTitle icon="bi-geo-alt">Locations &amp; Machine</SectionTitle>} classic={CLASSIC}>
+                    <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr 1fr' }}>
                         <div>
                             <FieldLabel classic={CLASSIC} hint="Bulk finished goods are drawn from here">Pack from</FieldLabel>
                             <TreeSelect options={locPickerTreeOptions} value={sourceLoc} onChange={setSourceLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
@@ -754,6 +941,10 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
                         <div>
                             <FieldLabel classic={CLASSIC} hint="Sealed cartons land here">Store cartons at</FieldLabel>
                             <TreeSelect options={locPickerTreeOptions} value={outputLoc} onChange={setOutputLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
+                        </div>
+                        <div>
+                            <FieldLabel classic={CLASSIC} hint="Pre-fills every pack event">Machine</FieldLabel>
+                            <SearchableSelect options={machineOptions || []} value={workCenterId} onChange={setWorkCenterId} placeholder="— none —" size="sm" />
                         </div>
                     </div>
                     <div style={hintText}>
@@ -850,7 +1041,7 @@ function MaterialRow({ row, authFetch, locPickerTreeOptions, onChange, onRemove 
 // same legend-panel groupboxes and Previous-Entries table. Packing is the same
 // motion as logging WO output for the operator, so it reads the same. Keep the
 // two in step — a change to one of these patterns belongs in both.
-function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTreeOptions, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
+function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTreeOptions, machineOptions, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
     const { hasPermission } = useUser();
     const { formatDateTime: tzDateTime } = useTimezone();
     const canManage = hasPermission('sales.manage');
@@ -866,8 +1057,22 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const pct = target > 0 ? Math.min(100, Math.round((packed / target) * 100)) : 0;
 
     const [qty, setQty] = useState<string>('');
+    // Alt selling unit of this order (Pic = a roll, Pcs = a cut piece). When set,
+    // the packer counts in it and every base figure is derived from it — `qty`,
+    // the box qtys and the label's CONTENT line all follow the same factor.
+    const altUom = po.uom2 || '';
+    const altFactor = useMemo(() => orderBasePerAlt(po, it), [po, it]);
+    const altLength = useMemo(
+        () => lengthPerAlt({ factor: po.uom2_factor, lengthUom: po.uom2_length_uom }),
+        [po.uom2_factor, po.uom2_length_uom],
+    );
+    const hasAlt = !!(altUom && altFactor);
+    const [qtyAlt, setQtyAlt] = useState<string>('');
     const [boxSize, setBoxSize] = useState<string>(() => (num(po.pack_size) > 0 ? String(num(po.pack_size)) : ''));
     const [operator, setOperator] = useState('');
+    // Seeded from the order's machine so the common case is one click of nothing;
+    // an override here rides on this event only and never rewrites the order.
+    const [workCenterId, setWorkCenterId] = useState<string>(String(initialPo.work_center_id || ''));
     const [packNotes, setPackNotes] = useState('');
     const [lots, setLots] = useState<any[]>([]);
     const [heldLotCount, setHeldLotCount] = useState(0);
@@ -896,6 +1101,30 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const [savingLocs, setSavingLocs] = useState(false);
     const locsDirty = srcDraft !== String(po.source_location_id || '') || outDraft !== String(po.output_location_id || '');
     const locsMissing = !po.source_location_id || !po.output_location_id;
+
+    // Persist the picked machine onto the order itself. The log picker alone only
+    // stamps the event, which is right for a one-off swap; an order that will keep
+    // running on this machine wants it stored so every later event pre-fills.
+    const [savingMachine, setSavingMachine] = useState(false);
+    const machineDirty = String(workCenterId || '') !== String(po.work_center_id || '');
+    const saveMachine = async () => {
+        setSavingMachine(true);
+        try {
+            const res = await authFetch(`${API_BASE}/packing/${po.id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ work_center_id: workCenterId || null }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Could not save the machine');
+            }
+            setPo(await res.json());
+            showToast('Machine assigned to this packing order', 'success');
+            await onChanged();
+        } catch (e: any) {
+            showToast(e.message, 'danger');
+        } finally { setSavingMachine(false); }
+    };
 
     const saveLocations = async () => {
         if (!srcDraft || !outDraft) { showToast('Both locations are required', 'danger'); return; }
@@ -976,19 +1205,6 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const takeByBatch: Record<string, number> = {};
     for (const l of alloc) takeByBatch[l.batch_id] = l.qty;
 
-    // Mirrors packing_service.split_qty on the backend: fixed-size boxes plus one
-    // remainder box, never an even split. Only used to *seed* the editable rows
-    // below — once seeded, the rows are the user's own to edit, add to, or remove.
-    const splitBoxes = (total: number, size: number): number[] => {
-        if (total <= 0) return [];
-        if (!(size > 0)) return [Number(total.toFixed(4))];
-        const full = Math.floor(total / size + 1e-9);
-        const remainder = Number((total - full * size).toFixed(4));
-        const parts = Array(full).fill(Number(size.toFixed(4)));
-        if (remainder > 1e-6) parts.push(remainder);
-        return parts.length ? parts : [Number(total.toFixed(4))];
-    };
-
     // Boxes are edited as one flat list against the combined total, regardless
     // of how many lots feed it — the server is the one that works out which lot
     // backs each box (splitting a box across a lot boundary if needed), so the
@@ -996,7 +1212,6 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // `kg` is the scale reading for that physical carton, entered by the packer —
     // it is the label's N.W. line and is never derived from qty (the item's UOM
     // may be yards, and the same yardage weighs differently per lot).
-    type BoxRow = { qty: string; kg: string };
     const [boxRows, setBoxRows] = useState<BoxRow[]>([]);
     const packTotal = useLotPicker ? drawn : num(qty);
 
@@ -1004,34 +1219,87 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // after Regenerate clears them) — after that, edits belong to the user.
     useEffect(() => {
         if (boxRows.length === 0 && packTotal > 0) {
-            setBoxRows(splitBoxes(packTotal, num(boxSize)).map(q => ({ qty: String(q), kg: '' })));
+            setBoxRows(seedBoxRows(packTotal, num(boxSize), [], hasAlt ? altFactor : null));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [packTotal]);
 
     // Regenerate rebuilds the qty split but keeps weights already keyed in
     // positionally — re-splitting after a typo shouldn't wipe the scale readings.
-    const regenerateBoxes = () => setBoxRows(prev =>
-        splitBoxes(packTotal, num(boxSize)).map((q, i) => ({ qty: String(q), kg: prev[i]?.kg || '' })));
+    const regenerateBoxes = () =>
+        setBoxRows(prev => seedBoxRows(packTotal, num(boxSize), prev, hasAlt ? altFactor : null));
     const updateBoxRow = (i: number, patch: Partial<BoxRow>) =>
         setBoxRows(prev => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
     const removeBoxRow = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
-    const addBoxRow = () => setBoxRows(prev => [...prev, { qty: '', kg: '' }]);
+    const addBoxRow = () => setBoxRows(prev => [...prev, { qty: '', kg: '', alt: '' }]);
 
-    // Weights stay positional against the qtys the server receives, so filter both
-    // in one pass — a blank weight travels as null, not as a dropped position.
-    const boxes = boxRows.filter(b => num(b.qty) > 0);
+    // Typing a count fills the base qty; typing a base qty only back-fills a count
+    // that isn't there yet. That asymmetry is the point: on a kg item the packer
+    // types 12 Pcs, the qty pre-fills at the theoretical 10.80, and then the scale
+    // reading of 10.62 replaces it — which must not turn the count into 11.8.
+    const setBoxAlt = (i: number, val: string) => {
+        const derived = altToBase(num(val), altFactor);
+        updateBoxRow(i, {
+            alt: val,
+            ...(derived !== null && num(val) > 0 ? { qty: String(derived) } : {}),
+        });
+    };
+    const setBoxQty = (i: number, val: string) => {
+        const row = boxRows[i];
+        const backfill = hasAlt && !(num(row?.alt) > 0) ? baseToAlt(num(val), altFactor) : null;
+        updateBoxRow(i, {
+            qty: val,
+            ...(backfill !== null ? { alt: String(backfill) } : {}),
+        });
+    };
+
+    // Qty to Pack, entered as a count. The base figure follows so the lot draw,
+    // the box split and the stock movement all stay in the item's own UOM.
+    const onQtyAltChange = (val: string) => {
+        setQtyAlt(val);
+        const derived = altToBase(num(val), altFactor);
+        if (derived !== null && num(val) > 0) setQty(String(derived));
+    };
+
+    // Weights stay positional against the qtys the server receives, so both are
+    // filtered in one pass. Every carton must carry one: the log is written after
+    // the boxes are packed and weighed, so a blank would print a label with no
+    // N.W. line — the server rejects an unweighed carton outright.
+    const boxes = filledBoxRows(boxRows);
     const boxValues = boxes.map(b => num(b.qty));
-    const boxWeights = boxes.map(b => (num(b.kg) > 0 ? num(b.kg) : null));
-    const anyWeights = boxWeights.some(w => w !== null);
+    // A kg item is weighed once: the qty in the carton IS its net weight, so the
+    // row shows a single input and the weight rides along from it (the server
+    // derives the same way). Any other UOM is a count or a length, so its weight
+    // is a separate scale reading and stays required.
+    const qtyIsWeight = uomIsKg(uom);
+    const boxWeights = qtyIsWeight ? boxValues : boxes.map(b => num(b.kg));
+    // Positional against `boxes`; null where the packer stated no count, which the
+    // server then derives for that carton alone.
+    const boxAlts = hasAlt ? boxAltPayload(boxRows) : null;
+    const altTotal = hasAlt ? boxAltTotal(boxRows) : 0;
+    const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
     const boxTotal = boxValues.reduce((s, v) => s + v, 0);
-    const weightTotal = boxWeights.reduce((s: number, v) => s + (v || 0), 0);
+    const weightTotal = boxWeights.reduce((s: number, v) => s + v, 0);
     const boxMismatch = packTotal > 0 && Math.abs(boxTotal - packTotal) > 1e-3;
 
     const toggleLot = (id: string, on: boolean) =>
         setSelectedLots(prev => on ? [...prev, id] : prev.filter(x => x !== id));
     const allIds = lots.map((b: any) => String(b.id));
     const allSelected = allIds.length > 0 && selectedLots.length === allIds.length;
+
+    // Why the log button is dead, in the order the submit handler checks. A
+    // disabled button with no stated reason is the bug this exists to prevent —
+    // the box-list footer alone was too far from the button to read as its cause.
+    const logBlockedBy =
+        locsMissing ? 'Set both locations on this order before packing'
+        : locsDirty ? 'Save the location change before logging'
+        : num(qty) <= 0 ? 'Enter a quantity to pack'
+        : boxValues.length === 0 ? `Add at least one ${po.package_label.toLowerCase()}`
+        : boxMismatch ? `${po.package_label}s total ${boxTotal.toFixed(2)} but ${packTotal.toFixed(2)} is being packed`
+        : weightsMissing ? `Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`
+        : useLotPicker && !selectedLots.length ? 'Select at least one lot to pack from'
+        : useLotPicker && short ? `Selected lots hold only ${drawn.toFixed(2)} of the ${num(qty).toFixed(2)} needed`
+        : null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1047,11 +1315,17 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             );
             return;
         }
+        if (weightsMissing) {
+            showToast(`Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`, 'danger');
+            return;
+        }
 
         let body: any = {
             qty: q,
             boxes: boxValues,
-            box_weights: anyWeights ? boxWeights : null,
+            box_weights: boxWeights,
+            box_alt_qtys: boxAlts,
+            work_center_id: workCenterId || null,
             operator: operator || null,
             notes: packNotes || null,
         };
@@ -1067,7 +1341,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             body = {
                 lots: alloc,
                 boxes: boxValues,
-                box_weights: anyWeights ? boxWeights : null,
+                box_weights: boxWeights,
+                box_alt_qtys: boxAlts,
+                work_center_id: workCenterId || null,
                 operator: operator || null,
                 notes: packNotes || null,
             };
@@ -1082,7 +1358,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             if (res.ok) {
                 const fresh = await res.json();
                 setPo(fresh);
-                setQty(''); setPackNotes(''); setBoxRows([]);
+                setQty(''); setQtyAlt(''); setPackNotes(''); setBoxRows([]);
                 showToast(`Packed ${q} into ${boxValues.length} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
                 await onChanged();
             } else {
@@ -1149,9 +1425,18 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                     <button type="button" className={XP_BTN} style={xpBtn()} disabled={!units.length} onClick={() => onPrintLabels(po, units)}>
                         Carton Labels
                     </button>
+                    {/* Visible, not a tooltip: a disabled button dispatches no mouse
+                        events in Chrome, so a `title` on it would never be read. */}
+                    {!readOnly && logBlockedBy && (
+                        <span style={{ fontFamily: xpFont, fontSize: 10, color: '#7a4a00', fontStyle: 'italic', marginLeft: 'auto', paddingRight: 6 }}>
+                            {logBlockedBy}
+                        </span>
+                    )}
                     {!readOnly && (
-                        <button type="submit" form="packing-log-form" className={XP_BTN} disabled={logging || boxMismatch || locsMissing || locsDirty}
-                            style={{ ...xpBtnGreen(), opacity: logging || boxMismatch || locsMissing || locsDirty ? 0.6 : 1 }}>
+                        <button type="submit" form="packing-log-form" className={XP_BTN}
+                            disabled={logging || !!logBlockedBy}
+                            title={logBlockedBy || undefined}
+                            style={{ ...xpBtnGreen(), opacity: logging || logBlockedBy ? 0.6 : 1 }}>
                             {logging ? 'Packing...' : 'Log Packing'}
                         </button>
                     )}
@@ -1209,17 +1494,41 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <span>Qty to Pack</span>
                                     {uom && <span style={uomChip}>{uom}</span>}
+                                    {hasAlt && (
+                                        <span style={{ fontWeight: 'normal', color: '#888', fontSize: 9 }}>
+                                            1 {altUom} = {po.uom2_factor} {altLength?.uom || 'Yd'} = {altFactor} {uom}
+                                        </span>
+                                    )}
                                 </label>
-                                <input
-                                    type="number"
-                                    style={{ ...xpInput, width: '100%', fontSize: 13, height: 22 }}
-                                    value={qty}
-                                    onChange={e => setQty(e.target.value)}
-                                    min="0.0001" step="any"
-                                    placeholder={remaining > 0 ? remaining.toFixed(2) : String(target)}
-                                    autoFocus
-                                    required
-                                />
+                                {/* On an alt-unit order the count leads and the base figure
+                                    follows it — the packer counts pieces, not kilos. The base
+                                    input stays editable: it is what actually moves in stock. */}
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    {hasAlt && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+                                            <input
+                                                type="number"
+                                                style={{ ...xpInput, width: '100%', fontSize: 13, height: 22, textAlign: 'right' }}
+                                                value={qtyAlt}
+                                                onChange={e => onQtyAltChange(e.target.value)}
+                                                min="0" step="any"
+                                                placeholder={String(baseToAlt(remaining > 0 ? remaining : target, altFactor) ?? '')}
+                                                autoFocus
+                                            />
+                                            <span style={uomChip}>{altUom}</span>
+                                        </div>
+                                    )}
+                                    <input
+                                        type="number"
+                                        style={{ ...xpInput, flex: 1, fontSize: 13, height: 22 }}
+                                        value={qty}
+                                        onChange={e => setQty(e.target.value)}
+                                        min="0.0001" step="any"
+                                        placeholder={remaining > 0 ? remaining.toFixed(2) : String(target)}
+                                        autoFocus={!hasAlt}
+                                        required
+                                    />
+                                </div>
                             </div>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                                 <div style={{ flex: 1 }}>
@@ -1246,7 +1555,19 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
 
                             <div>
                                 <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span>{po.package_label}s to be Made</span>
+                                    <span>
+                                        {po.package_label}s to be Made
+                                        {hasAlt && (
+                                            <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
+                                                — {altUom} per {po.package_label.toLowerCase()} sets its {uom}
+                                            </span>
+                                        )}
+                                        {qtyIsWeight && (
+                                            <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
+                                                — weighed in {uom}, so each {po.package_label.toLowerCase()}&apos;s qty is its net weight
+                                            </span>
+                                        )}
+                                    </span>
                                     <button
                                         type="button"
                                         className={XP_BTN}
@@ -1266,25 +1587,47 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             borderBottom: '1px solid #eceae2',
                                         }}>
                                             <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>#{i + 1}</span>
+                                            {/* The count in the box, printed on the carton label. Stored
+                                                rather than divided back out of the qty, which on a kg item
+                                                is the scale reading. */}
+                                            {hasAlt && (
+                                                <>
+                                                    <input
+                                                        type="number"
+                                                        style={{ ...xpInput, width: 56, textAlign: 'right' }}
+                                                        value={b.alt}
+                                                        onChange={e => setBoxAlt(i, e.target.value)}
+                                                        min="0" step="any"
+                                                        title={`How many ${altUom} went into this ${po.package_label.toLowerCase()} — printed on the label`}
+                                                    />
+                                                    <span style={{ fontSize: 9, color: '#888', width: 24, flexShrink: 0 }}>{altUom}</span>
+                                                </>
+                                            )}
                                             <input
                                                 type="number"
                                                 style={{ ...xpInput, flex: 1, minWidth: 0 }}
                                                 value={b.qty}
-                                                onChange={e => updateBoxRow(i, { qty: e.target.value })}
+                                                onChange={e => setBoxQty(i, e.target.value)}
                                                 min="0" step="any"
                                             />
                                             {uom && <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>{uom}</span>}
-                                            {/* Net weight off the scale — prints as N.W. on the carton label. */}
-                                            <input
-                                                type="number"
-                                                style={{ ...xpInput, width: 62, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
-                                                value={b.kg}
-                                                onChange={e => updateBoxRow(i, { kg: e.target.value })}
-                                                min="0" step="any"
-                                                placeholder="net wt"
-                                                title="Net weight of this carton off the scale — printed as N.W. on the label"
-                                            />
-                                            <span style={{ fontSize: 9, color: '#888', width: 16, flexShrink: 0 }}>kg</span>
+                                            {/* Net weight off the scale — prints as N.W. on the carton label.
+                                                Hidden for a kg item: the qty beside it is already that weight. */}
+                                            {!qtyIsWeight && (
+                                                <>
+                                                    <input
+                                                        type="number"
+                                                        style={{ ...xpInput, width: 62, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
+                                                        value={b.kg}
+                                                        onChange={e => updateBoxRow(i, { kg: e.target.value })}
+                                                        min="0" step="any"
+                                                        required
+                                                        placeholder="net wt"
+                                                        title="Net weight of this carton off the scale — printed as N.W. on the label"
+                                                    />
+                                                    <span style={{ fontSize: 9, color: '#888', width: 16, flexShrink: 0 }}>kg</span>
+                                                </>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => removeBoxRow(i)}
@@ -1300,7 +1643,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 }}>
                                     <span style={{
                                         width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                                        background: boxMismatch ? '#cc3300' : '#4caf50',
+                                        background: boxMismatch ? '#cc3300' : weightsMissing ? '#d9a441' : '#4caf50',
                                     }} />
                                     <span style={{ color: '#555' }}>Boxed:</span>
                                     <span style={{ fontWeight: 'bold', color: boxMismatch ? '#a00000' : '#2e7d32' }}>
@@ -1308,17 +1651,24 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     </span>
                                     <span style={{ color: '#c0bdb5' }}>/</span>
                                     <span style={{ fontWeight: 'bold' }}>{packTotal.toFixed(2)} {uom}</span>
+                                    {hasAlt && (
+                                        <>
+                                            <span style={{ color: '#c0bdb5' }}>|</span>
+                                            <span style={{ color: '#555' }}>{altUom}:</span>
+                                            <span style={{ fontWeight: 'bold' }}>{altTotal.toLocaleString()}</span>
+                                        </>
+                                    )}
                                     <span style={{ color: '#c0bdb5' }}>|</span>
                                     <span style={{ color: '#555' }}>{po.package_label}s:</span>
                                     <span style={{ fontWeight: 'bold' }}>{boxValues.length}</span>
-                                    {anyWeights && (
-                                        <>
-                                            <span style={{ color: '#c0bdb5' }}>|</span>
-                                            <span style={{ color: '#555' }}>Net wt:</span>
-                                            <span style={{ fontWeight: 'bold' }}>{weightTotal.toFixed(2)} kg</span>
-                                        </>
-                                    )}
-                                    {boxMismatch && <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>}
+                                    <span style={{ color: '#c0bdb5' }}>|</span>
+                                    <span style={{ color: '#555' }}>Net wt:</span>
+                                    <span style={{ fontWeight: 'bold', color: weightsMissing ? '#7a4a00' : undefined }}>
+                                        {weightTotal.toFixed(2)} kg
+                                    </span>
+                                    {boxMismatch
+                                        ? <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>
+                                        : weightsMissing && <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>}
                                 </div>
                             </div>
                             <div style={{
@@ -1435,6 +1785,21 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
 
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
+                                    <label style={{ ...xpFormLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                                        <span>Machine</span>
+                                        {machineDirty && workCenterId && (
+                                            <XPActionButton
+                                                classic tone="primary" icon="bi-pin-angle" label="Set on order"
+                                                title="Store this machine on the packing order so later entries pre-fill with it"
+                                                disabled={savingMachine}
+                                                onClick={saveMachine}
+                                            />
+                                        )}
+                                    </label>
+                                    <SearchableSelect options={machineOptions || []} value={workCenterId}
+                                        onChange={setWorkCenterId} placeholder="Select machine (optional)…" size="sm" />
+                                </div>
+                                <div style={{ flex: 1 }}>
                                     <label style={xpFormLabel}>Operator</label>
                                     <input type="text" style={{ ...xpInput, width: '100%' }} value={operator}
                                         onChange={e => setOperator(e.target.value)} placeholder="Name (optional)" />
@@ -1523,8 +1888,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         <tr style={{ background: '#dddbd0' }}>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{po.package_label}s</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>QC Reject</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Machine</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Operator</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Notes</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Time</th>
@@ -1546,6 +1912,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 <td style={{ padding: '2px 6px', color: '#555', fontFamily: c.source_batch_number ? CODE_FONT : undefined }}>
                                                     {c.source_batch_number || '—'}
                                                 </td>
+                                                <td style={{ padding: '2px 6px', color: '#555' }}>{c.work_center_name || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.notes || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.completed_at ? tzDateTime(c.completed_at) : '—'}</td>

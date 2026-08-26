@@ -992,22 +992,41 @@ export function FormSection({ title, classic, children, style, bodyStyle }: {
 // where FormSection's solid blue header bar would read as a page-level section
 // and compete with the modal's own title bar. Was hand-rolled three times inside
 // WOCompletionModal before this; `right` holds an optional action (e.g. "Print
-// All Bag Labels") pinned to the legend line.
-export function LegendPanel({ title, right, children, style }: {
+// All Bag Labels") pinned to the legend line. `legendStyle` overrides the legend
+// span itself (background must match a `style` background override, e.g. a
+// tinted "Tip" box, or the default beige patch shows through behind the label).
+export function LegendPanel({ title, right, children, style, legendStyle }: {
     title: React.ReactNode;
     right?: React.ReactNode;
     children: React.ReactNode;
     style?: React.CSSProperties;
+    legendStyle?: React.CSSProperties;
 }) {
     return (
-        <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10, ...style }}>
-            <span style={{
-                position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px',
-                fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080',
+        <div style={{ border: '1px solid #aca899', borderRadius: SECTION_RADIUS, background: '#f5f4ee', position: 'relative', paddingTop: 10, ...style }}>
+            {/* One flex row for legend + right, both vertically centered on the same
+                band — two independently-tuned absolute offsets drifted apart (the
+                legend's own fix left `right` still straddling the border a
+                different amount, so it visibly cut through whatever sat there). */}
+            <div style={{
+                position: 'absolute', top: -10, left: 0, right: 0, height: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0 6px', pointerEvents: 'none',
             }}>
-                {title}
-            </span>
-            {right && <span style={{ position: 'absolute', top: -9, right: 6 }}>{right}</span>}
+                {/* Own border + background (not just a colour-matched patch masking
+                    the panel border) so the label reads as a distinct chip instead
+                    of the panel's 1px border visibly cutting through the glyphs'
+                    ascenders. */}
+                <span style={{
+                    pointerEvents: 'auto', background: '#fff', border: '1px solid #aca899',
+                    borderRadius: 2, padding: '1px 5px', lineHeight: 1.3,
+                    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080',
+                    ...legendStyle,
+                }}>
+                    {title}
+                </span>
+                {right && <span style={{ pointerEvents: 'auto' }}>{right}</span>}
+            </div>
             {children}
         </div>
     );
