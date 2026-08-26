@@ -29,6 +29,15 @@ export const splitBoxQtys = (total: number, size: number): number[] => {
 export const seedBoxRows = (total: number, size: number, prev: BoxRow[] = []): BoxRow[] =>
     splitBoxQtys(total, size).map((q, i) => ({ qty: String(q), kg: prev[i]?.kg || '' }));
 
+// UOMs whose base qty already IS a weight in kg — mirrors `packing_service.KG_UOMS`.
+// For those, a carton's qty and its net weight are the same measurement, so the
+// pack screens show ONE input and the server derives the weight from the qty;
+// asking twice would let the label's CONTENT and N.W. lines contradict. Any other
+// UOM (pcs, yard, m, l) is a count or a length whose weight is a separate reading.
+const KG_UOMS = ['kg', 'kgs', 'kilogram', 'kilograms'];
+export const uomIsKg = (uom?: string | null) =>
+    KG_UOMS.includes(String(uom || '').trim().toLowerCase());
+
 // Parsed the same way the pack screens parse every other numeric field
 // (`parseFloat`, not `Number`): the two disagree on a comma decimal and on
 // trailing text, so a row could total as weighed in the footer while still

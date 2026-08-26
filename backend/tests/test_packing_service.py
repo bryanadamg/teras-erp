@@ -109,3 +109,38 @@ def test_assert_all_weighed_counts_every_missing_carton():
     with pytest.raises(ValueError) as e:
         packing_service.assert_all_weighed([(1.0, None), (1.0, None), (1.0, 0.9)])
     assert "2 of 3 not weighed" in str(e.value)
+
+
+# --- derive_weights_from_qty -------------------------------------------------
+# A kg item's carton qty IS its net weight: one measurement, so the pack screens
+# show one input and CONTENT / N.W. on the label can never contradict.
+
+def test_uom_is_kg_matches_the_seeded_spellings():
+    assert packing_service.uom_is_kg("kg")
+    assert packing_service.uom_is_kg(" KG ")
+    assert packing_service.uom_is_kg("Kilograms")
+    assert not packing_service.uom_is_kg("pcs")
+    assert not packing_service.uom_is_kg("yard")
+    assert not packing_service.uom_is_kg(None)
+
+
+def test_derive_weights_from_qty_fills_kg_cartons():
+    assert packing_service.derive_weights_from_qty([(5.0, None), (3.0, None)], "kg") == [
+        (5.0, 5.0), (3.0, 3.0),
+    ]
+
+
+def test_derive_weights_from_qty_overrides_a_contradicting_weight():
+    # Same carton cannot weigh two things — the qty is the measurement.
+    assert packing_service.derive_weights_from_qty([(5.0, 4.2)], "kg") == [(5.0, 5.0)]
+
+
+def test_derive_weights_from_qty_leaves_a_counted_uom_alone():
+    rows = [(12.0, 6.19), (4.0, None)]
+    assert packing_service.derive_weights_from_qty(rows, "pcs") == rows
+
+
+def test_derived_kg_weights_satisfy_the_weight_gate():
+    packing_service.assert_all_weighed(
+        packing_service.derive_weights_from_qty([(5.0, None)], "kg")
+    )

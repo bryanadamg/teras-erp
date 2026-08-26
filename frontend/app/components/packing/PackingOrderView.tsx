@@ -19,7 +19,7 @@ import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import { LotChips, LotChip } from '../shared/LotChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
-import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox } from '../shared/packingBoxes';
+import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox, uomIsKg } from '../shared/packingBoxes';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
 
@@ -1058,8 +1058,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // N.W. line — the server rejects an unweighed carton outright.
     const boxes = filledBoxRows(boxRows);
     const boxValues = boxes.map(b => num(b.qty));
-    const boxWeights = boxes.map(b => num(b.kg));
-    const weightsMissing = hasUnweighedBox(boxRows);
+    // A kg item is weighed once: the qty in the carton IS its net weight, so the
+    // row shows a single input and the weight rides along from it (the server
+    // derives the same way). Any other UOM is a count or a length, so its weight
+    // is a separate scale reading and stays required.
+    const qtyIsWeight = uomIsKg(uom);
+    const boxWeights = qtyIsWeight ? boxValues : boxes.map(b => num(b.kg));
+    const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
     const boxTotal = boxValues.reduce((s, v) => s + v, 0);
     const weightTotal = boxWeights.reduce((s: number, v) => s + v, 0);
     const boxMismatch = packTotal > 0 && Math.abs(boxTotal - packTotal) > 1e-3;
@@ -1311,7 +1316,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
 
                             <div>
                                 <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span>{po.package_label}s to be Made</span>
+                                    <span>
+                                        {po.package_label}s to be Made
+                                        {qtyIsWeight && (
+                                            <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
+                                                — weighed in {uom}, so each {po.package_label.toLowerCase()}&apos;s qty is its net weight
+                                            </span>
+                                        )}
+                                    </span>
                                     <button
                                         type="button"
                                         className={XP_BTN}
@@ -1339,18 +1351,23 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 min="0" step="any"
                                             />
                                             {uom && <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>{uom}</span>}
-                                            {/* Net weight off the scale — prints as N.W. on the carton label. */}
-                                            <input
-                                                type="number"
-                                                style={{ ...xpInput, width: 62, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
-                                                value={b.kg}
-                                                onChange={e => updateBoxRow(i, { kg: e.target.value })}
-                                                min="0" step="any"
-                                                required
-                                                placeholder="net wt"
-                                                title="Net weight of this carton off the scale — printed as N.W. on the label"
-                                            />
-                                            <span style={{ fontSize: 9, color: '#888', width: 16, flexShrink: 0 }}>kg</span>
+                                            {/* Net weight off the scale — prints as N.W. on the carton label.
+                                                Hidden for a kg item: the qty beside it is already that weight. */}
+                                            {!qtyIsWeight && (
+                                                <>
+                                                    <input
+                                                        type="number"
+                                                        style={{ ...xpInput, width: 62, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
+                                                        value={b.kg}
+                                                        onChange={e => updateBoxRow(i, { kg: e.target.value })}
+                                                        min="0" step="any"
+                                                        required
+                                                        placeholder="net wt"
+                                                        title="Net weight of this carton off the scale — printed as N.W. on the label"
+                                                    />
+                                                    <span style={{ fontSize: 9, color: '#888', width: 16, flexShrink: 0 }}>kg</span>
+                                                </>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => removeBoxRow(i)}

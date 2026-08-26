@@ -37,7 +37,11 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
  *            base qty in brackets; `ket_stock` rides underneath.
  *   PO. NO   the customer's own `customer_po_ref`, our SO number under it.
  *   LOT. NO  the source lot this carton was packed from (via its completion).
- *   N W      `Batch.weight_kg` — the packer's scale reading at pack time.
+ *   N W      `Batch.weight_kg` — the packer's scale reading at pack time. For a
+ *            kg-based item there is nothing separate to read: the carton qty is
+ *            that weight, so the server derives it and this line matches the base
+ *            qty in CONTENT. They differ only when CONTENT is a count (pieces),
+ *            where N.W. is what those pieces weigh.
  *
  * Reuses the bag-label print CSS (`bag-label-*` in globals.css): same A6
  * one-per-sheet geometry, so there is no second set of print rules to keep in

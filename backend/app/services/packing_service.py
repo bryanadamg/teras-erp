@@ -126,6 +126,33 @@ def allocate_boxes_to_lots(
     return out
 
 
+# UOMs whose base qty already IS a weight in kg. For those the carton's qty and
+# its net weight are the same measurement, so asking the packer for both invites
+# two figures that disagree on the label (CONTENT and N.W. would contradict each
+# other). Anything else — pcs, yard, m, l — is a count or a length, and its weight
+# is a separate reading off the scale.
+KG_UOMS = {"kg", "kgs", "kilogram", "kilograms"}
+
+
+def uom_is_kg(uom: Optional[str]) -> bool:
+    return (uom or "").strip().lower() in KG_UOMS
+
+
+def derive_weights_from_qty(
+    carton_qtys: list[tuple[float, Optional[float]]],
+    uom: Optional[str],
+) -> list[tuple[float, Optional[float]]]:
+    """For a kg-based item, the carton qty is the net weight — take it from there.
+
+    Derived rather than merely defaulted: a client that sent a *different* weight
+    for a kg item would be stating the same carton weighs two things. One
+    measurement, one source.
+    """
+    if not uom_is_kg(uom):
+        return carton_qtys
+    return [(qty, float(qty)) for qty, _ in carton_qtys]
+
+
 def assert_all_weighed(carton_qtys: list[tuple[float, Optional[float]]], package_label: str = "carton") -> None:
     """Every carton must carry the packer's scale reading.
 

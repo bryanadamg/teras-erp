@@ -616,6 +616,13 @@ async def add_packing_completion(
             box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
             carton_qtys = [(q, None) for q in packing_service.split_qty(lot_qty, box_size)]
 
+        # A kg-based item measures its cartons once: the qty in the box is its net
+        # weight, so the packer is never asked for it twice and the two label
+        # lines can never disagree.
+        carton_qtys = packing_service.derive_weights_from_qty(
+            carton_qtys, po.item.uom if po.item else None,
+        )
+
         # Logging happens after the boxes are packed and weighed: a carton with no
         # net weight prints a label with a blank N.W. line, so it is refused here
         # rather than silently minted.

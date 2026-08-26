@@ -6,7 +6,7 @@ import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared
 import { toNum } from '../shared/format';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
-import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox } from '../shared/packingBoxes';
+import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox, uomIsKg } from '../shared/packingBoxes';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -183,7 +183,11 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const boxes = filledBoxRows(boxRows);
     const boxTotal = boxes.reduce((s, b) => s + num(b.qty), 0);
     const boxMismatch = num(qty) > 0 && Math.abs(boxTotal - num(qty)) > 1e-3;
-    const weightsMissing = hasUnweighedBox(boxRows);
+    // Weighed in kg already — the carton qty is its net weight, so there is one
+    // input, not two that could disagree on the label. See shared/packingBoxes.
+    const qtyIsWeight = uomIsKg(po?.item_uom);
+    const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
+    const weightTotal = boxes.reduce((s, b) => s + (qtyIsWeight ? num(b.qty) : num(b.kg)), 0);
 
     const logPack = async () => {
         const label = (po?.package_label || 'carton').toLowerCase();
@@ -202,7 +206,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                 body: JSON.stringify({
                     qty: num(qty),
                     boxes: boxes.map(b => num(b.qty)),
-                    box_weights: boxes.map(b => num(b.kg)),
+                    box_weights: boxes.map(b => (qtyIsWeight ? num(b.qty) : num(b.kg))),
                     source_batch_id: sourceBatch || null,
                     work_center_id: workCenterId || null,
                     operator: operator || null,
@@ -301,7 +305,14 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <label style={xpLabel}>Qty packed</label>
                         <input type="number" min={0} style={xpInput} value={qty} onChange={e => onQtyChange(e.target.value)} />
                         <label style={{ ...xpLabel, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{po.package_label || 'Carton'}s packed &amp; weighed</span>
+                            <span>
+                                {po.package_label || 'Carton'}s packed &amp; weighed
+                                {qtyIsWeight && (
+                                    <span style={{ fontWeight: 'normal', color: '#777' }}>
+                                        {' '}— qty is the net weight
+                                    </span>
+                                )}
+                            </span>
                             <MobileButton compact icon="bi-plus-lg" onClick={addBox}>Add</MobileButton>
                         </label>
                         {boxRows.length === 0 && (
@@ -314,9 +325,11 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                                 <span style={{ fontSize: 11, color: '#777', width: 22 }}>#{i + 1}</span>
                                 <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
                                     value={b.qty} onChange={e => updateBox(i, { qty: e.target.value })} />
-                                <input type="number" min={0} step="any" required
-                                    style={{ ...xpInput, flex: 1, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
-                                    placeholder="net wt kg" value={b.kg} onChange={e => updateBox(i, { kg: e.target.value })} />
+                                {!qtyIsWeight && (
+                                    <input type="number" min={0} step="any" required
+                                        style={{ ...xpInput, flex: 1, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
+                                        placeholder="net wt kg" value={b.kg} onChange={e => updateBox(i, { kg: e.target.value })} />
+                                )}
                                 <MobileButton compact tone="danger" icon="bi-x-lg" onClick={() => removeBox(i)} />
                             </div>
                         ))}
@@ -326,7 +339,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                                     ? `Boxed ${boxTotal.toFixed(2)} of ${num(qty).toFixed(2)}`
                                     : weightsMissing
                                         ? `Weigh every ${(po.package_label || 'carton').toLowerCase()}`
-                                        : `${boxes.length} ${(po.package_label || 'carton').toLowerCase()}s · ${boxes.reduce((s, b) => s + num(b.kg), 0).toFixed(2)} kg`}
+                                        : `${boxes.length} ${(po.package_label || 'carton').toLowerCase()}s · ${weightTotal.toFixed(2)} kg`}
                             </div>
                         )}
                         {lots.length > 0 && (
