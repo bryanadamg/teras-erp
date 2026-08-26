@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
+import { recallAvatar } from '../components/shared/avatarCache';
 import BootSplash, { useBootIndicator } from '../components/shared/BootSplash';
 import { modernFont } from '../components/shared/xpTheme';
 
@@ -187,6 +188,11 @@ export default function LoginPage() {
     const [selectedUsername, setSelectedUsername] = useState('');
     const [password, setPassword] = useState('');
 
+    // Whose avatar the badge shows. Deliberately not `usernameInput` — driving
+    // it from live keystrokes would morph the face on every character typed.
+    // It settles on the remembered user at boot, then on whoever is confirmed.
+    const [avatarUsername, setAvatarUsername] = useState('');
+
     const [loginError, setLoginError] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -206,11 +212,23 @@ export default function LoginPage() {
     const booting = !mounted || loading;
     const showBoot = useBootIndicator(booting);
 
+    // Gated on `mounted`: localStorage doesn't exist during prerender, and
+    // reading it while rendering would desync the hydrated markup. Falls back
+    // to a username-seeded avatar, which is already exactly what an
+    // uncustomised user sees everywhere else in the app.
+    const rememberedAvatar = useMemo(
+        () => (mounted ? recallAvatar(avatarUsername) : null),
+        [mounted, avatarUsername],
+    );
+
     useEffect(() => { setMounted(true); }, []);
 
     useEffect(() => {
         const saved = window.localStorage.getItem('teras_last_username');
-        if (saved) setUsernameInput(saved);
+        if (saved) {
+            setUsernameInput(saved);
+            setAvatarUsername(saved);
+        }
     }, []);
 
     useEffect(() => {
@@ -230,6 +248,7 @@ export default function LoginPage() {
 
     const confirmUsername = (username: string) => {
         setSelectedUsername(username);
+        setAvatarUsername(username);
         setStep('password');
         setLoginError('');
         window.localStorage.setItem('teras_last_username', username);
@@ -304,7 +323,7 @@ export default function LoginPage() {
                         boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        <PixelAvatar seed="teras" size={48} />
+                        <PixelAvatar avatarId={rememberedAvatar} seed={avatarUsername || 'teras'} size={48} />
                     </div>
 
                     {step === 'password' && (
@@ -573,7 +592,7 @@ export default function LoginPage() {
                         boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        <PixelAvatar seed="teras" size={48} />
+                        <PixelAvatar avatarId={rememberedAvatar} seed={avatarUsername || 'teras'} size={48} />
                     </div>
 
                     {step === 'password' && (

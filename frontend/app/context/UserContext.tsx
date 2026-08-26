@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { rememberAvatar } from '../components/shared/avatarCache';
 
 interface Permission {
     id: string;
@@ -151,6 +152,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             setLoading(false);
         });
     }, [bootPhase]);
+
+    // Cache the signed-in user's avatar recipe locally so the pre-auth login
+    // screen can greet them with their own face. Hooked to currentUser rather
+    // than to login() so it also covers session restore and profile saves —
+    // including a reset back to the default, which forgets the old recipe.
+    useEffect(() => {
+        if (currentUser) rememberAvatar(currentUser.username, currentUser.avatar_id);
+    }, [currentUser]);
 
     const hasPermission = (permissionCode: string): boolean => {
         if (!currentUser) return false;
