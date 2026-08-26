@@ -47,7 +47,7 @@ def test_sample_request_lifecycle(client, auth_headers):
 
     # Appears in list with colors
     res3 = client.get("/api/samples", headers=auth_headers)
-    found = next((s for s in res3.json() if s["id"] == sample["id"]), None)
+    found = next((s for s in res3.json()["items"] if s["id"] == sample["id"]), None)
     assert found is not None
     assert found["status"] == "IN_PRODUCTION"
     assert len(found["colors"]) == 2
@@ -112,7 +112,7 @@ def test_color_status_update(client, auth_headers):
 
     # BLUE is still PENDING
     res3 = client.get("/api/samples", headers=auth_headers)
-    found = next(s for s in res3.json() if s["id"] == sample_id)
+    found = next(s for s in res3.json()["items"] if s["id"] == sample_id)
     colors_by_id = {c["id"]: c for c in found["colors"]}
     assert colors_by_id[red_id]["status"] == "APPROVED"
     assert colors_by_id[blue_id]["status"] == "PENDING"

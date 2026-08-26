@@ -106,10 +106,23 @@ def test_cannot_deactivate_last_active_administrator(client, admin_headers, admi
 
 
 def test_cannot_demote_last_active_administrator(client, admin_headers, admin_user, db_session):
-    other_role = Role(name="Operator")
+    # Not "Operator" — that name is seeded (see init_db.seed_rbac) and this
+    # only needs some non-Administrator role to attempt the demotion into.
+    other_role = Role(name="Non-Admin Test Role")
     db_session.add(other_role)
     db_session.commit()
     db_session.refresh(other_role)
+
+    # seed_rbac also seeds a real "admin" user with the Administrator role —
+    # deactivate it so admin_user really is the last active admin, matching
+    # what this test means to exercise.
+    admin_role = db_session.query(Role).filter(Role.name == "Administrator").first()
+    (
+        db_session.query(User)
+        .filter(User.role_id == admin_role.id, User.id != admin_user.id)
+        .update({"is_active": False}, synchronize_session=False)
+    )
+    db_session.commit()
 
     res = client.put(f"/api/users/{admin_user.id}", json={"role_id": str(other_role.id)}, headers=admin_headers)
     assert res.status_code == 400

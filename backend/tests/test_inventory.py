@@ -5,7 +5,7 @@ def test_create_uom(client, auth_headers):
 
 def test_create_category(client, auth_headers):
     res = client.post("/api/categories", json={"name": "TestCat"}, headers=auth_headers)
-    assert res.status_code == 200
+    assert res.status_code == 201
     assert res.json()["name"] == "TestCat"
 
 def test_create_item(client, auth_headers):
@@ -41,13 +41,25 @@ def test_duplicate_item_code(client, auth_headers):
     assert res.status_code == 400
 
 
-def test_create_item_with_packaging_factors(client, auth_headers):
-    uom_res = client.post("/api/uoms", json={"name": "kg-pkg-test"}, headers=auth_headers)
-    assert uom_res.status_code == 200
-    uom_id = uom_res.json()["id"]
-    factor_res = client.post(f"/api/uoms/{uom_id}/factors", json={"value": 5.0, "label": "box"}, headers=auth_headers)
-    assert factor_res.status_code == 200
-    factor_id = factor_res.json()["id"]
+def test_create_item_with_packaging_factors(client, auth_headers, async_db_session, _app_client):
+    # UOMs go through the sync router, items through the async one — two
+    # separate non-committing connections in tests, so a factor referencing
+    # UOMs created via the HTTP endpoint would be invisible (and its FK
+    # unsatisfiable) from the item-creation call. Build the whole chain
+    # directly on the async session the item read will actually use.
+    from app.models.uom import UOM, UOMFactor
+
+    async def _seed():
+        base_uom = UOM(name="kg-pkg-test")
+        box_uom = UOM(name="box-pkg-test")
+        async_db_session.add_all([base_uom, box_uom])
+        await async_db_session.flush()
+        factor = UOMFactor(from_uom_id=base_uom.id, to_uom_id=box_uom.id, value=5.0)
+        async_db_session.add(factor)
+        await async_db_session.flush()
+        return str(factor.id)
+
+    factor_id = _app_client.portal.call(_seed)
     res = client.post("/api/items", json={
         "code": "PKG-TEST-001", "name": "Packaging Test Item",
         "uom": "kg-pkg-test", "attribute_ids": [],
@@ -57,11 +69,23 @@ def test_create_item_with_packaging_factors(client, auth_headers):
     assert factor_id in [str(fid) for fid in res.json()["packaging_factor_ids"]]
 
 
-def test_update_item_packaging_factors(client, auth_headers):
-    uom_res = client.post("/api/uoms", json={"name": "kg-upd-test"}, headers=auth_headers)
-    uom_id = uom_res.json()["id"]
-    f1 = client.post(f"/api/uoms/{uom_id}/factors", json={"value": 5.0, "label": "box"}, headers=auth_headers).json()["id"]
-    f2 = client.post(f"/api/uoms/{uom_id}/factors", json={"value": 1.25, "label": "cone"}, headers=auth_headers).json()["id"]
+def test_update_item_packaging_factors(client, auth_headers, async_db_session, _app_client):
+    # Same cross-domain visibility constraint as test_create_item_with_packaging_factors.
+    from app.models.uom import UOM, UOMFactor
+
+    async def _seed():
+        base_uom = UOM(name="kg-upd-test")
+        box_uom = UOM(name="box-upd-test")
+        cone_uom = UOM(name="cone-upd-test")
+        async_db_session.add_all([base_uom, box_uom, cone_uom])
+        await async_db_session.flush()
+        f1 = UOMFactor(from_uom_id=base_uom.id, to_uom_id=box_uom.id, value=5.0)
+        f2 = UOMFactor(from_uom_id=base_uom.id, to_uom_id=cone_uom.id, value=1.25)
+        async_db_session.add_all([f1, f2])
+        await async_db_session.flush()
+        return str(f1.id), str(f2.id)
+
+    f1, f2 = _app_client.portal.call(_seed)
     item_res = client.post("/api/items", json={
         "code": "PKG-UPD-001", "name": "Update Test Item",
         "uom": "kg-upd-test", "attribute_ids": [],

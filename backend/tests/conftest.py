@@ -84,9 +84,23 @@ def _app_client(_test_database):
         yield c
 
 
+# Async routes get their own connection on the async engine (different driver,
+# can't share a DBAPI connection with db_session's psycopg2 one) — but it needs
+# the exact same SAVEPOINT treatment, or async writes commit for real and
+# outlive the test. Opened and closed through the shared client's portal so it
+# runs on the one loop every request uses (asyncpg connections are loop-bound).
+#
+# Exposed as its own fixture (not just wired straight into `client`) so a test
+# that seeds data through a sync-domain endpoint (uoms, attributes, auth) and
+# then exercises an async-domain one (items, boms, manufacturing, ...) can
+# write the setup data directly on THIS session instead — the two domains sit
+# on separate, non-committing connections, so data written through `client`'s
+# sync half is invisible to its async half within the same test, same as it
+# would be invisible to a second real request; that's correct isolation, not a
+# bug, but it means cross-domain test setup can't go through the sync HTTP
+# call and has to land here instead.
 @pytest.fixture(scope="function")
-def client(_app_client, db_session):
-    from app.db.session import get_async_db
+def async_db_session(_app_client):
     from app.core.db_manager import db_manager
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -95,17 +109,6 @@ def client(_app_client, db_session):
     # only real work on the very first test.
     _attach_async_lock_timeout()
 
-    def override_get_db():
-        yield db_session
-
-    app.dependency_overrides[get_db] = override_get_db
-
-    # Async routes get their own connection on the async engine (different
-    # driver, can't share a DBAPI connection with db_session's psycopg2 one) —
-    # but it needs the exact same SAVEPOINT treatment, or async writes commit
-    # for real and outlive the test. Opened and closed through the shared
-    # client's portal so it runs on the one loop every request uses (asyncpg
-    # connections are loop-bound).
     async def _open_async_txn():
         conn = await db_manager.async_engine.connect()
         await conn.begin()
@@ -115,12 +118,7 @@ def client(_app_client, db_session):
 
     async_conn, async_session = _app_client.portal.call(_open_async_txn)
 
-    async def override_get_async_db():
-        yield async_session
-
-    app.dependency_overrides[get_async_db] = override_get_async_db
-
-    yield _app_client
+    yield async_session
 
     async def _close_async_txn():
         await async_session.close()
@@ -128,6 +126,23 @@ def client(_app_client, db_session):
         await async_conn.close()
 
     _app_client.portal.call(_close_async_txn)
+
+
+@pytest.fixture(scope="function")
+def client(_app_client, db_session, async_db_session):
+    from app.db.session import get_async_db
+
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    async def override_get_async_db():
+        yield async_db_session
+
+    app.dependency_overrides[get_async_db] = override_get_async_db
+
+    yield _app_client
 
     app.dependency_overrides.pop(get_db, None)
     app.dependency_overrides.pop(get_async_db, None)
