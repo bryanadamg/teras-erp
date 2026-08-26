@@ -7,7 +7,8 @@ import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useToast } from './Toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { xpFont as XP_FONT, XPLoading, xpInput as xpInputBase, xpBtn as xpBtnBase, XP_BTN } from './xpTheme';
+import { xpFont as XP_FONT, XPLoading, xpInput as xpInputBase } from './xpTheme';
+import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from '../mobile/mobileTheme';
 
 // One camera per session: the branch views are only mounted after a code has
 // already been decoded here, so their own readers never race this one.
@@ -19,18 +20,8 @@ const PackingScanView = dynamic(() => import('../mobile/PackingScanView'), { ssr
 const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-const XP_BEIGE = '#ece9d8';
-
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => xpBtnBase({ fontSize: 13, padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: 5, ...extra });
-const xpPanel: React.CSSProperties = {
-    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    background: '#f5f4ef', borderRadius: 0, padding: '10px 12px',
-};
-const xpSectionLabel: React.CSSProperties = {
-    fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold',
-    textTransform: 'uppercase', letterSpacing: 0.5, color: '#555',
-    borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 8,
-};
+// Same local shape PickScanView/PackingScanView/MobileScannerView each keep —
+// mobileTheme doesn't centralize the raw input face, only the panel/button chrome.
 const xpInput: React.CSSProperties = xpInputBase({ fontSize: 13, height: 'auto', padding: '6px 8px', width: '100%', boxSizing: 'border-box' });
 
 const isUUID = (s: string) =>
@@ -263,26 +254,21 @@ export default function ScanDispatcher({ onClose }: { onClose: () => void }) {
     if (woLoading) return <XPLoading label="Loading work order..." />;
 
     return (
-        <div className="ui-scale-exempt" style={{ fontFamily: XP_FONT, background: XP_BEIGE, minHeight: 'var(--app-vh)', padding: 12 }}>
+        <div className="ui-scale-exempt" style={{ fontFamily: XP_FONT, background: MOBILE_BG, minHeight: 'var(--app-vh)', padding: 10 }}>
             <div style={{ maxWidth: 520, margin: '0 auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <strong style={{ fontSize: 15 }}>Scanner</strong>
-                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Close</button>
-                </div>
+                <MobileScreenBar
+                    icon="bi-qr-code-scan"
+                    title="Scanner"
+                    right={<MobileButton compact icon="bi-x-lg" onClick={onClose}>Close</MobileButton>}
+                />
 
-                {error && (
-                    <div style={{ background: '#ffe8e8', border: '1px solid #c00', color: '#800', padding: '8px 10px', fontSize: 13, fontWeight: 'bold', marginBottom: 10 }}>
-                        {error}
-                    </div>
-                )}
+                {error && <MobileNotice tone="red" strong>{error}</MobileNotice>}
 
-                <div style={{ ...xpPanel, marginBottom: 10 }}>
-                    <div style={xpSectionLabel}>Scan</div>
+                <MobilePanel icon="bi-camera-fill" title="Scan" style={{ marginBottom: 10 }}>
                     <div id="scan-dispatch-reader" style={{ width: '100%' }} />
-                </div>
+                </MobilePanel>
 
-                <div style={{ ...xpPanel, marginBottom: 10 }}>
-                    <div style={xpSectionLabel}>Or type a code</div>
+                <MobilePanel icon="bi-keyboard-fill" title="Or type a code" style={{ marginBottom: 10 }}>
                     {/* Also the USB-wedge path: a keyboard-emulating scanner types
                         the code here and submits with Enter. */}
                     <input
@@ -292,18 +278,24 @@ export default function ScanDispatcher({ onClose }: { onClose: () => void }) {
                         onChange={e => setManualCode(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { route(manualCode); setManualCode(''); } }}
                     />
-                    <button className={XP_BTN} style={{ ...xpBtn(), marginTop: 8 }} onClick={() => { route(manualCode); setManualCode(''); }}>
+                    <MobileButton
+                        tone="launch"
+                        icon="bi-arrow-return-left"
+                        onClick={() => { route(manualCode); setManualCode(''); }}
+                        style={{ marginTop: 8 }}
+                    >
                         Open
-                    </button>
-                </div>
+                    </MobileButton>
+                </MobilePanel>
 
-                <div style={{ ...xpPanel, fontSize: 11, color: '#555', lineHeight: 1.7 }}>
-                    <div style={xpSectionLabel}>This scanner opens</div>
-                    <div><strong>Kartu Kerja QR</strong> — log production on a work order</div>
-                    <div><strong>PL-</strong> pick list — pick cartons onto an order</div>
-                    <div><strong>PU-</strong> carton label — pick it, or identify it</div>
-                    <div><strong>PCK-</strong> packing order — log cartons packed</div>
-                </div>
+                <MobilePanel icon="bi-info-circle" title="This scanner opens" tone="grey">
+                    <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555', lineHeight: 1.7 }}>
+                        <div><strong>Kartu Kerja QR</strong> — log production on a work order</div>
+                        <div><strong>PL-</strong> pick list — pick cartons onto an order</div>
+                        <div><strong>PU-</strong> carton label — pick it, or identify it</div>
+                        <div><strong>PCK-</strong> packing order — log cartons packed</div>
+                    </div>
+                </MobilePanel>
             </div>
         </div>
     );
