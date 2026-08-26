@@ -2874,6 +2874,8 @@ class PackingOrderCreate(BaseModel):
     package_label: str = "Carton"
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    # Packing machine (WorkCenter MACHINE row) this order is dispatched to.
+    work_center_id: UUID | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
     notes: str | None = None
@@ -2889,6 +2891,7 @@ class PackingOrderUpdate(BaseModel):
     package_label: str | None = None
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    work_center_id: UUID | None = None
     status: str | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
@@ -2935,6 +2938,9 @@ class PackingCompletionCreate(BaseModel):
     # Multi-lot pack: one completion row is written per lot, so each keeps a
     # truthful source_batch_id and its own carton range.
     lots: list[PackingCompletionLotPayload] | None = None
+    # Machine this pack event ran on. Omitted = the packing order's own machine;
+    # never left null when the order names one, so per-machine output is readable.
+    work_center_id: UUID | None = None
     operator: str | None = None
     notes: str | None = None
     # Omit to fall back to the order's planned materials, pro-rated by qty.
@@ -2995,6 +3001,8 @@ class PackingCompletionResponse(BaseModel):
     package_count: int
     source_batch_id: UUID | None = None
     source_batch_number: str | None = None
+    work_center_id: UUID | None = None
+    work_center_name: str | None = None
     operator: str | None = None
     notes: str | None = None
     completed_at: datetime
@@ -3053,6 +3061,8 @@ class PackingOrderResponse(BaseModel):
     package_label: str
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    work_center_id: UUID | None = None
+    work_center_name: str | None = None
     status: str
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None

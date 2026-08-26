@@ -56,3 +56,27 @@ export function machinesUnderWC(workCenters: any[], rootId: string): any[] {
     walk(String(rootId));
     return out;
 }
+
+/** Picker option shape shared by SearchableSelect machine pickers. */
+export type WCOption = { value: string; label: string; subLabel?: string };
+
+/** Name-sorted (natural order, so LOOM-10 follows LOOM-9) picker options. */
+export const toMachineOptions = (list: any[]): WCOption[] =>
+    (list || [])
+        .slice()
+        .sort((a: any, b: any) => String(a.name || '').localeCompare(
+            String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' }))
+        .map((wc: any) => ({ value: String(wc.id), label: wc.name, subLabel: wc.code }));
+
+/**
+ * Machines that run under one centre type (e.g. 'PACKING'), falling back to every
+ * machine when the plant has not declared that type yet — an unfilterable picker
+ * beats an empty one, the same rule WOCompletionModal applies to its process scope.
+ */
+export function machinesOfCenterType(workCenters: any[], type: string): any[] {
+    const machines = (workCenters || []).filter((wc: any) => isMachineWC(wc));
+    const t = String(type || '').toUpperCase();
+    if (!t) return machines;
+    const matching = machines.filter((wc: any) => centerTypeOfWC(workCenters || [], wc) === t);
+    return matching.length ? matching : machines;
+}

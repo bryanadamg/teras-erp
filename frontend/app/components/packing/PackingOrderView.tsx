@@ -18,6 +18,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import { LotChips, LotChip } from '../shared/LotChips';
+import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
 
@@ -61,7 +62,7 @@ const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
 
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
-    const { locations, attributes, companyProfile, itemIndex, authFetch } = useData();
+    const { locations, attributes, companyProfile, itemIndex, workCenters, authFetch } = useData();
     const { uiStyle } = useTheme();
     const { formatDate: tzDate, formatDateTime: tzDateTime } = useTimezone();
     const { showToast } = useToast();
@@ -115,6 +116,14 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
         return m;
     }, [locations]);
 
+    // Machine picker scope. Packing machines are the MACHINE rows running under a
+    // PACKING centre type; a plant that has not declared that type yet gets every
+    // machine rather than an empty list — the same "never hand back an empty
+    // picker" rule WOCompletionModal applies to its process scope.
+    const machineOptions = useMemo(
+        () => toMachineOptions(machinesOfCenterType(workCenters || [], 'PACKING')),
+        [workCenters],
+    );
     const loadCounts = useCallback(async () => {
         const [pendRes, progRes, doneRes] = await Promise.all([
             authFetch(`${API_BASE}/packing?status=PENDING&page=1&size=1`),
@@ -219,6 +228,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                 {infoRow('Sales Order', po.sales_order_code || 'to stock')}
                                 {po.color_name && infoRow('Colour', po.color_name)}
                                 {infoRow(`${po.package_label} size`, num(po.pack_size) > 0 ? `${num(po.pack_size)} ${uom}` : 'per event')}
+                                {infoRow('Machine', po.work_center_name || 'not assigned')}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 3, margin: '2px 0' }}>
                                     <span style={{ color: '#888', fontSize: 9, minWidth: 60 }}>Route</span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9 }}>
@@ -487,6 +497,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
             {creating && (
                 <PackingOrderForm
                     locPickerTreeOptions={locPickerTreeOptions}
+                    machineOptions={machineOptions}
                     defaultSourceLocId={systemLocId('QC')}
                     defaultOutputLocId={systemLocId('FG')}
                     authFetch={authFetch}
@@ -501,6 +512,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 <PackingOrderDetail
                     po={detail}
                     itemById={itemById}
+                    machineOptions={machineOptions}
                     locationById={locationById}
                     locPickerTreeOptions={locPickerTreeOptions}
                     authFetch={authFetch}
@@ -536,7 +548,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
 }
 
 // ── create form ──────────────────────────────────────────────────────────────
-function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOutputLocId, authFetch, showToast, onClose, onCreated, initialValues }: any) {
+function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceLocId, defaultOutputLocId, authFetch, showToast, onClose, onCreated, initialValues }: any) {
     const { results: fgResults, onSearch: fgSearch } = useFinishedGoodsSearch();
     const [itemId, setItemId] = useState(initialValues?.item_id || '');
     const [qtyTarget, setQtyTarget] = useState(initialValues?.qty_target != null ? String(initialValues.qty_target) : '');
@@ -548,6 +560,10 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
     // these are only the defaults, not a fixed route.
     const [sourceLoc, setSourceLoc] = useState(initialValues?.source_location_id || defaultSourceLocId || '');
     const [outputLoc, setOutputLoc] = useState(defaultOutputLocId || '');
+    // Which packing machine runs this order. Optional — an order cut before the
+    // floor knows the machine is still packable, and the packer can name one at
+    // log time — but naming it here is what pre-fills every pack event.
+    const [workCenterId, setWorkCenterId] = useState(initialValues?.work_center_id || '');
     const [soId, setSoId] = useState(initialValues?.sales_order_id || '');
     const [soLineId, setSoLineId] = useState(initialValues?.sales_order_line_id || '');
     const [notes, setNotes] = useState('');
@@ -663,6 +679,7 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
                 package_label: packageLabel || 'Carton',
                 source_location_id: sourceLoc || null,
                 output_location_id: outputLoc || null,
+                work_center_id: workCenterId || null,
                 sales_order_id: soId || null,
                 sales_order_line_id: soLineId || null,
                 // Variant is deliberately not sent: it is resolved from the source
@@ -745,8 +762,8 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
                     </div>
                 </FormSection>
 
-                <FormSection title={<SectionTitle icon="bi-geo-alt">Locations</SectionTitle>} classic={CLASSIC}>
-                    <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr' }}>
+                <FormSection title={<SectionTitle icon="bi-geo-alt">Locations &amp; Machine</SectionTitle>} classic={CLASSIC}>
+                    <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr 1fr' }}>
                         <div>
                             <FieldLabel classic={CLASSIC} hint="Bulk finished goods are drawn from here">Pack from</FieldLabel>
                             <TreeSelect options={locPickerTreeOptions} value={sourceLoc} onChange={setSourceLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
@@ -754,6 +771,10 @@ function PackingOrderForm({ locPickerTreeOptions, defaultSourceLocId, defaultOut
                         <div>
                             <FieldLabel classic={CLASSIC} hint="Sealed cartons land here">Store cartons at</FieldLabel>
                             <TreeSelect options={locPickerTreeOptions} value={outputLoc} onChange={setOutputLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
+                        </div>
+                        <div>
+                            <FieldLabel classic={CLASSIC} hint="Pre-fills every pack event">Machine</FieldLabel>
+                            <SearchableSelect options={machineOptions || []} value={workCenterId} onChange={setWorkCenterId} placeholder="— none —" size="sm" />
                         </div>
                     </div>
                     <div style={hintText}>
@@ -850,7 +871,7 @@ function MaterialRow({ row, authFetch, locPickerTreeOptions, onChange, onRemove 
 // same legend-panel groupboxes and Previous-Entries table. Packing is the same
 // motion as logging WO output for the operator, so it reads the same. Keep the
 // two in step — a change to one of these patterns belongs in both.
-function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTreeOptions, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
+function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTreeOptions, machineOptions, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
     const { hasPermission } = useUser();
     const { formatDateTime: tzDateTime } = useTimezone();
     const canManage = hasPermission('sales.manage');
@@ -868,6 +889,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const [qty, setQty] = useState<string>('');
     const [boxSize, setBoxSize] = useState<string>(() => (num(po.pack_size) > 0 ? String(num(po.pack_size)) : ''));
     const [operator, setOperator] = useState('');
+    // Seeded from the order's machine so the common case is one click of nothing;
+    // an override here rides on this event only and never rewrites the order.
+    const [workCenterId, setWorkCenterId] = useState<string>(String(initialPo.work_center_id || ''));
     const [packNotes, setPackNotes] = useState('');
     const [lots, setLots] = useState<any[]>([]);
     const [heldLotCount, setHeldLotCount] = useState(0);
@@ -896,6 +920,30 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const [savingLocs, setSavingLocs] = useState(false);
     const locsDirty = srcDraft !== String(po.source_location_id || '') || outDraft !== String(po.output_location_id || '');
     const locsMissing = !po.source_location_id || !po.output_location_id;
+
+    // Persist the picked machine onto the order itself. The log picker alone only
+    // stamps the event, which is right for a one-off swap; an order that will keep
+    // running on this machine wants it stored so every later event pre-fills.
+    const [savingMachine, setSavingMachine] = useState(false);
+    const machineDirty = String(workCenterId || '') !== String(po.work_center_id || '');
+    const saveMachine = async () => {
+        setSavingMachine(true);
+        try {
+            const res = await authFetch(`${API_BASE}/packing/${po.id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ work_center_id: workCenterId || null }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Could not save the machine');
+            }
+            setPo(await res.json());
+            showToast('Machine assigned to this packing order', 'success');
+            await onChanged();
+        } catch (e: any) {
+            showToast(e.message, 'danger');
+        } finally { setSavingMachine(false); }
+    };
 
     const saveLocations = async () => {
         if (!srcDraft || !outDraft) { showToast('Both locations are required', 'danger'); return; }
@@ -1052,6 +1100,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             qty: q,
             boxes: boxValues,
             box_weights: anyWeights ? boxWeights : null,
+            work_center_id: workCenterId || null,
             operator: operator || null,
             notes: packNotes || null,
         };
@@ -1068,6 +1117,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                 lots: alloc,
                 boxes: boxValues,
                 box_weights: anyWeights ? boxWeights : null,
+                work_center_id: workCenterId || null,
                 operator: operator || null,
                 notes: packNotes || null,
             };
@@ -1435,6 +1485,21 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
 
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
+                                    <label style={{ ...xpFormLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                                        <span>Machine</span>
+                                        {machineDirty && workCenterId && (
+                                            <XPActionButton
+                                                classic tone="primary" icon="bi-pin-angle" label="Set on order"
+                                                title="Store this machine on the packing order so later entries pre-fill with it"
+                                                disabled={savingMachine}
+                                                onClick={saveMachine}
+                                            />
+                                        )}
+                                    </label>
+                                    <SearchableSelect options={machineOptions || []} value={workCenterId}
+                                        onChange={setWorkCenterId} placeholder="Select machine (optional)…" size="sm" />
+                                </div>
+                                <div style={{ flex: 1 }}>
                                     <label style={xpFormLabel}>Operator</label>
                                     <input type="text" style={{ ...xpInput, width: '100%' }} value={operator}
                                         onChange={e => setOperator(e.target.value)} placeholder="Name (optional)" />
@@ -1523,8 +1588,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         <tr style={{ background: '#dddbd0' }}>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{po.package_label}s</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>QC Reject</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Machine</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Operator</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Notes</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Time</th>
@@ -1546,6 +1612,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 <td style={{ padding: '2px 6px', color: '#555', fontFamily: c.source_batch_number ? CODE_FONT : undefined }}>
                                                     {c.source_batch_number || '—'}
                                                 </td>
+                                                <td style={{ padding: '2px 6px', color: '#555' }}>{c.work_center_name || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.notes || '—'}</td>
                                                 <td style={{ padding: '2px 6px', color: '#555' }}>{c.completed_at ? tzDateTime(c.completed_at) : '—'}</td>

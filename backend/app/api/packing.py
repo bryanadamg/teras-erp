@@ -21,6 +21,7 @@ from app.models.location import Location
 from app.models.attribute import AttributeValue
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.stock_balance import StockBalance
+from app.models.routing import WorkCenter
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import (
@@ -43,6 +44,8 @@ def _load_options():
         selectinload(PackingOrder.attribute_values),
         selectinload(PackingOrder.materials).selectinload(PackingOrderMaterial.item),
         selectinload(PackingOrder.completions).selectinload(PackingCompletion.source_batch),
+        selectinload(PackingOrder.completions).selectinload(PackingCompletion.work_center),
+        selectinload(PackingOrder.work_center),
         selectinload(PackingOrder.completions)
         .selectinload(PackingCompletion.materials)
         .selectinload(PackingCompletionMaterial.item),
@@ -176,6 +179,17 @@ async def _set_attributes(db: AsyncSession, po: PackingOrder, ids: list) -> None
         return
     result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(ids)))
     po.attribute_values = list(result.scalars().all())
+
+
+async def _assert_work_center(db: AsyncSession, wc_id) -> None:
+    """A named machine must exist. Deliberately not restricted to `node_type ==
+    MACHINE`: a packing order may be dispatched to a GROUP/TYPE row before the
+    planner knows which machine runs it, exactly as a WO can be."""
+    if not wc_id:
+        return
+    wc = (await db.execute(select(WorkCenter).filter(WorkCenter.id == wc_id))).scalars().first()
+    if not wc:
+        raise HTTPException(status_code=404, detail="Work center not found")
 
 
 # --- packed units (cartons) ------------------------------------------------
@@ -356,6 +370,7 @@ async def create_packing_order(
             raise HTTPException(status_code=404, detail="Sales order not found")
     if float(payload.qty_target or 0) <= 0:
         raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
+    await _assert_work_center(db, payload.work_center_id)
 
     code = await _next_code(db)
     po = PackingOrder(
@@ -369,6 +384,7 @@ async def create_packing_order(
         package_label=payload.package_label or "Carton",
         source_location_id=payload.source_location_id,
         output_location_id=payload.output_location_id,
+        work_center_id=payload.work_center_id,
         status="PENDING",
         target_start_date=payload.target_start_date,
         target_end_date=payload.target_end_date,
@@ -436,9 +452,11 @@ async def update_packing_order(
     if po.status in ("COMPLETED", "CANCELLED") and payload.status not in ("IN_PROGRESS", "PENDING"):
         raise HTTPException(status_code=400, detail=f"Cannot edit a {po.status} packing order")
 
+    await _assert_work_center(db, payload.work_center_id)
+
     for field in ("qty_target", "sales_order_id", "sales_order_line_id", "color_id",
                   "pack_size", "package_label", "source_location_id", "output_location_id",
-                  "status", "target_start_date", "target_end_date", "notes"):
+                  "work_center_id", "status", "target_start_date", "target_end_date", "notes"):
         val = getattr(payload, field)
         if val is not None:
             setattr(po, field, val)
@@ -516,6 +534,8 @@ async def add_packing_completion(
             status_code=400,
             detail="Packing order needs both a source and an output location before packing",
         )
+
+    await _assert_work_center(db, payload.work_center_id)
 
     lots = list(payload.lots or [])
     if lots:
@@ -617,6 +637,11 @@ async def add_packing_completion(
             # Overwritten by mint_packed_units below, once the real split is known.
             package_count=0,
             source_batch_id=batch_id,
+            # Falls back to the order's machine rather than staying null: every
+            # per-machine aggregate reads this column, and a picker the packer
+            # skipped must not erase where the work actually happened. Same fix
+            # MOCompletion needed for the weaving monitor.
+            work_center_id=payload.work_center_id or po.work_center_id,
             operator=payload.operator or current_user.username,
             notes=payload.notes,
             completed_at=datetime.utcnow(),
@@ -692,6 +717,13 @@ async def add_packing_completion(
             await db.commit()
             await manager.broadcast({"type": "SALES_ORDER_UPDATE", "id": str(po.sales_order_id)})
 
+    # Read the name back off the DB rather than the just-committed completion
+    # rows: `_load` expires the identity map, so touching a relationship on one
+    # of them would lazy-load inside an async session.
+    machine_id = payload.work_center_id or po.work_center_id
+    machine_name = (await db.execute(
+        select(WorkCenter.name).filter(WorkCenter.id == machine_id)
+    )).scalars().first() if machine_id else None
     lot_note = f" from {len(completions)} lots" if len(completions) > 1 else ""
     breakdown = packing_service.describe_box_breakdown(box_breakdown)
     breakdown_note = f" ({breakdown})" if len(set(round(q, 4) for q in box_breakdown)) > 1 else ""
@@ -701,6 +733,7 @@ async def add_packing_completion(
         details=(
             f"Packed {total_qty} into {total_cartons} {po.package_label.lower()}(s)"
             f"{breakdown_note}{lot_note} on {po.code}"
+            + (f" @ {machine_name}" if machine_name else "")
         ),
     )
     try:

@@ -11,7 +11,7 @@ import BagLabelPrintModal from './BagLabelPrintModal';
 import { ProgressBar, LegendPanel, CodeChip, xpFont, CHIP_RADIUS, xpInput as xpInputBase, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { RowCheckbox, LV_STICKY_THEAD, lvPickerRow } from '../shared/listViewTheme';
 import { LotChips } from '../shared/LotChips';
-import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC } from '../shared/workCenterTree';
+import { centerTypeOfWC, isContainerWC, isMachineWC, machinesUnderWC, toMachineOptions } from '../shared/workCenterTree';
 import { rejectTitle } from '../shared/rejectDisplay';
 
 const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px', width: '100%', boxSizing: 'border-box' });
@@ -385,10 +385,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
         return matching.length ? { list: matching, label: type } : { list: all, label: '' };
     }, [workCenters, woWc, woWcType, workOrder?.work_center_type]);
 
-    const wcOptions = machineScope
-        .slice()
-        .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' }))
-        .map((wc: any) => ({ value: wc.id, label: wc.name, subLabel: wc.code }));
+    const wcOptions = toMachineOptions(machineScope);
     const itemOptions = itemResults.map(itemToOption);
 
     return (

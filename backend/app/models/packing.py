@@ -60,6 +60,14 @@ class PackingOrder(Base):
         UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )
 
+    # The packing machine this order is dispatched to — the WorkCenter MACHINE row,
+    # same role `WorkOrder.work_center_id` plays for production. Planned here, and
+    # copied onto every completion that does not name its own machine, so a
+    # per-machine report never has to read a nullable operator field.
+    work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # PENDING, IN_PROGRESS, COMPLETED, CANCELLED
     status: Mapped[str] = mapped_column(String(16), default="PENDING", index=True)
 
@@ -82,6 +90,7 @@ class PackingOrder(Base):
     attribute_values = relationship("AttributeValue", secondary=packing_order_values)
     source_location = relationship("Location", foreign_keys=[source_location_id])
     output_location = relationship("Location", foreign_keys=[output_location_id])
+    work_center = relationship("WorkCenter", foreign_keys=[work_center_id], lazy="joined")
     created_by = relationship("User")
     materials = relationship("PackingOrderMaterial", backref="packing_order", cascade="all, delete-orphan")
     completions = relationship("PackingCompletion", backref="packing_order", cascade="all, delete-orphan")
@@ -97,6 +106,10 @@ class PackingOrder(Base):
     @property
     def item_uom(self):
         return self.item.uom if self.item else None
+
+    @property
+    def work_center_name(self):
+        return self.work_center.name if self.work_center else None
 
     @property
     def qty_packed(self) -> float:
@@ -172,6 +185,13 @@ class PackingCompletion(Base):
     source_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("batches.id", ondelete="SET NULL"), nullable=True
     )
+    # Machine this event ran on. Defaults to the order's own machine in
+    # `add_packing_completion` rather than staying null when the packer does not
+    # pick one — the same fix MOCompletion needed after per-machine weaving
+    # figures read 0 for every log with a null column.
+    work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     operator: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     completed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -191,12 +211,17 @@ class PackingCompletion(Base):
     )
 
     source_batch = relationship("Batch", foreign_keys=[source_batch_id])
+    work_center = relationship("WorkCenter", foreign_keys=[work_center_id], lazy="joined")
     reject_location = relationship("Location", foreign_keys=[reject_location_id], lazy="joined")
     materials = relationship("PackingCompletionMaterial", backref="completion", cascade="all, delete-orphan")
 
     @property
     def source_batch_number(self):
         return self.source_batch.batch_number if self.source_batch else None
+
+    @property
+    def work_center_name(self):
+        return self.work_center.name if self.work_center else None
 
 
 class PackingCompletionMaterial(Base):

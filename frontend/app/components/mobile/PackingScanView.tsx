@@ -5,6 +5,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared/xpTheme';
 import { toNum } from '../shared/format';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
+import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -46,6 +47,10 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const [operator, setOperator] = useState('');
     const [notes, setNotes] = useState('');
     const [lots, setLots] = useState<any[]>([]);
+    // Machine this shift is packing on. Seeded from the order, so the packer only
+    // touches it when they have moved to a different machine.
+    const [workCenterId, setWorkCenterId] = useState('');
+    const [machines, setMachines] = useState<any[]>([]);
     const [logging, setLogging] = useState(false);
     const [lastCartons, setLastCartons] = useState<any[]>([]);
 
@@ -145,6 +150,21 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
         })();
     }, [po, authFetch]);
 
+    // Work centers are not in scope on this screen (the mobile shell mounts no
+    // DataContext domain load for them), so fetch the bounded list once a packing
+    // order is open — same scoping rule as the desktop picker.
+    useEffect(() => {
+        if (!po) return;
+        setWorkCenterId(String(po.work_center_id || ''));
+        if (machines.length) return;
+        (async () => {
+            const res = await authFetch(`${API_BASE}/work-centers?limit=2000`);
+            if (!res.ok) return;
+            const d = await res.json();
+            setMachines(Array.isArray(d) ? d : (d.items || []));
+        })();
+    }, [po, authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const onQtyChange = (v: string) => {
         setQty(v);
         const ps = num(po?.pack_size);
@@ -163,6 +183,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                     qty: num(qty),
                     package_count: parseInt(packageCount, 10),
                     source_batch_id: sourceBatch || null,
+                    work_center_id: workCenterId || null,
                     operator: operator || null,
                     notes: notes || null,
                 }),
@@ -180,6 +201,8 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
             }
         } finally { setLogging(false); }
     };
+
+    const machineOptions = toMachineOptions(machinesOfCenterType(machines, 'PACKING'));
 
     const reset = () => { setPo(null); setUnit(null); setError(null); setLastCartons([]); setManualCode(''); };
 
@@ -242,6 +265,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <Row label="Sales order" value={po.sales_order_code || 'to stock'} />
                         <Row label="Target" value={`${num(po.qty_target).toLocaleString()} ${po.item_uom || ''}`} />
                         <Row label="Packed" value={`${num(po.qty_packed).toLocaleString()} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`} />
+                        <Row label="Machine" value={po.work_center_name || 'not assigned'} />
                     </MobilePanel>
 
                     {lastCartons.length > 0 && (
@@ -268,6 +292,17 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                                         <option key={b.id} value={b.id}>
                                             {b.batch_number}{b.remaining != null ? ` (${Number(b.remaining).toFixed(2)} sisa)` : ''}
                                         </option>
+                                    ))}
+                                </select>
+                            </>
+                        )}
+                        {machineOptions.length > 0 && (
+                            <>
+                                <label style={{ ...xpLabel, marginTop: 8 }}>Machine</label>
+                                <select style={xpInput} value={workCenterId} onChange={e => setWorkCenterId(e.target.value)}>
+                                    <option value="">— none —</option>
+                                    {machineOptions.map(o => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
                                     ))}
                                 </select>
                             </>
