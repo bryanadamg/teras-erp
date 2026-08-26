@@ -52,14 +52,18 @@ def _set_test_lock_timeout(dbapi_conn, _record):
     dbapi_conn.commit()
 
 
-# Use the existing engine but wrap in a transaction that rolls back
+# Use the existing engine but wrap in a transaction that rolls back. Explicit
+# join_transaction_mode="create_savepoint" (SQLAlchemy 2.0's documented
+# external-transaction test pattern): every session.commit() from app code
+# releases a SAVEPOINT and opens the next one automatically, so the single
+# connection.begin() below is the only thing this fixture must roll back.
 @pytest.fixture(scope="function")
 def db_session(committed_admin):
     # Depends on the admin purely for ordering: the user must be committed before
     # this transaction opens, and must outlive it (see committed_admin).
     connection = engine.connect()
     transaction = connection.begin()
-    session = Session(bind=connection)
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
 
     yield session
 
@@ -69,12 +73,51 @@ def db_session(committed_admin):
 
 @pytest.fixture(scope="function")
 def client(db_session):
+    from app.db.session import get_async_db
+    from app.core.db_manager import db_manager
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    # Attach the async engine's lock-timeout listener before opening the first
+    # async connection of the run (it's otherwise attached lazily in
+    # dispose_async_engine_pool, which only runs at teardown).
+    _attach_async_lock_timeout()
+
     def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
+
     with TestClient(app, raise_server_exceptions=False) as c:
+        # Async routes get their own connection on the async engine (different
+        # driver, can't share a DBAPI connection with db_session's psycopg2
+        # one) — but it needs the exact same SAVEPOINT treatment, or async
+        # writes commit for real and outlive the test. Opened and closed
+        # through the TestClient's own portal so the connection is created and
+        # torn down on the same event loop that will run every request in
+        # this test (asyncpg connections are loop-bound).
+        async def _open_async_txn():
+            conn = await db_manager.async_engine.connect()
+            await conn.begin()
+            return conn, AsyncSession(
+                bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False
+            )
+
+        async_conn, async_session = c.portal.call(_open_async_txn)
+
+        async def override_get_async_db():
+            yield async_session
+
+        app.dependency_overrides[get_async_db] = override_get_async_db
+
         yield c
+
+        async def _close_async_txn():
+            await async_session.close()
+            await async_conn.rollback()
+            await async_conn.close()
+
+        c.portal.call(_close_async_txn)
+
     app.dependency_overrides.clear()
 
 @pytest.fixture(scope="session", autouse=True)
@@ -134,24 +177,22 @@ def _test_database():
     yield
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def committed_admin(_test_database):
-    """One admin user, committed once for the whole session.
+    """One admin user, committed for real — function-scoped.
 
-    Session-scoped for two reasons, both learned the hard way:
+    Has to be a real commit, not written into `db_session`'s savepoint: sync
+    and async routes read through two different driver connections (psycopg2
+    vs asyncpg) that cannot see each other's uncommitted rows, so the one row
+    both sides must agree exists has to be actually visible to both.
 
-    * **Teardown order.** Fixtures are finalized in reverse order of setup, so a
-      function-scoped user is deleted while `db_session`'s transaction is still
-      open — and anything that transaction wrote referencing `users.id` holds a
-      lock, so the DELETE waits on it. Session scope moves the delete past every
-      test transaction.
-    * **Cost.** The row is identical for every test; committing and deleting it
-      248 times is pure overhead.
-
-    Committed rather than written into `db_session`: that transaction never
-    commits, so async routes on their own connections could not see the user, and
-    the previous fixture worked around it by inserting the SAME primary key on a
-    second connection — which Postgres turned into a lock wait that hung the run.
+    Safe to delete per-test now that `client` gives async routes the same
+    SAVEPOINT-and-rollback treatment as `db_session` — every row a test wrote
+    that references this user (sync or async) is gone by the time this
+    fixture's teardown runs (fixtures tear down in reverse dependency order:
+    `client` → `db_session` → here), so the FK never blocks the DELETE. Before
+    that fix this had to be session-scoped and swallow delete failures; see
+    git history if that workaround needs to come back.
     """
     from app.db.session import engine as _eng
     from sqlalchemy.orm import Session as _SASession
@@ -159,12 +200,6 @@ def committed_admin(_test_database):
 
     conn = _eng.connect()
     sess = _SASession(conn)
-    # Statements go through the SESSION, never the bare connection: a statement on
-    # the connection opens a connection-level transaction, after which this
-    # session's commit closes only its own nested one — leaving the insert
-    # invisible elsewhere and rolled back at teardown. That is the wrapper trick
-    # `db_session` uses deliberately, and it silently defeats a fixture that means
-    # to commit.
     admin_role = sess.query(_Role).filter(_Role.name == "Administrator").first()
     user = User(
         # Unique per run: `users.username` is unique, and a leftover row from an
@@ -184,16 +219,10 @@ def committed_admin(_test_database):
 
     yield user
 
-    try:
-        sess.query(User).filter(User.id == user_id).delete(synchronize_session=False)
-        sess.commit()
-    except Exception:
-        # Audit rows written by the tests can hold the FK. Leaving one test user
-        # behind beats failing teardown.
-        sess.rollback()
-    finally:
-        sess.close()
-        conn.close()
+    sess.query(User).filter(User.id == user_id).delete(synchronize_session=False)
+    sess.commit()
+    sess.close()
+    conn.close()
 
 
 @pytest.fixture(scope="function")
