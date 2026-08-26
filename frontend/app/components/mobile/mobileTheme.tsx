@@ -21,6 +21,49 @@ import {
 export const MOBILE_BG = '#ece9d8';   // --win-bg, same as the classic desktop page
 export const MOBILE_FACE = '#f5f4ef'; // raised card face inside a panel
 
+/**
+ * Inline status banner — the scan screens' error / confirmation strip.
+ *
+ * The three scan views each carried their own copy of this div, and they had
+ * drifted: two paddings, two font sizes, bold on one screen only, and two
+ * different greens. Severity comes from the shared `ShellTone` vocabulary rather
+ * than a fresh palette, so a red strip on the floor is the same red as a red
+ * panel header. This is the *inline* surface (it stays put while the packer works
+ * a form); a transient message on a desktop view is still `useToast`.
+ */
+const NOTICE_TONES: Record<ShellTone, { background: string; border: string; color: string }> = {
+    red:   { background: '#ffe8e8', border: '#cc0000', color: '#880000' },
+    green: { background: '#eef7ee', border: '#2d7a2d', color: '#0a3e0a' },
+    amber: { background: '#fff4e5', border: '#d9a441', color: '#7a4a00' },
+    blue:  { background: '#eaf1fb', border: '#7f9db9', color: '#00309c' },
+    grey:  { background: '#f5f4ef', border: '#aca899', color: '#555555' },
+};
+
+export function MobileNotice({ tone = 'red', strong = false, children, style }: {
+    tone?: ShellTone;
+    /** Floor-critical lines (a scan result the packer reads at arm's length). */
+    strong?: boolean;
+    children: React.ReactNode;
+    style?: React.CSSProperties;
+}) {
+    const t = NOTICE_TONES[tone];
+    return (
+        <div style={{
+            fontFamily: XP_FONT,
+            fontSize: strong ? 13 : 12,
+            fontWeight: strong ? 'bold' : 'normal',
+            background: t.background,
+            border: `1px solid ${t.border}`,
+            color: t.color,
+            padding: '7px 10px',
+            marginBottom: 10,
+            ...style,
+        }}>
+            {children}
+        </div>
+    );
+}
+
 /** Raised card — a row/tile inside a `MobilePanel`. */
 export const mobileCard = (extra: React.CSSProperties = {}): React.CSSProperties => ({
     border: '2px solid',

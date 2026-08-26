@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared/xpTheme';
-import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
+import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 const xpInput: React.CSSProperties = xpInputBase({ fontSize: 13, height: 'auto', padding: '6px 8px', width: '100%', boxSizing: 'border-box' });
@@ -206,14 +206,10 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
             />
 
             {error && (
-                <div style={{ background: '#ffe8e8', border: '1px solid #c00', color: '#800', padding: '8px 10px', fontSize: 13, fontWeight: 'bold', marginBottom: 10 }}>
-                    {error}
-                </div>
+                <MobileNotice tone="red" strong>{error}</MobileNotice>
             )}
             {!error && flash && (
-                <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '8px 10px', fontSize: 13, fontWeight: 'bold', marginBottom: 10 }}>
-                    Picked {flash}
-                </div>
+                <MobileNotice tone="green" strong>Picked {flash}</MobileNotice>
             )}
 
             {pl && (
@@ -235,9 +231,9 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
                         </span>
                     </div>
                     {done && (
-                        <div style={{ marginTop: 8, background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '6px 8px', fontSize: 12 }}>
+                        <MobileNotice tone="green" style={{ marginTop: 8, marginBottom: 0 }}>
                             All cartons scanned. Hand to QC — dispatch and the Surat Jalan are done on the desktop.
-                        </div>
+                        </MobileNotice>
                     )}
                     <MobileButton icon="bi-x-lg" onClick={reset} style={{ marginTop: 10 }}>Close list</MobileButton>
                 </MobilePanel>

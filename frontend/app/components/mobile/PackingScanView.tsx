@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared/xpTheme';
 import { toNum } from '../shared/format';
-import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
+import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox } from '../shared/packingBoxes';
 
@@ -236,9 +236,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
             />
 
             {error && (
-                <div style={{ background: '#ffe8e8', border: '1px solid #c00', color: '#800', padding: '6px 10px', fontSize: 12, marginBottom: 10 }}>
-                    {error}
-                </div>
+                <MobileNotice tone="red">{error}</MobileNotice>
             )}
 
             {!po && !unit && (
@@ -290,13 +288,13 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                     </MobilePanel>
 
                     {lastCartons.length > 0 && (
-                        <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '8px 10px', fontSize: 12, marginBottom: 10 }}>
+                        <MobileNotice tone="green">
                             <strong>Packed:</strong>
                             {lastCartons.map((u: any) => (
                                 <div key={u.id}>#{u.package_no} · {u.batch_number} · {num(u.qty).toLocaleString()}</div>
                             ))}
                             <div style={{ marginTop: 4, fontSize: 11 }}>Print these labels from the desktop Packing Orders screen.</div>
-                        </div>
+                        </MobileNotice>
                     )}
 
                     <MobilePanel icon="bi-pencil-square" title="Log packing">
