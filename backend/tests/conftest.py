@@ -6,6 +6,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://erp:erp@localhost:5432/erp")
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event as sa_event
 from sqlalchemy.orm import Session
 from app.main import app
 from app.db.session import get_db, engine
@@ -13,9 +14,40 @@ from app.core.security import create_access_token
 from app.models.auth import User
 import uuid
 
+# The `client` fixture enters the app's lifespan, and it does so once PER TEST.
+# Startup warms the booking cache, which is the uncapped plant-wide netting pass
+# (`/stock/availability`) — minutes of work against a real development database,
+# repeated for every test, which reads as a hung suite rather than a slow one.
+# Tests never assert on that cache, so it is stubbed out for the whole session.
+from app.api import stock as _stock_api
+_stock_api.warm_booking_cache = lambda: None
+
+# Every connection a test touches gets a lock timeout, so a lock wait fails the
+# test that caused it instead of hanging the run. The fixture connection had one
+# already; this covers the app's own pool, which is where a route's write can
+# block on a row a test's open transaction is holding. Ten seconds is far longer
+# than any statement here legitimately needs.
+_TEST_LOCK_TIMEOUT_MS = 10_000
+
+
+@sa_event.listens_for(engine, "connect")
+def _set_test_lock_timeout(dbapi_conn, _record):
+    if engine.dialect.name != "postgresql":
+        return
+    with dbapi_conn.cursor() as cur:
+        cur.execute(f"SET lock_timeout = {_TEST_LOCK_TIMEOUT_MS}")
+    # Committed, not left open: the statement runs inside psycopg2's implicit
+    # transaction, and the pool rolls that back when the connection is returned —
+    # which silently reverts the setting and was why a blocked DELETE sat for a
+    # minute instead of failing after ten seconds.
+    dbapi_conn.commit()
+
+
 # Use the existing engine but wrap in a transaction that rolls back
 @pytest.fixture(scope="function")
-def db_session():
+def db_session(committed_admin):
+    # Depends on the admin purely for ordering: the user must be committed before
+    # this transaction opens, and must outlive it (see committed_admin).
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection)
@@ -36,55 +68,108 @@ def client(db_session):
         yield c
     app.dependency_overrides.clear()
 
-@pytest.fixture(scope="function")
-def test_user(db_session):
-    # Create a test admin user in the rollback session (for sync routes / get_current_user)
-    user = User(
-        username="testadmin",
-        full_name="Test Admin",
-        hashed_password="hashed_secret", # We won't login via API, just mock token
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+@pytest.fixture(scope="session")
+def committed_admin():
+    """One admin user, committed once for the whole session.
 
-    # Also mirror the user into the REAL DB so async routes (audit service) can
-    # satisfy FK constraints on audit_logs.user_id. Use the same UUID.
+    Session-scoped for two reasons, both learned the hard way:
+
+    * **Teardown order.** Fixtures are finalized in reverse order of setup, so a
+      function-scoped user is deleted while `db_session`'s transaction is still
+      open — and anything that transaction wrote referencing `users.id` holds a
+      lock, so the DELETE waits on it. Session scope moves the delete past every
+      test transaction.
+    * **Cost.** The row is identical for every test; committing and deleting it
+      248 times is pure overhead.
+
+    Committed rather than written into `db_session`: that transaction never
+    commits, so async routes on their own connections could not see the user, and
+    the previous fixture worked around it by inserting the SAME primary key on a
+    second connection — which Postgres turned into a lock wait that hung the run.
+    """
     from app.db.session import engine as _eng
     from sqlalchemy.orm import Session as _SASession
-    _real_conn = _eng.connect()
-    _real_sess = _SASession(_real_conn)
-    _real_user_inserted = False
-    try:
-        _real_user = User(
-            id=user.id,
-            username=f"testadmin-{str(user.id)[:8]}",
-            full_name="Test Admin",
-            hashed_password="hashed_secret",
-        )
-        _real_sess.add(_real_user)
-        _real_sess.commit()
-        _real_user_inserted = True
-    except Exception:
-        _real_sess.rollback()
+    from app.models.auth import Role as _Role
+
+    conn = _eng.connect()
+    sess = _SASession(conn)
+    # Statements go through the SESSION, never the bare connection: a statement on
+    # the connection opens a connection-level transaction, after which this
+    # session's commit closes only its own nested one — leaving the insert
+    # invisible elsewhere and rolled back at teardown. That is the wrapper trick
+    # `db_session` uses deliberately, and it silently defeats a fixture that means
+    # to commit.
+    admin_role = sess.query(_Role).filter(_Role.name == "Administrator").first()
+    user = User(
+        # Unique per run: `users.username` is unique, and a leftover row from an
+        # earlier run must not collide.
+        username=f"testadmin-{uuid.uuid4().hex[:8]}",
+        full_name="Test Admin",
+        hashed_password="hashed_secret",  # never logged in through the API
+        # The seeded Administrator role carries `admin.access`, so every
+        # permission-gated route is reachable. Without a role the user
+        # authenticates and is then refused with 403.
+        role_id=admin_role.id if admin_role else None,
+    )
+    sess.add(user)
+    sess.commit()
+    sess.refresh(user)
+    user_id = user.id
 
     yield user
 
-    # Cleanup real DB user after test
     try:
-        if _real_user_inserted:
-            _real_sess.query(User).filter(User.id == user.id).delete(synchronize_session=False)
-            _real_sess.commit()
+        sess.query(User).filter(User.id == user_id).delete(synchronize_session=False)
+        sess.commit()
     except Exception:
-        _real_sess.rollback()
+        # Audit rows written by the tests can hold the FK. Leaving one test user
+        # behind beats failing teardown.
+        sess.rollback()
     finally:
-        _real_sess.close()
-        _real_conn.close()
+        sess.close()
+        conn.close()
+
+
+@pytest.fixture(scope="function")
+def test_user(committed_admin):
+    return committed_admin
+
 
 @pytest.fixture(scope="function")
 def auth_headers(test_user):
     token = create_access_token(subject=test_user.id)
     return {"Authorization": f"Bearer {token}"}
+
+_async_timeout_attached = False
+
+
+def _attach_async_lock_timeout() -> None:
+    """Same lock timeout for the async engine, which every async route uses.
+
+    Attached here rather than at import: `db_manager` builds that engine lazily,
+    so there is nothing to listen on until the first async route has run.
+    """
+    global _async_timeout_attached
+    if _async_timeout_attached:
+        return
+    from app.core.db_manager import db_manager
+    if db_manager.async_engine is None:
+        return
+    sync_engine = db_manager.async_engine.sync_engine
+    if sync_engine.dialect.name != "postgresql":
+        _async_timeout_attached = True
+        return
+
+    @sa_event.listens_for(sync_engine, "connect")
+    def _set_async_lock_timeout(dbapi_conn, _record):  # pragma: no cover - driver hook
+        dbapi_conn.await_(
+            dbapi_conn.driver_connection.execute(
+                f"SET lock_timeout = {_TEST_LOCK_TIMEOUT_MS}"
+            )
+        )
+
+    _async_timeout_attached = True
+
 
 @pytest.fixture(autouse=True)
 def dispose_async_engine_pool():
@@ -95,6 +180,7 @@ def dispose_async_engine_pool():
     Disposing the pool forces fresh connections bound to the new event loop.
     """
     yield
+    _attach_async_lock_timeout()
     from app.core.db_manager import db_manager
     if db_manager.async_engine is not None:
         # dispose() on AsyncEngine is async; access the underlying sync pool directly
