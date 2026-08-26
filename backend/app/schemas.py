@@ -2930,9 +2930,13 @@ class PackingCompletionCreate(BaseModel):
     # over `box_size`; a box that doesn't fit within one lot's draw is split
     # across the lot boundary (see packing_service.allocate_boxes_to_lots).
     boxes: list[float] | None = None
-    # Scale reading per carton, positional against `boxes`. Measured at packing,
-    # never derived from qty — the label's N.W. line is a weighing, not a
-    # conversion. A box split at a lot seam shares its weight pro-rata.
+    # Scale reading per carton, positional against `boxes`, and REQUIRED for every
+    # one of them — packing is logged after the boxes are packed and weighed, so a
+    # blank prints a label with no N.W. line (rejected by
+    # packing_service.assert_all_weighed). Measured, never derived from qty: the
+    # same yardage weighs differently per lot. A box split at a lot seam shares
+    # its weight pro-rata. The nullable element type only carries the positional
+    # gap through to that check, so the error can name which carton is missing.
     box_weights: list[float | None] | None = None
     source_batch_id: UUID | None = None
     # Multi-lot pack: one completion row is written per lot, so each keeps a

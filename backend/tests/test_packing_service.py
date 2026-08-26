@@ -1,5 +1,6 @@
 import pytest
 
+from app.services import packing_service
 from app.services.packing_service import split_qty, describe_box_breakdown, allocate_boxes_to_lots
 
 
@@ -80,3 +81,31 @@ def test_allocate_boxes_to_lots_partial_weights_leave_others_none():
     assert allocate_boxes_to_lots([10], [5, 5], weights=[6.19, None]) == [
         [(5, 6.19), (5, None)],
     ]
+
+
+# --- assert_all_weighed ------------------------------------------------------
+# Packing is logged after the boxes are packed and weighed, so an unweighed
+# carton is a missing measurement, not one still to come — and it would print a
+# label with a blank N.W. line.
+
+def test_assert_all_weighed_passes_when_every_carton_is_weighed():
+    packing_service.assert_all_weighed([(5.0, 4.8), (3.0, 2.9)])
+
+
+def test_assert_all_weighed_rejects_a_missing_weight():
+    with pytest.raises(ValueError) as e:
+        packing_service.assert_all_weighed([(5.0, 4.8), (3.0, None)], "Carton")
+    assert "1 of 2 not weighed" in str(e.value)
+    assert "carton" in str(e.value)
+
+
+def test_assert_all_weighed_rejects_a_zero_weight():
+    # A zero on the scale is a skipped weighing, not a weightless box.
+    with pytest.raises(ValueError):
+        packing_service.assert_all_weighed([(5.0, 0)])
+
+
+def test_assert_all_weighed_counts_every_missing_carton():
+    with pytest.raises(ValueError) as e:
+        packing_service.assert_all_weighed([(1.0, None), (1.0, None), (1.0, 0.9)])
+    assert "2 of 3 not weighed" in str(e.value)

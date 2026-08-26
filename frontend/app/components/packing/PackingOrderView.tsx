@@ -19,6 +19,7 @@ import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import { LotChips, LotChip } from '../shared/LotChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
+import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox } from '../shared/packingBoxes';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
 
@@ -1024,19 +1025,6 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const takeByBatch: Record<string, number> = {};
     for (const l of alloc) takeByBatch[l.batch_id] = l.qty;
 
-    // Mirrors packing_service.split_qty on the backend: fixed-size boxes plus one
-    // remainder box, never an even split. Only used to *seed* the editable rows
-    // below — once seeded, the rows are the user's own to edit, add to, or remove.
-    const splitBoxes = (total: number, size: number): number[] => {
-        if (total <= 0) return [];
-        if (!(size > 0)) return [Number(total.toFixed(4))];
-        const full = Math.floor(total / size + 1e-9);
-        const remainder = Number((total - full * size).toFixed(4));
-        const parts = Array(full).fill(Number(size.toFixed(4)));
-        if (remainder > 1e-6) parts.push(remainder);
-        return parts.length ? parts : [Number(total.toFixed(4))];
-    };
-
     // Boxes are edited as one flat list against the combined total, regardless
     // of how many lots feed it — the server is the one that works out which lot
     // backs each box (splitting a box across a lot boundary if needed), so the
@@ -1044,7 +1032,6 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // `kg` is the scale reading for that physical carton, entered by the packer —
     // it is the label's N.W. line and is never derived from qty (the item's UOM
     // may be yards, and the same yardage weighs differently per lot).
-    type BoxRow = { qty: string; kg: string };
     const [boxRows, setBoxRows] = useState<BoxRow[]>([]);
     const packTotal = useLotPicker ? drawn : num(qty);
 
@@ -1052,28 +1039,29 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // after Regenerate clears them) — after that, edits belong to the user.
     useEffect(() => {
         if (boxRows.length === 0 && packTotal > 0) {
-            setBoxRows(splitBoxes(packTotal, num(boxSize)).map(q => ({ qty: String(q), kg: '' })));
+            setBoxRows(seedBoxRows(packTotal, num(boxSize)));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [packTotal]);
 
     // Regenerate rebuilds the qty split but keeps weights already keyed in
     // positionally — re-splitting after a typo shouldn't wipe the scale readings.
-    const regenerateBoxes = () => setBoxRows(prev =>
-        splitBoxes(packTotal, num(boxSize)).map((q, i) => ({ qty: String(q), kg: prev[i]?.kg || '' })));
+    const regenerateBoxes = () => setBoxRows(prev => seedBoxRows(packTotal, num(boxSize), prev));
     const updateBoxRow = (i: number, patch: Partial<BoxRow>) =>
         setBoxRows(prev => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
     const removeBoxRow = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
     const addBoxRow = () => setBoxRows(prev => [...prev, { qty: '', kg: '' }]);
 
-    // Weights stay positional against the qtys the server receives, so filter both
-    // in one pass — a blank weight travels as null, not as a dropped position.
-    const boxes = boxRows.filter(b => num(b.qty) > 0);
+    // Weights stay positional against the qtys the server receives, so both are
+    // filtered in one pass. Every carton must carry one: the log is written after
+    // the boxes are packed and weighed, so a blank would print a label with no
+    // N.W. line — the server rejects an unweighed carton outright.
+    const boxes = filledBoxRows(boxRows);
     const boxValues = boxes.map(b => num(b.qty));
-    const boxWeights = boxes.map(b => (num(b.kg) > 0 ? num(b.kg) : null));
-    const anyWeights = boxWeights.some(w => w !== null);
+    const boxWeights = boxes.map(b => num(b.kg));
+    const weightsMissing = hasUnweighedBox(boxRows);
     const boxTotal = boxValues.reduce((s, v) => s + v, 0);
-    const weightTotal = boxWeights.reduce((s: number, v) => s + (v || 0), 0);
+    const weightTotal = boxWeights.reduce((s: number, v) => s + v, 0);
     const boxMismatch = packTotal > 0 && Math.abs(boxTotal - packTotal) > 1e-3;
 
     const toggleLot = (id: string, on: boolean) =>
@@ -1095,11 +1083,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             );
             return;
         }
+        if (weightsMissing) {
+            showToast(`Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`, 'danger');
+            return;
+        }
 
         let body: any = {
             qty: q,
             boxes: boxValues,
-            box_weights: anyWeights ? boxWeights : null,
+            box_weights: boxWeights,
             work_center_id: workCenterId || null,
             operator: operator || null,
             notes: packNotes || null,
@@ -1116,7 +1108,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             body = {
                 lots: alloc,
                 boxes: boxValues,
-                box_weights: anyWeights ? boxWeights : null,
+                box_weights: boxWeights,
                 work_center_id: workCenterId || null,
                 operator: operator || null,
                 notes: packNotes || null,
@@ -1200,8 +1192,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                         Carton Labels
                     </button>
                     {!readOnly && (
-                        <button type="submit" form="packing-log-form" className={XP_BTN} disabled={logging || boxMismatch || locsMissing || locsDirty}
-                            style={{ ...xpBtnGreen(), opacity: logging || boxMismatch || locsMissing || locsDirty ? 0.6 : 1 }}>
+                        <button type="submit" form="packing-log-form" className={XP_BTN} disabled={logging || boxMismatch || weightsMissing || locsMissing || locsDirty}
+                            style={{ ...xpBtnGreen(), opacity: logging || boxMismatch || weightsMissing || locsMissing || locsDirty ? 0.6 : 1 }}>
                             {logging ? 'Packing...' : 'Log Packing'}
                         </button>
                     )}
@@ -1331,6 +1323,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 value={b.kg}
                                                 onChange={e => updateBoxRow(i, { kg: e.target.value })}
                                                 min="0" step="any"
+                                                required
                                                 placeholder="net wt"
                                                 title="Net weight of this carton off the scale — printed as N.W. on the label"
                                             />
@@ -1350,7 +1343,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 }}>
                                     <span style={{
                                         width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                                        background: boxMismatch ? '#cc3300' : '#4caf50',
+                                        background: boxMismatch ? '#cc3300' : weightsMissing ? '#d9a441' : '#4caf50',
                                     }} />
                                     <span style={{ color: '#555' }}>Boxed:</span>
                                     <span style={{ fontWeight: 'bold', color: boxMismatch ? '#a00000' : '#2e7d32' }}>
@@ -1361,14 +1354,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     <span style={{ color: '#c0bdb5' }}>|</span>
                                     <span style={{ color: '#555' }}>{po.package_label}s:</span>
                                     <span style={{ fontWeight: 'bold' }}>{boxValues.length}</span>
-                                    {anyWeights && (
-                                        <>
-                                            <span style={{ color: '#c0bdb5' }}>|</span>
-                                            <span style={{ color: '#555' }}>Net wt:</span>
-                                            <span style={{ fontWeight: 'bold' }}>{weightTotal.toFixed(2)} kg</span>
-                                        </>
-                                    )}
-                                    {boxMismatch && <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>}
+                                    <span style={{ color: '#c0bdb5' }}>|</span>
+                                    <span style={{ color: '#555' }}>Net wt:</span>
+                                    <span style={{ fontWeight: 'bold', color: weightsMissing ? '#7a4a00' : undefined }}>
+                                        {weightTotal.toFixed(2)} kg
+                                    </span>
+                                    {boxMismatch
+                                        ? <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>
+                                        : weightsMissing && <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>}
                                 </div>
                             </div>
                             <div style={{

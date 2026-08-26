@@ -610,10 +610,19 @@ async def add_packing_completion(
         if per_lot_cartons is not None:
             carton_qtys = per_lot_cartons[idx]
         else:
-            # No explicit box list (mobile scanner / box-size path) — nothing was
-            # weighed, so every carton is minted with no net weight.
+            # No explicit box list — the split is derived from the box size, and
+            # no scale reading came with it, so `assert_all_weighed` below turns
+            # this into a 400. Kept as a path only so the error names the cartons.
             box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
             carton_qtys = [(q, None) for q in packing_service.split_qty(lot_qty, box_size)]
+
+        # Logging happens after the boxes are packed and weighed: a carton with no
+        # net weight prints a label with a blank N.W. line, so it is refused here
+        # rather than silently minted.
+        try:
+            packing_service.assert_all_weighed(carton_qtys, po.package_label)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         try:
             if batch_id:

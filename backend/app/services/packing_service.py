@@ -86,8 +86,8 @@ def allocate_boxes_to_lots(
     `weights` is the packer's scale reading per box, positional against `boxes`.
     A box that splits at a lot seam is physically two cartons, so its weight can
     only be shared out pro-rata by qty — the scale figure entered for one box no
-    longer describes either half. Returns `(qty, weight)` pairs; weight is None
-    where the packer left it blank.
+    longer describes either half. Returns `(qty, weight)` pairs; a weight is None
+    only where the caller passed none, which `assert_all_weighed` then rejects.
     """
     total_lots = round(sum(float(q) for q in lot_qtys), 4)
     total_boxes = round(sum(float(b) for b in boxes), 4)
@@ -124,6 +124,24 @@ def allocate_boxes_to_lots(
                 queue[0] = (round(box - take, 4), box_full, box_w)
         out.append(cartons)
     return out
+
+
+def assert_all_weighed(carton_qtys: list[tuple[float, Optional[float]]], package_label: str = "carton") -> None:
+    """Every carton must carry the packer's scale reading.
+
+    Packing is logged *after* the boxes are physically packed and weighed, so an
+    unweighed carton is a missing measurement rather than one taken later — and
+    it would print a carton label with a blank N.W. line and an empty net-weight
+    barcode. Enforced here rather than in the form so no caller (desktop modal,
+    mobile scanner, a future API client) can mint one.
+    """
+    missing = [i + 1 for i, (_, w) in enumerate(carton_qtys) if w is None or float(w) <= 0]
+    if missing:
+        label = (package_label or "carton").lower()
+        raise ValueError(
+            f"Net weight is required for every {label} — "
+            f"{len(missing)} of {len(carton_qtys)} not weighed"
+        )
 
 
 async def resolve_lot_variant(db: AsyncSession, po: PackingOrder, batch_id) -> tuple[list, object, float]:

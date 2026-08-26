@@ -6,6 +6,7 @@ import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared
 import { toNum } from '../shared/format';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton } from './mobileTheme';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
+import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox } from '../shared/packingBoxes';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -42,7 +43,11 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const scanLockRef = useRef(false);
 
     const [qty, setQty] = useState('');
-    const [packageCount, setPackageCount] = useState('1');
+    // One row per physical carton, seeded from the order's pack size. The packer
+    // logs after the boxes are packed and weighed, so each row's scale reading is
+    // required — it is the N.W. line on that carton's label, and the server
+    // refuses to mint an unweighed carton.
+    const [boxRows, setBoxRows] = useState<BoxRow[]>([]);
     const [sourceBatch, setSourceBatch] = useState('');
     const [operator, setOperator] = useState('');
     const [notes, setNotes] = useState('');
@@ -83,8 +88,9 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
             setUnit(null);
             const rem = Math.max(0, num(found.qty_target) - num(found.qty_packed));
             setQty(rem ? String(rem) : '');
-            const ps = num(found.pack_size);
-            setPackageCount(ps > 0 && rem > 0 ? String(Math.max(1, Math.ceil(rem / ps))) : '1');
+            // Seed a row per carton the remaining qty implies; the packer corrects
+            // the split and fills in each scale reading.
+            setBoxRows(seedBoxRows(rem, num(found.pack_size)));
             return;
         }
 
@@ -167,13 +173,27 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
 
     const onQtyChange = (v: string) => {
         setQty(v);
-        const ps = num(po?.pack_size);
-        if (ps > 0 && num(v) > 0) setPackageCount(String(Math.max(1, Math.ceil(num(v) / ps))));
+        setBoxRows(prev => seedBoxRows(num(v), num(po?.pack_size), prev));
     };
+    const updateBox = (i: number, patch: Partial<BoxRow>) =>
+        setBoxRows(prev => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
+    const addBox = () => setBoxRows(prev => [...prev, { qty: '', kg: '' }]);
+    const removeBox = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
+
+    const boxes = filledBoxRows(boxRows);
+    const boxTotal = boxes.reduce((s, b) => s + num(b.qty), 0);
+    const boxMismatch = num(qty) > 0 && Math.abs(boxTotal - num(qty)) > 1e-3;
+    const weightsMissing = hasUnweighedBox(boxRows);
 
     const logPack = async () => {
+        const label = (po?.package_label || 'carton').toLowerCase();
         if (num(qty) <= 0) { setError('Enter a quantity to pack.'); return; }
-        if (num(packageCount) <= 0) { setError('At least one carton is required.'); return; }
+        if (!boxes.length) { setError(`At least one ${label} is required.`); return; }
+        if (boxMismatch) {
+            setError(`${po.package_label}s total ${boxTotal.toFixed(2)} but ${num(qty).toFixed(2)} is being packed.`);
+            return;
+        }
+        if (weightsMissing) { setError(`Weigh every ${label} — the label prints its net weight.`); return; }
         setLogging(true);
         setError(null);
         try {
@@ -181,7 +201,8 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     qty: num(qty),
-                    package_count: parseInt(packageCount, 10),
+                    boxes: boxes.map(b => num(b.qty)),
+                    box_weights: boxes.map(b => num(b.kg)),
                     source_batch_id: sourceBatch || null,
                     work_center_id: workCenterId || null,
                     operator: operator || null,
@@ -193,7 +214,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                 const before = new Set((po.packed_units || []).map((u: any) => String(u.id)));
                 setLastCartons((fresh.packed_units || []).filter((u: any) => !before.has(String(u.id))));
                 setPo(fresh);
-                setQty(''); setNotes('');
+                setQty(''); setNotes(''); setBoxRows([]);
                 playBeep();
             } else {
                 const e = await res.json().catch(() => ({}));
@@ -281,8 +302,35 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                     <MobilePanel icon="bi-pencil-square" title="Log packing">
                         <label style={xpLabel}>Qty packed</label>
                         <input type="number" min={0} style={xpInput} value={qty} onChange={e => onQtyChange(e.target.value)} />
-                        <label style={{ ...xpLabel, marginTop: 8 }}>Number of {(po.package_label || 'carton').toLowerCase()}s</label>
-                        <input type="number" min={1} style={xpInput} value={packageCount} onChange={e => setPackageCount(e.target.value)} />
+                        <label style={{ ...xpLabel, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{po.package_label || 'Carton'}s packed &amp; weighed</span>
+                            <MobileButton compact icon="bi-plus-lg" onClick={addBox}>Add</MobileButton>
+                        </label>
+                        {boxRows.length === 0 && (
+                            <div style={{ fontSize: 11, color: '#777', padding: '2px 0' }}>
+                                Enter a quantity to generate {(po.package_label || 'carton').toLowerCase()}s.
+                            </div>
+                        )}
+                        {boxRows.map((b, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                <span style={{ fontSize: 11, color: '#777', width: 22 }}>#{i + 1}</span>
+                                <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
+                                    value={b.qty} onChange={e => updateBox(i, { qty: e.target.value })} />
+                                <input type="number" min={0} step="any" required
+                                    style={{ ...xpInput, flex: 1, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
+                                    placeholder="net wt kg" value={b.kg} onChange={e => updateBox(i, { kg: e.target.value })} />
+                                <MobileButton compact tone="danger" icon="bi-x-lg" onClick={() => removeBox(i)} />
+                            </div>
+                        ))}
+                        {boxRows.length > 0 && (
+                            <div style={{ fontSize: 11, color: boxMismatch || weightsMissing ? '#7a4a00' : '#0a3e0a', marginTop: 2 }}>
+                                {boxMismatch
+                                    ? `Boxed ${boxTotal.toFixed(2)} of ${num(qty).toFixed(2)}`
+                                    : weightsMissing
+                                        ? `Weigh every ${(po.package_label || 'carton').toLowerCase()}`
+                                        : `${boxes.length} ${(po.package_label || 'carton').toLowerCase()}s · ${boxes.reduce((s, b) => s + num(b.kg), 0).toFixed(2)} kg`}
+                            </div>
+                        )}
                         {lots.length > 0 && (
                             <>
                                 <label style={{ ...xpLabel, marginTop: 8 }}>Source lot</label>
