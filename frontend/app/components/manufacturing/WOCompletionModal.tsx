@@ -102,21 +102,26 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const woWcType = (woWc?.center_type || '').toUpperCase();
     const isBeamOutput = !!workOrder
         && (isBeamItem(mo.item_id) || (mo.item_code || '').startsWith('BEAM-') || woWcType === 'BEAMING');
-    // Greige (weaving) and dyed (dyeing) output are always traceable lots on the
-    // backend now too — surface the same lot-number field for them here.
+    // Greige (weaving), dyed (dyeing) and set (setting) output are always traceable
+    // lots on the backend too — surface the same lot-number field for them here.
     const isLotOutput = isBeamOutput || (!!workOrder && !!findItem(mo.item_id)?.lot_tracked)
-        || ['WEAVING', 'TENUN', 'DYEING', 'CELUP'].includes(woWcType);
+        || ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'SETTING'].includes(woWcType);
     const isWeavingWO = woWcType === 'WEAVING' || woWcType === 'TENUN';
     const isDyeingWO = woWcType === 'DYEING' || woWcType === 'CELUP';
-    // Multi-lot consume: dyeing substrate staged as several bags (≥2 lots at the
-    // input location). One picker can't select 30 bags — use checkboxes. The
-    // checked lots are the SOURCE POOL; the qty deducted is the logged draw, not
-    // each lot's whole remaining. Single-lot materials (e.g. chemicals) keep the
+    // Bag-fed steps: substrate arrives as many weighed, scanned bags — greige into
+    // dyeing, dyed lots into setting. Same shape on the way out, so both consume
+    // the same way. Mirrors SCAN_STAGE_WC_TYPES on the staging side.
+    const isSettingWO = woWcType === 'SETTING';
+    const isBagFedWO = isDyeingWO || isSettingWO;
+    // Multi-lot consume: substrate staged as several bags (≥2 lots at the input
+    // location). One picker can't select 30 bags — use checkboxes. The checked
+    // lots are the SOURCE POOL; the qty deducted is the logged draw, not each
+    // lot's whole remaining. Single-lot materials (e.g. chemicals) keep the
     // single <select> + BOM% deduction.
-    const isMultiLot = (itemId: string) => isDyeingWO && (batchesByItem[itemId]?.length || 0) >= 2;
+    const isMultiLot = (itemId: string) => isBagFedWO && (batchesByItem[itemId]?.length || 0) >= 2;
     // Mirrors the backend's prefix choice in manufacturing.py's log-completion route.
-    const lotLabel = isBeamOutput ? 'Beam' : isWeavingWO ? 'Greige' : isDyeingWO ? 'Dyed Lot' : 'Lot';
-    const lotPrefix = isBeamOutput ? 'BM' : isWeavingWO ? 'GRG' : isDyeingWO ? 'DYE' : 'LOT';
+    const lotLabel = isBeamOutput ? 'Beam' : isWeavingWO ? 'Greige' : isDyeingWO ? 'Dyed Lot' : isSettingWO ? 'Set Lot' : 'Lot';
+    const lotPrefix = isBeamOutput ? 'BM' : isWeavingWO ? 'GRG' : isDyeingWO ? 'DYE' : isSettingWO ? 'SET' : 'LOT';
 
     // How much of a multi-lot material this log actually uses: the Material
     // Consumption row's actual qty (defaults to output qty x BOM%, operator can
@@ -172,18 +177,18 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 for (const id of Object.keys(map)) { if (prev[id]) next[id] = prev[id]; }
                 return next;
             });
-            // Dyeing: start with NOTHING checked. A pre-ticked list reads as
+            // Bag-fed steps: start with NOTHING checked. A pre-ticked list reads as
             // confirmed and gets logged as-is — the operator must positively pick
             // the lots that physically went into the bath. "All" is one click away.
             setSelectedLots(prev => {
                 const next: Record<string, string[]> = {};
                 for (const id of Object.keys(map)) {
-                    if (isDyeingWO && map[id].length >= 2) next[id] = prev[id] || [];
+                    if (isBagFedWO && map[id].length >= 2) next[id] = prev[id] || [];
                 }
                 return next;
             });
         });
-    }, [JSON.stringify(materialItemIds), workOrder?.id, isWeavingWO, isDyeingWO]);
+    }, [JSON.stringify(materialItemIds), workOrder?.id, isWeavingWO, isBagFedWO]);
 
     // Putaway destination is a planning decision carried by the MO — operator
     // only sees where the output goes; the backend books stock there.

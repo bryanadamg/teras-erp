@@ -11,7 +11,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
+import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC, woHasStaging, woScanStages } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
 import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN, xpInput as xpInputBase } from '../shared/xpTheme';
 
@@ -30,7 +30,7 @@ const byName = (a: any, b: any) =>
 
 // Lot-producing work centers — these WOs emit weighed bags (one bag = one lot),
 // so bag labels apply to them. Others only ever print a Kartu Kerja card.
-const LOT_WC_TYPES = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING'];
+const LOT_WC_TYPES = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING', 'SETTING'];
 
 // Derive the print state for a WO row from its timestamps + completions.
 //  - cardPrinted: Kartu Kerja printed at least once.
@@ -148,11 +148,11 @@ export default function WorkOrderPanel({
     const canEditBase = hasPermission('work_order.edit');
     const canLog = (wo: any) => canLogBase && hasWorkCenterScope(wo.work_center_type);
     const canEdit = (wo: any) => canEditBase && hasWorkCenterScope(wo.work_center_type);
-    // Scan-to-stage is for dyeing, where the greige substrate arrives as many
-    // bagged lots the operator scans in rather than picking manually.
+    // Scan-to-stage is for the steps fed by weighed bags — greige into dyeing,
+    // dyed lots into setting — where the substrate arrives as many bagged lots
+    // the operator scans in rather than picking manually.
     const canScanStage = (wo: any) =>
-        ['DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()) &&
-        wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
+        woScanStages(wo) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
     // Weaving "staging" is really mounting a warp beam on the loom — a machine-level
     // action shared by every WO on that loom, so it gets its own wording.
     const isWeaving = (wo: any) => ['WEAVING', 'TENUN'].includes((wo.work_center_type || '').toUpperCase());
@@ -738,7 +738,7 @@ export default function WorkOrderPanel({
 
                                     {/* Status badge — click to change; staging shown as an icon alongside (matches Work Orders list) */}
                                     {(() => {
-                                        const hasStaging = !!(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()));
+                                        const hasStaging = woHasStaging(wo);
                                         const stagingLabel = wo.staging_status === 'STAGED' ? 'Staged — materials issued'
                                             : wo.staging_status === 'PARTIAL' ? 'Partially staged' : 'Not staged';
                                         const stagingColor = wo.staging_status === 'STAGED' ? '#0058e6' : wo.staging_status === 'PARTIAL' ? '#b8860b' : '#999';
@@ -760,7 +760,7 @@ export default function WorkOrderPanel({
 
                                     {/* Actions — icon-only inline buttons + a [...] menu for Print/Edit/Delete */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'nowrap', justifyContent: 'flex-end', justifySelf: 'end' }}>
-                                        {canEdit(wo) && (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        {canEdit(wo) && woHasStaging(wo) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <XPActionButton
                                                 classic
                                                 tone="primary"

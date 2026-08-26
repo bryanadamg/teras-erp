@@ -80,3 +80,33 @@ export function machinesOfCenterType(workCenters: any[], type: string): any[] {
     const matching = machines.filter((wc: any) => centerTypeOfWC(workCenters || [], wc) === t);
     return matching.length ? matching : machines;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Staging by work-center type
+//
+// A WO stages the materials of its routing step, but WOs are cut without a
+// bom_operation_id all the time — the backend then resolves the step's materials
+// by work-centre TYPE instead (`_wo_step_components` layer 2). These lists say
+// which types that fallback covers, so the Stage buttons appear for exactly the
+// WOs the backend can actually stage. They were four copied literal arrays; a
+// type added to one and missed in another is why this is one constant.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Types whose WOs can stage without an explicit routing step. */
+export const STAGE_WC_TYPES = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'SETTING'];
+
+/**
+ * Types whose input arrives as weighed, labelled bags (one bag = one lot), so the
+ * floor scans lot QRs instead of typing them: greige into dyeing, dyed lots into
+ * setting. Whole lots move (allow_overstage) with a split for a partial bag.
+ */
+export const SCAN_STAGE_WC_TYPES = ['DYEING', 'CELUP', 'SETTING'];
+
+const wcType = (wo: any) => String(wo?.work_center_type || '').toUpperCase();
+
+/** WO has materials to stage: an explicit step, or a type the backend resolves. */
+export const woHasStaging = (wo: any) =>
+    !!(wo?.bom_operation_id || STAGE_WC_TYPES.includes(wcType(wo)));
+
+/** WO stages by scanning bag labels rather than picking lots by hand. */
+export const woScanStages = (wo: any) => SCAN_STAGE_WC_TYPES.includes(wcType(wo));

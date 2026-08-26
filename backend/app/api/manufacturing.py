@@ -1321,10 +1321,13 @@ async def add_mo_completion(
         is_beam_output
         or bool(mo.item and mo.item.lot_tracked)
         or bool(pending_beam_pegs)
-        # Greige (weaving) and dyed (dyeing) output are always traceable lots,
-        # even when the item itself isn't flagged lot_tracked. For weaving this is
-        # also what gives mounted-beam consumption an output lot to peg to.
-        or wo_wc_type in ("WEAVING", "DYEING", "CELUP")
+        # Greige (weaving), dyed (dyeing) and set (setting) output are always
+        # traceable lots, even when the item itself isn't flagged lot_tracked. For
+        # weaving this is also what gives mounted-beam consumption an output lot to
+        # peg to; for dyeing and setting it is what the staged input lots peg to —
+        # without it every BatchConsumption row from a bag-fed step lands with
+        # output_batch_id=None and the lineage of the fabric that came out dangles.
+        or wo_wc_type in ("WEAVING", "DYEING", "CELUP", "SETTING")
     )
     output_batch = None
     if needs_output_lot:
@@ -1341,6 +1344,8 @@ async def add_mo_completion(
             label, lot_prefix = "Greige", "GRG"
         elif wo_wc_type in ("DYEING", "CELUP"):
             label, lot_prefix = "Dyed Lot", "DYE"
+        elif wo_wc_type == "SETTING":
+            label, lot_prefix = "Set Lot", "SET"
         else:
             label, lot_prefix = "Lot", "LOT"
         lot_no = (payload.beam_number or "").strip()
