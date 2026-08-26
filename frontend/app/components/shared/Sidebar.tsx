@@ -4,6 +4,7 @@ import { useUser } from '../../context/UserContext';
 import { useTheme } from '../../context/ThemeContext';
 import { NAV_SECTIONS, navLabel, leafPermissions, NavSection } from './navConfig';
 import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
+import PixelAvatar from './PixelAvatar';
 
 interface SidebarProps {
   activeTab: string;
@@ -142,7 +143,7 @@ function sectionHdrStyleModern(isHovered: boolean): React.CSSProperties {
 
 export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, isOpen }: SidebarProps) {
   const { t } = useLanguage();
-  const { hasPermission } = useUser();
+  const { currentUser, hasPermission } = useUser();
   const { uiStyle } = useTheme();
   const classic = uiStyle === 'classic';
   const navStyle = classic ? navItemStyle : navItemStyleModern;
@@ -352,52 +353,59 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         padding: '10px 12px',
         flexShrink: 0,
       }}>
-        {hasPermission('admin.access') && (
-          <button
-            className={XP_BTN}
-            onClick={() => setActiveTab('settings')}
-            {...H('settings')}
-            style={classic ? {
-              width: '100%',
-              padding: '6px 0',
-              borderRadius: BUTTON_RADIUS,
-              background: hovered === 'settings'
-                ? 'linear-gradient(to bottom, #ffffff, #dde4f4)'
-                : 'linear-gradient(to bottom, #f0f3fb, #d6dff7)',
-              borderTop: '1px solid #fff',
-              borderLeft: '1px solid #fff',
-              borderRight: '1px solid #555',
-              borderBottom: '1px solid #555',
-              color: NAV_COLOR,
-              fontFamily: xpFont,
-              fontSize: 11,
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-            } : {
-              width: '100%',
-              padding: '9px 0',
-              background: hovered === 'settings' ? '#eff6ff' : 'transparent',
-              border: `1px solid ${hovered === 'settings' ? '#bfdbfe' : M_BORDER}`,
-              borderRadius: 8,
-              color: '#1d4ed8',
-              fontFamily: modernFont,
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 7,
-              transition: 'all 0.12s',
-            }}
-          >
-            <i className="bi bi-shield-lock" /> System Admin
-          </button>
-        )}
+        {/* Sole entry point to Settings — open to every user; the page itself
+            gates its admin-only tabs (Database & Backups, Access Control) via
+            hasPermission('admin.access'). Used to be split between this footer
+            (admin-only "System Admin") and a top-right avatar pill; merged into
+            one so there's a single, consistent way in. */}
+        <button
+          data-testid="user-dropdown"
+          className={XP_BTN}
+          onClick={() => setActiveTab('settings')}
+          {...H('settings')}
+          style={classic ? {
+            width: '100%',
+            padding: '5px 8px',
+            borderRadius: BUTTON_RADIUS,
+            background: hovered === 'settings'
+              ? 'linear-gradient(to bottom, #ffffff, #dde4f4)'
+              : 'linear-gradient(to bottom, #f0f3fb, #d6dff7)',
+            borderTop: '1px solid #fff',
+            borderLeft: '1px solid #fff',
+            borderRight: '1px solid #555',
+            borderBottom: '1px solid #555',
+            color: NAV_COLOR,
+            fontFamily: xpFont,
+            fontSize: 11,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            gap: 8,
+          } : {
+            width: '100%',
+            padding: '7px 10px',
+            background: hovered === 'settings' ? '#eff6ff' : 'transparent',
+            border: `1px solid ${hovered === 'settings' ? '#bfdbfe' : M_BORDER}`,
+            borderRadius: 8,
+            color: M_TEXT,
+            fontFamily: modernFont,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            gap: 8,
+            transition: 'all 0.12s',
+          }}
+        >
+          <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <PixelAvatar avatarId={currentUser?.avatar_id} size={16} />
+          </div>
+          <span data-testid="username-display" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser?.username}</span>
+        </button>
         <div style={{ marginTop: 5, textAlign: 'center' }}>
           <small style={{ fontSize: 9, color: classic ? '#6070a0' : '#94a3b8', fontFamily: classic ? xpFont : modernFont }}>
             {t('powered_by') || 'Powered by'} Terras ERP
