@@ -16,6 +16,7 @@ export default function SettingsGeneralTab({
 }: any) {
     const { showToast } = useToast();
     const { hasPermission } = useUser();
+    const isAdmin = hasPermission('admin.access');
     const { uiStyle: currentStyle, uiScale, setUiScale } = useTheme();
     const { timezone, setTimezone } = useTimezone();
     const classic = currentStyle === 'classic';
@@ -27,7 +28,7 @@ export default function SettingsGeneralTab({
 
     const handleSubmitSystem = (e: React.FormEvent) => {
         e.preventDefault();
-        if (onUpdateAppName) onUpdateAppName(name);
+        if (onUpdateAppName && isAdmin) onUpdateAppName(name);
         if (onUpdateUIStyle) onUpdateUIStyle(style);
         setTimezone(tz);
         setUiScale(scale);
@@ -46,7 +47,11 @@ export default function SettingsGeneralTab({
                                 className={classic ? '' : 'form-control form-control-sm'}
                                 value={name}
                                 onChange={e => setName(e.target.value)}
+                                disabled={!isAdmin}
                             />
+                            {!isAdmin && (
+                                <div style={settingsHint(classic)}>Only admins can change the application name.</div>
+                            )}
                         </div>
                         <div>
                             <FieldLabel classic={classic}>Interface Style</FieldLabel>
