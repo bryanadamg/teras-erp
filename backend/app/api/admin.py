@@ -2,13 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from app.core.db_manager import db_manager
+from app.core.scheduler import backup_scheduler
 from app.core.ws_manager import manager as ws_manager
 from app.core.security import verify_password
-from app.schemas import DatabaseResponse, ConnectionProfile, WipeDatabaseRequest
+from app.db.session import get_db
+from app.schemas import DatabaseResponse, ConnectionProfile, WipeDatabaseRequest, BackupScheduleUpdate, BackupScheduleResponse
 from app.api.auth import get_current_admin
 from app.models.auth import User
 from app.models.audit import AuditLog
+from app.services import backup_schedule_service
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 import shutil
@@ -128,4 +132,55 @@ async def wipe_database(payload: WipeDatabaseRequest, current_user: User = Depen
     result = await db_manager.wipe_and_reset()
     if result.status:
         _log_admin_action(current_user.id, "DB_WIPE", f"Database wiped and reset to blank state by {current_user.username}")
+    return result
+
+
+def _schedule_response(schedule) -> BackupScheduleResponse:
+    return BackupScheduleResponse(
+        id=schedule.id,
+        enabled=schedule.enabled,
+        frequency=schedule.frequency,
+        day_of_week=schedule.day_of_week,
+        hour=schedule.hour,
+        minute=schedule.minute,
+        timezone=schedule.timezone,
+        retain_count=schedule.retain_count,
+        last_run_at=schedule.last_run_at,
+        last_run_status=schedule.last_run_status,
+        last_run_error=schedule.last_run_error,
+        next_run_at=backup_scheduler.next_run_time(schedule),
+    )
+
+
+@router.get("/backup-schedule", response_model=BackupScheduleResponse)
+def get_backup_schedule(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
+    schedule = backup_schedule_service.get_or_create_schedule(db)
+    return _schedule_response(schedule)
+
+
+@router.put("/backup-schedule", response_model=BackupScheduleResponse)
+def update_backup_schedule(payload: BackupScheduleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
+    if payload.frequency not in ("daily", "weekly"):
+        raise HTTPException(status_code=400, detail="frequency must be 'daily' or 'weekly'")
+    if payload.frequency == "weekly" and payload.day_of_week is None:
+        raise HTTPException(status_code=400, detail="day_of_week is required for a weekly schedule")
+    if not (0 <= payload.hour <= 23 and 0 <= payload.minute <= 59):
+        raise HTTPException(status_code=400, detail="Invalid time of day")
+    if payload.retain_count < 1:
+        raise HTTPException(status_code=400, detail="retain_count must be at least 1")
+
+    schedule = backup_schedule_service.get_or_create_schedule(db)
+    schedule = backup_schedule_service.update_schedule(db, schedule, payload.model_dump(), current_user.id)
+    _log_admin_action(current_user.id, "DB_BACKUP_SCHEDULE_UPDATE", f"Backup schedule updated: enabled={schedule.enabled}, frequency={schedule.frequency}, retain_count={schedule.retain_count}")
+    return _schedule_response(schedule)
+
+
+@router.post("/backup-schedule/run-now", response_model=DatabaseResponse)
+async def run_backup_now(current_user: User = Depends(get_current_admin)):
+    try:
+        result = await backup_schedule_service.run_scheduled_backup()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backup run failed: {e}")
+    if result is None:
+        raise HTTPException(status_code=404, detail="No backup schedule configured yet")
     return result

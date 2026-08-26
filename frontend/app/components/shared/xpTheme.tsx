@@ -151,6 +151,11 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     UPDATE_DIP_STATUS: 'blue', STAGE: 'blue', TRANSFER: 'blue', IMPORT: 'blue',
     DELETE: 'red', DEACTIVATE: 'red', REJECT: 'red', DISPOSE: 'red',
     PRINT: 'gray', SPLIT: 'gray', ARCHIVE: 'gray', REBUILD: 'gray',
+    // Scheduled Backups panel (Settings → Database & Backups): audit verbs for the
+    // recurring backup job, plus the "Manual"/"Scheduled" snapshot-origin tag and
+    // "Success"/"Failed" last-run tag it renders in the same StatusChip.
+    DB_BACKUP_SCHEDULE_UPDATE: 'amber', DB_BACKUP_SCHEDULED_RUN: 'green', DB_BACKUP_SCHEDULED_FAILED: 'red',
+    SCHEDULED: 'blue', MANUAL: 'gray', SUCCESS: 'green', FAILED: 'red',
     // Item.variant_type tags (Inventory table "Type" column) — not a lifecycle
     // status, but reuses the same 5-family palette for a consistent chip.
     // NONE doubles as the Quarantine Packing "not dispositioned yet" rollup.

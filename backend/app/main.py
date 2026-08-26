@@ -24,7 +24,9 @@ logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
 
 from app.db.session import engine
 from app.core.db_manager import db_manager
+from app.core.scheduler import backup_scheduler
 from app.db.base import Base
+from app.services import backup_schedule_service
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, shipments, colors, combos, weaving, print_templates, production_reports, quarantine, work_queue
 from app.core.ws_manager import manager
 
@@ -41,9 +43,23 @@ async def lifespan(app: FastAPI):
     await manager.initialize()
     # Warm the booking-netting cache off the request path (see warm_booking_cache).
     stock.warm_booking_cache()
+    # Start the recurring-backup scheduler and (re)register its job from whatever
+    # schedule is persisted in Postgres — the in-process AsyncIOScheduler has no
+    # memory of "next run" across a redeploy, so this has to happen on every boot.
+    backup_scheduler.start()
+    try:
+        session = db_manager.session_factory()
+        try:
+            schedule = backup_schedule_service.get_or_create_schedule(session)
+            backup_scheduler.reschedule(schedule)
+        finally:
+            session.close()
+    except Exception:
+        logging.exception("Failed to initialize the scheduled backup job")
     yield
     # Shutdown: Close Redis connections
     await manager.stop()
+    backup_scheduler.shutdown()
 
 app = FastAPI(
     title="Terras ERP",

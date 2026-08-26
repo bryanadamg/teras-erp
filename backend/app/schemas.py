@@ -2747,6 +2747,31 @@ class CompanyProfileResponse(CompanyProfileBase):
     class Config:
         from_attributes = True
 
+class BackupScheduleUpdate(BaseModel):
+    enabled: bool
+    frequency: str  # "daily" | "weekly"
+    day_of_week: Optional[int] = None  # 0=Mon..6=Sun, required when frequency == "weekly"
+    hour: int
+    minute: int
+    timezone: str
+    retain_count: int
+
+class BackupScheduleResponse(BaseModel):
+    id: UUID
+    enabled: bool
+    frequency: str
+    day_of_week: Optional[int] = None
+    hour: int
+    minute: int
+    timezone: str
+    retain_count: int
+    last_run_at: Optional[datetime] = None
+    last_run_status: Optional[str] = None
+    last_run_error: Optional[str] = None
+    next_run_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 # --- Batch / Lot Schemas ---
 
 class BatchCreate(BaseModel):

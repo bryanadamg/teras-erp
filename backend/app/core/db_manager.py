@@ -2,6 +2,7 @@ import asyncio
 import threading
 import logging
 import os
+import re
 import subprocess
 import shutil
 from datetime import datetime
@@ -15,6 +16,16 @@ from fastapi.concurrency import run_in_threadpool
 from app.schemas import DatabaseResponse, ConnectionProfile
 
 logger = logging.getLogger(__name__)
+
+# Matches filenames create_snapshot() produces (`snapshot_{label}_{YYYYmmdd}_{HHMMSS}.ext`)
+# so the UI can tag scheduled vs. manual snapshots and retention can target only the
+# ones the scheduler itself created. Anything that doesn't match (e.g. an uploaded
+# file with an arbitrary name) is treated as "manual" — never auto-pruned.
+_SNAPSHOT_NAME_RE = re.compile(r"^snapshot_(?P<label>.+)_\d{8}_\d{6}\.\w+$")
+
+def _label_for_filename(name: str) -> str:
+    match = _SNAPSHOT_NAME_RE.match(name)
+    return match.group("label") if match else "manual"
 
 class DatabaseManager:
     _instance = None
@@ -94,9 +105,23 @@ class DatabaseManager:
             files.append({
                 "name": f.name,
                 "size": stats.st_size,
-                "created_at": datetime.fromtimestamp(stats.st_ctime).isoformat()
+                "created_at": datetime.fromtimestamp(stats.st_ctime).isoformat(),
+                "label": _label_for_filename(f.name),
             })
         return sorted(files, key=lambda x: x["created_at"], reverse=True)
+
+    def prune_old_scheduled_snapshots(self, retain_count: int) -> int:
+        """Deletes the oldest scheduler-created snapshots beyond `retain_count`.
+        Manual and uploaded snapshots are never touched. Returns the number deleted."""
+        scheduled = [f for f in self.list_snapshots() if f["label"] == "scheduled"]
+        deleted = 0
+        for f in scheduled[retain_count:]:
+            try:
+                self.get_snapshot_path(f["name"]).unlink(missing_ok=True)
+                deleted += 1
+            except Exception as e:
+                logger.error(f"Failed to prune snapshot {f['name']}: {e}")
+        return deleted
 
     def get_snapshot_path(self, filename: str) -> Path:
         """Returns the absolute path to a snapshot file, guarding against path traversal."""
