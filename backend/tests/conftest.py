@@ -23,14 +23,6 @@ from app.core.security import create_access_token
 from app.models.auth import User
 import uuid
 
-# The `client` fixture enters the app's lifespan, and it does so once PER TEST.
-# Startup warms the booking cache, which is the uncapped plant-wide netting pass
-# (`/stock/availability`) — minutes of work against a real development database,
-# repeated for every test, which reads as a hung suite rather than a slow one.
-# Tests never assert on that cache, so it is stubbed out for the whole session.
-from app.api import stock as _stock_api
-_stock_api.warm_booking_cache = lambda: None
-
 # Every connection a test touches gets a lock timeout, so a lock wait fails the
 # test that caused it instead of hanging the run. The fixture connection had one
 # already; this covers the app's own pool, which is where a route's write can
@@ -71,15 +63,28 @@ def db_session(committed_admin):
     transaction.rollback()
     connection.close()
 
+# TestClient(app) runs the real FastAPI lifespan (Redis connect + the booking-
+# cache warm pass) on entry — session-scoped so that happens once for the
+# whole run, not once per test. The client's `.portal` (its persistent anyio
+# event loop) is reused across every test below; nothing keeps a per-test loop
+# around anymore, so the async engine's connection pool is safe to keep too —
+# see the dropped `dispose_async_engine_pool` in git history if that stops
+# being true.
+@pytest.fixture(scope="session")
+def _app_client(_test_database):
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
+
+
 @pytest.fixture(scope="function")
-def client(db_session):
+def client(_app_client, db_session):
     from app.db.session import get_async_db
     from app.core.db_manager import db_manager
     from sqlalchemy.ext.asyncio import AsyncSession
 
     # Attach the async engine's lock-timeout listener before opening the first
-    # async connection of the run (it's otherwise attached lazily in
-    # dispose_async_engine_pool, which only runs at teardown).
+    # async connection of the run. Idempotent (module-level flag), so this is
+    # only real work on the very first test.
     _attach_async_lock_timeout()
 
     def override_get_db():
@@ -87,38 +92,37 @@ def client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app, raise_server_exceptions=False) as c:
-        # Async routes get their own connection on the async engine (different
-        # driver, can't share a DBAPI connection with db_session's psycopg2
-        # one) — but it needs the exact same SAVEPOINT treatment, or async
-        # writes commit for real and outlive the test. Opened and closed
-        # through the TestClient's own portal so the connection is created and
-        # torn down on the same event loop that will run every request in
-        # this test (asyncpg connections are loop-bound).
-        async def _open_async_txn():
-            conn = await db_manager.async_engine.connect()
-            await conn.begin()
-            return conn, AsyncSession(
-                bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False
-            )
+    # Async routes get their own connection on the async engine (different
+    # driver, can't share a DBAPI connection with db_session's psycopg2 one) —
+    # but it needs the exact same SAVEPOINT treatment, or async writes commit
+    # for real and outlive the test. Opened and closed through the shared
+    # client's portal so it runs on the one loop every request uses (asyncpg
+    # connections are loop-bound).
+    async def _open_async_txn():
+        conn = await db_manager.async_engine.connect()
+        await conn.begin()
+        return conn, AsyncSession(
+            bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False
+        )
 
-        async_conn, async_session = c.portal.call(_open_async_txn)
+    async_conn, async_session = _app_client.portal.call(_open_async_txn)
 
-        async def override_get_async_db():
-            yield async_session
+    async def override_get_async_db():
+        yield async_session
 
-        app.dependency_overrides[get_async_db] = override_get_async_db
+    app.dependency_overrides[get_async_db] = override_get_async_db
 
-        yield c
+    yield _app_client
 
-        async def _close_async_txn():
-            await async_session.close()
-            await async_conn.rollback()
-            await async_conn.close()
+    async def _close_async_txn():
+        await async_session.close()
+        await async_conn.rollback()
+        await async_conn.close()
 
-        c.portal.call(_close_async_txn)
+    _app_client.portal.call(_close_async_txn)
 
-    app.dependency_overrides.clear()
+    app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_async_db, None)
 
 @pytest.fixture(scope="session", autouse=True)
 def _test_database():
@@ -264,19 +268,3 @@ def _attach_async_lock_timeout() -> None:
         )
 
     _async_timeout_attached = True
-
-
-@pytest.fixture(autouse=True)
-def dispose_async_engine_pool():
-    """
-    Dispose the asyncpg connection pool after each test.
-    Each TestClient creates a new anyio event loop; asyncpg connections are tied
-    to a specific event loop, so connections from test N cannot be reused in test N+1.
-    Disposing the pool forces fresh connections bound to the new event loop.
-    """
-    yield
-    _attach_async_lock_timeout()
-    from app.core.db_manager import db_manager
-    if db_manager.async_engine is not None:
-        # dispose() on AsyncEngine is async; access the underlying sync pool directly
-        db_manager.async_engine.sync_engine.pool.dispose()
