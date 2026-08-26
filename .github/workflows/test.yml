@@ -46,4 +46,4 @@ jobs:
 
       - name: Run pytest
         working-directory: backend
-        run: python -u -m pytest tests -v
+        run: python -u -m pytest tests -v -n auto

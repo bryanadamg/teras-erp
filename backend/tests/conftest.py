@@ -6,11 +6,19 @@ from sqlalchemy.engine import make_url
 # Tests must never touch the app's own database (`erp`) — force a dedicated
 # `erp_test` database on the same server, derived from whatever DATABASE_URL
 # the environment already provides (so this works unchanged in Docker and CI).
-# Override with TEST_DB_NAME if a run needs a different name (e.g. per xdist worker).
+# Override with TEST_DB_NAME if a run needs a different base name.
 _dev_url = make_url(
     os.environ.get("DATABASE_URL", "postgresql+psycopg2://erp:erp@localhost:5432/erp")
 )
 _TEST_DB_NAME = os.environ.get("TEST_DB_NAME", "erp_test")
+# Under `pytest -n auto` (pytest-xdist), each worker is a separate process with
+# its own copy of this module — xdist sets PYTEST_XDIST_WORKER (e.g. "gw0") in
+# that process's environment before collection. One DB per worker, or two
+# workers' DROP/CREATE DATABASE in `_test_database` below race each other's
+# tables out from under whichever test is mid-run.
+_XDIST_WORKER = os.environ.get("PYTEST_XDIST_WORKER")
+if _XDIST_WORKER:
+    _TEST_DB_NAME = f"{_TEST_DB_NAME}_{_XDIST_WORKER}"
 # str(URL) masks the password as a literal "***" in SQLAlchemy 2.x — must render explicitly.
 os.environ["DATABASE_URL"] = _dev_url.set(database=_TEST_DB_NAME).render_as_string(hide_password=False)
 
