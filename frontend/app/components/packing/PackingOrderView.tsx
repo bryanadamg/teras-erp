@@ -1069,6 +1069,20 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const allIds = lots.map((b: any) => String(b.id));
     const allSelected = allIds.length > 0 && selectedLots.length === allIds.length;
 
+    // Why the log button is dead, in the order the submit handler checks. A
+    // disabled button with no stated reason is the bug this exists to prevent —
+    // the box-list footer alone was too far from the button to read as its cause.
+    const logBlockedBy =
+        locsMissing ? 'Set both locations on this order before packing'
+        : locsDirty ? 'Save the location change before logging'
+        : num(qty) <= 0 ? 'Enter a quantity to pack'
+        : boxValues.length === 0 ? `Add at least one ${po.package_label.toLowerCase()}`
+        : boxMismatch ? `${po.package_label}s total ${boxTotal.toFixed(2)} but ${packTotal.toFixed(2)} is being packed`
+        : weightsMissing ? `Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`
+        : useLotPicker && !selectedLots.length ? 'Select at least one lot to pack from'
+        : useLotPicker && short ? `Selected lots hold only ${drawn.toFixed(2)} of the ${num(qty).toFixed(2)} needed`
+        : null;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const q = num(qty);
@@ -1191,9 +1205,18 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                     <button type="button" className={XP_BTN} style={xpBtn()} disabled={!units.length} onClick={() => onPrintLabels(po, units)}>
                         Carton Labels
                     </button>
+                    {/* Visible, not a tooltip: a disabled button dispatches no mouse
+                        events in Chrome, so a `title` on it would never be read. */}
+                    {!readOnly && logBlockedBy && (
+                        <span style={{ fontFamily: xpFont, fontSize: 10, color: '#7a4a00', fontStyle: 'italic', marginLeft: 'auto', paddingRight: 6 }}>
+                            {logBlockedBy}
+                        </span>
+                    )}
                     {!readOnly && (
-                        <button type="submit" form="packing-log-form" className={XP_BTN} disabled={logging || boxMismatch || weightsMissing || locsMissing || locsDirty}
-                            style={{ ...xpBtnGreen(), opacity: logging || boxMismatch || weightsMissing || locsMissing || locsDirty ? 0.6 : 1 }}>
+                        <button type="submit" form="packing-log-form" className={XP_BTN}
+                            disabled={logging || !!logBlockedBy}
+                            title={logBlockedBy || undefined}
+                            style={{ ...xpBtnGreen(), opacity: logging || logBlockedBy ? 0.6 : 1 }}>
                             {logging ? 'Packing...' : 'Log Packing'}
                         </button>
                     )}

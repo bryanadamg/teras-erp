@@ -29,9 +29,15 @@ export const splitBoxQtys = (total: number, size: number): number[] => {
 export const seedBoxRows = (total: number, size: number, prev: BoxRow[] = []): BoxRow[] =>
     splitBoxQtys(total, size).map((q, i) => ({ qty: String(q), kg: prev[i]?.kg || '' }));
 
+// Parsed the same way the pack screens parse every other numeric field
+// (`parseFloat`, not `Number`): the two disagree on a comma decimal and on
+// trailing text, so a row could total as weighed in the footer while still
+// counting as unweighed in the submit gate — a button dead for no visible reason.
+const n = (v: string) => { const parsed = parseFloat(v); return isNaN(parsed) ? 0 : parsed; };
+
 /** Rows that carry a qty — the ones actually sent to the server. */
-export const filledBoxRows = (rows: BoxRow[]) => rows.filter(b => Number(b.qty) > 0);
+export const filledBoxRows = (rows: BoxRow[]) => rows.filter(b => n(b.qty) > 0);
 
 /** True when any carton is still unweighed; the server rejects those. */
 export const hasUnweighedBox = (rows: BoxRow[]) =>
-    filledBoxRows(rows).some(b => !(Number(b.kg) > 0));
+    filledBoxRows(rows).some(b => !(n(b.kg) > 0));
