@@ -21,13 +21,14 @@ export default function SettingsAccountTab() {
     const [selfFullName, setSelfFullName] = useState('');
     const [selfPassword, setSelfPassword] = useState('');
     const [selfConfirmPassword, setSelfConfirmPassword] = useState('');
-    const [selfAvatarId, setSelfAvatarId] = useState<string>('1');
+    // Empty means "no recipe stored yet" — seeded from the username instead.
+    const [selfAvatarId, setSelfAvatarId] = useState<string>('');
 
     useEffect(() => {
         if (currentUser) {
             setSelfUsername(currentUser.username);
             setSelfFullName(currentUser.full_name);
-            setSelfAvatarId(currentUser.avatar_id || '1');
+            setSelfAvatarId(currentUser.avatar_id || '');
         }
     }, [currentUser]);
 
@@ -81,13 +82,13 @@ export default function SettingsAccountTab() {
                             width: 60, height: 60, border: '1px solid #dee2e6', borderRadius: 8,
                             background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                            <PixelAvatar avatarId={selfAvatarId} size={48} />
+                            <PixelAvatar avatarId={selfAvatarId} seed={selfUsername} size={48} />
                         </div>
                         <span style={settingsHint(classic)}>Preview</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <FieldLabel classic={classic}>Choose Avatar</FieldLabel>
-                        <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} classic={classic} />
+                        <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} seed={selfUsername} classic={classic} />
                     </div>
                 </div>
                 <div style={settingsGrid()}>

@@ -271,7 +271,7 @@ export default function SettingsUsersTab({
                                     >
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-4'}>
                                             <div style={classic ? { width: 28, height: 28, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' } : { width: 32, height: 32, border: '1px solid #dee2e6', borderRadius: 4, background: '#f8f9fa', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <PixelAvatar avatarId={user.avatar_id} size={24} />
+                                                <PixelAvatar avatarId={user.avatar_id} seed={user.username} size={24} />
                                             </div>
                                         </td>
                                         <td style={classic ? tdBase : undefined}>

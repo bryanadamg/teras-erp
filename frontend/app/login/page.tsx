@@ -304,7 +304,7 @@ export default function LoginPage() {
                         boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        <PixelAvatar avatarId="1" size={48} />
+                        <PixelAvatar seed="teras" size={48} />
                     </div>
 
                     {step === 'password' && (
@@ -573,7 +573,7 @@ export default function LoginPage() {
                         boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        <PixelAvatar avatarId="1" size={48} />
+                        <PixelAvatar seed="teras" size={48} />
                     </div>
 
                     {step === 'password' && (

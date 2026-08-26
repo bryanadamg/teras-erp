@@ -41,7 +41,9 @@ export default function UserFormModal({
     const [fullName, setFullName] = useState('');
     const [roleId, setRoleId] = useState('');
     const [permissionIds, setPermissionIds] = useState<string[]>([]);
-    const [avatarId, setAvatarId] = useState('1');
+    // Empty means "no recipe stored yet", which renders as an avatar seeded from
+    // the username rather than a shared default.
+    const [avatarId, setAvatarId] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(mode === 'create');
     const [passwordVisible, setPasswordVisible] = useState(false);
@@ -54,7 +56,7 @@ export default function UserFormModal({
         setFullName(user?.full_name || '');
         setRoleId(user?.role?.id || '');
         setPermissionIds(user?.permissions?.map(p => p.id) || []);
-        setAvatarId(user?.avatar_id || '1');
+        setAvatarId(user?.avatar_id || '');
         setPassword('');
         setShowPassword(mode === 'create');
         setPasswordVisible(false);
@@ -127,9 +129,9 @@ export default function UserFormModal({
             <div className="mb-3">
                 <div style={{ display: 'flex', gap: 8 }}>
                     <div style={classic ? { width: 48, height: 48, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } : { width: 52, height: 52, border: '1px solid #dee2e6', borderRadius: 6, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <PixelAvatar avatarId={avatarId} size={40} />
+                        <PixelAvatar avatarId={avatarId} seed={username} size={40} />
                     </div>
-                    <AvatarPicker value={avatarId} onChange={setAvatarId} classic={classic} />
+                    <AvatarPicker value={avatarId} onChange={setAvatarId} seed={username} classic={classic} />
                 </div>
             </div>
 

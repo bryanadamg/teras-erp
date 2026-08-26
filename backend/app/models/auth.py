@@ -62,7 +62,12 @@ class User(Base):
         UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True
     )
 
-    avatar_id: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    # Holds a versioned DiceBear recipe (see frontend avatarRecipe.ts), e.g.
+    # "v1|bryan|ht:variant03|sk:8d5524" — a seed plus per-slot overrides, not an
+    # index into a fixed sprite list. Legacy '1'..'10' values from the old
+    # hand-drawn sprites are inert: the frontend falls back to seeding from the
+    # username when the stored value isn't a "v1|" recipe.
+    avatar_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     role = relationship("Role")
