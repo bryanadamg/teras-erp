@@ -596,11 +596,12 @@ export default function QuarantinePackingView() {
                         return (
                         <tr
                             key={l.batch_id || `${sec.key}-nolot-${i}`}
-                            title={
-                                l.packed ? 'Already packed — this lot’s quarantine status is locked'
-                                    : l.claimed_by_order_code ? `Claimed by packing order ${l.claimed_by_order_code} — cancel or delete it to free this lot`
-                                        : undefined
-                            }
+                            // Claimed rows deliberately carry no row-level title: the
+                            // CLAIMED chip below is a data-no-tip zone with its own
+                            // title, and GlobalTooltip skips data-no-tip entirely — a
+                            // title here would go unstolen and fire the native OS
+                            // tooltip alongside the chip's custom one.
+                            title={l.packed ? 'Already packed — this lot’s quarantine status is locked' : undefined}
                             // No zebra. The only fills are the settled/claimed tint and
                             // the checked highlight — both semantic, both via lvSubRow.
                             style={{
@@ -640,7 +641,7 @@ export default function QuarantinePackingView() {
                                     )}
                                     {!l.packed && l.claimed_by_order_code && (
                                         <StatusChip status="CLAIMED" label={l.claimed_by_order_code} tint
-                                            title={`Claimed by packing order ${l.claimed_by_order_code}`} />
+                                            title={`Claimed by packing order ${l.claimed_by_order_code} — cancel or delete it to free this lot`} />
                                     )}
                                     <div style={{ marginLeft: 'auto' }}><LotChips batch={l} /></div>
                                 </div>
