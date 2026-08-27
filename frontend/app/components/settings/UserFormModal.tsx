@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import { xpBtn, xpInput, CODE_FONT, xpFont, FieldLabel, FormError, ModalFooterActions, XP_BTN } from '../shared/xpTheme';
-import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
 import { User } from '../../context/UserContext';
@@ -126,13 +125,11 @@ export default function UserFormModal({
         >
             <FormError classic={classic}>{error}</FormError>
 
+            {/* Preview frame lives inside AvatarPicker (it has to, for the
+                hover-to-try-on stage) — don't add a second one here. */}
             <div className="mb-3">
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={classic ? { width: 48, height: 48, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } : { width: 52, height: 52, border: '1px solid #dee2e6', borderRadius: 6, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <PixelAvatar avatarId={avatarId} seed={username} size={40} />
-                    </div>
-                    <AvatarPicker value={avatarId} onChange={setAvatarId} seed={username} classic={classic} />
-                </div>
+                <FieldLabel classic={classic}>Avatar</FieldLabel>
+                <AvatarPicker value={avatarId} onChange={setAvatarId} seed={username} classic={classic} />
             </div>
 
             {/* Paired two-up: at xl these single-line fields each stretching the full

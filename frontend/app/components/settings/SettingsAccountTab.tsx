@@ -5,9 +5,8 @@ import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpBtn, xpInput, FieldLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme';
-import { settingsActions, settingsGrid, settingsHint, settingsStack } from './settingsStyles';
+import { settingsActions, settingsGrid, settingsStack } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
-import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import { API_BASE } from '../shared/apiBase';
 
@@ -73,23 +72,13 @@ export default function SettingsAccountTab() {
         // resetting your own credentials. One form still submits both.
         <form onSubmit={handleSelfAccountUpdate} style={settingsStack}>
             <SettingsPanel classic={classic} icon="bi-person-fill" title="Profile">
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                        <div style={classic ? {
-                            width: 56, height: 56, border: '2px solid', borderColor: '#fff #888 #888 #fff',
-                            background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        } : {
-                            width: 60, height: 60, border: '1px solid #dee2e6', borderRadius: 8,
-                            background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                            <PixelAvatar avatarId={selfAvatarId} seed={selfUsername} size={48} />
-                        </div>
-                        <span style={settingsHint(classic)}>Preview</span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <FieldLabel classic={classic}>Choose Avatar</FieldLabel>
-                        <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} seed={selfUsername} classic={classic} />
-                    </div>
+                {/* No preview frame here: AvatarPicker owns the stage, because a
+                    preview outside it can't show the candidate you are hovering. */}
+                <div style={{ marginBottom: 12 }}>
+                    <FieldLabel classic={classic} hint="Hover an option to try it on; Shuffle rolls a whole new face.">
+                        Choose Avatar
+                    </FieldLabel>
+                    <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} seed={selfUsername} classic={classic} />
                 </div>
                 <div style={settingsGrid()}>
                     <div>
