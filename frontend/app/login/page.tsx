@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
-import { recallAvatar } from '../components/shared/avatarCache';
+import { recallAvatar, recallIdentity } from '../components/shared/avatarCache';
 import BootSplash, { useBootIndicator } from '../components/shared/BootSplash';
-import { modernFont } from '../components/shared/xpTheme';
+import { modernFont, CHIP_RADIUS } from '../components/shared/xpTheme';
 
 // Wordmark face (Sora, loaded in layout.tsx). Falls back to the system stack
 // if the var is missing, so the brand never renders in a default serif.
@@ -94,6 +94,183 @@ const SUITE_MODULES = [
     { key: 'crm', title: 'CRM', icon: 'bi-people-fill', active: false },
     { key: 'psa', title: 'PSA', icon: 'bi-briefcase-fill', active: false },
 ];
+
+/**
+ * The user's avatar, and the ID card that forms around it once a username is
+ * confirmed - the same card as the sidebar footer's user button (accent spine,
+ * photo frame, name, role chip), one size up and without the gear. Deliberately
+ * the same object in both places: the badge you see before signing in is the
+ * badge you carry inside.
+ *
+ * `open` drives everything through CSS transitions on ONE set of nodes, which is
+ * the whole point of this component's shape. The obvious build - bare avatar at
+ * the username step, card at the password step - unmounts the avatar and mounts
+ * a different one, so the face blinked out at full opacity and faded back in at
+ * a new size. Nothing can transition across an unmount. Here the frame and the
+ * PixelAvatar inside it are never replaced: the card face fades in behind them,
+ * the frame re-shapes, and the avatar glides left.
+ *
+ * The closed frame is scaled with `transform`, not sized in px, so the login
+ * column's layout height never changes between steps - a scaled element still
+ * occupies its untransformed box. Same reason the container is always a third of
+ * the column: at rest the chrome is invisible and the avatar is centred inside
+ * it, which is exactly where a centred bare avatar would have sat anyway.
+ *
+ * Name and role are whatever this device cached at the last successful login
+ * (see avatarCache) - never a pre-auth lookup, which would confirm to anyone
+ * that a given account exists. A username this browser has not signed in
+ * before still gets a card; it just shows the username and says the role is
+ * confirmed at sign-in. That is the honest state, not a placeholder.
+ */
+function StaffIdCard({
+    open, avatarId, username, fullName, role, compact = false,
+}: {
+    open: boolean;
+    avatarId: string | null;
+    username: string;
+    fullName?: string;
+    role?: string;
+    compact?: boolean;
+}) {
+    const photo = compact ? 44 : 40;
+    // Closed, the frame should read at the size the bare avatar used to be.
+    const idleScale = (compact ? 60 : 56) / photo;
+
+    // Long and heavily decelerated: the travel is the moment the screen hands
+    // the user their badge, so it glides to a stop rather than snapping.
+    const glide = 'cubic-bezier(0.16, 0.84, 0.24, 1)';
+
+    return (
+        <div
+            className={`login-badge${open ? ' login-badge-open' : ''}`}
+            style={{
+                // A third of the form column, centred: the badge is an identity
+                // token, not a panel, so it should not span the field below it.
+                position: 'relative',
+                width: '33.333%', alignSelf: 'center',
+                display: 'flex', alignItems: 'stretch',
+                borderRadius: 6,
+                overflow: 'hidden',
+            }}
+        >
+            {/* Card face: blue stock rather than white, so it reads as issued by
+                the same system as the chrome behind it. A backdrop layer of its
+                own, with nothing inside it, so its opacity is nobody else's
+                problem - fading the card used to fade the avatar with it. */}
+            <div
+                aria-hidden
+                style={{
+                    position: 'absolute', inset: 0,
+                    background: 'linear-gradient(to bottom, #d6e2f6, #a8c3e7)',
+                    borderTop: '1px solid #eaf2fd',
+                    borderLeft: '1px solid #eaf2fd',
+                    borderRight: '1px solid #5f78a6',
+                    borderBottom: '1px solid #5f78a6',
+                    borderRadius: 6,
+                    boxShadow: '0 2px 8px rgba(0,10,40,0.28)',
+                    opacity: open ? 1 : 0,
+                    transition: `opacity 420ms ${glide}`,
+                }}
+            />
+            {/* Accent spine - the coloured edge of the ID card. */}
+            <div
+                aria-hidden
+                style={{
+                    position: 'relative',
+                    width: 4, flexShrink: 0,
+                    background: 'linear-gradient(to bottom, #4a7ddb, #003080)',
+                    opacity: open ? 1 : 0,
+                    transition: `opacity 420ms ${glide}`,
+                }}
+            />
+            <div style={{
+                position: 'relative',
+                display: 'flex', alignItems: 'center', gap: 9,
+                padding: '7px 9px', minWidth: 0, flex: 1,
+            }}>
+                <div
+                    style={{
+                        // Closed: centred in the card, at the old bare-avatar
+                        // size. Open: pinned left at card size. A percentage
+                        // margin resolves against this row's content box, so
+                        // "centred" is exact at any width or UI scale - no
+                        // measuring, no JS.
+                        marginLeft: open ? 0 : `calc(50% - ${photo / 2}px)`,
+                        transform: open ? 'none' : `scale(${idleScale})`,
+                        width: photo, height: photo, flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: open ? '#eaf1fb' : '#c8d8f0',
+                        border: open ? '1px solid #6d84b0' : '1px solid #8fa4c8',
+                        borderRadius: open ? 4 : 0,
+                        boxShadow: 'inset 1px 1px 0 #f4f8ff',
+                        transition: [
+                            `margin-left 900ms ${glide}`,
+                            `transform 900ms ${glide}`,
+                            `background-color 420ms ${glide}`,
+                            `border-color 420ms ${glide}`,
+                            `border-radius 420ms ${glide}`,
+                        ].join(', '),
+                    }}
+                >
+                    {/* Size is fixed on purpose: re-rendering PixelAvatar at a
+                        new size mid-transition is the pop this component exists
+                        to avoid. The frame scales, the face rides along. */}
+                    <PixelAvatar avatarId={avatarId} seed={username || 'teras'} size={photo - 10} />
+                </div>
+                <div style={{
+                    minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 1,
+                    // Waits for most of the glide, so the details arrive as the
+                    // avatar settles instead of racing it across the card.
+                    opacity: open ? 1 : 0,
+                    transition: open
+                        ? `opacity 420ms ${glide} 430ms`
+                        : `opacity 140ms ${glide}`,
+                }}>
+                    <span
+                        title={fullName || username}
+                        style={{
+                            fontSize: compact ? 14 : 13, fontWeight: 'bold', color: '#16294f',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}
+                    >
+                        {fullName || username}
+                    </span>
+                    <span style={{
+                        fontFamily: 'var(--font-mono)', fontSize: compact ? 10.5 : 10, color: '#3d5480',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                        @{username}
+                    </span>
+                    {/* Chip when the role is known, plain italic line when it
+                        is not - a chip around "confirmed at sign-in" would read
+                        as a role called that. */}
+                    {role ? (
+                        <span style={{
+                            marginTop: 2, alignSelf: 'flex-start', maxWidth: '100%',
+                            fontSize: compact ? 9.5 : 9, fontWeight: 'bold', letterSpacing: 0.3,
+                            textTransform: 'uppercase', padding: '0 4px',
+                            borderRadius: CHIP_RADIUS,
+                            background: '#bcd0ee',
+                            border: '1px solid #7891bd',
+                            color: '#16294f',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                            {role}
+                        </span>
+                    ) : (
+                        <span style={{
+                            marginTop: 2, fontSize: compact ? 9.5 : 9, color: '#5b6c92',
+                            fontStyle: 'italic',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                            Role confirmed at sign-in
+                        </span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const ACTIVE_INDICES = SUITE_MODULES
     .map((m, i) => (m.active ? i : -1))
@@ -189,6 +366,9 @@ export default function LoginPage() {
     const [usernameInput, setUsernameInput] = useState('');
 
     const [step, setStep] = useState<'username' | 'password'>('username');
+    // Which way the step panes slide. Forward on Next, mirrored on Back, so the
+    // motion says "advancing" vs "returning" rather than just "something moved".
+    const [stepDir, setStepDir] = useState<'forward' | 'back'>('forward');
     const [selectedUsername, setSelectedUsername] = useState('');
     const [password, setPassword] = useState('');
 
@@ -225,6 +405,13 @@ export default function LoginPage() {
         [mounted, avatarUsername],
     );
 
+    // Same device-local source as the avatar: name/role this browser learned at
+    // the last successful login, or null for a username it has never seen.
+    const rememberedIdentity = useMemo(
+        () => (mounted ? recallIdentity(avatarUsername) : null),
+        [mounted, avatarUsername],
+    );
+
     useEffect(() => { setMounted(true); }, []);
 
     useEffect(() => {
@@ -251,6 +438,7 @@ export default function LoginPage() {
     }, [step]);
 
     const confirmUsername = (username: string) => {
+        setStepDir('forward');
         setSelectedUsername(username);
         setAvatarUsername(username);
         setStep('password');
@@ -270,6 +458,7 @@ export default function LoginPage() {
     };
 
     const handleBack = () => {
+        setStepDir('back');
         setStep('username');
         setUsernameInput(selectedUsername);
         setSelectedUsername('');
@@ -277,6 +466,10 @@ export default function LoginPage() {
         setLoginError('');
         setTimeout(() => usernameRef.current?.focus(), 50);
     };
+
+    // Both layout branches render the same pane classes; the animation itself
+    // lives in globals.css (`login-step*`).
+    const stepClass = `login-step${stepDir === 'back' ? ' login-step-back' : ''}`;
 
     const formatTime = (d: Date) =>
         d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -332,25 +525,22 @@ export default function LoginPage() {
 
                 {/* Mobile form */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '0 28px 40px' }}>
-                    {/* Avatar */}
-                    <div style={{
-                        width: 60, height: 60,
-                        background: '#c8d8f0',
-                        border: '2px solid',
-                        borderColor: '#fff #888 #888 #fff',
-                        boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <PixelAvatar avatarId={rememberedAvatar} seed={avatarUsername || 'teras'} size={48} />
-                    </div>
+                    {/* Always mounted: the avatar is the photo on the ID card
+                        that forms around it, and swapping components at the step
+                        change is exactly what made it flash. The card carries the
+                        name, so there is no separate name line. */}
+                    <StaffIdCard
+                        compact
+                        open={step === 'password'}
+                        avatarId={rememberedAvatar}
+                        username={selectedUsername || avatarUsername}
+                        fullName={rememberedIdentity?.fullName}
+                        role={rememberedIdentity?.role}
+                    />
 
-                    {step === 'password' && (
-                        <div style={{ textAlign: 'center', fontSize: 16, color: 'white', fontWeight: 600 }}>
-                            {selectedUsername}
-                        </div>
-                    )}
-
-                    <div style={{ fontSize: 13, color: '#b8ccf0', textAlign: 'center' }}>
+                    {/* Keyed on `step` so the copy re-mounts and fades instead of
+                        swapping mid-sentence under the reader. */}
+                    <div key={step} className="login-identity" style={{ fontSize: 13, color: '#b8ccf0', textAlign: 'center' }}>
                         {step === 'username' ? 'Enter your username to sign in' : 'Enter your password to continue'}
                     </div>
 
@@ -365,7 +555,7 @@ export default function LoginPage() {
                         style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}
                     >
                         {step === 'username' && (
-                            <div>
+                            <div className={stepClass}>
                                 <div style={{ fontSize: 12, color: '#c0d8f8', marginBottom: 6 }}>Username</div>
                                 <input
                                     ref={usernameRef}
@@ -388,7 +578,7 @@ export default function LoginPage() {
                         )}
 
                         {step === 'password' && (
-                            <div>
+                            <div className={stepClass}>
                                 <div style={{ fontSize: 12, color: '#e8c870', marginBottom: 6 }}>Password</div>
                                 <input
                                     ref={passwordRef}
@@ -598,7 +788,7 @@ export default function LoginPage() {
                         width: '60%', height: 1,
                         background: 'linear-gradient(to right, transparent, rgba(166,202,240,0.5), transparent)',
                     }} />
-                    <div style={{ fontSize: 'clamp(9px,calc(var(--app-vw) * 1.2 / 100),14px)', color: '#b8ccf0', letterSpacing: 1 }}>
+                    <div key={step} className="login-identity" style={{ fontSize: 'clamp(9px,calc(var(--app-vw) * 1.2 / 100),14px)', color: '#b8ccf0', letterSpacing: 1 }}>
                         {step === 'username' ? 'Type your username to sign in' : 'Enter your password to continue'}
                     </div>
                 </div>
@@ -614,23 +804,14 @@ export default function LoginPage() {
                     minWidth: '38%', maxWidth: '420px', padding: '0 5%',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
                 }}>
-                    {/* Avatar */}
-                    <div style={{
-                        width: 'clamp(40px,calc(var(--app-vw) * 6 / 100),64px)', height: 'clamp(40px,calc(var(--app-vw) * 6 / 100),64px)',
-                        background: '#c8d8f0',
-                        border: '2px solid',
-                        borderColor: '#fff #888 #888 #fff',
-                        boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <PixelAvatar avatarId={rememberedAvatar} seed={avatarUsername || 'teras'} size={48} />
-                    </div>
-
-                    {step === 'password' && (
-                        <div style={{ fontSize: 'clamp(10px,calc(var(--app-vw) * 1.3 / 100),15px)', color: 'white', fontWeight: 600 }}>
-                            {selectedUsername}
-                        </div>
-                    )}
+                    {/* Avatar -> ID card, as on mobile */}
+                    <StaffIdCard
+                        open={step === 'password'}
+                        avatarId={rememberedAvatar}
+                        username={selectedUsername || avatarUsername}
+                        fullName={rememberedIdentity?.fullName}
+                        role={rememberedIdentity?.role}
+                    />
 
                     <form
                         onSubmit={step === 'password'
@@ -643,7 +824,7 @@ export default function LoginPage() {
                         style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}
                     >
                         {step === 'username' && (
-                            <div>
+                            <div className={stepClass}>
                                 <div style={{ fontSize: 'clamp(9px,calc(var(--app-vw) * 1.1 / 100),12px)', color: '#c0d8f8', marginBottom: 4 }}>
                                     Username
                                 </div>
@@ -669,7 +850,7 @@ export default function LoginPage() {
                         )}
 
                         {step === 'password' && (
-                            <div>
+                            <div className={stepClass}>
                                 <div style={{ fontSize: 'clamp(9px,calc(var(--app-vw) * 1.1 / 100),12px)', color: '#e8c870', marginBottom: 4 }}>
                                     Password
                                 </div>

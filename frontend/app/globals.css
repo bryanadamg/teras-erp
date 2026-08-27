@@ -1976,3 +1976,94 @@ textarea {
      half of it (the ring / the raised edge) and drop only the movement. */
   .av-stage-live { box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.34); }
 }
+
+/* ── Login step transition (username → password) ─────────────────────────────
+   The two-step sign-in swaps one field for another in place, which read as a
+   hard cut: nothing told the user the screen had advanced rather than
+   re-rendered. Direction carries the meaning — forward slides in from the
+   right, Back mirrors it — so the animation is a wayfinding cue, not decoration.
+
+   Enter-only by design: the outgoing field unmounts immediately (React has no
+   exit phase without keeping a ghost node around, and a 2-field auth form does
+   not justify that machinery). The incoming pane is remounted via `key={step}`,
+   which is what restarts the animation. */
+@keyframes login-step-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes login-step-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes login-fade-up {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+.login-step {
+  animation: login-step-in-right 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.login-step-back {
+  animation-name: login-step-in-left;
+}
+/* Trails the field by a beat so the eye lands on the input first. */
+.login-identity {
+  animation: login-fade-up 300ms cubic-bezier(0.22, 0.61, 0.36, 1) 60ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-step, .login-step-back, .login-identity {
+    animation: none;
+  }
+}
+
+/* -- Login staff ID card (password step) ------------------------------------
+   The card's own motion lives in inline transitions on the component (the card
+   face, the frame re-shape, the avatar's glide from centre to the left edge),
+   because they all animate ONE persistent set of nodes. Keyframes were the wrong
+   tool: the earlier build swapped a bare avatar for a card-mounted one, and no
+   animation can bridge an unmount - the face blinked out and faded back in at a
+   new size. What stays here is the part CSS alone can do: the hover glimmer,
+   which needs a pseudo-element, and the reduced-motion opt-out. */
+.login-badge {
+  position: relative;
+}
+/* Glimmer: a light band raked across the card face on hover, the way a real
+   laminated badge catches a ceiling light. A pseudo-element because the card's
+   own background is an inline gradient carrying the card stock - this overlays
+   it instead of fighting it for the same property. Parked off-canvas at rest so
+   nothing paints until hover, and pointer-events: none so it never eats a click
+   meant for the card. Gated on `.login-badge-open` so a closed (invisible)
+   badge cannot glimmer, while `.login-badge` itself is always present - the
+   reduced-motion rule below has to be able to reach the card in both states. */
+.login-badge-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.28) 46%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0.28) 54%,
+    transparent 62%);
+  transform: translateX(-120%);
+  opacity: 0;
+}
+.login-badge-open:hover::after {
+  animation: login-badge-glimmer 850ms cubic-bezier(0.3, 0.1, 0.3, 1);
+}
+@keyframes login-badge-glimmer {
+  0%   { transform: translateX(-120%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The card still appears - it carries information. Only the travel goes, and
+     the glimmer is pure decoration, so it goes entirely. Killing the inline
+     transitions needs !important: an inline style outranks any rule here. */
+  .login-badge, .login-badge * {
+    transition: none !important;
+  }
+  .login-badge-open:hover::after { animation: none; }
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { rememberAvatar } from '../components/shared/avatarCache';
+import { rememberAvatar, rememberIdentity } from '../components/shared/avatarCache';
 import { resolveRecipe, serializeRecipe } from '../components/shared/avatarRecipe';
 
 interface Permission {
@@ -172,6 +172,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             currentUser.username,
             currentUser.role?.default_avatar_id,
         )));
+        // Same trade as the avatar: the login screen's staff ID card wants a name
+        // and a role, both of which sit behind auth. Cached on the way in rather
+        // than served to an unauthenticated caller.
+        rememberIdentity(currentUser.username, {
+            fullName: currentUser.full_name,
+            role: currentUser.role?.name,
+        });
     }, [currentUser]);
 
     const hasPermission = (permissionCode: string): boolean => {
