@@ -395,7 +395,12 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                                     </span>
                                 )}
                             </span>
-                            <MobileButton compact icon="bi-plus-lg" onClick={addGroup}>Add</MobileButton>
+                            <MobileButton
+                                compact
+                                icon="bi-plus-lg"
+                                title={`Add another ${(po.package_label || 'carton').toLowerCase()} line`}
+                                onClick={addGroup}
+                            />
                         </label>
                         {boxGroups.length === 0 && (
                             <div style={{ fontSize: 11, color: '#777', padding: '2px 0' }}>

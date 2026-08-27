@@ -1615,12 +1615,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             </span>
                                         )}
                                     </span>
-                                    <button
-                                        type="button"
-                                        className={XP_BTN}
+                                    <XPActionButton
+                                        classic={CLASSIC}
+                                        tone="primary"
+                                        icon="bi-plus-lg"
+                                        title={`Add another ${po.package_label.toLowerCase()} line`}
                                         onClick={addGroup}
-                                        style={{ ...xpBtn(), fontSize: 9, padding: '0 6px' }}
-                                    >+ Add line</button>
+                                    />
                                 </label>
                                 <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 168, overflowY: 'auto' }}>
                                     {boxGroups.length === 0 && (
