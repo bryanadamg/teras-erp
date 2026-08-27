@@ -130,6 +130,11 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     po.uom2_base_factor = packing_service.order_base_per_alt(po)
     po.color_name = po.color.name if po.color else None
     po.attribute_value_ids = [v.id for v in (po.attribute_values or [])]
+    # Same key StockBalance rows are written under, so the lot picker can match a
+    # lot's shade against the order's without restating the folding rules.
+    po.variant_key = stock_service._generate_variant_key(
+        [str(v.id) for v in (po.attribute_values or [])], po.color_id
+    )
     # qty_consumed on each planned material rolls up from what completions used.
     consumed: dict = {}
     for c in (po.completions or []):

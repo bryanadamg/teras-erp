@@ -787,9 +787,15 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                 work_center_id: workCenterId || null,
                 sales_order_id: soId || null,
                 sales_order_line_id: soLineId || null,
-                // Variant is deliberately not sent: it is resolved from the source
-                // lot's own StockBalance row at pack time (the SO-line inheritance
-                // path on the server still fills it when packing to order).
+                // A hand-typed variant is still never sent — the pack event resolves
+                // it from the source lot's own StockBalance row. But a Quarantine
+                // Packing deep link is not hand-typed: it carries the exact shade of
+                // the MO group being packed, and stating it is what stops the order
+                // from claiming (and offering) every other colour of the same FG
+                // sitting in the same hold bin. Packing to stock with no hint keeps
+                // the old variant-less behaviour.
+                color_id: initialValues?.color_id || null,
+                attribute_value_ids: initialValues?.combo_value_id ? [initialValues.combo_value_id] : [],
                 notes: notes || null,
                 materials: materials
                     .filter(m => m.item_id && num(m.qty_planned) > 0)
@@ -1157,8 +1163,16 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         setLotsLoading(true);
         (async () => {
             try {
+                // `variant_key` scopes the fetch to the shade this order is packing.
+                // Two MOs of the same FG in different colours share a hold bin, so
+                // the unscoped (item, location) fetch offered the other colour's lots
+                // as if they were packable — and the pack endpoint refuses them. The
+                // match rule lives on the server (stock_service.variant_matches) so
+                // the picker and the gate can't drift; an order with no variant of
+                // its own (packing to stock) still sees the whole pool.
+                const vq = po.variant_key ? `&variant_key=${encodeURIComponent(po.variant_key)}` : '';
                 const res = await authFetch(
-                    `${API_BASE}/batches?item_id=${po.item_id}&location_id=${po.source_location_id}&limit=200&with_source_lots=true`
+                    `${API_BASE}/batches?item_id=${po.item_id}&location_id=${po.source_location_id}${vq}&limit=200&with_source_lots=true`
                 );
                 const list = res.ok ? (await res.json() || []) : [];
                 if (!alive) return;
@@ -1177,7 +1191,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             }
         })();
         return () => { alive = false; };
-    }, [po.item_id, po.source_location_id, useLotPicker, authFetch, po.qty_packed]);
+    }, [po.item_id, po.source_location_id, po.variant_key, useLotPicker, authFetch, po.qty_packed]);
 
     const selSet = new Set(selectedLots);
     const selAvailable = lots.filter((b: any) => selSet.has(String(b.id)))

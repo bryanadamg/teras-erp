@@ -279,6 +279,7 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
     keys = [str(b.id) for b in batches]
     remaining_map: dict[str, float] = {}
     location_map: dict[str, tuple] = {}
+    variant_map: dict[str, str] = {}
     if keys:
         bal_q = (
             select(StockBalance.batch_key, func.sum(StockBalance.qty))
@@ -292,14 +293,20 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
 
         # Current location — beam is a physical unit, always at most one location with qty > 0
         loc_q = (
-            select(StockBalance.batch_key, StockBalance.location_id, Location.name)
+            select(StockBalance.batch_key, StockBalance.location_id, Location.name,
+                   StockBalance.variant_key)
             .join(Location, Location.id == StockBalance.location_id)
             .filter(StockBalance.batch_key.in_(keys), StockBalance.qty > 0)
         )
         if location_id:
             loc_q = loc_q.filter(StockBalance.location_id == location_id)
         loc_res = await db.execute(loc_q)
-        location_map = {row[0]: (row[1], row[2]) for row in loc_res.all()}
+        rows_ = loc_res.all()
+        location_map = {row[0]: (row[1], row[2]) for row in rows_}
+        # The balance row's variant identity — a lot is one physical thing, so one
+        # variant. Served so a picker can tell two same-item lots of different
+        # colour apart (the colour is folded into variant_key as `c:<uuid>`).
+        variant_map = {row[0]: (row[3] or "") for row in rows_}
 
     if location_id:
         batches = [b for b in batches if remaining_map.get(str(b.id), 0.0) > 0]
@@ -332,6 +339,7 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.location_id, b.location_name = location_map.get(str(b.id), (None, None))
+        b.variant_key = variant_map.get(str(b.id))
         b.location_path = _build_path(b.location_id) if b.location_id else None
         b.item_code = b.item.code if b.item else None
         b.item_name = b.item.name if b.item else None
@@ -348,6 +356,12 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
 async def list_batches(
     item_id: uuid.UUID | None = Query(None),
     location_id: uuid.UUID | None = Query(None),
+    variant_key: str | None = Query(
+        None,
+        description="Keep only lots whose stock variant satisfies this one (colour must match exactly, "
+                    "stated attribute values must all be present). Used by the packing lot picker so a "
+                    "hold bin holding two shades of the same FG offers only the order's own.",
+    ),
     with_source_lots: bool = Query(False, description="Also resolve each batch's immediate upstream (RM) lots — used by the staging picker"),
     include_packed_units: bool = Query(False, description="Include packed cartons (PU-). Off by default: these pickers choose consumable lots, and a sealed carton is not one."),
     skip: int = 0,
@@ -369,7 +383,15 @@ async def list_batches(
         query = query.filter(Batch.packing_order_id.is_(None))
     result = await db.execute(query.offset(skip).limit(limit))
     batches = result.scalars().all()
-    return await _enrich_batches(db, batches, location_id, with_source_lots=with_source_lots)
+    enriched = await _enrich_batches(db, batches, location_id, with_source_lots=with_source_lots)
+    if variant_key:
+        # Applied after enrichment: the variant lives on the StockBalance row, which
+        # is what `_enrich_batches` resolved — the Batch row itself carries no variant.
+        enriched = [
+            b for b in enriched
+            if stock_service.variant_matches(variant_key, getattr(b, "variant_key", "") or "")
+        ]
+    return enriched
 
 
 @router.get("/paginated", response_model=PaginatedBatchResponse)

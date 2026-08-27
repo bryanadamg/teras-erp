@@ -2809,6 +2809,11 @@ class BatchResponse(BaseModel):
     location_id: Optional[UUID] = None    # current location — beam is atomic, always at most one (populated by list endpoint)
     location_name: Optional[str] = None
     location_path: Optional[list[str]] = None  # root-first hierarchy [warehouse, zone, bin] for the current leaf location
+    # Variant identity of the StockBalance row this lot is held under — sorted
+    # attribute-value UUIDs plus a trailing `c:<uuid>` colour token. Compare against
+    # PackingOrderResponse.variant_key to tell whether a lot is the shade an order
+    # is packing; a lot is one physical thing, so it has exactly one.
+    variant_key: Optional[str] = None
     # Origin lineage — resolved from source_wo_id → WO → MO → PR/SO (populated by batches endpoints)
     wo_code: Optional[str] = None
     mo_id: Optional[UUID] = None
@@ -3125,6 +3130,11 @@ class PackingOrderResponse(BaseModel):
     color_id: UUID | None = None
     color_name: str | None = None
     attribute_value_ids: list[UUID] = []
+    # The order's variant identity in StockBalance form (attribute UUIDs + `c:<uuid>`).
+    # Empty string = the order declares no variant, so any lot of the item at the
+    # source location is fair game. Served rather than rebuilt client-side so the
+    # lot picker's match uses the same key the stock rows are written under.
+    variant_key: str = ""
     qty_target: float
     qty_packed: float = 0
     package_count: int = 0

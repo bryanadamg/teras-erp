@@ -395,6 +395,20 @@ async def resolve_lot_variant(db: AsyncSession, po: PackingOrder, batch_id) -> t
         raise ValueError("Lot has no stock at the packing order's source location")
     # A lot is one physical thing, so one variant — take the largest row if a
     # legacy split ever produced more than one.
+    #
+    # When the order *does* declare a variant (created from the quarantine desk's
+    # Pack button, or inherited from an SO line), a lot of a different shade is
+    # refused rather than silently packed: reading the variant off the lot is what
+    # keeps stock honest, but it would otherwise let a black lot be boxed as
+    # cartons of an order whose SO line, labels and pick list all say navy.
+    want = stock_service._generate_variant_key(
+        [str(v.id) for v in (po.attribute_values or [])], po.color_id
+    )
+    if not stock_service.variant_matches(want, rows[0].variant_key or ""):
+        raise ValueError(
+            "Lot is a different variant from the one this packing order is packing "
+            "— pick a lot of the order's own colour/variant"
+        )
     attr_ids, color_id = stock_service._parse_variant_key(rows[0].variant_key)
     return attr_ids, color_id, float(rows[0].qty)
 
