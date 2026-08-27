@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { Tabs, TabDef } from '../shared/Tabs';
-import { xpBevel as sharedXpBevel, PageTitleBar } from '../shared/shellTheme';
+import { PageTitleBar, ShellWindow, scrollAreaStyle } from '../shared/shellTheme';
 import SettingsGeneralTab from './SettingsGeneralTab';
 import SettingsAccountTab from './SettingsAccountTab';
 import SettingsDatabaseTab from './SettingsDatabaseTab';
@@ -24,6 +24,12 @@ export default function SettingsView({
     const isAdmin = hasPermission('admin.access');
 
     const [activeTab, setActiveTab] = useState<TabKey>('general');
+    const paneRef = useRef<HTMLDivElement>(null);
+
+    // Every tab is mounted at once (see the panes below), so they share one scroll
+    // pane — without this, hopping from the bottom of Database & Backups lands you
+    // halfway down My Account.
+    useEffect(() => { paneRef.current?.scrollTo({ top: 0 }); }, [activeTab]);
 
     const tabs: TabDef<TabKey>[] = [
         { key: 'general', label: 'General', icon: 'bi-gear-fill' },
@@ -36,23 +42,23 @@ export default function SettingsView({
 
     return (
         <div className="fade-in">
-            {/* Outer shell — XP bevel in classic, rounded card in modern (same chrome as DyeingSettingView) — full width like other section pages */}
-            <div style={classic ? sharedXpBevel() : {
-                fontFamily: modernFont,
-                border: '1px solid #dbe1ea',
-                borderRadius: 9,
-                background: '#fff',
-                overflow: 'hidden',
-                boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
-            }}>
+            {/* Outer shell on the app's standing page-fill convention (ShellWindow /
+                pageFillStyle): the frame is the height of the viewport below the app
+                chrome on every tab, and the pane inside it scrolls. It used to be
+                sized by its content, so the window itself grew and shrank as you
+                moved between tabs — the title bar and tab strip jumping to a new
+                place each time. Hand-rolling the frame is also how this file ended up
+                on `borderRadius: 9`, one off the shell tier every other view uses. */}
+            <ShellWindow classic={classic} fill="page" style={classic ? undefined : { fontFamily: modernFont }}>
                 {/* Title bar */}
                 <PageTitleBar classic={classic} icon="bi-sliders" title="Settings" />
 
                 {/* Tabs bar */}
                 <Tabs tabs={tabs} activeKey={activeTab} onChange={(key) => setActiveTab(key)} classic={classic} />
 
-                {/* Content area */}
-                <div style={{
+                {/* Content area — the one scroll pane, so the chrome above it never moves */}
+                <div ref={paneRef} style={{
+                    ...scrollAreaStyle,
                     padding: 16,
                     background: classic ? '#ece9d8' : '#f7f9fc',
                 }}>
@@ -84,7 +90,7 @@ export default function SettingsView({
                         </>
                     )}
                 </div>
-            </div>
+            </ShellWindow>
         </div>
     );
 }
