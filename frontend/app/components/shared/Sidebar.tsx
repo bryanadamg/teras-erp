@@ -3,7 +3,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
 import { useTheme } from '../../context/ThemeContext';
 import { NAV_SECTIONS, navLabel, leafPermissions, NavSection } from './navConfig';
-import { xpFont, BUTTON_RADIUS, XP_BTN } from './xpTheme';
+import { xpFont, BUTTON_RADIUS, XP_BTN, CHIP_RADIUS } from './xpTheme';
 import PixelAvatar from './PixelAvatar';
 
 interface SidebarProps {
@@ -339,18 +339,26 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
             </Fragment>
           );
         })}
+
+        {/* Credit line rides at the end of the nav list, so the footer holds
+            nothing but the user card. */}
+        <div style={{ padding: classic ? '10px 8px 12px' : '14px 12px 16px', textAlign: 'center' }}>
+          <small style={{ fontSize: 9, color: classic ? '#6070a0' : '#94a3b8', fontFamily: classic ? xpFont : modernFont }}>
+            {t('powered_by') || 'Powered by'} Terras ERP
+          </small>
+        </div>
       </div>
 
       {/* ── Footer ── */}
       <div style={classic ? {
         background: '#c0cade',
         borderTop: '1px solid #9098b8',
-        padding: '7px 8px',
+        padding: '6px 8px',
         flexShrink: 0,
       } : {
         background: '#ffffff',
         borderTop: `1px solid ${M_BORDER}`,
-        padding: '10px 12px',
+        padding: '8px 12px',
         flexShrink: 0,
       }}>
         {/* Sole entry point to Settings — open to every user; the page itself
@@ -363,54 +371,122 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
           className={XP_BTN}
           onClick={() => setActiveTab('settings')}
           {...H('settings')}
+          title={t('settings') || 'Settings'}
           style={classic ? {
             width: '100%',
-            padding: '5px 8px',
-            borderRadius: BUTTON_RADIUS,
+            padding: 0,
+            borderRadius: 6,
             background: hovered === 'settings'
-              ? 'linear-gradient(to bottom, #ffffff, #dde4f4)'
-              : 'linear-gradient(to bottom, #f0f3fb, #d6dff7)',
+              ? 'linear-gradient(to bottom, #ffffff, #e6ecfa)'
+              : 'linear-gradient(to bottom, #f7f9ff, #dde4f4)',
             borderTop: '1px solid #fff',
             borderLeft: '1px solid #fff',
-            borderRight: '1px solid #555',
-            borderBottom: '1px solid #555',
+            borderRight: '1px solid #7b86a8',
+            borderBottom: '1px solid #7b86a8',
             color: NAV_COLOR,
             fontFamily: xpFont,
-            fontSize: 11,
-            fontWeight: 'bold',
             cursor: 'pointer',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            gap: 8,
+            alignItems: 'stretch',
+            textAlign: 'left',
+            overflow: 'hidden',
           } : {
             width: '100%',
-            padding: '7px 10px',
-            background: hovered === 'settings' ? '#eff6ff' : 'transparent',
+            padding: 0,
+            background: hovered === 'settings' ? '#f8fafc' : '#ffffff',
             border: `1px solid ${hovered === 'settings' ? '#bfdbfe' : M_BORDER}`,
-            borderRadius: 8,
+            borderRadius: 10,
+            boxShadow: hovered === 'settings'
+              ? '0 2px 6px rgba(15,23,42,0.10)'
+              : '0 1px 2px rgba(15,23,42,0.05)',
             color: M_TEXT,
             fontFamily: modernFont,
-            fontSize: 12.5,
-            fontWeight: 600,
             cursor: 'pointer',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            gap: 8,
+            alignItems: 'stretch',
+            textAlign: 'left',
+            overflow: 'hidden',
             transition: 'all 0.12s',
           }}
         >
-          <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <PixelAvatar avatarId={currentUser?.avatar_id} seed={currentUser?.username} template={currentUser?.role?.default_avatar_id} size={16} />
+          {/* Accent spine — the coloured edge of the ID card. */}
+          <div style={{
+            width: 3,
+            flexShrink: 0,
+            background: classic
+              ? 'linear-gradient(to bottom, #4a7ddb, #003080)'
+              : 'linear-gradient(to bottom, #60a5fa, #2563eb)',
+          }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 7px', minWidth: 0, flex: 1 }}>
+            {/* Photo frame */}
+            <div style={{
+              width: 30,
+              height: 30,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#fff',
+              ...(classic ? {
+                border: '1px solid #7b86a8',
+                borderRadius: 4,
+                boxShadow: 'inset 1px 1px 0 #e8edf8',
+              } : {
+                border: `1px solid ${M_BORDER}`,
+                borderRadius: 6,
+              }),
+            }}>
+              <PixelAvatar
+                avatarId={currentUser?.avatar_id}
+                seed={currentUser?.username}
+                template={currentUser?.role?.default_avatar_id}
+                size={24}
+              />
+            </div>
+            <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span
+                data-testid="username-display"
+                style={{
+                  fontSize: classic ? 10.5 : 11.5,
+                  fontWeight: classic ? 'bold' : 600,
+                  color: classic ? NAV_COLOR : M_TEXT,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {currentUser?.full_name || currentUser?.username}
+              </span>
+              <span style={{
+                marginTop: 1,
+                alignSelf: 'flex-start',
+                maxWidth: '100%',
+                fontSize: classic ? 8.5 : 9.5,
+                fontWeight: classic ? 'bold' : 600,
+                letterSpacing: 0.3,
+                textTransform: 'uppercase',
+                padding: '0 4px',
+                borderRadius: CHIP_RADIUS,
+                background: classic ? '#c9d6f2' : '#eff6ff',
+                border: `1px solid ${classic ? '#8f9dc4' : '#bfdbfe'}`,
+                color: classic ? '#26365f' : '#1d4ed8',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                {currentUser?.role?.name || '—'}
+              </span>
+            </div>
+            <i
+              className="bi bi-gear-fill"
+              style={{
+                fontSize: classic ? 11 : 12,
+                flexShrink: 0,
+                color: classic ? (hovered === 'settings' ? '#003080' : '#7b86a8') : (hovered === 'settings' ? '#2563eb' : '#94a3b8'),
+              }}
+            />
           </div>
-          <span data-testid="username-display" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser?.username}</span>
         </button>
-        <div style={{ marginTop: 5, textAlign: 'center' }}>
-          <small style={{ fontSize: 9, color: classic ? '#6070a0' : '#94a3b8', fontFamily: classic ? xpFont : modernFont }}>
-            {t('powered_by') || 'Powered by'} Terras ERP
-          </small>
-        </div>
       </div>
     </div>
   );
