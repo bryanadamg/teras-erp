@@ -15,6 +15,24 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-08-27
+
+### Added
+- Packing orders show color and SO chips on the table, resolved from the order's finished-good variant and linked sales order
+
+### Changed
+- The shared WO/MO/PR lot column splits into three sortable columns (WO / MO / PR), narrowed and truncated with the shared chip popout on overflow; the WO list's variant chips move into their own column off Product
+- A lot's colour swatch resolves through one shared fallback chain, falling back to the MO's Colors attribute hex when the WO has none, and no longer doubles the colour chip when its code and name match
+- Native title tooltips are parked up front so they never stack with the custom tooltip layer, and the classic theme's tooltip switches from yellow to blue
+- Pick list's coverage bar uses the shared ProgressBar component instead of a hand-rolled bar
+- Packing order detail panel is wider and chips the carton's lot code
+
+### Fixed
+- A lot staged to a work order is now reserved to that WO instead of remaining pickable by any other WO drawing on the same item — staged material could otherwise be double-committed
+- Staging and consumption posted batch stock under the wrong (empty) variant key instead of the lot's actual variant, which missed the balance row and reported "Insufficient stock, Current: 0.0" for a lot the picker could see on hand
+- Packing an explicit box list across multiple lots split a physical box into a separate carton at every lot boundary, so 3 boxes over 6 lots minted 6 packed units instead of 3; they now merge back into one packed unit
+- Quarantine's claimed-lot indicator no longer shows a doubled tooltip
+
 ## [0.13.0] - 2026-08-27
 
 ### Added
