@@ -541,13 +541,15 @@ const ORIGIN_TITLE: Record<OriginKind, string> = {
 
 /** One origin reference as a badge. `prefix` false drops the "PR "/"SO " label when
  *  the code already carries it (MO-00012) or the column header says which it is. */
-export function OriginChip({ kind, code, classic, prefix = true, title, size = 'xs', style }: {
+export function OriginChip({ kind, code, classic, prefix = true, title, size = 'xs', truncate, style }: {
     kind: OriginKind;
     code: React.ReactNode;
     classic?: boolean;
     prefix?: boolean;
     title?: string;
     size?: 'xs' | 'sm' | 'md';
+    /** Clip to the parent's (narrow column) width; hover pops the full chip. */
+    truncate?: boolean;
     style?: React.CSSProperties;
 }) {
     return (
@@ -556,6 +558,7 @@ export function OriginChip({ kind, code, classic, prefix = true, title, size = '
             tone={ORIGIN_TONES[kind]}
             size={size}
             bold
+            truncate={truncate}
             title={title ?? `${ORIGIN_TITLE[kind]}: ${typeof code === 'string' ? code : ''}`.trim()}
             style={{ fontFamily: CODE_FONT, gap: 3, ...style }}
         >
