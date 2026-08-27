@@ -545,6 +545,14 @@ export default function LoginPage() {
                     </div>
 
                     <form
+                        /* The clipped-text hover in GlobalTooltip walks up to 3
+                           ancestors and echoes the textContent of any box wider
+                           than itself. At narrow widths this form qualifies, and
+                           what it echoed was every label and button on it run
+                           together ("PasswordForgot your password?...BackSign
+                           In"). Nothing here is a clipped label, so the form opts
+                           out; the ID card's own `title` sits outside it. */
+                        data-no-tip
                         onSubmit={step === 'password'
                             ? handleSubmit
                             : (e) => {
@@ -814,6 +822,8 @@ export default function LoginPage() {
                     />
 
                     <form
+                        /* Same opt-out as the mobile form above. */
+                        data-no-tip
                         onSubmit={step === 'password'
                             ? handleSubmit
                             : (e) => {
