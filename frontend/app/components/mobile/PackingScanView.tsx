@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared/xpTheme';
 import { toNum } from '../shared/format';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
-import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload } from '../shared/packingBoxes';
+import {
+    BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
+    filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload,
+} from '../shared/packingBoxes';
 import { orderBasePerAlt, altToBase, baseToAlt } from '../shared/altUnit';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
@@ -51,7 +54,11 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     // logs after the boxes are packed and weighed, so each row's scale reading is
     // required — it is the N.W. line on that carton's label, and the server
     // refuses to mint an unweighed carton.
-    const [boxRows, setBoxRows] = useState<BoxRow[]>([]);
+    // Cartons are entered as `count x qty each` groups, flattened to one row per
+    // physical carton for the payload — same shape and same helpers as the desktop
+    // pack modal (see shared/packingBoxes).
+    const [boxGroups, setBoxGroups] = useState<BoxGroup[]>([]);
+    const [openGroups, setOpenGroups] = useState<Set<number>>(new Set());
     const [sourceBatch, setSourceBatch] = useState('');
     const [operator, setOperator] = useState('');
     const [notes, setNotes] = useState('');
@@ -92,9 +99,10 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
             setUnit(null);
             const rem = Math.max(0, num(found.qty_target) - num(found.qty_packed));
             setQty(rem ? String(rem) : '');
-            // Seed a row per carton the remaining qty implies; the packer corrects
-            // the split and fills in each scale reading.
-            setBoxRows(seedBoxRows(rem, num(found.pack_size)));
+            // Seed the lines the remaining qty implies (n x pack_size, plus the
+            // remainder); the packer corrects the split and fills in each reading.
+            setBoxGroups(seedBoxGroups(rem, num(found.pack_size)));
+            setOpenGroups(new Set());
             return;
         }
 
@@ -188,7 +196,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
 
     const onQtyChange = (v: string) => {
         setQty(v);
-        setBoxRows(prev => seedBoxRows(num(v), num(po?.pack_size), prev, hasAlt ? altFactor : null));
+        setBoxGroups(prev => seedBoxGroups(num(v), num(po?.pack_size), prev, hasAlt ? altFactor : null));
     };
     // Counting in the alt unit: the base qty follows the count, not the reverse.
     const onQtyAltChange = (v: string) => {
@@ -196,23 +204,39 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
         const derived = altToBase(num(v), altFactor);
         if (derived !== null && num(v) > 0) onQtyChange(String(derived));
     };
-    const updateBox = (i: number, patch: Partial<BoxRow>) =>
-        setBoxRows(prev => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
-    const addBox = () => setBoxRows(prev => [...prev, { qty: '', kg: '', alt: '' }]);
-    const removeBox = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
+    const updateGroup = (i: number, patch: Partial<BoxGroup>) =>
+        setBoxGroups(prev => prev.map((g, idx) => (idx === i ? { ...g, ...patch } : g)));
+    const addGroup = () => setBoxGroups(prev => [...prev, emptyBoxGroup()]);
+    const removeGroup = (i: number) => setBoxGroups(prev => prev.filter((_, idx) => idx !== i));
+    const toggleGroup = (i: number) => setOpenGroups(prev => {
+        const next = new Set(prev);
+        next.has(i) ? next.delete(i) : next.add(i);
+        return next;
+    });
+    // One carton's scale reading inside a group. Sparse by design — a group of 3
+    // with only #2 weighed keeps ['', '4.95'] rather than inventing the other two.
+    const setGroupWeight = (i: number, box: number, val: string) =>
+        setBoxGroups(prev => prev.map((g, idx) => {
+            if (idx !== i) return g;
+            const kg = [...g.kg];
+            while (kg.length <= box) kg.push('');
+            kg[box] = val;
+            return { ...g, kg };
+        }));
 
     // A typed count fills the box's base qty; a typed base qty only back-fills a
     // count that isn't there yet — on a kg item the qty ends up being the scale
     // reading, which must not turn a box of 12 pieces into 11.8.
-    const setBoxAlt = (i: number, val: string) => {
+    const setGroupAlt = (i: number, val: string) => {
         const derived = altToBase(num(val), altFactor);
-        updateBox(i, { alt: val, ...(derived !== null && num(val) > 0 ? { qty: String(derived) } : {}) });
+        updateGroup(i, { alt: val, ...(derived !== null && num(val) > 0 ? { qty: String(derived) } : {}) });
     };
-    const setBoxQty = (i: number, val: string) => {
-        const backfill = hasAlt && !(num(boxRows[i]?.alt) > 0) ? baseToAlt(num(val), altFactor) : null;
-        updateBox(i, { qty: val, ...(backfill !== null ? { alt: String(backfill) } : {}) });
+    const setGroupQty = (i: number, val: string) => {
+        const backfill = hasAlt && !(num(boxGroups[i]?.alt) > 0) ? baseToAlt(num(val), altFactor) : null;
+        updateGroup(i, { qty: val, ...(backfill !== null ? { alt: String(backfill) } : {}) });
     };
 
+    const boxRows = useMemo(() => expandBoxGroups(boxGroups), [boxGroups]);
     const boxes = filledBoxRows(boxRows);
     const boxTotal = boxes.reduce((s, b) => s + num(b.qty), 0);
     const boxMismatch = num(qty) > 0 && Math.abs(boxTotal - num(qty)) > 1e-3;
@@ -255,7 +279,7 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                 const before = new Set((po.packed_units || []).map((u: any) => String(u.id)));
                 setLastCartons((fresh.packed_units || []).filter((u: any) => !before.has(String(u.id))));
                 setPo(fresh);
-                setQty(''); setQtyAlt(''); setNotes(''); setBoxRows([]);
+                setQty(''); setQtyAlt(''); setNotes(''); setBoxGroups([]); setOpenGroups(new Set());
                 playBeep();
             } else {
                 const e = await res.json().catch(() => ({}));
@@ -362,38 +386,84 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <label style={{ ...xpLabel, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>
                                 {po.package_label || 'Carton'}s packed &amp; weighed
+                                <span style={{ fontWeight: 'normal', color: '#777' }}>
+                                    {' '}— count × qty each
+                                </span>
                                 {qtyIsWeight && (
                                     <span style={{ fontWeight: 'normal', color: '#777' }}>
-                                        {' '}— qty is the net weight
+                                        {' '}(qty is the net weight)
                                     </span>
                                 )}
                             </span>
-                            <MobileButton compact icon="bi-plus-lg" onClick={addBox}>Add</MobileButton>
+                            <MobileButton compact icon="bi-plus-lg" onClick={addGroup}>Add</MobileButton>
                         </label>
-                        {boxRows.length === 0 && (
+                        {boxGroups.length === 0 && (
                             <div style={{ fontSize: 11, color: '#777', padding: '2px 0' }}>
                                 Enter a quantity to generate {(po.package_label || 'carton').toLowerCase()}s.
                             </div>
                         )}
-                        {boxRows.map((b, i) => (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                <span style={{ fontSize: 11, color: '#777', width: 22 }}>#{i + 1}</span>
-                                {hasAlt && (
-                                    <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
-                                        placeholder={altUom} value={b.alt}
-                                        onChange={e => setBoxAlt(i, e.target.value)} />
-                                )}
-                                <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
-                                    value={b.qty} onChange={e => setBoxQty(i, e.target.value)} />
-                                {!qtyIsWeight && (
-                                    <input type="number" min={0} step="any" required
-                                        style={{ ...xpInput, flex: 1, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
-                                        placeholder="net wt kg" value={b.kg} onChange={e => updateBox(i, { kg: e.target.value })} />
-                                )}
-                                <MobileButton compact tone="danger" icon="bi-x-lg" onClick={() => removeBox(i)} />
-                            </div>
-                        ))}
-                        {boxRows.length > 0 && (
+                        {boxGroups.map((g, i) => {
+                            const count = groupCount(g);
+                            const lineTotal = groupTotal(g);
+                            // Cartons before this line, so the expanded weights are
+                            // numbered the way the printed labels will be.
+                            const offset = boxGroups.slice(0, i).reduce((s, p) => s + groupCount(p), 0);
+                            const weighed = Array.from({ length: count }, (_, k) => num(g.kg[k]) > 0).filter(Boolean).length;
+                            const open = openGroups.has(i);
+                            return (
+                                <Fragment key={i}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                        <input type="number" min={0} step={1} style={{ ...xpInput, width: 52, textAlign: 'right', fontWeight: 'bold' }}
+                                            value={g.count} onChange={e => updateGroup(i, { count: e.target.value })} />
+                                        <span style={{ fontSize: 13, color: '#777' }}>×</span>
+                                        {hasAlt && (
+                                            <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
+                                                placeholder={altUom} value={g.alt}
+                                                onChange={e => setGroupAlt(i, e.target.value)} />
+                                        )}
+                                        <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
+                                            value={g.qty} onChange={e => setGroupQty(i, e.target.value)} />
+                                        <span style={{
+                                            fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap',
+                                            color: lineTotal > 0 ? '#0a3e0a' : '#aaa',
+                                        }}>= {lineTotal.toFixed(2)}</span>
+                                        {/* Scale readings are per carton even inside a line — the
+                                            label prints each box's own N.W. A kg item has none:
+                                            its qty already IS that weight. */}
+                                        {!qtyIsWeight && (
+                                            <MobileButton
+                                                compact
+                                                icon={open ? 'bi-chevron-down' : 'bi-chevron-right'}
+                                                title={count > 0 && weighed < count
+                                                    ? `${count - weighed} of ${count} still to weigh`
+                                                    : `All ${count} weighed`}
+                                                onClick={() => toggleGroup(i)}
+                                            >{count > 0 && weighed < count ? `${weighed}/${count}` : ''}</MobileButton>
+                                        )}
+                                        <MobileButton compact tone="danger" icon="bi-x-lg" onClick={() => removeGroup(i)} />
+                                    </div>
+                                    {open && !qtyIsWeight && (
+                                        <div style={{ paddingLeft: 14, marginBottom: 4 }}>
+                                            {count === 0 && (
+                                                <div style={{ fontSize: 11, color: '#777' }}>
+                                                    Set a {(po.package_label || 'carton').toLowerCase()} count to weigh.
+                                                </div>
+                                            )}
+                                            {Array.from({ length: count }, (_, k) => (
+                                                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                                                    <span style={{ fontSize: 11, color: '#777', width: 30 }}>#{offset + k + 1}</span>
+                                                    <input type="number" min={0} step="any" required
+                                                        style={{ ...xpInput, flex: 1, background: num(g.kg[k]) > 0 ? '#fff' : '#fffbe6' }}
+                                                        placeholder="net wt kg" value={g.kg[k] || ''}
+                                                        onChange={e => setGroupWeight(i, k, e.target.value)} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </Fragment>
+                            );
+                        })}
+                        {boxGroups.length > 0 && (
                             <div style={{ fontSize: 11, color: boxMismatch || weightsMissing ? '#7a4a00' : '#0a3e0a', marginTop: 2 }}>
                                 {boxMismatch
                                     ? `Boxed ${boxTotal.toFixed(2)} of ${num(qty).toFixed(2)}`
