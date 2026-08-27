@@ -226,7 +226,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                 <td colSpan={PO_COLS} style={{ padding: 0 }}>
                     <ExpandedRowPanel classic={CLASSIC}>
                         <div style={{
-                            display: 'grid', gridTemplateColumns: '250px 230px minmax(260px, 1fr)',
+                            display: 'grid', gridTemplateColumns: '320px 300px minmax(260px, 1fr)',
                             border: '1px solid #7f9db9', fontFamily: xpFont, fontSize: 10,
                         }}>
                             {/* Info */}
@@ -284,10 +284,10 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                 ) : (
                                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                                         {units.map((u: any) => (
-                                            <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 4, fontSize: 9, marginBottom: 2, paddingBottom: 2, borderBottom: '1px solid #e8e6e0' }}>
+                                            <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, fontSize: 9, marginBottom: 2, paddingBottom: 2, borderBottom: '1px solid #e8e6e0' }}>
                                                 <span style={{ color: '#888', width: 18, flexShrink: 0 }}>#{u.package_no}</span>
-                                                <span style={{ fontFamily: CODE_FONT, color: '#00309c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={u.batch_number}>
-                                                    {u.batch_number}
+                                                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                                                    <CodeChip code={u.batch_number} classic={CLASSIC} link style={{ cursor: 'default', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                                                 </span>
                                                 {/* The count that went in the box, when the order is
                                                     counted in one. Read off the carton, not divided out
