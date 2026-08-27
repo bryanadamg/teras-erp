@@ -13,6 +13,10 @@ import { settingsStack } from './settingsStyles';
  * /permissions fetch and a tab hop to answer "why can this user do X?". The
  * fetch now lives here and feeds both panels, and a role's user count is a
  * filter into the users panel below instead of a dead-end number.
+ *
+ * Both panels stay full-bleed one-per-row rather than sharing a `settingsColumns`
+ * band like the other tabs: these are eight- and six-column data tables, and half
+ * a screen each would squeeze the permission chips and Last Login off the end.
  */
 export default function SettingsAccessTab() {
     const [roles, setRoles] = useState<RoleLike[]>([]);

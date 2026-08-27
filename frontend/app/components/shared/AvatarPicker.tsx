@@ -330,7 +330,12 @@ export default function AvatarPicker({ value, onChange, seed, classic }: AvatarP
                                 key={activeSlot.key}
                                 style={{
                                     display: 'grid',
-                                    gridTemplateColumns: `repeat(auto-fill, minmax(${THUMB + 10}px, 1fr))`,
+                                    // Fixed tracks, not `minmax(…, 1fr)`: 1fr stretches the
+                                    // tracks to fill the row while each thumbnail keeps its
+                                    // own 42px, so ten options across a wide panel drifted
+                                    // apart into a sparse line instead of reading as a block.
+                                    gridTemplateColumns: `repeat(auto-fill, ${THUMB + 10}px)`,
+                                    justifyContent: 'start',
                                     gap: 5, maxHeight: 138, overflowY: 'auto', overflowX: 'hidden',
                                     // Room for the hover lift/scale, which would otherwise
                                     // be clipped by the scroll container's own edge.
