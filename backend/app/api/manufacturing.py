@@ -14,6 +14,7 @@ from app.models.color import Color
 from app.services import (
     stock_service, audit_service, kpi_service, beam_service, mrp_service,
     work_center_service, so_fulfilment_service, reject_service, weaving_service,
+    staging_service,
 )
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
@@ -900,7 +901,11 @@ async def list_work_orders_flat(
             color_id=str(mo.color_id) if mo and mo.color_id else None,
             color_code=color.code if color else None,
             color_name=color.name if color else None,
-            color_hex=color.hex if color else None,
+            # Color Library's own hex first; the mirrored `Colors` variant-attribute
+            # value (already resolved above for `color_label`) is a second source
+            # for the same shade and is filled in more often — same fallback chain
+            # `resolveColorHex` uses on the frontend for lotted batches.
+            color_hex=(color.hex if color else None) or (color_val.hex if color_val else None),
             labdip_variant_code=mo.labdip_variant_code if mo else None,
             completions=completions_flat,
             bom_line_item_ids=bom_line_item_ids,
@@ -1419,6 +1424,34 @@ async def add_mo_completion(
             lots_by_item.setdefault(str(b.item_id), []).append((b, float(cl.qty)))
     lot_item_ids = set(lots_by_item.keys())
 
+    # A staged lot belongs to the WO it was staged to. Two sizes of one BOM run on
+    # the same machine, so they share an input location AND the same substrate
+    # item — without this the other size's operator can pick a bag off this line
+    # and consume another order's material (see services/staging_service.py).
+    # Enforced here rather than only in the picker: the mobile scanner, the desktop
+    # modal and a raw API call all land on this route.
+    if wo and wo_input_loc:
+        picked: dict[str, Batch] = {str(b.id): b for b in batch_by_item.values()}
+        for lots in lots_by_item.values():
+            for b, _qty in lots:
+                picked[str(b.id)] = b
+        if picked:
+            clash = await staging_service.reserved_by_other(
+                db, wo_input_loc, wo.id, list(picked.keys())
+            )
+            if clash:
+                holder_codes = await staging_service.wo_codes(db, set(clash.values()))
+                detail = "; ".join(
+                    f"{getattr(picked.get(bid), 'batch_number', None) or bid} is staged to "
+                    f"{holder_codes.get(holder) or 'another work order'}"
+                    for bid, holder in clash.items()
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{detail}. A staged lot is reserved for the work order it was "
+                           f"staged to — stage this WO's own lots instead.",
+                )
+
     # Per-operation consumption: a WO only consumes the materials allocated to its
     # routing step (planned_component.bom_operation_id == wo.bom_operation_id).
     # If the WO has no step (legacy BOM with no operations), fall back to the whole
@@ -1520,6 +1553,13 @@ async def add_mo_completion(
         # its own qty from the input location; these items are then skipped below.
         for item_id, lots in lots_by_item.items():
             for b, qty in lots:
+                # A batched output keeps its MO's variant attrs beside the batch
+                # (see the output post below), so a lot's stock does NOT sit under
+                # an empty variant key — re-post under whatever it is actually
+                # keyed as, or the deduction misses the row and 400s on a lot the
+                # floor can see. Beams are the empty-variant exception and resolve
+                # to [] here on their own.
+                l_attrs, l_color = await stock_service.batch_variant(db, b.id, wo_input_loc)
                 await stock_service.add_stock_entry(
                     db,
                     item_id=uuid.UUID(item_id),
@@ -1527,7 +1567,8 @@ async def add_mo_completion(
                     qty_change=-qty,
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    attribute_value_ids=[],
+                    attribute_value_ids=l_attrs,
+                    color_id=l_color,
                     batch_id=b.id,
                 )
                 consumed_by_batch[str(b.id)] = consumed_by_batch.get(str(b.id), 0.0) + qty
@@ -1543,6 +1584,10 @@ async def add_mo_completion(
                     )
                     continue
                 in_batch = batch_by_item.get(str(ai.item_id))
+                b_attrs, b_color = (
+                    await stock_service.batch_variant(db, in_batch.id, wo_input_loc)
+                    if in_batch else ([], None)
+                )
                 await stock_service.add_stock_entry(
                     db,
                     item_id=ai.item_id,
@@ -1550,7 +1595,8 @@ async def add_mo_completion(
                     qty_change=-float(ai.qty_used),
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    attribute_value_ids=[],
+                    attribute_value_ids=b_attrs,
+                    color_id=b_color,
                     batch_id=in_batch.id if in_batch else None,
                 )
                 if in_batch:
@@ -1573,6 +1619,12 @@ async def add_mo_completion(
                     continue
                 deduct_loc_id = comp.source_location_id or wo_input_loc
                 in_batch = batch_by_item.get(str(comp.item_id))
+                # A lot is not variant-less: re-post it under the key its balance
+                # row actually holds, not an assumed empty one.
+                c_attrs, c_color = (
+                    await stock_service.batch_variant(db, in_batch.id, deduct_loc_id)
+                    if in_batch else ([uuid.UUID(s) for s in comp.attribute_value_ids], None)
+                )
                 await stock_service.add_stock_entry(
                     db,
                     item_id=comp.item_id,
@@ -1580,8 +1632,8 @@ async def add_mo_completion(
                     qty_change=-req,
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    # lot batch rows carry no variant attrs — the batch is the identity
-                    attribute_value_ids=[] if in_batch else [uuid.UUID(s) for s in comp.attribute_value_ids],
+                    attribute_value_ids=c_attrs,
+                    color_id=c_color,
                     batch_id=in_batch.id if in_batch else None,
                 )
                 if in_batch:

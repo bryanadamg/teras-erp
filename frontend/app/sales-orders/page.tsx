@@ -1,17 +1,32 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import SalesOrderView from '../components/sales/SalesOrderView';
 import { useData } from '../context/DataContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 import { colorLabel } from '../components/shared/xpTheme';
 
 export default function SalesOrdersPage() {
-    const { items, attributes, salesOrders, partners, bomsLookup: boms, refreshSalesOrders, authFetch } = useData();
+    const { items, attributes, salesOrders, partners, bomsLookup: boms, refreshSalesOrders, authFetch, filters: { setSoSearch } } = useData();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const consumedSoRef = useRef<string | null>(null);
+
+    // Deep link from a chip elsewhere (Packing Order table, etc.) — jump straight
+    // to this order by filtering the list to its PO#, same idiom as MO/PR chips
+    // filtering their own lists (see manufacturing-orders/page.tsx `mo` param).
+    useEffect(() => {
+        const so = searchParams.get('so');
+        if (so && so !== consumedSoRef.current) {
+            consumedSoRef.current = so;
+            setSoSearch(so);
+            router.replace('/sales-orders');
+        }
+    }, [searchParams, router, setSoSearch]);
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;

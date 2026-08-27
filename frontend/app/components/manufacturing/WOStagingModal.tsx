@@ -155,6 +155,9 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                         // A beam already up on this loom isn't a candidate to mount again.
                         && !(r.is_beam && mountedIds.has(x.id))
                         && !stagedIds.has(x.id)
+                        // Sitting on another WO's line: staging it here would take that
+                        // WO's material, and the backend rejects it (staging_service.py).
+                        && !(x.reserved_wo_id && String(x.reserved_wo_id) !== String(wo.id))
                     );
                     return [r.item_id, avail] as const;
                 }));

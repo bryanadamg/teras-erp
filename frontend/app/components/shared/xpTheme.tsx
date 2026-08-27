@@ -541,13 +541,15 @@ const ORIGIN_TITLE: Record<OriginKind, string> = {
 
 /** One origin reference as a badge. `prefix` false drops the "PR "/"SO " label when
  *  the code already carries it (MO-00012) or the column header says which it is. */
-export function OriginChip({ kind, code, classic, prefix = true, title, size = 'xs', style }: {
+export function OriginChip({ kind, code, classic, prefix = true, title, size = 'xs', truncate, style }: {
     kind: OriginKind;
     code: React.ReactNode;
     classic?: boolean;
     prefix?: boolean;
     title?: string;
     size?: 'xs' | 'sm' | 'md';
+    /** Clip to the parent's (narrow column) width; hover pops the full chip. */
+    truncate?: boolean;
     style?: React.CSSProperties;
 }) {
     return (
@@ -556,6 +558,7 @@ export function OriginChip({ kind, code, classic, prefix = true, title, size = '
             tone={ORIGIN_TONES[kind]}
             size={size}
             bold
+            truncate={truncate}
             title={title ?? `${ORIGIN_TITLE[kind]}: ${typeof code === 'string' ? code : ''}`.trim()}
             style={{ fontFamily: CODE_FONT, gap: 3, ...style }}
         >
@@ -564,10 +567,14 @@ export function OriginChip({ kind, code, classic, prefix = true, title, size = '
     );
 }
 
-/** Origin badges on one line — the row never grows taller, the table scrolls. */
+/** Origin badges on one line — the row never grows taller, the table scrolls.
+ *  data-no-tip covers the whole cluster, not just each chip: the gaps between
+ *  chips sit inside a titled ancestor row in some callers, and without this the
+ *  pointer drifting across a gap re-steals/restores that title mid-hover —
+ *  racing against a chip's own tooltip and showing both at once. */
 export function OriginChipRow({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
     return (
-        <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', whiteSpace: 'nowrap', ...style }}>
+        <div data-no-tip="" style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', whiteSpace: 'nowrap', ...style }}>
             {children}
         </div>
     );
@@ -675,6 +682,19 @@ export const colorTitle = (code?: string | null, name?: string | null): string =
     const c = (code || '').trim(), n = (name || '').trim();
     return c && n && n.toLowerCase() !== c.toLowerCase() ? `${c} — ${n}` : (c || n);
 };
+
+// A shade's hex can live in two places that don't always agree: the Color
+// Library row (`Color.hex`, the FG's `color_id`) and the mirrored `Colors`
+// variant attribute value (`AttributeValue.hex`, picked on the Attributes
+// page) that rides along on `variant_attributes`. Either caller may have only
+// one of the two on hand, so every swatch resolves through this one fallback
+// chain instead of each screen picking whichever field it happened to load —
+// that drift is what made the same shade show a dot on one table and not the
+// other.
+export const resolveColorHex = (
+    primaryHex?: string | null,
+    attrs?: { system_role?: string | null; hex?: string | null }[] | null,
+): string | null => primaryHex || (attrs || []).find(a => a.system_role === 'color')?.hex || null;
 
 // Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
 // `hex` overrides the derived lookup with a stored AttributeValue.hex, when known.

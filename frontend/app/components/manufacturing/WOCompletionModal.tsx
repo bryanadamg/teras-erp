@@ -64,6 +64,12 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [subPickerIdx, setSubPickerIdx] = useState<number | null>(null);
     const [beamNumber, setBeamNumber] = useState('');
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
+    // Lots on this line that are staged to a DIFFERENT WO. Held apart from
+    // batchesByItem — not merged and disabled — because every consumption rule
+    // here counts that array (isMultiLot's >= 2, the All button, the shortfall
+    // check), and a neighbour's bags must not tip any of them. Shown read-only so
+    // the operator sees why a bag they can see on the floor isn't selectable.
+    const [reservedByItem, setReservedByItem] = useState<Record<string, any[]>>({});
     const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
     // Dyeing: greige substrate arrives as many scanned lots → draw from several of
     // them (item_id → selected batch ids). Single-lot materials keep the <select>.
@@ -155,7 +161,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     // Lot input: each material line with batch stock at the input location gets a lot picker
     const materialItemIds = workOrder ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
     useEffect(() => {
-        if (!materialItemIds.length) { setBatchesByItem({}); setConsumedBatches({}); return; }
+        if (!materialItemIds.length) { setBatchesByItem({}); setReservedByItem({}); setConsumedBatches({}); return; }
         const loc = woInputLocId;
         Promise.all(materialItemIds.map(id =>
             authFetch(`${API_BASE}/batches?item_id=${id}${loc ? `&location_id=${loc}` : ''}&limit=200`)
@@ -164,14 +170,21 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0 && b.quality_status !== 'REJECTED')] as const)
         )).then(pairs => {
             const map: Record<string, any[]> = {};
+            const held: Record<string, any[]> = {};
             for (const [id, list] of pairs) {
                 if (!list.length) continue;
                 // Weaving consumes from the merged kg pool — staged beams are
                 // consumed at WO start, so no per-beam pick here.
                 if (isWeavingWO && (isBeamItem(id) || list.every((b: any) => b.ends != null))) continue;
-                map[id] = list;
+                // A lot staged to another WO is that WO's material: the backend
+                // rejects consuming it, so it is not an option here either.
+                const mine = list.filter((b: any) => !b.reserved_wo_id || String(b.reserved_wo_id) === String(workOrder?.id));
+                const theirs = list.filter((b: any) => b.reserved_wo_id && String(b.reserved_wo_id) !== String(workOrder?.id));
+                if (theirs.length) held[id] = theirs;
+                if (mine.length) map[id] = mine;
             }
             setBatchesByItem(map);
+            setReservedByItem(held);
             setConsumedBatches(prev => {
                 const next: Record<string, string> = {};
                 for (const id of Object.keys(map)) { if (prev[id]) next[id] = prev[id]; }
@@ -495,9 +508,35 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                     </span>
                                 </div>
                             )}
-                            {workOrder && Object.keys(batchesByItem).map(itemId => {
+                            {workOrder && Array.from(new Set([...Object.keys(batchesByItem), ...Object.keys(reservedByItem)])).map(itemId => {
                                 const rowCode = materialRows.find(r => r.item_id === itemId)?.item_code;
                                 const code = rowCode || findItem(itemId)?.code || 'material';
+                                // Bags physically on this line but staged to another WO. Named,
+                                // not hidden: the operator can see them in the rack, and silence
+                                // reads as a broken picker.
+                                const heldHere = reservedByItem[itemId] || [];
+                                const reservedNote = heldHere.length ? (
+                                    <div style={{ background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '3px 6px', fontSize: 9, marginTop: 3 }}>
+                                        <div style={{ fontWeight: 'bold', marginBottom: 2 }}>
+                                            <i className="bi bi-lock" /> {heldHere.length} lot{heldHere.length === 1 ? '' : 's'} on this line {heldHere.length === 1 ? 'is' : 'are'} staged to another work order
+                                        </div>
+                                        {heldHere.map((b: any) => (
+                                            <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                <CodeChip code={b.batch_number} classic />
+                                                <span>{Number(b.remaining ?? 0).toFixed(2)} kg</span>
+                                                <span>&rarr; {b.reserved_wo_code || 'other WO'}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null;
+                                if (!batchesByItem[itemId]?.length) {
+                                    return (
+                                        <div key={itemId}>
+                                            <label style={{ ...xpLabel, fontWeight: 'bold' }}>Lot to Consume — {code}</label>
+                                            {reservedNote}
+                                        </div>
+                                    );
+                                }
                                 if (isMultiLot(itemId)) {
                                     const sel = selectedLots[itemId] || [];
                                     const selSet = new Set(sel);
@@ -560,6 +599,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                     </label>
                                                 ))}
                                             </div>
+                                            {reservedNote}
                                         </div>
                                     );
                                 }
@@ -580,6 +620,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                 </option>
                                             ))}
                                         </select>
+                                        {reservedNote}
                                     </div>
                                 );
                             })}

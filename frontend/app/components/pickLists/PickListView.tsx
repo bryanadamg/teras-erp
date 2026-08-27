@@ -9,7 +9,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN, ProgressBar } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, lvThSticky, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -610,13 +610,7 @@ function SOPickerBoard({ pickableSOs, loading, tzDate, canManage, onRefresh, onP
                                                 </div>
                                             </td>
                                             <td style={td}>
-                                                <div style={{ width: 70, height: 8, background: '#e6e4dc', border: '1px solid #aca899' }}>
-                                                    <div style={{
-                                                        width: `${pct}%`, height: '100%',
-                                                        background: pct >= 100 ? '#4caf50' : '#5b8dd6',
-                                                    }} />
-                                                </div>
-                                                <div style={{ fontSize: 9, color: '#888', marginTop: 1 }}>{pct}%</div>
+                                                <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} width={70} height={8} label="outside" />
                                             </td>
                                             <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                 {so.has_open_pick_list && (

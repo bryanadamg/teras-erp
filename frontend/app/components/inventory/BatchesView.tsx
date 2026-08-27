@@ -419,7 +419,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     lot:       (b: Batch) => b.batch_number,
     product:   (b: Batch) => batchItemCode(b),
     origin:    (b: Batch) => b.sales_order_code || b.po_number || null,
-    mopr:      (b: Batch) => b.wo_code || b.mo_code || b.production_run_code || null,
+    wo:        (b: Batch) => b.wo_code || null,
+    mo:        (b: Batch) => b.mo_code || null,
+    pr:        (b: Batch) => b.production_run_code || null,
     location:  (b: Batch) => (b.location_path && b.location_path.join(' / ')) || b.location_name || null,
     remaining: (b: Batch) => b.remaining ?? null,
     ends:      (b: Batch) => b.ends ?? null,
@@ -472,15 +474,11 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
   };
 
-  // WO / MO / PR — internal production origin, as small chips. The WO is the floor
-  // unit that actually minted the lot (source_wo_id), so it leads the chain.
-  const moPrCell = (b: Batch) => {
-    const chips: React.ReactNode[] = [];
-    if (b.wo_code) chips.push(<OriginChip kind="wo" code={b.wo_code} classic={classic} prefix={false} />);
-    if (b.mo_code) chips.push(<OriginChip kind="mo" code={b.mo_code} classic={classic} prefix={false} />);
-    if (b.production_run_code) chips.push(<OriginChip kind="pr" code={b.production_run_code} classic={classic} />);
-    return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
-  };
+  // WO / MO / PR — internal production origin, one column each so a lot with
+  // more than one of them doesn't crowd a single cell.
+  const woCell = (b: Batch) => b.wo_code ? <OriginChip kind="wo" code={b.wo_code} classic={classic} prefix={false} truncate /> : emDash;
+  const moCell = (b: Batch) => b.mo_code ? <OriginChip kind="mo" code={b.mo_code} classic={classic} prefix={false} truncate /> : emDash;
+  const prCell = (b: Batch) => b.production_run_code ? <OriginChip kind="pr" code={b.production_run_code} classic={classic} /> : emDash;
 
   // Location — Store / Zone / Bin as distinct badges (root-first hierarchy).
   const LOC_LEVEL = [
@@ -786,7 +784,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     background: lvZebra(true, alt ? 1 : 0), verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
-  const colSpan = 11; // Chevron, Lot Number, Product, Origin, MO/PR, Location, Remaining, Ends, Notes, Created, Actions
+  const colSpan = 13; // Chevron, Lot Number, Product, Origin, WO, MO, PR, Location, Remaining, Ends, Notes, Created, Actions
 
   // Fixed row height keeps the table visually even despite multi-badge cells.
   const ROW_H = classic ? 40 : 44;
@@ -839,7 +837,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                   <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={xpTh}>Lot Number</SortableTh>
                   <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={xpTh}>Product</SortableTh>
                   <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={xpTh}>Origin</SortableTh>
-                  <SortableTh sort={sort} colKey="mopr" onSort={toggleSort} style={xpTh}>WO/MO/PR</SortableTh>
+                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...xpTh, width: 80, maxWidth: 80 }}>WO</SortableTh>
+                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...xpTh, width: 90, maxWidth: 90 }}>MO</SortableTh>
+                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={xpTh}>PR</SortableTh>
                   <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={xpTh}>Location</SortableTh>
                   <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Remaining</SortableTh>
                   <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Ends</SortableTh>
@@ -869,7 +869,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{productCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{originCell(b)}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{moPrCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), width: 80, maxWidth: 80, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{woCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), width: 90, maxWidth: 90, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{moCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{prCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{locationCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined, whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{b.ends ?? '-'}</td>
@@ -948,7 +950,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                   <SortableTh sort={sort} colKey="lot" onSort={toggleSort}>Lot Number</SortableTh>
                   <SortableTh sort={sort} colKey="product" onSort={toggleSort}>Product</SortableTh>
                   <SortableTh sort={sort} colKey="origin" onSort={toggleSort}>Origin</SortableTh>
-                  <SortableTh sort={sort} colKey="mopr" onSort={toggleSort}>WO/MO/PR</SortableTh>
+                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ width: 80, maxWidth: 80 }}>WO</SortableTh>
+                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ width: 90, maxWidth: 90 }}>MO</SortableTh>
+                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort}>PR</SortableTh>
                   <SortableTh sort={sort} colKey="location" onSort={toggleSort}>Location</SortableTh>
                   <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} className="text-end">Remaining</SortableTh>
                   <SortableTh sort={sort} colKey="ends" onSort={toggleSort} className="text-end">Ends</SortableTh>
@@ -975,7 +979,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                       </td>
                       <td>{productCell(b)}</td>
                       <td>{originCell(b)}</td>
-                      <td>{moPrCell(b)}</td>
+                      <td style={{ width: 80, maxWidth: 80, overflow: 'hidden' }}>{woCell(b)}</td>
+                      <td style={{ width: 90, maxWidth: 90, overflow: 'hidden' }}>{moCell(b)}</td>
+                      <td>{prCell(b)}</td>
                       <td>{locationCell(b)}</td>
                       <td className="text-end" style={{ whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
                       <td className="text-end">{b.ends ?? '-'}</td>

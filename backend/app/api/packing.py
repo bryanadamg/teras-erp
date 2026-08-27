@@ -129,6 +129,8 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     # pack screens, the labels and this API agree on one conversion.
     po.uom2_base_factor = packing_service.order_base_per_alt(po)
     po.color_name = po.color.name if po.color else None
+    po.color_code = po.color.code if po.color else None
+    po.color_hex = po.color.hex if po.color else None
     po.attribute_value_ids = [v.id for v in (po.attribute_values or [])]
     # Same key StockBalance rows are written under, so the lot picker can match a
     # lot's shade against the order's without restating the folding rules.
@@ -724,6 +726,11 @@ async def add_packing_completion(
     completions: list[PackingCompletion] = []
     all_mats: list[PackingCompletionMaterial] = []
     box_breakdown: list[float] = []
+    # Only populated on the explicit-box-list path: box_index -> pieces drawn
+    # from each lot that fed it. A box never splits at a lot seam on the
+    # box-size path (that split only ever happens inside one lot), so this
+    # stays empty and the per-lot mint below runs unchanged for it.
+    box_groups: dict[int, list[dict]] = {}
     for idx, lot in enumerate(lots):
         lot_qty = lot_qtys[idx]
         batch_id = lot.batch_id if lot else None
@@ -827,18 +834,58 @@ async def add_packing_completion(
         await db.flush()
         all_mats.extend(mats)
 
+        if per_lot_cartons is not None:
+            # Explicit box list: debit this lot's stock now, piece by piece,
+            # but defer minting — a box that straddled a lot seam has pieces
+            # in more than one lot's carton_qtys and must become ONE carton,
+            # not one per contributing lot. Assembled after the loop.
+            completion.package_count = 0
+            str_attr_ids = [str(a) for a in attr_ids]
+            for piece in carton_qtys:
+                await stock_service.add_stock_entry(
+                    db, item_id=po.item_id, location_id=po.source_location_id,
+                    qty_change=-float(piece.qty), reference_type="PACKING",
+                    reference_id=po.code, attribute_value_ids=str_attr_ids,
+                    color_id=color_id, batch_id=batch_id,
+                )
+                box_groups.setdefault(piece.box_index, []).append({
+                    "qty": piece.qty, "weight_kg": piece.weight_kg, "alt_qty": piece.alt_qty,
+                    "source_batch_id": batch_id, "completion": completion,
+                    "attr_ids": str_attr_ids, "color_id": color_id,
+                })
+        else:
+            try:
+                units = await packing_service.mint_packed_units(
+                    db, po, completion,
+                    carton_qtys=carton_qtys,
+                    attribute_value_ids=[str(a) for a in attr_ids],
+                    color_id=color_id,
+                    username=completion.operator,
+                    source_batch_id=batch_id,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            box_breakdown.extend(carton_qty for _, carton_qty in units)
+
+    # Mint one carton per original box entry, in the order the packer typed
+    # them — merging back whatever a lot seam split apart. The pieces list is
+    # ordered by lot, so the LAST piece is the lot that closed the box out;
+    # that lot's completion gets credited with it (`package_count`), and the
+    # box's stock/label identity (operator, variant) comes from there too.
+    for box_idx in sorted(box_groups.keys()):
+        pieces = box_groups[box_idx]
+        closing = pieces[-1]["completion"]
+        closing.package_count += 1
         try:
-            units = await packing_service.mint_packed_units(
-                db, po, completion,
-                carton_qtys=carton_qtys,
-                attribute_value_ids=[str(a) for a in attr_ids],
-                color_id=color_id,
-                username=completion.operator,
-                source_batch_id=batch_id,
+            pu, total_qty = await packing_service.mint_merged_packed_unit(
+                db, po, closing, pieces,
+                attribute_value_ids=[str(a) for a in pieces[-1]["attr_ids"]],
+                color_id=pieces[-1]["color_id"],
+                username=closing.operator,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        box_breakdown.extend(carton_qty for _, carton_qty in units)
+        box_breakdown.append(total_qty)
 
     try:
         await packing_service.consume_packaging_materials(db, po, all_mats)

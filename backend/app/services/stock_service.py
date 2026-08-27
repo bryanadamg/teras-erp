@@ -77,6 +77,32 @@ def _parse_variant_key(variant_key: str):
             attr_ids.append(_uuid.UUID(tok))
     return attr_ids, color_id
 
+async def batch_variant(db: AsyncSession, batch_id, location_id=None) -> tuple[list, str | None]:
+    """The variant identity a lot's stock actually sits under, as
+    ``(attribute_value_ids, color_id)`` ready to hand back to ``add_stock_entry``.
+
+    A lot is NOT variant-less. A batched output (greige, dyed lot) is posted with
+    its MO's attribute values alongside the batch, so per-color netting can still
+    find it — only warp beams are keyed under an empty variant. So a later move of
+    that lot (staging, consumption) must re-post under the SAME key: assuming an
+    empty variant looks up a balance row that does not exist, and the negative-stock
+    guard then reports "Insufficient stock. Current: 0.0" for a lot sitting in full
+    view of the picker.
+
+    Prefers the row at ``location_id`` and falls back to any row of the lot, so the
+    identity survives a move into a location the lot has never been in.
+    """
+    base = select(StockBalance.variant_key).filter(StockBalance.batch_key == str(batch_id))
+    if location_id is not None:
+        key = (await db.execute(
+            base.filter(StockBalance.location_id == location_id).order_by(StockBalance.qty.desc()).limit(1)
+        )).scalar()
+        if key is not None:
+            return _parse_variant_key(key)
+    key = (await db.execute(base.order_by(StockBalance.qty.desc()).limit(1))).scalar()
+    return _parse_variant_key(key or "")
+
+
 async def get_stock_balance(db: AsyncSession, item_id, location_id, attribute_value_ids: list[str] = [], batch_key: str = "", color_id=None):
     """
     PRE-CALCULATED O(1) LOOKUP:

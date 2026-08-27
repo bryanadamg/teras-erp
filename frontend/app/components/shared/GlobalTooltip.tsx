@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * One document-level listener that upgrades EVERY native tooltip in the app.
+ * One document-level layer that replaces EVERY native tooltip in the app.
  *
  * There are ~800 `title=` attributes across the views and ~90 places that clip
  * text to a fixed-width cell. Rewriting each into a `<Tooltip>` wrapper would be
@@ -10,24 +10,34 @@
  *
  * So the attribute stays the API and this component changes what it renders:
  *
- *   - Hovering anything with a `title` suppresses the OS bubble (the attribute is
- *     lifted off the node for the duration of the hover and put back after) and
- *     shows the themed surface instead, at the element rather than at the cursor.
+ *   - Every `title` in the document is PARKED on `data-original-title` as soon as
+ *     it appears, and the themed surface is rendered from there on hover/focus,
+ *     at the element rather than at the cursor.
  *   - Hovering CLIPPED text with no title shows the full text. That case had no
  *     affordance at all before: an ellipsis with nothing behind it.
  *
+ * Parking is up front, not on hover, and that is the whole trick. Blink captures
+ * the tooltip string when the pointer's hit test runs and hands it to the browser
+ * process with its own delay; removing the attribute *during* the hover does not
+ * cancel that pending bubble, so the OS drew a second, system-chrome copy of the
+ * same text next to ours a beat later. There is no "suppress it now" hook — the
+ * only reliable move is for the attribute never to be on the node when the
+ * pointer arrives. (Bootstrap's tooltip does the same at construction time.)
+ *
  * What it deliberately does NOT touch:
- *   - Anything under `[data-no-tip]`. `Chip` / `CodeChip` mark themselves so their
- *     own popout (the chip re-drawn unclipped, in place) is the only surface —
- *     otherwise a clipped chip would show both.
- *   - Form controls' own browser UI (`<option>`, `<select>`) and iframes.
+ *   - Titles on form-native UI (`<option>`, `<select>`) and iframes: the browser
+ *     is the only thing that can render those, so they keep the attribute.
+ *   - A titled ANCESTOR of a `[data-no-tip]` zone. `Chip` / `CodeChip` mark
+ *     themselves so their own popout (the chip re-drawn unclipped, in place) is
+ *     the only surface — hovering a chip must not also open the clickable row's
+ *     bubble. Titles *inside* a zone (a chip's own × button) still get ours.
  *
  * Accessibility: `title` is the accessible name for icon-only controls, so it is
- * not simply deleted — it is parked on `data-original-title` (Bootstrap's own
- * tooltip does the same), mirrored to `aria-label` when the element has no other
- * name, and the surface is a real `role="tooltip"` wired up with
- * `aria-describedby`. Focus opens it as well as hover, so it is reachable from the
- * keyboard — which the native tooltip never was.
+ * not simply deleted — it is parked (Bootstrap's own tooltip does the same),
+ * mirrored to `aria-label` when the element has no other name, and the surface is
+ * a real `role="tooltip"` wired up with `aria-describedby`. Focus opens it as well
+ * as hover, so it is reachable from the keyboard — which the native tooltip never
+ * was.
  *
  * Mounted once in `layout.tsx`, inside ThemeProvider (it reads the theme) and
  * outside anything that unmounts per route.
@@ -45,6 +55,11 @@ const CLIP_DEPTH = 3;
 /** Longest clipped string worth echoing on hover. Past this it is prose, not a label. */
 const MAX_CLIP_TEXT = 180;
 
+/** Where a lifted `title` lives. Same attribute name Bootstrap's tooltip uses. */
+const PARKED = 'data-original-title';
+/** Marks an `aria-label` we added, so it can be taken back off with the title. */
+const OWN_ARIA = 'data-tip-aria';
+
 type Live = { el: HTMLElement; rect: AnchorRect; text: string };
 
 const TIP_ID = 'app-tooltip-surface';
@@ -58,61 +73,95 @@ const isFormNative = (el: Element) => {
     return t === 'OPTION' || t === 'SELECT' || t === 'IFRAME';
 };
 
+/** Move one element's `title` out of the browser's reach. Idempotent. */
+const park = (el: HTMLElement) => {
+    const t = el.getAttribute('title');
+    if (t === null || isFormNative(el)) return;
+    if (!t.trim()) { el.removeAttribute('title'); return; }
+    el.setAttribute(PARKED, t);
+    // Keep the element named: for an icon-only button the title WAS the name.
+    if (!hasOwnName(el)) { el.setAttribute('aria-label', t); el.setAttribute(OWN_ARIA, '1'); }
+    el.removeAttribute('title');
+};
+
+const parkSubtree = (root: Node) => {
+    if (!(root instanceof HTMLElement)) return;
+    if (root.hasAttribute('title')) park(root);
+    root.querySelectorAll<HTMLElement>('[title]').forEach(park);
+};
+
+/** The text this element would have shown natively, parked or not yet parked. */
+const titleTextOf = (el: HTMLElement) => (el.getAttribute(PARKED) || el.getAttribute('title') || '');
+
+const TITLED_SEL = `[${PARKED}],[title]`;
+
 export default function GlobalTooltip() {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const [live, setLive] = useState<Live | null>(null);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // The node whose `title` we lifted, and what it said — so it goes back exactly
-    // as it was. Losing this would strip tooltips permanently on hover.
-    const stolen = useRef<{ el: HTMLElement; title: string } | null>(null);
-
-    const restoreTitle = useCallback(() => {
-        const s = stolen.current;
-        if (s) {
-            if (s.el.isConnected) {
-                if (!s.el.getAttribute('title')) s.el.setAttribute('title', s.title);
-                s.el.removeAttribute('data-original-title');
-                if (s.el.getAttribute('data-tip-aria') === '1') {
-                    s.el.removeAttribute('aria-label');
-                    s.el.removeAttribute('data-tip-aria');
-                }
-                if (s.el.getAttribute('aria-describedby') === TIP_ID) s.el.removeAttribute('aria-describedby');
-            }
-            stolen.current = null;
-        }
-    }, []);
+    /** Element currently carrying our `aria-describedby`, so it can be cleaned up. */
+    const described = useRef<HTMLElement | null>(null);
 
     const hide = useCallback(() => {
         if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-        restoreTitle();
+        const d = described.current;
+        if (d && d.isConnected && d.getAttribute('aria-describedby') === TIP_ID) d.removeAttribute('aria-describedby');
+        described.current = null;
         setLive(null);
-    }, [restoreTitle]);
+    }, []);
+
+    // Park every title in the document, and keep parking the ones React renders
+    // later. Attribute-filtered so our own `data-original-title` / `aria-label`
+    // writes can't feed the observer back into itself.
+    useEffect(() => {
+        parkSubtree(document.body);
+        const obs = new MutationObserver(records => {
+            for (const r of records) {
+                if (r.type === 'attributes') {
+                    if (r.target instanceof HTMLElement) park(r.target);
+                } else {
+                    r.addedNodes.forEach(parkSubtree);
+                }
+            }
+        });
+        obs.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['title'] });
+        return () => {
+            obs.disconnect();
+            // Hand the attributes back if this ever unmounts, so the app is not
+            // left with tooltips that nothing renders.
+            document.querySelectorAll<HTMLElement>(`[${PARKED}]`).forEach(el => {
+                const t = el.getAttribute(PARKED) as string;
+                if (!el.getAttribute('title')) el.setAttribute('title', t);
+                el.removeAttribute(PARKED);
+                if (el.getAttribute(OWN_ARIA) === '1') { el.removeAttribute('aria-label'); el.removeAttribute(OWN_ARIA); }
+            });
+        };
+    }, []);
 
     useEffect(() => {
-        const onOver = (e: MouseEvent) => {
+        const onOver = (e: Event) => {
             const target = e.target as HTMLElement | null;
             if (!target || !(target instanceof HTMLElement)) return;
-            if (target.closest('[data-no-tip]') || isFormNative(target)) {
-                // A no-tip zone nested inside an already-titled ancestor (e.g. a
-                // Chip with its own native title, inside a titled row) must not
-                // leave the ancestor's custom bubble showing underneath it —
-                // onOut alone won't catch this since the pointer never left the
-                // ancestor's subtree.
-                if (live) hide();
-                return;
-            }
+            if (isFormNative(target)) { if (live) hide(); return; }
 
             // A title anywhere up the chain wins: it is an author's explanation,
             // which beats echoing text the reader can already half-see.
-            const titled = target.closest('[title]') as HTMLElement | null;
+            const zone = target.closest('[data-no-tip]');
+            const titled = target.closest(TITLED_SEL) as HTMLElement | null;
+            // Inside a zone that owns its own surface, only a nested control's own
+            // title still speaks (a chip's × button); the clickable ROW's title
+            // behind the chip does not — that pair is what stacked two bubbles.
+            const usable = titled && (!zone || (titled !== zone && zone.contains(titled)));
+
             let el: HTMLElement | null = null;
             let text = '';
-            if (titled && (titled.getAttribute('title') || '').trim()) {
+            if (usable && titleTextOf(titled as HTMLElement).trim()) {
                 el = titled;
-                text = titled.getAttribute('title') as string;
-            } else {
-                // Otherwise: is the thing under the cursor cut off?
+                text = titleTextOf(titled as HTMLElement);
+            } else if (!zone) {
+                // Otherwise: is the thing under the cursor cut off? (A clipped chip
+                // re-draws itself unclipped, so zones are skipped here too.)
                 let node: HTMLElement | null = target;
                 for (let i = 0; i < CLIP_DEPTH && node; i++, node = node.parentElement) {
                     if (!isClipped(node)) continue;
@@ -128,7 +177,7 @@ export default function GlobalTooltip() {
                     break;
                 }
             }
-            if (!el || !text) { if (live) hide(); return; }
+            if (!el || !text) { if (live || timer.current) hide(); return; }
             if (live && live.el === el) return;
 
             if (timer.current) clearTimeout(timer.current);
@@ -136,26 +185,15 @@ export default function GlobalTooltip() {
             const content = text;
             timer.current = setTimeout(() => {
                 if (!anchor.isConnected) return;
-                // Suppress the OS bubble only once we are actually showing ours,
-                // so a pass-through hover never mutates the DOM.
-                const t = anchor.getAttribute('title');
-                if (t) {
-                    restoreTitle();
-                    stolen.current = { el: anchor, title: t };
-                    // Park it rather than destroy it, and keep the element named:
-                    // for an icon-only button the title WAS the accessible name.
-                    anchor.setAttribute('data-original-title', t);
-                    if (!hasOwnName(anchor)) { anchor.setAttribute('aria-label', t); anchor.setAttribute('data-tip-aria', '1'); }
-                    anchor.removeAttribute('title');
-                }
                 anchor.setAttribute('aria-describedby', TIP_ID);
+                described.current = anchor;
                 setLive({ el: anchor, rect: layoutRectOf(anchor), text: content });
             }, DELAY_MS);
         };
 
         const onOut = (e: MouseEvent) => {
             const to = e.relatedTarget as Node | null;
-            const anchor = live?.el ?? stolen.current?.el;
+            const anchor = live?.el ?? described.current;
             if (anchor && to && anchor.contains(to)) return;
             hide();
         };
@@ -166,7 +204,7 @@ export default function GlobalTooltip() {
         document.addEventListener('mouseout', onOut, true);
         // Same handlers on focus: a keyboard user tabbing onto an icon button gets
         // the explanation a mouse user gets by hovering it.
-        document.addEventListener('focusin', onOver as EventListener, true);
+        document.addEventListener('focusin', onOver, true);
         document.addEventListener('focusout', hide, true);
         document.addEventListener('pointerdown', hide, true);
         window.addEventListener('scroll', hide, true);
@@ -175,19 +213,14 @@ export default function GlobalTooltip() {
         return () => {
             document.removeEventListener('mouseover', onOver, true);
             document.removeEventListener('mouseout', onOut, true);
-            document.removeEventListener('focusin', onOver as EventListener, true);
+            document.removeEventListener('focusin', onOver, true);
             document.removeEventListener('focusout', hide, true);
             document.removeEventListener('pointerdown', hide, true);
             window.removeEventListener('scroll', hide, true);
             window.removeEventListener('resize', hide);
             window.removeEventListener('keydown', onKey);
-            restoreTitle();
         };
-    }, [live, hide, restoreTitle]);
-
-    // Put the attribute back if the element leaves the DOM under us (route change,
-    // row re-render) — otherwise the next mount inherits a title-less node.
-    useEffect(() => () => restoreTitle(), [restoreTitle]);
+    }, [live, hide]);
 
     if (!live) return null;
     return (
