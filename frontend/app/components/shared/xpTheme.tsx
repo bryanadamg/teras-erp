@@ -564,10 +564,14 @@ export function OriginChip({ kind, code, classic, prefix = true, title, size = '
     );
 }
 
-/** Origin badges on one line — the row never grows taller, the table scrolls. */
+/** Origin badges on one line — the row never grows taller, the table scrolls.
+ *  data-no-tip covers the whole cluster, not just each chip: the gaps between
+ *  chips sit inside a titled ancestor row in some callers, and without this the
+ *  pointer drifting across a gap re-steals/restores that title mid-hover —
+ *  racing against a chip's own tooltip and showing both at once. */
 export function OriginChipRow({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
     return (
-        <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', whiteSpace: 'nowrap', ...style }}>
+        <div data-no-tip="" style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', whiteSpace: 'nowrap', ...style }}>
             {children}
         </div>
     );
