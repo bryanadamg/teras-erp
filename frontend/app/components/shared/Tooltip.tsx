@@ -181,7 +181,7 @@ export function FloatingLayer({ rect, anchorEl, placement = 'bottom', align = 's
     );
 }
 
-/** The tooltip box itself. Classic is the XP tooltip (pale yellow, 1px black,
+/** The tooltip box itself. Classic is the XP tooltip (pale blue, 1px black,
  *  Tahoma); modern is a dark bubble. Exported for the rare caller that drives its
  *  own anchor and only wants the surface. */
 export function TooltipSurface({ classic, children, maxWidth = 320, id }: { classic: boolean; children: React.ReactNode; maxWidth?: number; id?: string }) {
@@ -201,7 +201,7 @@ export function TooltipSurface({ classic, children, maxWidth = 320, id }: { clas
                 lineHeight: 1.4,
                 padding: classic ? '2px 5px' : '5px 8px',
                 borderRadius: classic ? 0 : 4,
-                background: classic ? '#ffffe1' : '#1f2937',
+                background: classic ? '#e1f0ff' : '#1f2937',
                 color: classic ? '#000' : '#f8fafc',
                 border: classic ? '1px solid #000' : '1px solid rgba(255,255,255,0.08)',
                 boxShadow: classic ? '2px 2px 3px rgba(0,0,0,0.2)' : '0 6px 16px rgba(15,23,42,0.28)',
