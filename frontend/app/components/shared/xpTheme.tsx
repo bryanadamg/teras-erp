@@ -680,6 +680,19 @@ export const colorTitle = (code?: string | null, name?: string | null): string =
     return c && n && n.toLowerCase() !== c.toLowerCase() ? `${c} — ${n}` : (c || n);
 };
 
+// A shade's hex can live in two places that don't always agree: the Color
+// Library row (`Color.hex`, the FG's `color_id`) and the mirrored `Colors`
+// variant attribute value (`AttributeValue.hex`, picked on the Attributes
+// page) that rides along on `variant_attributes`. Either caller may have only
+// one of the two on hand, so every swatch resolves through this one fallback
+// chain instead of each screen picking whichever field it happened to load —
+// that drift is what made the same shade show a dot on one table and not the
+// other.
+export const resolveColorHex = (
+    primaryHex?: string | null,
+    attrs?: { system_role?: string | null; hex?: string | null }[] | null,
+): string | null => primaryHex || (attrs || []).find(a => a.system_role === 'color')?.hex || null;
+
 // Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
 // `hex` overrides the derived lookup with a stored AttributeValue.hex, when known.
 // `onRemove` renders a small "x" for removable pick-lists (e.g. lab dip request colors).

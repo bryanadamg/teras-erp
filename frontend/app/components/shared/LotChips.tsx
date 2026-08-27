@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { VariantChip, VariantKind } from './xpTheme';
+import { VariantChip, VariantKind, resolveColorHex } from './xpTheme';
 
 /**
  * Shared lot-identity chips for lot/beam pickers (WO staging, WO completion,
@@ -64,7 +64,7 @@ export const lotColorLabel = (b: LotLike): { label: string; name?: string | null
         return {
             label: code || name || '',
             name,
-            hex: b?.color_hex || attrName?.hex || null,
+            hex: resolveColorHex(b?.color_hex, attrs),
             pending: false,
         };
     }
