@@ -81,7 +81,7 @@ export const FEATURE_SLOTS: FeatureSlot[] = [
     { key: 'accessories', code: 'ac', label: 'Accessories', optional: true, variants: variantsOf('accessories') },
 ];
 
-export type ColorKey = 'skinColor' | 'hairColor' | 'clothingColor' | 'hatColor';
+export type ColorKey = 'skinColor' | 'hairColor' | 'clothingColor' | 'hatColor' | 'mouthColor';
 
 export interface ColorSlot {
     key: ColorKey;
@@ -95,6 +95,7 @@ export const COLOR_SLOTS: ColorSlot[] = [
     { key: 'hairColor', code: 'hc', label: 'Hair Color', palette: paletteOf('hairColor') },
     { key: 'clothingColor', code: 'cc', label: 'Clothing Color', palette: paletteOf('clothingColor') },
     { key: 'hatColor', code: 'hk', label: 'Hat Color', palette: paletteOf('hatColor') },
+    { key: 'mouthColor', code: 'mc', label: 'Mouth Color', palette: paletteOf('mouthColor') },
 ];
 
 const FEATURE_BY_CODE = new Map(FEATURE_SLOTS.map(s => [s.code, s]));
