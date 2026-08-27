@@ -379,7 +379,7 @@ export default function WorkOrderListView({
     // objects, and a WO ticked before paging can no longer be found in `filtered`.
     const sel = useRowSelection<FlatWO>(filtered, wo => wo.id);
 
-    const COLS = 15; // checkbox + chevron + 12 data cols + actions
+    const COLS = 16; // checkbox + chevron + 13 data cols + actions
 
     const renderDetailPanel = (wo: FlatWO) => {
         const bomItemIds = new Set<string>(wo.bom_line_item_ids || []);
@@ -722,7 +722,7 @@ export default function WorkOrderListView({
                     {/* Table */}
                     <div className="table-responsive" style={{ flex: 1, overflow: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
                         <table
-                            style={{ width: '100%', minWidth: 1690, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
+                            style={{ width: '100%', minWidth: 1830, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                         >
                             <colgroup>
@@ -730,9 +730,10 @@ export default function WorkOrderListView({
                                 <col style={{ width: LV_EXPANDER_COL_W }} />   {/* chevron */}
                                 <col style={{ width: 190 }} />  {/* Root MO */}
                                 <col style={{ width: 34 }} />   {/* # */}
-                                <col style={{ width: '20%' }} />{/* Name */}
-                                <col style={{ width: '22%' }} />{/* Product */}
-                                <col style={{ width: '12%' }} />{/* Work Center */}
+                                <col style={{ width: '18%' }} />{/* Name */}
+                                <col style={{ width: '14%' }} />{/* Product */}
+                                <col style={{ width: '16%' }} />{/* Variant */}
+                                <col style={{ width: '11%' }} />{/* Work Center */}
                                 <col style={{ width: 86 }} />   {/* Target/Done */}
                                 <col style={{ width: 90 }} />   {/* Target Start */}
                                 <col style={{ width: 90 }} />   {/* Target End */}
@@ -748,7 +749,7 @@ export default function WorkOrderListView({
                                         <SelectAllCheckbox classic={classic} allSelected={sel.allPageSelected} someSelected={sel.someSelected} onChange={sel.togglePage} title="Select all filtered" />
                                     </th>
                                     <th style={{ ...thStyle, width: 22, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
-                                    {([['Root MO', 'rootmo'], ['#', 'sequence'], ['Name', 'name'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Created', 'created'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
+                                    {([['Root MO', 'rootmo'], ['#', 'sequence'], ['Name', 'name'], ['Product', 'product'], ['Variant', ''], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Created', 'created'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
                                         <SortableTh key={`${h}-${i}`}
                                             sort={sort} colKey={key || null} onSort={toggleSort}
                                             style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left' }}
@@ -792,6 +793,7 @@ export default function WorkOrderListView({
                                                 <td style={tdBase}>
                                                     <span style={{ fontSize: 10, color: '#666' }}>{wo.item_name || '—'}</span>
                                                 </td>
+                                                <td style={tdBase} />
                                                 <td style={tdBase}>
                                                     <select style={{ ...xpInput, width: '100%' }} value={form.work_center_id}
                                                         onChange={e => setForm(f => ({ ...f, work_center_id: e.target.value }))}>
@@ -880,22 +882,25 @@ export default function WorkOrderListView({
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden' }}
                                                     title={wo.item_name || ''}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                                                        <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.item_name || '—'}</span>
-                                                        {/* Variant chips ride the right edge of the column (same as PrintChips
-                                                            on the Name column) so they line up down the table. */}
-                                                        <VariantChips
-                                                            combo={wo.combo_label}
-                                                            size={wo.size_label}
-                                                            colorVariant={wo.color_label}
-                                                            colorCode={wo.color_code}
-                                                            colorName={wo.color_name}
-                                                            colorHex={wo.color_hex}
-                                                            labdipCode={wo.labdip_variant_code}
-                                                            classic={classic}
-                                                            style={{ marginLeft: 'auto', flexShrink: 0 }}
-                                                        />
-                                                    </div>
+                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{wo.item_name || '—'}</span>
+                                                </td>
+                                                {/* Own column, not crammed onto the right edge of Product — a row can
+                                                    carry size + colour-variant + colour-code + labdip all at once, and
+                                                    squeezing that into a shared cell with the item name is what forced
+                                                    the name into a 6-character sliver. Chips are allowed to wrap; the
+                                                    table scrolls horizontally (table-responsive) rather than clip them. */}
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden', whiteSpace: 'normal' }}>
+                                                    <VariantChips
+                                                        combo={wo.combo_label}
+                                                        size={wo.size_label}
+                                                        colorVariant={wo.color_label}
+                                                        colorCode={wo.color_code}
+                                                        colorName={wo.color_name}
+                                                        colorHex={wo.color_hex}
+                                                        labdipCode={wo.labdip_variant_code}
+                                                        classic={classic}
+                                                        style={{ flexWrap: 'wrap', rowGap: 2 }}
+                                                    />
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden' }}>
                                                     {wo.work_center_name
