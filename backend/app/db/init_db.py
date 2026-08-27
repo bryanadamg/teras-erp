@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from app.db.base import Base  # noqa: F401 — triggers all model registrations before individual imports
 from app.models.category import Category
 from app.models.auth import Permission, Role, User
@@ -92,6 +92,22 @@ def seed_system_attributes(db):
     except Exception as e:
         logger.warning(f"System attribute seeding skipped: {e}")
 
+
+# Default avatar template for executive roles — a DiceBear recipe in the format
+# `Role.default_avatar_id` takes (see frontend/app/components/shared/avatarRecipe.ts).
+# Only the `code:value` pins are used and the seed ("ayu") is DISCARDED at render
+# time, so each user still seeds from their own username.
+#
+# `ht:` and `ac:` are the load-bearing pins: hat and accessories carry every
+# novelty variant in the pixel-art style, and turning them off is the whole reason
+# this exists. The rest (hair, clothing, eyes, mouth, beard and the four colours)
+# pin a plain business face, which means holders of these roles differ only in the
+# one slot left on Auto — glasses. That is deliberate: uniformity is the point for
+# a role that prints its name on a Surat Jalan.
+EXECUTIVE_AVATAR_TEMPLATE = (
+    "v1|ayu|ht:|hr:short17|cl:variant03|ey:variant01|mo:sad06|bd:variant03|ac:"
+    "|sk:e0b687|hc:28150a|cc:03396c|hk:2e1e05"
+)
 
 SYSTEM_CATEGORIES = {"Raw Material", "Finished Goods", "WIP", "Sample", "Chemical", "Dye"}
 
@@ -545,6 +561,23 @@ def seed_rbac(db):
                 if db_perms[code] not in current_perms:
                     role.permissions.append(db_perms[code])
             db.commit()
+
+        # Executive avatar: the roles whose holders sign documents and sit in front
+        # of customers should never be handed a novelty face by the username-seeded
+        # fallback. Matches "Administrator" plus any "<something> Manager", so a
+        # Warehouse Manager added later is covered without touching this list.
+        #
+        # Set-if-null, the same top-up semantics as the permission loop above: an
+        # admin who picks a different template on the Roles page keeps it, but one
+        # who clears it back to null gets the seed again on the next restart. To opt
+        # a role out, give it an empty-pin template rather than clearing it.
+        exec_roles = db.query(Role).filter(
+            or_(Role.name == "Administrator", Role.name.ilike("% Manager"))
+        ).all()
+        for role in exec_roles:
+            if not role.default_avatar_id:
+                role.default_avatar_id = EXECUTIVE_AVATAR_TEMPLATE
+        db.commit()
 
         # Only seed demo accounts on a truly empty user table (first boot).
         # Per-username existence checks would resurrect an account an admin
