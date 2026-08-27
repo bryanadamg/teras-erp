@@ -9,7 +9,6 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import PixelAvatar from './PixelAvatar';
 import AppLoadBar from './AppLoadBar';
 import BootShell from './BootShell';
 import { routeTitle, PREFETCH_ROUTES, ROUTE_PERMISSIONS } from './navConfig';
@@ -145,13 +144,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 <option value="id">ID</option>
                             </select>
                         </div>
-
-                        <button data-testid="user-dropdown" className="btn btn-sm btn-light border d-flex align-items-center rounded-pill gap-2 px-2" onClick={() => router.push('/settings')} title="Settings" style={{ height: 30 }}>
-                            <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <PixelAvatar avatarId={currentUser?.avatar_id} size={18} />
-                            </div>
-                            <span className="small fw-bold d-none d-sm-inline" data-testid="username-display">{currentUser?.username}</span>
-                        </button>
 
                         <button data-testid="logout-btn" className={`btn btn-sm btn-outline-danger d-flex align-items-center gap-2`} onClick={logout} title="Terminate Session">
                             <i className="bi bi-box-arrow-right"></i>

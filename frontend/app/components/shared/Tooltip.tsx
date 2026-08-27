@@ -31,6 +31,7 @@ import { createPortal } from 'react-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { layoutRectOf, uiZoom } from './uiScale';
 import { xpFont, modernFont } from './typography';
+import { TOOLTIP_Z } from './zLayers';
 
 export type AnchorRect = { top: number; left: number; right: number; bottom: number; width: number; height: number };
 
@@ -105,7 +106,7 @@ export function useHoverAnchor(opts?: {
  * completing, not a row below it. Measuring the result removes the guesswork
  * instead of modelling every containing-block rule.
  */
-export function FloatingLayer({ rect, anchorEl, placement = 'bottom', align = 'start', offset = 5, zIndex = 10050, className, style, children }: {
+export function FloatingLayer({ rect, anchorEl, placement = 'bottom', align = 'start', offset = 5, zIndex = TOOLTIP_Z, className, style, children }: {
     rect: AnchorRect;
     /** The live trigger. Preferred over `rect` when present — see above. */
     anchorEl?: HTMLElement | null;

@@ -5,12 +5,14 @@ import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { toLayoutPx } from './uiScale';
 import { xpFont, BUTTON_RADIUS, XP_BTN, WINDOW_RADIUS, WINDOW_RADIUS_INNER } from './xpTheme';
+import { MODAL_Z } from './zLayers';
 
 // Shared z-index tier for anything that must render as an overlay but can't use
 // ModalWrapper directly (e.g. a full-screen designer canvas with its own custom
 // chrome) — keeps it in the same stacking order as regular modals instead of an
-// arbitrary one-off number.
-export const MODAL_Z = { 1: 20000, 2: 20100, 3: 20200 } as const;
+// arbitrary one-off number. Defined in `zLayers` alongside the tiers above it and
+// re-exported here, which is where every caller already imports it from.
+export { MODAL_Z };
 
 // Fired on every drag-move of a modeless modal panel. The panel's position is
 // updated by mutating the DOM transform directly (no React re-render, no native

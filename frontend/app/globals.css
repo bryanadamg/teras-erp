@@ -1899,3 +1899,196 @@ select,
 textarea {
   border-radius: var(--btn-radius);
 }
+
+/* ── AVATAR PICKER (components/shared/AvatarPicker.tsx) ───────────────────────
+   The picker is a grid of ~45 live-rendered thumbnails plus one big preview
+   stage, so the motion has one job: make it obvious which thumbnail the cursor
+   is on and that the stage is showing THAT candidate rather than your saved
+   face. Same rule as the BUTTONS block above — transform/filter/box-shadow only,
+   never background or border, because every option paints its own inline XP
+   bevel face and an inline background always wins over a CSS one. */
+.av-opt {
+  transition: transform 130ms cubic-bezier(0.22, 0.85, 0.3, 1),
+              box-shadow 130ms ease-out, filter 130ms ease-out;
+}
+/* Lift AND scale: an avatar thumbnail is 30px of pixel art, where the 1px lift
+   the shared .xp-btn hover uses is invisible. Raised above its neighbours so the
+   grown thumb isn't clipped by the next cell drawn after it. */
+.av-opt:not(:disabled):hover,
+.av-opt:not(:disabled):focus-visible {
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
+  filter: saturate(1.06);
+  z-index: 2;
+}
+.av-opt:not(:disabled):active {
+  transform: translateY(0) scale(0.95);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+.av-opt:focus-visible { outline: 1px dotted currentColor; outline-offset: 1px; }
+
+/* Tab switch: the new options wipe up in sequence instead of the whole grid
+   appearing at once, so the eye is led left-to-right across the row it now has
+   to choose from. Delay is set inline per index and capped there. */
+@keyframes av-opt-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.92); }
+  to   { opacity: 1; transform: none; }
+}
+.av-opt-in { animation: av-opt-in 170ms ease-out backwards; }
+
+/* Stage face. Committed changes pop (you picked something); hovering swaps the
+   face with no animation at all, because sweeping a cursor across 45 thumbnails
+   would otherwise fire 45 fades and read as a flicker. The "you are looking at a
+   candidate, not your avatar" signal is the ring pulse below instead. */
+@keyframes av-face-in {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: none; }
+}
+.av-face-in { animation: av-face-in 150ms cubic-bezier(0.22, 0.85, 0.3, 1); }
+
+/* Shuffle rolls a whole new identity, so it gets its own bigger gesture — the
+   face tumbles in rather than fading, which is what tells you the seed changed
+   and not just one slot. */
+@keyframes av-face-roll {
+  0%   { opacity: 0.15; transform: rotate(-14deg) scale(0.7); }
+  55%  { opacity: 1;    transform: rotate(7deg) scale(1.12); }
+  100% { opacity: 1;    transform: none; }
+}
+.av-face-roll { animation: av-face-roll 400ms cubic-bezier(0.2, 0.8, 0.25, 1); }
+
+/* Breathing ring while the stage is previewing a hovered candidate. An outer
+   ring, not a border swap: the stage frame is the classic sunken bevel and
+   recolouring its edge would flatten it. */
+@keyframes av-stage-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.34); }
+  50%      { box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.12); }
+}
+.av-stage-live { animation: av-stage-pulse 1.15s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .av-opt, .av-opt-in, .av-face-in, .av-face-roll, .av-stage-live {
+    animation: none;
+    transition: none;
+  }
+  .av-opt:not(:disabled):hover,
+  .av-opt:not(:disabled):focus-visible { transform: none; }
+  /* The hover signal can't just vanish under reduced-motion — keep the static
+     half of it (the ring / the raised edge) and drop only the movement. */
+  .av-stage-live { box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.34); }
+}
+
+/* ── Login step transition (username → password) ─────────────────────────────
+   The two-step sign-in swaps one field for another in place, which read as a
+   hard cut: nothing told the user the screen had advanced rather than
+   re-rendered. Direction carries the meaning — forward slides in from the
+   right, Back mirrors it — so the animation is a wayfinding cue, not decoration.
+
+   Enter-only by design: the outgoing field unmounts immediately (React has no
+   exit phase without keeping a ghost node around, and a 2-field auth form does
+   not justify that machinery). The incoming pane is remounted via `key={step}`,
+   which is what restarts the animation. */
+@keyframes login-step-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes login-step-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes login-fade-up {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+.login-step {
+  animation: login-step-in-right 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.login-step-back {
+  animation-name: login-step-in-left;
+}
+/* Trails the field by a beat so the eye lands on the input first. */
+.login-identity {
+  animation: login-fade-up 300ms cubic-bezier(0.22, 0.61, 0.36, 1) 60ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-step, .login-step-back, .login-identity {
+    animation: none;
+  }
+}
+
+/* -- Login staff ID card (password step) ------------------------------------
+   The card's own motion lives in inline transitions on the component (the card
+   face, the frame re-shape, the avatar's glide from centre to the left edge),
+   because they all animate ONE persistent set of nodes. Keyframes were the wrong
+   tool: the earlier build swapped a bare avatar for a card-mounted one, and no
+   animation can bridge an unmount - the face blinked out and faded back in at a
+   new size. What stays here is the part CSS alone can do: the hover glimmer,
+   which needs a pseudo-element, and the reduced-motion opt-out. */
+.login-badge {
+  position: relative;
+}
+/* Glimmer: a light band raked across the card face on hover, the way a real
+   laminated badge catches a ceiling light. A pseudo-element because the card's
+   own background is an inline gradient carrying the card stock - this overlays
+   it instead of fighting it for the same property. Parked off-canvas at rest so
+   nothing paints until hover, and pointer-events: none so it never eats a click
+   meant for the card. Gated on `.login-badge-open` so a closed (invisible)
+   badge cannot glimmer, while `.login-badge` itself is always present - the
+   reduced-motion rule below has to be able to reach the card in both states. */
+.login-badge-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.28) 46%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0.28) 54%,
+    transparent 62%);
+  transform: translateX(-120%);
+  opacity: 0;
+}
+.login-badge-open:hover::after {
+  animation: login-badge-glimmer 850ms cubic-bezier(0.3, 0.1, 0.3, 1);
+}
+@keyframes login-badge-glimmer {
+  0%   { transform: translateX(-120%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The card still appears - it carries information. Only the travel goes, and
+     the glimmer is pure decoration, so it goes entirely. Killing the inline
+     transitions needs !important: an inline style outranks any rule here. */
+  .login-badge, .login-badge * {
+    transition: none !important;
+  }
+  .login-badge-open:hover::after { animation: none; }
+}
+
+/* Sidebar footer's own copy of the badge - always "open" (no closed/idle
+   state to gate on, unlike the login card), so the pseudo-element sits
+   directly on the class instead of an -open variant. Same keyframe as the
+   login card: it's the same object, see Sidebar.tsx footer comment. */
+.sidebar-id-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.28) 46%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0.28) 54%,
+    transparent 62%);
+  transform: translateX(-120%);
+  opacity: 0;
+}
+.sidebar-id-card:hover::after {
+  animation: login-badge-glimmer 850ms cubic-bezier(0.3, 0.1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-id-card:hover::after { animation: none; }
+}

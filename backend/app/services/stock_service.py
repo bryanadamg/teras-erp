@@ -21,6 +21,28 @@ def _generate_variant_key(attribute_value_ids: list[str], color_id=None) -> str:
     return ",".join(parts)
 
 
+def variant_matches(want_key: str, have_key: str) -> bool:
+    """Does stock held under `have_key` satisfy a demand stated as `want_key`?
+
+    Not string equality, deliberately. A packing order inherits its variant from
+    an SO line, which can carry attribute values (material, a combo the floor
+    never keyed stock under) that the produced lot's balance row does not — so an
+    exact-key test would reject every real lot and leave the picker empty.
+
+    The rule is: the colour must agree exactly (that is the distinction a hold
+    desk actually turns on — two shades of one FG in one bin), and every
+    attribute value the demand states must be present on the stock. An empty
+    `want_key` states nothing and therefore matches anything.
+    """
+    if not want_key:
+        return True
+    want_attrs, want_color = _parse_variant_key(want_key)
+    have_attrs, have_color = _parse_variant_key(have_key)
+    if str(want_color or "") != str(have_color or ""):
+        return False
+    return set(str(a) for a in want_attrs) <= set(str(a) for a in have_attrs)
+
+
 def _bom_size_label(snapshot: dict | None) -> str | None:
     """Human-readable label from a BOMSize snapshot dict (size_name/label/measurement)."""
     if not snapshot:

@@ -77,10 +77,11 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'combos', label: 'Combo Library', icon: 'bi-grid-3x3-gap', permission: 'combo_library.view' },
             { tab: 'batches', label: 'Lot', icon: 'bi-upc-scan', permission: 'lot.view' },
             // Stock entry/transfer/adjust duties were merged into Stock On-Hand
-            // (commit e6f38da) — /stock (StockEntryView) is desktop-deprecated.
-            // Its mobile branch (bottom-tab "Stock") is a separate, still-live
-            // read-only browse view — don't add a desktop nav leaf here.
-            { tab: 'stock-on-hand', label: 'Stock On-Hand', i18nKey: 'stock_on_hand', icon: 'bi-boxes', permission: 'stock_on_hand.view' },
+            // (commit e6f38da), and /stock-on-hand was later folded into this
+            // same /stock route (stock/page.tsx renders StockOnHandView on
+            // desktop, the mobile bottom-tab's read-only browse view on mobile)
+            // so the URL matches the nav slug instead of redirecting.
+            { tab: 'stock', label: 'Stock On-Hand', i18nKey: 'stock_on_hand', icon: 'bi-boxes', permission: 'stock_on_hand.view' },
             { tab: 'booking-stock', label: 'Booking Stock', i18nKey: 'booking_stock', icon: 'bi-bookmark-check', permission: 'booking_stock.view' },
             { tab: 'locations', label: 'Locations', i18nKey: 'locations', icon: 'bi-geo-alt', permission: 'location.view' },
         ],
@@ -153,7 +154,6 @@ const ROUTE_ENTRIES: Record<string, { label: string; i18nKey?: string }> = Objec
     ['dashboard', { label: 'Dashboard', i18nKey: 'dashboard' }] as const,
     ['settings', { label: 'Settings', i18nKey: 'settings' }] as const,
     ['scanner', { label: 'Scanner', i18nKey: 'scanner' }] as const,
-    ['stock', { label: 'Stock Entry', i18nKey: 'stock_adjustment' }] as const,
     ['login', { label: 'Login', i18nKey: 'login' }] as const,
 ]);
 

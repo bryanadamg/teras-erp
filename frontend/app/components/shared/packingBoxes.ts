@@ -23,6 +23,12 @@ export type BoxRow = {
     alt: string;
 };
 
+// Parsed the same way the pack screens parse every other numeric field
+// (`parseFloat`, not `Number`): the two disagree on a comma decimal and on
+// trailing text, so a row could total as weighed in the footer while still
+// counting as unweighed in the submit gate — a button dead for no visible reason.
+const n = (v: string) => { const parsed = parseFloat(v); return isNaN(parsed) ? 0 : parsed; };
+
 export const splitBoxQtys = (total: number, size: number): number[] => {
     if (total <= 0) return [];
     if (!(size > 0)) return [Number(total.toFixed(4))];
@@ -33,25 +39,88 @@ export const splitBoxQtys = (total: number, size: number): number[] => {
     return parts.length ? parts : [Number(total.toFixed(4))];
 };
 
-/** Seed rows for a qty/size, carrying over any weights already keyed in.
+// --- Carton groups ---------------------------------------------------------
+//
+// The pack screens edit cartons as `count × qty each`, not as one row per box:
+// a 17 kg pack in 5 kg boxes reads "3 × 5 kg, 1 × 2 kg = 17 kg" rather than a
+// four-row list the packer has to add up in their head. Groups are the edited
+// shape; `expandBoxGroups` flattens them back to the per-carton rows the server
+// is sent, so every downstream helper (totals, alt payload, weight gate) keeps
+// working on one carton per entry and nothing about the wire format changes.
+
+export type BoxGroup = {
+    /** How many identical cartons this line stands for. */
+    count: string;
+    /** Base-UOM qty in each carton of the group. */
+    qty: string;
+    /** Alt-unit count per carton. Empty when the order has no alt unit. */
+    alt: string;
+    /** Per-carton scale readings, positional inside the group — cartons of the
+     *  same qty still weigh differently, so a group holds a weight per box
+     *  rather than one for all of them. Unused for a kg item, where the qty in
+     *  the box already IS its net weight. May be shorter than `count`; a
+     *  missing entry is an unweighed carton. */
+    kg: string[];
+};
+
+export const emptyBoxGroup = (): BoxGroup => ({ count: '1', qty: '', alt: '', kg: [] });
+
+/** Cartons the group stands for — a blank or fractional count is floored, since
+ *  half a carton is not a thing the floor can pack. */
+export const groupCount = (g: BoxGroup): number => Math.max(0, Math.floor(n(g.count)));
+
+/** Base-UOM qty across a whole group. */
+export const groupTotal = (g: BoxGroup): number => groupCount(g) * n(g.qty);
+
+/** One row per physical carton — the shape the server is sent. */
+export const expandBoxGroups = (groups: BoxGroup[]): BoxRow[] =>
+    groups.flatMap(g =>
+        Array.from({ length: groupCount(g) }, (_, i) => ({
+            qty: g.qty,
+            kg: g.kg[i] || '',
+            alt: g.alt,
+        })),
+    );
+
+/** Seed groups for a qty/size, carrying over weights already keyed in.
  *
- *  `baseFactor` (base qty per alt unit) fills each row's alt count so an
- *  alt-unit order shows both figures from the start; a count the packer already
- *  typed is kept. */
-export const seedBoxRows = (
+ *  Weights are carried positionally across the *flattened* carton list rather
+ *  than per group: re-splitting 17 kg from 5 kg boxes into 4 kg boxes changes
+ *  how many boxes there are, and carton #2's scale reading still belongs to
+ *  carton #2. */
+export const seedBoxGroups = (
     total: number,
     size: number,
-    prev: BoxRow[] = [],
+    prev: BoxGroup[] = [],
     baseFactor?: number | null,
-): BoxRow[] =>
-    splitBoxQtys(total, size).map((q, i) => {
-        const derived = baseFactor ? baseToAlt(q, baseFactor) : null;
-        return {
-            qty: String(q),
-            kg: prev[i]?.kg || '',
-            alt: prev[i]?.alt || (derived !== null ? String(derived) : ''),
-        };
-    });
+): BoxGroup[] => {
+    const prevWeights = expandBoxGroups(prev).map(r => r.kg);
+    const qtys = splitBoxQtys(total, size);
+    // splitBoxQtys emits `full` boxes of `size` then at most one remainder, so
+    // the run-length grouping below is at most two lines by construction.
+    const groups: BoxGroup[] = [];
+    let taken = 0;
+    for (const q of qtys) {
+        const last = groups[groups.length - 1];
+        if (last && n(last.qty) === q) {
+            last.count = String(groupCount(last) + 1);
+        } else {
+            const derived = baseFactor ? baseToAlt(q, baseFactor) : null;
+            groups.push({
+                count: '1',
+                qty: String(q),
+                alt: derived !== null ? String(derived) : '',
+                kg: [],
+            });
+        }
+    }
+    for (const g of groups) {
+        const n_ = groupCount(g);
+        g.kg = prevWeights.slice(taken, taken + n_);
+        taken += n_;
+    }
+    return groups;
+};
 
 // UOMs whose base qty already IS a weight in kg — mirrors `packing_service.KG_UOMS`.
 // For those, a carton's qty and its net weight are the same measurement, so the
@@ -61,12 +130,6 @@ export const seedBoxRows = (
 // Defined in `altUnit` (the conversion module needs the same test) and re-exported
 // here so the pack screens keep importing it from one place.
 export { uomIsKg } from './altUnit';
-
-// Parsed the same way the pack screens parse every other numeric field
-// (`parseFloat`, not `Number`): the two disagree on a comma decimal and on
-// trailing text, so a row could total as weighed in the footer while still
-// counting as unweighed in the submit gate — a button dead for no visible reason.
-const n = (v: string) => { const parsed = parseFloat(v); return isNaN(parsed) ? 0 : parsed; };
 
 /** Rows that carry a qty — the ones actually sent to the server. */
 export const filledBoxRows = (rows: BoxRow[]) => rows.filter(b => n(b.qty) > 0);

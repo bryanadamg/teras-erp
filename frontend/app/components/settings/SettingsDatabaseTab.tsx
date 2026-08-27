@@ -5,11 +5,12 @@ import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
-import { useTimezone } from '../../context/TimezoneContext';
-import { xpBtn, xpInput, CodeChip, CODE_FONT, FieldLabel, xpFont, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
+import { useTimezone, AVAILABLE_TIMEZONES } from '../../context/TimezoneContext';
+import { xpBtn, xpInput, CodeChip, StatusChip, CODE_FONT, FieldLabel, xpFont, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import {
     xpTableHeader, xpThCell, tdBase,
-    settingsStack, settingsHint, SETTINGS_FIELD_GAP,
+    settingsStack, settingsActions, settingsHint, SETTINGS_FIELD_GAP,
+    settingsCol, settingsColumns,
 } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -39,6 +40,10 @@ function prettyBytes(bytes: number | null): string {
     while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
     return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
+
+// Python/APScheduler weekday convention: 0=Monday .. 6=Sunday.
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
 
 type PingState = { ok: boolean; latency_ms: number | null } | null;
 
@@ -80,6 +85,15 @@ export default function SettingsDatabaseTab() {
     const [isDbLoading, setIsDbLoading] = useState(false);
     const [snapshots, setSnapshots] = useState<any[]>([]);
     const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+
+    const [schedule, setSchedule] = useState<any>(null);
+    const [isScheduleLoading, setIsScheduleLoading] = useState(false);
+    const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+    const [isRunningNow, setIsRunningNow] = useState(false);
+    const [scheduleForm, setScheduleForm] = useState({
+        enabled: false, frequency: 'daily', day_of_week: 0, hour: 3, minute: 0,
+        timezone: 'Asia/Jakarta', retain_count: 14,
+    });
 
     const [showWipeModal, setShowWipeModal] = useState(false);
     const [wipePassword, setWipePassword] = useState('');
@@ -140,12 +154,76 @@ export default function SettingsDatabaseTab() {
         } catch (e) { console.error("Snapshot fetch failed", e); }
     }, []);
 
+    const fetchSchedule = useCallback(async () => {
+        setIsScheduleLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/admin/database/backup-schedule`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setSchedule(data);
+                setScheduleForm({
+                    enabled: data.enabled, frequency: data.frequency,
+                    day_of_week: data.day_of_week ?? 0, hour: data.hour, minute: data.minute,
+                    timezone: data.timezone, retain_count: data.retain_count,
+                });
+            }
+        } catch (e) { console.error("Backup schedule fetch failed", e); }
+        finally { setIsScheduleLoading(false); }
+    }, []);
+
     useEffect(() => {
         fetchDbInfo();
         fetchSnapshots();
+        fetchSchedule();
         const savedProfiles = localStorage.getItem('terras_db_profiles');
         if (savedProfiles) setDbProfiles(JSON.parse(savedProfiles));
-    }, [fetchDbInfo, fetchSnapshots]);
+    }, [fetchDbInfo, fetchSnapshots, fetchSchedule]);
+
+    const handleSaveSchedule = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSavingSchedule(true);
+        try {
+            const res = await fetch(`${API_BASE}/admin/database/backup-schedule`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
+                body: JSON.stringify(scheduleForm)
+            });
+            if (res.ok) {
+                setSchedule(await res.json());
+                showToast('Backup schedule saved', 'success');
+            } else {
+                const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+                showToast(`Save failed: ${err.detail}`, 'danger');
+            }
+        } catch (e) { showToast('Network error saving schedule', 'danger'); }
+        finally { setIsSavingSchedule(false); }
+    };
+
+    const handleRunNow = async () => {
+        setIsRunningNow(true);
+        try {
+            const res = await fetch(`${API_BASE}/admin/database/backup-schedule/run-now`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            if (res.ok) {
+                showToast('Backup ran successfully', 'success');
+            } else {
+                const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+                showToast(`Backup failed: ${err.detail}`, 'danger');
+            }
+        } catch (e) { showToast('Network error running backup', 'danger'); }
+        finally {
+            setIsRunningNow(false);
+            fetchSchedule();
+            fetchSnapshots();
+        }
+    };
 
     const handleSwitchDatabase = async (url: string) => {
         setIsDbLoading(true);
@@ -322,206 +400,345 @@ export default function SettingsDatabaseTab() {
                 )}
             </SettingsPanel>
 
-            <SettingsPanel
-                classic={classic}
-                icon="bi-database-fill-gear"
-                title={<span data-testid="db-infrastructure-header">Database Infrastructure</span>}
-                right="Admin only"
-            >
-                <div style={{ marginBottom: SETTINGS_FIELD_GAP }}>
-                    <FieldLabel classic={classic}>Current Connection</FieldLabel>
-                    {classic ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ borderRadius: CHIP_RADIUS, background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: xpFont, fontSize: '11px', color: '#333' }}>
-                                <i className="bi bi-link-45deg"></i>
+            {/* System Status above and Danger Zone below stay full-bleed — five
+                live cards genuinely use the width, and a destructive action wants
+                its own band. In between, the schedule form is the narrow column and
+                the two things that grow — the connection panel's URL fields and the
+                snapshot list — share the wider one. */}
+            <div style={settingsColumns}>
+                <div style={settingsCol(420, 1)}>
+                    <SettingsPanel classic={classic} icon="bi-clock-history" title="Scheduled Backups">
+                        <form onSubmit={handleSaveSchedule}>
+                            {/* One field per row, not `settingsGrid`'s auto-fit columns.
+                                This panel is the narrow column of the band, so auto-fit
+                                landed on two or three tracks depending on the viewport and
+                                left the last row half-empty — six fields that each read as
+                                a different width and sat in a different place per screen.
+                                A stack also keeps Keep Last's hint under its own field. */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: SETTINGS_FIELD_GAP }}>
+                                <div>
+                                    <FieldLabel classic={classic}>Enabled</FieldLabel>
+                                    {classic ? (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: xpFont, fontSize: 11 }}>
+                                            <input type="checkbox" checked={scheduleForm.enabled} onChange={e => setScheduleForm({ ...scheduleForm, enabled: e.target.checked })} />
+                                            Run automatic backups
+                                        </label>
+                                    ) : (
+                                        <div className="form-check form-switch">
+                                            <input className="form-check-input" type="checkbox" role="switch" checked={scheduleForm.enabled} onChange={e => setScheduleForm({ ...scheduleForm, enabled: e.target.checked })} />
+                                            <label className="form-check-label small">Run automatic backups</label>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <FieldLabel classic={classic}>Frequency</FieldLabel>
+                                    <select
+                                        style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
+                                        className={classic ? '' : 'form-select form-select-sm'}
+                                        value={scheduleForm.frequency}
+                                        onChange={e => setScheduleForm({ ...scheduleForm, frequency: e.target.value })}
+                                    >
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                    </select>
+                                </div>
+                                {scheduleForm.frequency === 'weekly' && (
+                                    <div>
+                                        <FieldLabel classic={classic}>Day of Week</FieldLabel>
+                                        <select
+                                            style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
+                                            className={classic ? '' : 'form-select form-select-sm'}
+                                            value={scheduleForm.day_of_week}
+                                            onChange={e => setScheduleForm({ ...scheduleForm, day_of_week: Number(e.target.value) })}
+                                        >
+                                            {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                <div>
+                                    <FieldLabel classic={classic}>Time</FieldLabel>
+                                    <input
+                                        type="time"
+                                        style={classic ? xpInput({ width: '100%' }) : undefined}
+                                        className={classic ? '' : 'form-control form-control-sm'}
+                                        value={`${pad2(scheduleForm.hour)}:${pad2(scheduleForm.minute)}`}
+                                        onChange={e => {
+                                            const [h, m] = e.target.value.split(':').map(Number);
+                                            if (!Number.isNaN(h) && !Number.isNaN(m)) setScheduleForm({ ...scheduleForm, hour: h, minute: m });
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <FieldLabel classic={classic}>Timezone</FieldLabel>
+                                    <select
+                                        style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
+                                        className={classic ? '' : 'form-select form-select-sm'}
+                                        value={scheduleForm.timezone}
+                                        onChange={e => setScheduleForm({ ...scheduleForm, timezone: e.target.value })}
+                                    >
+                                        {AVAILABLE_TIMEZONES.map(z => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <FieldLabel classic={classic}>Keep Last</FieldLabel>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        style={classic ? xpInput({ width: '100%' }) : undefined}
+                                        className={classic ? '' : 'form-control form-control-sm'}
+                                        value={scheduleForm.retain_count}
+                                        onChange={e => setScheduleForm({ ...scheduleForm, retain_count: Math.max(1, Number(e.target.value)) })}
+                                    />
+                                    <div style={settingsHint(classic)}>Oldest scheduled snapshots beyond this count are pruned automatically. Manual snapshots are never deleted.</div>
+                                </div>
+                            </div>
+
+                            {schedule && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginTop: SETTINGS_FIELD_GAP }}>
+                                    {schedule.last_run_at && (
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <StatusChip status={schedule.last_run_status === 'failed' ? 'FAILED' : 'SUCCESS'} title={schedule.last_run_error || undefined} />
+                                            <span style={settingsHint(classic)}>Last run {tzDateTime(schedule.last_run_at)}</span>
+                                        </span>
+                                    )}
+                                    {schedule.next_run_at && (
+                                        <span style={settingsHint(classic)}>Next run {tzDateTime(schedule.next_run_at)}</span>
+                                    )}
+                                </div>
+                            )}
+
+                            <div style={settingsActions(classic)}>
+                                <button
+                                    type="button"
+                                    style={classic ? xpBtn({ padding: '3px 14px' }) : undefined}
+                                    className={classic ? XP_BTN : 'btn btn-sm btn-outline-secondary px-3'}
+                                    onClick={handleRunNow}
+                                    disabled={isRunningNow || isScheduleLoading}
+                                >
+                                    {isRunningNow ? <span className="spinner-border spinner-border-sm" style={{ marginRight: 4 }}></span> : <i className="bi bi-play-fill" style={{ marginRight: 4 }}></i>}
+                                    Run Now
+                                </button>
+                                <button
+                                    type="submit"
+                                    style={classic ? xpBtn({ ...BTN_TONES.primary, padding: '3px 14px', display: 'flex', alignItems: 'center', gap: 4 }) : undefined}
+                                    className={classic ? XP_BTN : 'btn btn-sm btn-primary px-3'}
+                                    disabled={isSavingSchedule}
+                                >
+                                    <i className="bi bi-save" style={{ marginRight: 4 }}></i>
+                                    Save Schedule
+                                </button>
+                            </div>
+                        </form>
+                    </SettingsPanel>
+                </div>
+
+                <div style={settingsCol(560, 1)}>
+                    <SettingsPanel
+                        classic={classic}
+                        icon="bi-database-fill-gear"
+                        title={<span data-testid="db-infrastructure-header">Database Infrastructure</span>}
+                        right="Admin only"
+                    >
+                        <div style={{ marginBottom: SETTINGS_FIELD_GAP }}>
+                            <FieldLabel classic={classic}>Current Connection</FieldLabel>
+                            {classic ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <span style={{ borderRadius: CHIP_RADIUS, background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 6px', fontFamily: xpFont, fontSize: '11px', color: '#333' }}>
+                                        <i className="bi bi-link-45deg"></i>
+                                    </span>
+                                    <input style={xpInput({ flex: 1, fontFamily: CODE_FONT, background: '#f0ede6', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })} value={currentDbUrl} readOnly />
+                                </div>
+                            ) : (
+                                <div className="input-group input-group-sm">
+                                    <span className="input-group-text bg-light"><i className="bi bi-link-45deg"></i></span>
+                                    <input className="form-control bg-light small" style={{ fontFamily: CODE_FONT }} value={currentDbUrl} readOnly />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Stacked, not a 7/5 split. This panel now shares its row with
+                            the snapshot list, so there is no width left to split: a
+                            connection URL and a profile list side by side both end in an
+                            ellipsis. Reading order is the action, then the shortcut into it. */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: SETTINGS_FIELD_GAP }}>
+                            <div>
+                                <FieldLabel classic={classic}>Switch to New Database</FieldLabel>
+                                {classic ? (
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                        <input
+                                            style={xpInput({ flex: 1, fontFamily: CODE_FONT, boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })}
+                                            placeholder="postgresql+psycopg2://user:pass@host:port/db"
+                                            value={newDbUrl}
+                                            onChange={e => setNewDbUrl(e.target.value)}
+                                        />
+                                        <button
+                                            className={XP_BTN}
+                                            style={xpBtn({ background: 'linear-gradient(to bottom, #006e8e, #004a5e)', borderColor: '#004a5e #001a2e #001a2e #004a5e', color: '#ffffff', whiteSpace: 'nowrap' })}
+                                            onClick={() => handleSwitchDatabase(newDbUrl)}
+                                            disabled={!newDbUrl || isDbLoading}
+                                        >
+                                            {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="input-group input-group-sm">
+                                        <input
+                                            className="form-control small"
+                                            style={{ fontFamily: CODE_FONT }}
+                                            placeholder="postgresql+psycopg2://user:pass@host:port/db"
+                                            value={newDbUrl}
+                                            onChange={e => setNewDbUrl(e.target.value)}
+                                        />
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={() => handleSwitchDatabase(newDbUrl)}
+                                            disabled={!newDbUrl || isDbLoading}
+                                        >
+                                            {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
+                                        </button>
+                                    </div>
+                                )}
+                                <div style={{ ...settingsHint(classic), color: '#8b0000' }}>
+                                    <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>
+                                    Switching databases changes the entire data context.
+                                </div>
+                            </div>
+                            <div>
+                                <FieldLabel classic={classic}>Saved Profiles</FieldLabel>
+                                {classic ? (
+                                    <div style={{ border: '1px solid #b0a898', background: '#ffffff', maxHeight: 118, overflowY: 'auto' as const }}>
+                                        {dbProfiles.map((p, i) => (
+                                            <button
+                                                key={i}
+                                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '3px 8px', background: 'none', border: 'none', borderBottom: '1px solid #e0dfd8', cursor: 'pointer', fontFamily: xpFont, fontSize: '11px', textAlign: 'left' as const }}
+                                                onClick={() => setNewDbUrl(p.url)}
+                                            >
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: '90%' }}>{p.name}: {p.url}</span>
+                                                <i className="bi bi-arrow-right-short"></i>
+                                            </button>
+                                        ))}
+                                        {dbProfiles.length === 0 && (
+                                            <div style={{ ...settingsHint(classic), padding: 8, margin: 0, textAlign: 'center', fontStyle: 'italic' }}>No saved profiles</div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="list-group list-group-flush border rounded overflow-auto" style={{ maxHeight: 118 }}>
+                                        {dbProfiles.map((p, i) => (
+                                            <button
+                                                key={i}
+                                                className="list-group-item list-group-item-action d-flex justify-content-between align-items-center small"
+                                                onClick={() => setNewDbUrl(p.url)}
+                                            >
+                                                <span className="text-truncate" style={{ maxWidth: '80%' }}>{p.name}: {p.url}</span>
+                                                <i className="bi bi-arrow-right-short"></i>
+                                            </button>
+                                        ))}
+                                        {dbProfiles.length === 0 && <div className="p-3 text-center text-muted extra-small">No saved profiles</div>}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </SettingsPanel>
+
+                    <SettingsPanel
+                        classic={classic}
+                        icon="bi-camera-fill"
+                        title="Snapshots"
+                        flush
+                        right={
+                            <span style={{ display: 'flex', gap: 4 }}>
+                                <label
+                                    style={classic ? xpBtn({ padding: '1px 8px', marginBottom: 0 }) : { cursor: 'pointer', marginBottom: 0 }}
+                                    className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
+                                >
+                                    <i className="bi bi-cloud-upload" style={{ marginRight: 4 }}></i>Upload
+                                    <input type="file" hidden onChange={handleUploadSnapshot} disabled={isSnapshotLoading} />
+                                </label>
+                                <button
+                                    type="button"
+                                    style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
+                                    className={classic ? XP_BTN : 'btn btn-sm btn-outline-light py-0 px-2'}
+                                    onClick={handleCreateSnapshot}
+                                    disabled={isSnapshotLoading}
+                                >
+                                    {isSnapshotLoading ? <span className="spinner-border spinner-border-sm" style={{ marginRight: 4 }}></span> : <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>}
+                                    New Snapshot
+                                </button>
                             </span>
-                            <input style={xpInput({ flex: 1, fontFamily: CODE_FONT, background: '#f0ede6', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })} value={currentDbUrl} readOnly />
-                        </div>
-                    ) : (
-                        <div className="input-group input-group-sm">
-                            <span className="input-group-text bg-light"><i className="bi bi-link-45deg"></i></span>
-                            <input className="form-control bg-light small" style={{ fontFamily: CODE_FONT }} value={currentDbUrl} readOnly />
-                        </div>
-                    )}
-                </div>
-
-                {/* Switching is the action, saved profiles are the shortcut into
-                    it — 7/5 at desktop, stacked in reading order below it. */}
-                <div className="row g-3">
-                    <div className="col-md-7">
-                        <FieldLabel classic={classic}>Switch to New Database</FieldLabel>
-                        {classic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                <input
-                                    style={xpInput({ flex: 1, fontFamily: CODE_FONT, boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })}
-                                    placeholder="postgresql+psycopg2://user:pass@host:port/db"
-                                    value={newDbUrl}
-                                    onChange={e => setNewDbUrl(e.target.value)}
-                                />
-                                <button
-                                    className={XP_BTN}
-                                    style={xpBtn({ background: 'linear-gradient(to bottom, #006e8e, #004a5e)', borderColor: '#004a5e #001a2e #001a2e #004a5e', color: '#ffffff', whiteSpace: 'nowrap' })}
-                                    onClick={() => handleSwitchDatabase(newDbUrl)}
-                                    disabled={!newDbUrl || isDbLoading}
+                        }
+                    >
+                        <div className="table-responsive">
+                                <table
+                                    style={classic ? { width: '100%', borderCollapse: 'collapse' as const, background: '#fff' } : undefined}
+                                    className={classic ? '' : 'table table-hover align-middle mb-0 small'}
                                 >
-                                    {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
-                                </button>
+                                    <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
+                                        <tr>
+                                            <th style={classic ? { ...xpThCell } : undefined} className={classic ? '' : 'ps-4'}>Snapshot Filename</th>
+                                            <th style={classic ? xpThCell : undefined}>Origin</th>
+                                            <th style={classic ? xpThCell : undefined}>Created At</th>
+                                            <th style={classic ? xpThCell : undefined}>Size</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {snapshots.map((s, i) => (
+                                            <tr
+                                                key={i}
+                                                style={classic ? { background: lvZebra(true, i), borderBottom: '1px solid #c0bdb5' } : undefined}
+                                            >
+                                                <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}><CodeChip code={s.name} classic={classic} /></td>
+                                                <td style={classic ? tdBase : undefined}><StatusChip status={(s.label || 'manual').toUpperCase()} /></td>
+                                                <td style={classic ? tdBase : undefined}>{tzDateTime(s.created_at)}</td>
+                                                <td style={classic ? tdBase : undefined}>{(s.size / 1024 / 1024).toFixed(2)} MB</td>
+                                                <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
+                                                    <div style={classic ? { display: 'flex', gap: 4, justifyContent: 'flex-end' } : undefined} className={classic ? '' : 'd-flex gap-2 justify-content-end'}>
+                                                        {classic ? (
+                                                            <>
+                                                                <button
+                                                                    title="Export/Download"
+                                                                    onClick={() => handleDownloadSnapshot(s.name)}
+                                                                    style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#0058e6', fontSize: '14px' }}
+                                                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                                                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                                                ><i className="bi bi-download"></i></button>
+                                                                <button
+                                                                    title="Restore/Rollback"
+                                                                    onClick={() => handleRestoreSnapshot(s.name)}
+                                                                    style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#2e7d32', fontSize: '14px' }}
+                                                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#4caf50'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f5e9'; }}
+                                                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                                                ><i className="bi bi-arrow-counterclockwise"></i></button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handleDownloadSnapshot(s.name)} title="Export/Download">
+                                                                    <i className="bi bi-download fs-5"></i>
+                                                                </button>
+                                                                <button className="btn btn-sm btn-link text-success p-0" onClick={() => handleRestoreSnapshot(s.name)} title="Restore/Rollback">
+                                                                    <i className="bi bi-arrow-counterclockwise fs-5"></i>
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {snapshots.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    colSpan={5}
+                                                    style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '20px 8px', color: '#888', fontStyle: 'italic' } : undefined}
+                                                    className={classic ? '' : 'text-center py-4 text-muted'}
+                                                >No snapshots found. Create one to begin.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
-                        ) : (
-                            <div className="input-group input-group-sm">
-                                <input
-                                    className="form-control small"
-                                    style={{ fontFamily: CODE_FONT }}
-                                    placeholder="postgresql+psycopg2://user:pass@host:port/db"
-                                    value={newDbUrl}
-                                    onChange={e => setNewDbUrl(e.target.value)}
-                                />
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => handleSwitchDatabase(newDbUrl)}
-                                    disabled={!newDbUrl || isDbLoading}
-                                >
-                                    {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
-                                </button>
-                            </div>
-                        )}
-                        <div style={{ ...settingsHint(classic), color: '#8b0000' }}>
-                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>
-                            Switching databases changes the entire data context.
-                        </div>
-                    </div>
-                    <div className="col-md-5">
-                        <FieldLabel classic={classic}>Saved Profiles</FieldLabel>
-                        {classic ? (
-                            <div style={{ border: '1px solid #b0a898', background: '#ffffff', maxHeight: 118, overflowY: 'auto' as const }}>
-                                {dbProfiles.map((p, i) => (
-                                    <button
-                                        key={i}
-                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '3px 8px', background: 'none', border: 'none', borderBottom: '1px solid #e0dfd8', cursor: 'pointer', fontFamily: xpFont, fontSize: '11px', textAlign: 'left' as const }}
-                                        onClick={() => setNewDbUrl(p.url)}
-                                    >
-                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: '90%' }}>{p.name}: {p.url}</span>
-                                        <i className="bi bi-arrow-right-short"></i>
-                                    </button>
-                                ))}
-                                {dbProfiles.length === 0 && (
-                                    <div style={{ ...settingsHint(classic), padding: 8, margin: 0, textAlign: 'center', fontStyle: 'italic' }}>No saved profiles</div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="list-group list-group-flush border rounded overflow-auto" style={{ maxHeight: 118 }}>
-                                {dbProfiles.map((p, i) => (
-                                    <button
-                                        key={i}
-                                        className="list-group-item list-group-item-action d-flex justify-content-between align-items-center small"
-                                        onClick={() => setNewDbUrl(p.url)}
-                                    >
-                                        <span className="text-truncate" style={{ maxWidth: '80%' }}>{p.name}: {p.url}</span>
-                                        <i className="bi bi-arrow-right-short"></i>
-                                    </button>
-                                ))}
-                                {dbProfiles.length === 0 && <div className="p-3 text-center text-muted extra-small">No saved profiles</div>}
-                            </div>
-                        )}
-                    </div>
+                    </SettingsPanel>
                 </div>
-            </SettingsPanel>
-
-            <SettingsPanel
-                classic={classic}
-                icon="bi-camera-fill"
-                title="Snapshots"
-                flush
-                right={
-                    <span style={{ display: 'flex', gap: 4 }}>
-                        <label
-                            style={classic ? xpBtn({ padding: '1px 8px', marginBottom: 0 }) : { cursor: 'pointer', marginBottom: 0 }}
-                            className={classic ? '' : 'btn btn-sm btn-outline-light py-0 px-2'}
-                        >
-                            <i className="bi bi-cloud-upload" style={{ marginRight: 4 }}></i>Upload
-                            <input type="file" hidden onChange={handleUploadSnapshot} disabled={isSnapshotLoading} />
-                        </label>
-                        <button
-                            type="button"
-                            style={classic ? xpBtn({ padding: '1px 8px' }) : undefined}
-                            className={classic ? XP_BTN : 'btn btn-sm btn-outline-light py-0 px-2'}
-                            onClick={handleCreateSnapshot}
-                            disabled={isSnapshotLoading}
-                        >
-                            {isSnapshotLoading ? <span className="spinner-border spinner-border-sm" style={{ marginRight: 4 }}></span> : <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>}
-                            New Snapshot
-                        </button>
-                    </span>
-                }
-            >
-                <div className="table-responsive">
-                        <table
-                            style={classic ? { width: '100%', borderCollapse: 'collapse' as const, background: '#fff' } : undefined}
-                            className={classic ? '' : 'table table-hover align-middle mb-0 small'}
-                        >
-                            <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
-                                <tr>
-                                    <th style={classic ? { ...xpThCell } : undefined} className={classic ? '' : 'ps-4'}>Snapshot Filename</th>
-                                    <th style={classic ? xpThCell : undefined}>Created At</th>
-                                    <th style={classic ? xpThCell : undefined}>Size</th>
-                                    <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {snapshots.map((s, i) => (
-                                    <tr
-                                        key={i}
-                                        style={classic ? { background: lvZebra(true, i), borderBottom: '1px solid #c0bdb5' } : undefined}
-                                    >
-                                        <td style={classic ? tdBase : undefined} className={classic ? '' : 'ps-4'}><CodeChip code={s.name} classic={classic} /></td>
-                                        <td style={classic ? tdBase : undefined}>{tzDateTime(s.created_at)}</td>
-                                        <td style={classic ? tdBase : undefined}>{(s.size / 1024 / 1024).toFixed(2)} MB</td>
-                                        <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
-                                            <div style={classic ? { display: 'flex', gap: 4, justifyContent: 'flex-end' } : undefined} className={classic ? '' : 'd-flex gap-2 justify-content-end'}>
-                                                {classic ? (
-                                                    <>
-                                                        <button
-                                                            title="Export/Download"
-                                                            onClick={() => handleDownloadSnapshot(s.name)}
-                                                            style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#0058e6', fontSize: '14px' }}
-                                                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                                                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                        ><i className="bi bi-download"></i></button>
-                                                        <button
-                                                            title="Restore/Rollback"
-                                                            onClick={() => handleRestoreSnapshot(s.name)}
-                                                            style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#2e7d32', fontSize: '14px' }}
-                                                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#4caf50'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f5e9'; }}
-                                                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                        ><i className="bi bi-arrow-counterclockwise"></i></button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handleDownloadSnapshot(s.name)} title="Export/Download">
-                                                            <i className="bi bi-download fs-5"></i>
-                                                        </button>
-                                                        <button className="btn btn-sm btn-link text-success p-0" onClick={() => handleRestoreSnapshot(s.name)} title="Restore/Rollback">
-                                                            <i className="bi bi-arrow-counterclockwise fs-5"></i>
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {snapshots.length === 0 && (
-                                    <tr>
-                                        <td
-                                            colSpan={4}
-                                            style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '20px 8px', color: '#888', fontStyle: 'italic' } : undefined}
-                                            className={classic ? '' : 'text-center py-4 text-muted'}
-                                        >No snapshots found. Create one to begin.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-            </SettingsPanel>
+            </div>
 
             <SettingsPanel classic={classic} icon="bi-exclamation-octagon-fill" title="Danger Zone">
                 {/* Severity is carried by the copy and the button, not by a red

@@ -105,6 +105,16 @@ def _log_activity(db: Session, user_id, action: str, entity_id, details: str | N
     db.add(AuditLog(user_id=user_id, action=action, entity_type="User", entity_id=str(entity_id), details=details))
     db.commit()
 
+# avatar_id holds a free-form DiceBear recipe string rather than a picker index,
+# so cap it at the column width instead of letting an over-long value surface as
+# a 500 from the driver. The frontend is the authority on recipe contents and
+# ignores anything it doesn't recognise, so there is nothing else to validate here.
+def _clean_avatar_id(avatar_id: str | None) -> str | None:
+    if avatar_id is None:
+        return None
+    trimmed = avatar_id.strip()[:255]
+    return trimmed or None
+
 # --- Endpoints ---
 
 @router.post("/token")
@@ -156,6 +166,7 @@ def create_role(payload: RoleCreate, db: Session = Depends(get_db), current_user
         allowed_work_center_types=payload.allowed_work_center_types,
         allowed_categories=payload.allowed_categories,
         allowed_locations=payload.allowed_locations,
+        default_avatar_id=_clean_avatar_id(payload.default_avatar_id),
     )
     db.add(role)
     db.commit()
@@ -189,6 +200,11 @@ def update_role(role_id: str, payload: RoleUpdate, db: Session = Depends(get_db)
 
     if payload.allowed_locations is not None:
         role.allowed_locations = payload.allowed_locations or None
+
+    if payload.default_avatar_id is not None:
+        # `_clean_avatar_id` maps "" to None, which is how the form clears the
+        # template rather than storing an empty recipe nothing can parse.
+        role.default_avatar_id = _clean_avatar_id(payload.default_avatar_id)
 
     db.commit()
     db.refresh(role)
@@ -230,7 +246,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db), current_user
         hashed_password=get_password_hash(payload.password),
         role_id=role.id if role else None,
         permissions=perms,
-        avatar_id=payload.avatar_id,
+        avatar_id=_clean_avatar_id(payload.avatar_id),
     )
     db.add(user)
     db.commit()
@@ -282,7 +298,7 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
         user.permissions = perms
 
     if payload.avatar_id is not None:
-        user.avatar_id = payload.avatar_id
+        user.avatar_id = _clean_avatar_id(payload.avatar_id)
 
     db.commit()
     db.refresh(user)

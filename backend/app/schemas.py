@@ -2417,6 +2417,11 @@ class RoleBase(BaseModel):
     allowed_work_center_types: list[str] | None = None
     allowed_categories: list[str] | None = None
     allowed_locations: list[str] | None = None
+    # Avatar template for users in this role who have saved no avatar of their own.
+    # On RoleBase (not just RoleResponse) so it rides along on the nested `role` of
+    # every UserResponse — which is how the sidebar and user lists resolve a face
+    # without a second fetch.
+    default_avatar_id: str | None = None
 
 class RoleCreate(RoleBase):
     permission_ids: list[UUID] = []
@@ -2428,6 +2433,9 @@ class RoleUpdate(BaseModel):
     allowed_work_center_types: Optional[list[str]] = None
     allowed_categories: Optional[list[str]] = None
     allowed_locations: Optional[list[str]] = None
+    # Empty string clears the template (a role that constrains nothing); null means
+    # "leave it alone", the same convention as every other field here.
+    default_avatar_id: Optional[str] = None
 
 class RoleResponse(RoleBase):
     id: UUID
@@ -2747,6 +2755,31 @@ class CompanyProfileResponse(CompanyProfileBase):
     class Config:
         from_attributes = True
 
+class BackupScheduleUpdate(BaseModel):
+    enabled: bool
+    frequency: str  # "daily" | "weekly"
+    day_of_week: Optional[int] = None  # 0=Mon..6=Sun, required when frequency == "weekly"
+    hour: int
+    minute: int
+    timezone: str
+    retain_count: int
+
+class BackupScheduleResponse(BaseModel):
+    id: UUID
+    enabled: bool
+    frequency: str
+    day_of_week: Optional[int] = None
+    hour: int
+    minute: int
+    timezone: str
+    retain_count: int
+    last_run_at: Optional[datetime] = None
+    last_run_status: Optional[str] = None
+    last_run_error: Optional[str] = None
+    next_run_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 # --- Batch / Lot Schemas ---
 
 class BatchCreate(BaseModel):
@@ -2776,6 +2809,11 @@ class BatchResponse(BaseModel):
     location_id: Optional[UUID] = None    # current location — beam is atomic, always at most one (populated by list endpoint)
     location_name: Optional[str] = None
     location_path: Optional[list[str]] = None  # root-first hierarchy [warehouse, zone, bin] for the current leaf location
+    # Variant identity of the StockBalance row this lot is held under — sorted
+    # attribute-value UUIDs plus a trailing `c:<uuid>` colour token. Compare against
+    # PackingOrderResponse.variant_key to tell whether a lot is the shade an order
+    # is packing; a lot is one physical thing, so it has exactly one.
+    variant_key: Optional[str] = None
     # Origin lineage — resolved from source_wo_id → WO → MO → PR/SO (populated by batches endpoints)
     wo_code: Optional[str] = None
     mo_id: Optional[UUID] = None
@@ -3092,6 +3130,11 @@ class PackingOrderResponse(BaseModel):
     color_id: UUID | None = None
     color_name: str | None = None
     attribute_value_ids: list[UUID] = []
+    # The order's variant identity in StockBalance form (attribute UUIDs + `c:<uuid>`).
+    # Empty string = the order declares no variant, so any lot of the item at the
+    # source location is fair game. Served rather than rebuilt client-side so the
+    # lot picker's match uses the same key the stock rows are written under.
+    variant_key: str = ""
     qty_target: float
     qty_packed: float = 0
     package_count: int = 0

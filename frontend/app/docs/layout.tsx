@@ -42,7 +42,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                             Terras ERP — Help &amp; Documentation
                         </div>
                         <div style={{ color: '#a0c2f5', fontSize: 11 }}>
-                            Manufacturing &amp; Inventory Management System
+                            Integrated Business Suite
                         </div>
                     </div>
                 </div>

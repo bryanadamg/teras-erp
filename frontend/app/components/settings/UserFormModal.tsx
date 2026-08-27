@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import { xpBtn, xpInput, CODE_FONT, xpFont, FieldLabel, FormError, ModalFooterActions, XP_BTN } from '../shared/xpTheme';
-import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
 import { User } from '../../context/UserContext';
@@ -41,7 +40,9 @@ export default function UserFormModal({
     const [fullName, setFullName] = useState('');
     const [roleId, setRoleId] = useState('');
     const [permissionIds, setPermissionIds] = useState<string[]>([]);
-    const [avatarId, setAvatarId] = useState('1');
+    // Empty means "no recipe stored yet", which renders as an avatar seeded from
+    // the username rather than a shared default.
+    const [avatarId, setAvatarId] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(mode === 'create');
     const [passwordVisible, setPasswordVisible] = useState(false);
@@ -54,13 +55,21 @@ export default function UserFormModal({
         setFullName(user?.full_name || '');
         setRoleId(user?.role?.id || '');
         setPermissionIds(user?.permissions?.map(p => p.id) || []);
-        setAvatarId(user?.avatar_id || '1');
+        setAvatarId(user?.avatar_id || '');
         setPassword('');
         setShowPassword(mode === 'create');
         setPasswordVisible(false);
         setError('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, user?.id]);
+
+    // Template comes from the role picked in this form, not the user's saved role:
+    // moving someone into an executive role should preview that role's default
+    // before the save, not after.
+    const roleAvatarTemplate = useMemo(
+        () => roles.find(r => r.id === roleId)?.default_avatar_id ?? null,
+        [roles, roleId],
+    );
 
     const rolePermissionIds = useMemo(() => {
         const role = roles.find(r => r.id === roleId);
@@ -124,13 +133,11 @@ export default function UserFormModal({
         >
             <FormError classic={classic}>{error}</FormError>
 
+            {/* Preview frame lives inside AvatarPicker (it has to, for the
+                hover-to-try-on stage) — don't add a second one here. */}
             <div className="mb-3">
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={classic ? { width: 48, height: 48, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } : { width: 52, height: 52, border: '1px solid #dee2e6', borderRadius: 6, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <PixelAvatar avatarId={avatarId} size={40} />
-                    </div>
-                    <AvatarPicker value={avatarId} onChange={setAvatarId} classic={classic} />
-                </div>
+                <FieldLabel classic={classic}>Avatar</FieldLabel>
+                <AvatarPicker value={avatarId} onChange={setAvatarId} seed={username} template={roleAvatarTemplate} classic={classic} />
             </div>
 
             {/* Paired two-up: at xl these single-line fields each stretching the full

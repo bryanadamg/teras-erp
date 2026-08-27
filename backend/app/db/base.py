@@ -34,7 +34,7 @@ from app.models.partner import Partner
 from app.models.purchase import PurchaseOrder, PurchaseOrderLine, purchase_order_line_values
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.stock_balance import StockBalance, stock_balance_values
-from app.models.settings import CompanyProfile
+from app.models.settings import CompanyProfile, BackupSchedule
 from app.models.batch import Batch, BatchConsumption, BeamMount
 from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeRecipeWashBath, DyeRecipeFinishing, DyeingRun, DyeingRunChemical, SettingRun
 from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine

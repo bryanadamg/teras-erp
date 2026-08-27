@@ -1,6 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { rememberAvatar, rememberIdentity } from '../components/shared/avatarCache';
+import { resolveRecipe, serializeRecipe } from '../components/shared/avatarRecipe';
 
 interface Permission {
     id: string;
@@ -15,6 +17,8 @@ interface Role {
     allowed_work_center_types?: string[] | null;
     allowed_categories?: string[] | null;
     allowed_locations?: string[] | null;
+    /** Avatar template for users in this role with no saved avatar of their own. */
+    default_avatar_id?: string | null;
 }
 
 export interface User {
@@ -151,6 +155,31 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             setLoading(false);
         });
     }, [bootPhase]);
+
+    // Cache the signed-in user's avatar recipe locally so the pre-auth login
+    // screen can greet them with their own face. Hooked to currentUser rather
+    // than to login() so it also covers session restore and profile saves —
+    // including a reset back to the default, which forgets the old recipe.
+    useEffect(() => {
+        if (!currentUser) return;
+        // Remember the EFFECTIVE recipe, not just an explicitly saved one: a role
+        // template lives behind auth, so the login screen can't re-derive it from
+        // the username the way it can re-derive a plain seeded face. Without this
+        // an executive would meet the unconstrained face on the login screen and
+        // their real one a second later.
+        rememberAvatar(currentUser.username, serializeRecipe(resolveRecipe(
+            currentUser.avatar_id,
+            currentUser.username,
+            currentUser.role?.default_avatar_id,
+        )));
+        // Same trade as the avatar: the login screen's staff ID card wants a name
+        // and a role, both of which sit behind auth. Cached on the way in rather
+        // than served to an unauthenticated caller.
+        rememberIdentity(currentUser.username, {
+            fullName: currentUser.full_name,
+            role: currentUser.role?.name,
+        });
+    }, [currentUser]);
 
     const hasPermission = (permissionCode: string): boolean => {
         if (!currentUser) return false;

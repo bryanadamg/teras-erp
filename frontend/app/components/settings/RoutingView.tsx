@@ -440,7 +440,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead style={lvThead(classic, true)}>
                       <tr>
-                          <th style={{ ...lvTh(classic), width: 100, paddingLeft: classic ? 10 : 14 }}>Code</th>
+                          <th style={{ ...lvTh(classic), width: 140, paddingLeft: classic ? 10 : 14 }}>Code</th>
                           <th style={lvTh(classic)}>{t('station_name')}</th>
                           <th style={{ ...lvTh(classic), width: 90 }}>Type</th>
                           <th style={{ ...lvTh(classic), width: 100 }}>In Loc</th>
@@ -470,7 +470,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                       }}
                                       onClick={expandable ? () => toggleGroup(wc.id) : undefined}
                                   >
-                                      <td style={{ ...lvTd(classic), paddingLeft: (classic ? 10 : 14) + depth * step, fontWeight: 'bold', color: isContainer ? (classic ? '#1a237e' : '#1e293b') : (classic ? '#00008b' : '#2563eb') }}>
+                                      <td style={{ ...lvTd(classic), paddingLeft: (classic ? 10 : 14) + depth * step, fontWeight: 'bold', whiteSpace: 'nowrap', color: isContainer ? (classic ? '#1a237e' : '#1e293b') : (classic ? '#00008b' : '#2563eb') }}>
                                           {isContainer && <i className={expandable ? (expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill') : 'bi bi-folder2'} style={{ marginRight: 5, fontSize: classic ? 9 : 11, color: expandable ? '#555' : undefined }}></i>}
                                           {!isContainer && <i className="bi bi-dash" style={{ marginRight: 2, fontSize: classic ? 10 : 12, color: '#888' }}></i>}
                                           {wc.code}

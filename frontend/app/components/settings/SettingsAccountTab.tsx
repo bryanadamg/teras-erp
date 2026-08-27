@@ -5,9 +5,8 @@ import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpBtn, xpInput, FieldLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme';
-import { settingsActions, settingsGrid, settingsHint, settingsStack } from './settingsStyles';
+import { settingsActions, settingsCol, settingsColumns, settingsGrid, settingsStack } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
-import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
 import { API_BASE } from '../shared/apiBase';
 
@@ -21,13 +20,14 @@ export default function SettingsAccountTab() {
     const [selfFullName, setSelfFullName] = useState('');
     const [selfPassword, setSelfPassword] = useState('');
     const [selfConfirmPassword, setSelfConfirmPassword] = useState('');
-    const [selfAvatarId, setSelfAvatarId] = useState<string>('1');
+    // Empty means "no recipe stored yet" — seeded from the username instead.
+    const [selfAvatarId, setSelfAvatarId] = useState<string>('');
 
     useEffect(() => {
         if (currentUser) {
             setSelfUsername(currentUser.username);
             setSelfFullName(currentUser.full_name);
-            setSelfAvatarId(currentUser.avatar_id || '1');
+            setSelfAvatarId(currentUser.avatar_id || '');
         }
     }, [currentUser]);
 
@@ -67,82 +67,83 @@ export default function SettingsAccountTab() {
     };
 
     return (
-        // Identity and password are two decisions, not four fields in one 2x2
-        // block — changing your display name shouldn't sit in the same rhythm as
-        // resetting your own credentials. One form still submits both.
+        // Avatar, identity and password are three decisions, not eight fields in
+        // one block — changing your display name shouldn't sit in the same rhythm
+        // as resetting your own credentials. One form still submits all three.
+        //
+        // Two columns: the avatar editor is the only thing here that genuinely
+        // wants width (nine slot tabs and a thumbnail grid), and the two text
+        // pairs beside it are what used to leave 1400px of empty panel each.
         <form onSubmit={handleSelfAccountUpdate} style={settingsStack}>
-            <SettingsPanel classic={classic} icon="bi-person-fill" title="Profile">
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                        <div style={classic ? {
-                            width: 56, height: 56, border: '2px solid', borderColor: '#fff #888 #888 #fff',
-                            background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        } : {
-                            width: 60, height: 60, border: '1px solid #dee2e6', borderRadius: 8,
-                            background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                            <PixelAvatar avatarId={selfAvatarId} size={48} />
+            <div style={settingsColumns}>
+                <div style={settingsCol(560, 2)}>
+                    <SettingsPanel classic={classic} icon="bi-person-badge" title="Avatar">
+                        {/* No preview frame here: AvatarPicker owns the stage, because a
+                            preview outside it can't show the candidate you are hovering. */}
+                        <FieldLabel classic={classic} hint="Hover an option to try it on; Shuffle rolls a whole new face.">
+                            Choose Avatar
+                        </FieldLabel>
+                        <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} seed={selfUsername} template={currentUser?.role?.default_avatar_id} classic={classic} />
+                    </SettingsPanel>
+                </div>
+
+                <div style={settingsCol(320, 1)}>
+                    <SettingsPanel classic={classic} icon="bi-person-fill" title="Profile">
+                        <div style={settingsGrid(200)}>
+                            <div>
+                                <FieldLabel classic={classic}>Username</FieldLabel>
+                                <input
+                                    style={classic ? xpInput({ width: '100%' }) : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={selfUsername}
+                                    onChange={e => setSelfUsername(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <FieldLabel classic={classic}>Full Name</FieldLabel>
+                                <input
+                                    style={classic ? xpInput({ width: '100%' }) : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={selfFullName}
+                                    onChange={e => setSelfFullName(e.target.value)}
+                                    required
+                                />
+                            </div>
                         </div>
-                        <span style={settingsHint(classic)}>Preview</span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <FieldLabel classic={classic}>Choose Avatar</FieldLabel>
-                        <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} classic={classic} />
-                    </div>
-                </div>
-                <div style={settingsGrid()}>
-                    <div>
-                        <FieldLabel classic={classic}>Username</FieldLabel>
-                        <input
-                            style={classic ? xpInput({ width: '100%' }) : undefined}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={selfUsername}
-                            onChange={e => setSelfUsername(e.target.value)}
-                            required
-                        />
-                    </div>
-                    <div>
-                        <FieldLabel classic={classic}>Full Name</FieldLabel>
-                        <input
-                            style={classic ? xpInput({ width: '100%' }) : undefined}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={selfFullName}
-                            onChange={e => setSelfFullName(e.target.value)}
-                            required
-                        />
-                    </div>
-                </div>
-            </SettingsPanel>
+                    </SettingsPanel>
 
-            <SettingsPanel classic={classic} icon="bi-key-fill" title="Password">
-                <div style={settingsGrid()}>
-                    <div>
-                        <FieldLabel classic={classic} hint="Leave blank to keep your current password.">New Password</FieldLabel>
-                        <input
-                            type="password"
-                            style={classic ? xpInput({ width: '100%' }) : undefined}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={selfPassword}
-                            onChange={e => setSelfPassword(e.target.value)}
-                            placeholder="••••••••"
-                        />
-                    </div>
-                    <div>
-                        <FieldLabel classic={classic}>Confirm New Password</FieldLabel>
-                        <input
-                            type="password"
-                            style={classic ? xpInput({ width: '100%' }) : undefined}
-                            className={classic ? '' : 'form-control form-control-sm'}
-                            value={selfConfirmPassword}
-                            onChange={e => setSelfConfirmPassword(e.target.value)}
-                            placeholder="••••••••"
-                        />
-                    </div>
+                    <SettingsPanel classic={classic} icon="bi-key-fill" title="Password">
+                        <div style={settingsGrid(200)}>
+                            <div>
+                                <FieldLabel classic={classic} hint="Leave blank to keep your current password.">New Password</FieldLabel>
+                                <input
+                                    type="password"
+                                    style={classic ? xpInput({ width: '100%' }) : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={selfPassword}
+                                    onChange={e => setSelfPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                            <div>
+                                <FieldLabel classic={classic}>Confirm New Password</FieldLabel>
+                                <input
+                                    type="password"
+                                    style={classic ? xpInput({ width: '100%' }) : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={selfConfirmPassword}
+                                    onChange={e => setSelfConfirmPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                        </div>
+                    </SettingsPanel>
                 </div>
-            </SettingsPanel>
+            </div>
 
-            {/* One submit for both groups, so it sits under both — not inside
-                the password group where it would read as "save password". */}
+            {/* One submit for all three groups, so it spans the columns — not
+                inside the password panel, where it would read as "save password". */}
             <div style={{ ...settingsActions(classic), marginTop: 0 }}>
                 <button
                     type="submit"

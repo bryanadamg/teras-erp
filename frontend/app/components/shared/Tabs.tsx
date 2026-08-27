@@ -5,7 +5,10 @@ import { xpFont, BUTTON_RADIUS, XP_TAB, XP_TAB_ACTIVE } from './xpTheme';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
-export type TabDef<K extends string = string> = { key: K; label: string; icon?: string };
+// `label` is a node, not a string, so a tab can carry a small state marker
+// alongside its text (the avatar picker's "this slot is pinned" dot). Text is
+// still the norm — this is not an invitation to build a second control in a tab.
+export type TabDef<K extends string = string> = { key: K; label: React.ReactNode; icon?: string };
 
 // The one edge colour of a classic tab strip: the rule under the inactive tabs,
 // which the active tab breaks through into the pane. Tan-grey, matching the panel

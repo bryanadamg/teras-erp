@@ -38,7 +38,7 @@ from app.schemas import (
     QuarantineGroupResponse, QuarantineListResponse, QuarantineLotResponse,
     QuarantineStatusOption, QuarantineStatusUpdate,
 )
-from app.services import audit_service, quarantine_service
+from app.services import audit_service, quarantine_service, stock_service
 from app.core.pagination import PageParams, PageWindow
 from app.core.ws_manager import manager
 
@@ -237,25 +237,53 @@ async def list_quarantine_stock(
         db, [b.id for (_, b, _, _) in rows if b is not None]
     )
 
-    # An open packing order plans to draw this (item, source location) — same
-    # correlation the old ready-to-pack suggestion used, now surfaced as a lock
-    # instead of a hidden suggestion: a released lot already spoken for reads as
-    # claimed until that order is cancelled/deleted, so nobody double-packs it
+    # An open packing order plans to draw this (item, source location, variant) —
+    # same correlation the old ready-to-pack suggestion used, now surfaced as a
+    # lock instead of a hidden suggestion: a released lot already spoken for reads
+    # as claimed until that order is cancelled/deleted, so nobody double-packs it
     # from a second order. Order-level, not MO-level: a completion's lot picker
     # draws from the location by item, not by which MO produced the lot.
-    claimed_by: dict = {}
+    #
+    # The **variant** is part of the key, not just (item, location): two MOs of the
+    # same FG in different shades land in the same hold bin, and keying on the pair
+    # alone let one colour's packing order grey out the other colour's whole row.
+    # The order's key is built the same way the StockBalance row's is
+    # (`_generate_variant_key`), so `bal.variant_key` compares directly.
+    # An order that declares no variant at all still claims the whole (item,
+    # location) pool — its lot picker really can take anything there.
+    open_orders: list[tuple] = []
+    claim_cache: dict = {}
     on_hand_item_ids = {item.id for (_, _, item, _) in rows}
     on_hand_loc_ids = {loc.id for (_, _, _, loc) in rows}
     if on_hand_item_ids and on_hand_loc_ids:
-        for item_id, loc_id, code in (await db.execute(
-            select(PackingOrder.item_id, PackingOrder.source_location_id, PackingOrder.code)
+        for po in (await db.execute(
+            select(PackingOrder)
+            .options(selectinload(PackingOrder.attribute_values))
             .filter(
                 PackingOrder.status.in_(("PENDING", "IN_PROGRESS")),
                 PackingOrder.item_id.in_(on_hand_item_ids),
                 PackingOrder.source_location_id.in_(on_hand_loc_ids),
             )
-        )).all():
-            claimed_by.setdefault((item_id, loc_id), code)
+        )).scalars().all():
+            open_orders.append((
+                po.item_id, po.source_location_id, po.code,
+                stock_service._generate_variant_key(
+                    [str(v.id) for v in (po.attribute_values or [])], po.color_id
+                ),
+            ))
+
+    def _claimed_code(item_id, loc_id, variant_key):
+        key = (item_id, loc_id, variant_key or "")
+        if key in claim_cache:
+            return claim_cache[key]
+        code = next(
+            (c for (i, l, c, vk) in open_orders
+             if i == item_id and l == loc_id
+             and stock_service.variant_matches(vk, variant_key or "")),
+            None,
+        )
+        claim_cache[key] = code
+        return code
 
     # Combo/other variant attributes of the producing MO, resolved onto each
     # batch (setattr, same as the lot pickers) — the group row already carries
@@ -328,7 +356,7 @@ async def list_quarantine_stock(
             variant_attributes=getattr(batch, "variant_attributes", None) if batch is not None else None,
             color_code=grp.color_code, color_name=grp.color_name, color_hex=grp.color_hex,
             labdip_variant_code=grp.labdip_variant_code,
-            claimed_by_order_code=claimed_by.get((item.id, loc.id)) if released else None,
+            claimed_by_order_code=_claimed_code(item.id, loc.id, bal.variant_key) if released else None,
         ))
 
     # History rows deliberately touch neither the qty totals nor `lot_count`:

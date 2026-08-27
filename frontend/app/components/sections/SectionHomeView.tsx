@@ -135,7 +135,7 @@ function buildSection(key: string, d: any, tzDate: (v: string | Date) => string)
         kpis: [
           { label: 'Total SKUs', value: totalSkus, tab: 'inventory' },
           { label: 'Low Stock',  value: lowStock, tone: lowStock > 0 ? 'crit' : 'ok', tab: 'inventory' },
-          { label: 'Total Qty',  value: Math.round(totalQty).toLocaleString(), tab: 'stock-on-hand' },
+          { label: 'Total Qty',  value: Math.round(totalQty).toLocaleString(), tab: 'stock' },
           { label: 'Locations',  value: locCount, tab: 'locations' },
         ],
         list: { title: 'Recent Movements', cols: ['Item', 'Qty'], rows },

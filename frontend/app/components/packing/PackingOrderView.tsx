@@ -19,7 +19,10 @@ import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import { LotChips, LotChip } from '../shared/LotChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
-import { BoxRow, seedBoxRows, filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload } from '../shared/packingBoxes';
+import {
+    BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
+    filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload,
+} from '../shared/packingBoxes';
 import { basePerAlt, altToBase, baseToAlt, orderBasePerAlt, formatAlt, lengthPerAlt } from '../shared/altUnit';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
@@ -787,9 +790,15 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                 work_center_id: workCenterId || null,
                 sales_order_id: soId || null,
                 sales_order_line_id: soLineId || null,
-                // Variant is deliberately not sent: it is resolved from the source
-                // lot's own StockBalance row at pack time (the SO-line inheritance
-                // path on the server still fills it when packing to order).
+                // A hand-typed variant is still never sent — the pack event resolves
+                // it from the source lot's own StockBalance row. But a Quarantine
+                // Packing deep link is not hand-typed: it carries the exact shade of
+                // the MO group being packed, and stating it is what stops the order
+                // from claiming (and offering) every other colour of the same FG
+                // sitting in the same hold bin. Packing to stock with no hint keeps
+                // the old variant-less behaviour.
+                color_id: initialValues?.color_id || null,
+                attribute_value_ids: initialValues?.combo_value_id ? [initialValues.combo_value_id] : [],
                 notes: notes || null,
                 materials: materials
                     .filter(m => m.item_id && num(m.qty_planned) > 0)
@@ -1157,8 +1166,16 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         setLotsLoading(true);
         (async () => {
             try {
+                // `variant_key` scopes the fetch to the shade this order is packing.
+                // Two MOs of the same FG in different colours share a hold bin, so
+                // the unscoped (item, location) fetch offered the other colour's lots
+                // as if they were packable — and the pack endpoint refuses them. The
+                // match rule lives on the server (stock_service.variant_matches) so
+                // the picker and the gate can't drift; an order with no variant of
+                // its own (packing to stock) still sees the whole pool.
+                const vq = po.variant_key ? `&variant_key=${encodeURIComponent(po.variant_key)}` : '';
                 const res = await authFetch(
-                    `${API_BASE}/batches?item_id=${po.item_id}&location_id=${po.source_location_id}&limit=200&with_source_lots=true`
+                    `${API_BASE}/batches?item_id=${po.item_id}&location_id=${po.source_location_id}${vq}&limit=200&with_source_lots=true`
                 );
                 const list = res.ok ? (await res.json() || []) : [];
                 if (!alive) return;
@@ -1177,7 +1194,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             }
         })();
         return () => { alive = false; };
-    }, [po.item_id, po.source_location_id, useLotPicker, authFetch, po.qty_packed]);
+    }, [po.item_id, po.source_location_id, po.variant_key, useLotPicker, authFetch, po.qty_packed]);
 
     const selSet = new Set(selectedLots);
     const selAvailable = lots.filter((b: any) => selSet.has(String(b.id)))
@@ -1205,21 +1222,28 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const takeByBatch: Record<string, number> = {};
     for (const l of alloc) takeByBatch[l.batch_id] = l.qty;
 
-    // Boxes are edited as one flat list against the combined total, regardless
-    // of how many lots feed it — the server is the one that works out which lot
-    // backs each box (splitting a box across a lot boundary if needed), so the
-    // packer never has to think about lot lines while boxing up.
-    // `kg` is the scale reading for that physical carton, entered by the packer —
-    // it is the label's N.W. line and is never derived from qty (the item's UOM
-    // may be yards, and the same yardage weighs differently per lot).
-    const [boxRows, setBoxRows] = useState<BoxRow[]>([]);
+    // Boxes are edited against the combined total regardless of how many lots feed
+    // it — the server is the one that works out which lot backs each box (splitting
+    // a box across a lot boundary if needed), so the packer never has to think
+    // about lot lines while boxing up.
+    //
+    // They are edited as `count × qty each` groups, not one row per box: 17 kg in
+    // 5 kg boxes reads "3 × 5 kg, 1 × 2 kg = 17 kg" instead of a four-row list the
+    // packer has to add up. `expandBoxGroups` flattens back to one entry per
+    // physical carton for everything downstream, so the payload is unchanged.
+    // `kg` stays per carton inside a group — it is the packer's scale reading and
+    // the label's N.W. line, never derived from qty (the item's UOM may be yards,
+    // and the same yardage weighs differently per lot).
+    const [boxGroups, setBoxGroups] = useState<BoxGroup[]>([]);
+    const [openGroups, setOpenGroups] = useState<Set<number>>(new Set());
+    const boxRows = useMemo(() => expandBoxGroups(boxGroups), [boxGroups]);
     const packTotal = useLotPicker ? drawn : num(qty);
 
-    // Seed once a qty is entered and no rows exist yet (a fresh form, or right
+    // Seed once a qty is entered and no groups exist yet (a fresh form, or right
     // after Regenerate clears them) — after that, edits belong to the user.
     useEffect(() => {
-        if (boxRows.length === 0 && packTotal > 0) {
-            setBoxRows(seedBoxRows(packTotal, num(boxSize), [], hasAlt ? altFactor : null));
+        if (boxGroups.length === 0 && packTotal > 0) {
+            setBoxGroups(seedBoxGroups(packTotal, num(boxSize), [], hasAlt ? altFactor : null));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [packTotal]);
@@ -1227,27 +1251,42 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // Regenerate rebuilds the qty split but keeps weights already keyed in
     // positionally — re-splitting after a typo shouldn't wipe the scale readings.
     const regenerateBoxes = () =>
-        setBoxRows(prev => seedBoxRows(packTotal, num(boxSize), prev, hasAlt ? altFactor : null));
-    const updateBoxRow = (i: number, patch: Partial<BoxRow>) =>
-        setBoxRows(prev => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
-    const removeBoxRow = (i: number) => setBoxRows(prev => prev.filter((_, idx) => idx !== i));
-    const addBoxRow = () => setBoxRows(prev => [...prev, { qty: '', kg: '', alt: '' }]);
+        setBoxGroups(prev => seedBoxGroups(packTotal, num(boxSize), prev, hasAlt ? altFactor : null));
+    const updateGroup = (i: number, patch: Partial<BoxGroup>) =>
+        setBoxGroups(prev => prev.map((g, idx) => (idx === i ? { ...g, ...patch } : g)));
+    const removeGroup = (i: number) => setBoxGroups(prev => prev.filter((_, idx) => idx !== i));
+    const addGroup = () => setBoxGroups(prev => [...prev, emptyBoxGroup()]);
+    const toggleGroup = (i: number) => setOpenGroups(prev => {
+        const next = new Set(prev);
+        next.has(i) ? next.delete(i) : next.add(i);
+        return next;
+    });
+    // One carton's scale reading inside a group. Sparse by design — a group of 3
+    // with only #2 weighed keeps ['', '4.95'] rather than inventing the other two.
+    const setGroupWeight = (i: number, box: number, val: string) =>
+        setBoxGroups(prev => prev.map((g, idx) => {
+            if (idx !== i) return g;
+            const kg = [...g.kg];
+            while (kg.length <= box) kg.push('');
+            kg[box] = val;
+            return { ...g, kg };
+        }));
 
     // Typing a count fills the base qty; typing a base qty only back-fills a count
     // that isn't there yet. That asymmetry is the point: on a kg item the packer
     // types 12 Pcs, the qty pre-fills at the theoretical 10.80, and then the scale
     // reading of 10.62 replaces it — which must not turn the count into 11.8.
-    const setBoxAlt = (i: number, val: string) => {
+    const setGroupAlt = (i: number, val: string) => {
         const derived = altToBase(num(val), altFactor);
-        updateBoxRow(i, {
+        updateGroup(i, {
             alt: val,
             ...(derived !== null && num(val) > 0 ? { qty: String(derived) } : {}),
         });
     };
-    const setBoxQty = (i: number, val: string) => {
-        const row = boxRows[i];
-        const backfill = hasAlt && !(num(row?.alt) > 0) ? baseToAlt(num(val), altFactor) : null;
-        updateBoxRow(i, {
+    const setGroupQty = (i: number, val: string) => {
+        const g = boxGroups[i];
+        const backfill = hasAlt && !(num(g?.alt) > 0) ? baseToAlt(num(val), altFactor) : null;
+        updateGroup(i, {
             qty: val,
             ...(backfill !== null ? { alt: String(backfill) } : {}),
         });
@@ -1358,7 +1397,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             if (res.ok) {
                 const fresh = await res.json();
                 setPo(fresh);
-                setQty(''); setQtyAlt(''); setPackNotes(''); setBoxRows([]);
+                setQty(''); setQtyAlt(''); setPackNotes(''); setBoxGroups([]); setOpenGroups(new Set());
                 showToast(`Packed ${q} into ${boxValues.length} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
                 await onChanged();
             } else {
@@ -1532,7 +1571,12 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                             </div>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                                 <div style={{ flex: 1 }}>
-                                    <label style={{ ...xpFormLabel, fontWeight: 'bold' }}>Box size</label>
+                                    <label style={{ ...xpFormLabel, fontWeight: 'bold' }}>
+                                        Box size
+                                        <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
+                                            — a shortcut for filling the lines below
+                                        </span>
+                                    </label>
                                     <input
                                         type="number"
                                         style={{ ...xpInput, width: '100%' }}
@@ -1546,7 +1590,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     type="button"
                                     className={XP_BTN}
                                     onClick={regenerateBoxes}
-                                    title="Reset the box list below from Qty to Pack ÷ Box size"
+                                    title={`Refill the lines below: as many full ${po.package_label.toLowerCase()}s of Box size as fit, plus one for the remainder`}
                                     style={{ ...xpBtn(), fontSize: 9, padding: '3px 8px', marginBottom: 1 }}
                                 >
                                     Regenerate
@@ -1557,85 +1601,167 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span>
                                         {po.package_label}s to be Made
+                                        <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
+                                            — count × qty each; the lines add up to the pack total
+                                        </span>
                                         {hasAlt && (
                                             <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
-                                                — {altUom} per {po.package_label.toLowerCase()} sets its {uom}
+                                                ({altUom} per {po.package_label.toLowerCase()} sets its {uom})
                                             </span>
                                         )}
                                         {qtyIsWeight && (
                                             <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
-                                                — weighed in {uom}, so each {po.package_label.toLowerCase()}&apos;s qty is its net weight
+                                                (weighed in {uom}, so each {po.package_label.toLowerCase()}&apos;s qty is its net weight)
                                             </span>
                                         )}
                                     </span>
-                                    <button
-                                        type="button"
-                                        className={XP_BTN}
-                                        onClick={addBoxRow}
-                                        style={{ ...xpBtn(), fontSize: 9, padding: '0 6px' }}
-                                    >+ Add {po.package_label.toLowerCase()}</button>
+                                    <XPActionButton
+                                        classic={CLASSIC}
+                                        tone="primary"
+                                        icon="bi-plus-lg"
+                                        title={`Add another ${po.package_label.toLowerCase()} line`}
+                                        onClick={addGroup}
+                                    />
                                 </label>
-                                <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 140, overflowY: 'auto' }}>
-                                    {boxRows.length === 0 && (
+                                <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 168, overflowY: 'auto' }}>
+                                    {boxGroups.length === 0 && (
                                         <div style={{ fontSize: 10, color: '#888', padding: '4px 5px' }}>
-                                            Enter a quantity above to generate boxes.
+                                            Enter a quantity above to generate {po.package_label.toLowerCase()}s.
                                         </div>
                                     )}
-                                    {boxRows.map((b, i) => (
-                                        <div key={i} style={{
-                                            display: 'flex', alignItems: 'center', gap: 5, padding: '2px 5px',
-                                            borderBottom: '1px solid #eceae2',
+                                    {boxGroups.length > 0 && (
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', gap: 5, padding: '1px 5px',
+                                            fontSize: 9, color: '#888', fontVariant: 'all-small-caps', letterSpacing: 0.3,
+                                            background: '#f7f6f0', borderBottom: '1px solid #d8d5cc',
+                                            position: 'sticky', top: 0, zIndex: 1,
                                         }}>
-                                            <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>#{i + 1}</span>
-                                            {/* The count in the box, printed on the carton label. Stored
-                                                rather than divided back out of the qty, which on a kg item
-                                                is the scale reading. */}
-                                            {hasAlt && (
-                                                <>
-                                                    <input
-                                                        type="number"
-                                                        style={{ ...xpInput, width: 56, textAlign: 'right' }}
-                                                        value={b.alt}
-                                                        onChange={e => setBoxAlt(i, e.target.value)}
-                                                        min="0" step="any"
-                                                        title={`How many ${altUom} went into this ${po.package_label.toLowerCase()} — printed on the label`}
-                                                    />
-                                                    <span style={{ fontSize: 9, color: '#888', width: 24, flexShrink: 0 }}>{altUom}</span>
-                                                </>
-                                            )}
-                                            <input
-                                                type="number"
-                                                style={{ ...xpInput, flex: 1, minWidth: 0 }}
-                                                value={b.qty}
-                                                onChange={e => setBoxQty(i, e.target.value)}
-                                                min="0" step="any"
-                                            />
-                                            {uom && <span style={{ fontSize: 9, color: '#888', width: 26, flexShrink: 0 }}>{uom}</span>}
-                                            {/* Net weight off the scale — prints as N.W. on the carton label.
-                                                Hidden for a kg item: the qty beside it is already that weight. */}
-                                            {!qtyIsWeight && (
-                                                <>
-                                                    <input
-                                                        type="number"
-                                                        style={{ ...xpInput, width: 62, background: num(b.kg) > 0 ? '#fff' : '#fffbe6' }}
-                                                        value={b.kg}
-                                                        onChange={e => updateBoxRow(i, { kg: e.target.value })}
-                                                        min="0" step="any"
-                                                        required
-                                                        placeholder="net wt"
-                                                        title="Net weight of this carton off the scale — printed as N.W. on the label"
-                                                    />
-                                                    <span style={{ fontSize: 9, color: '#888', width: 16, flexShrink: 0 }}>kg</span>
-                                                </>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => removeBoxRow(i)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aa0000', fontSize: 13, fontWeight: 'bold', padding: '0 3px' }}
-                                                title="Remove"
-                                            >×</button>
+                                            <span style={{ width: 46, flexShrink: 0, textAlign: 'right' }}>{po.package_label}s</span>
+                                            <span style={{ width: 12, flexShrink: 0 }} />
+                                            {hasAlt && <span style={{ width: 56 + 24 + 5, flexShrink: 0 }}>{altUom} each</span>}
+                                            <span style={{ flex: 1, minWidth: 0 }}>{uom || 'Qty'} each</span>
+                                            <span style={{ width: 78, flexShrink: 0, textAlign: 'right' }}>Line total</span>
+                                            <span style={{ width: 40, flexShrink: 0 }} />
                                         </div>
-                                    ))}
+                                    )}
+                                    {boxGroups.map((g, i) => {
+                                        const count = groupCount(g);
+                                        const lineTotal = groupTotal(g);
+                                        // Cartons before this line, so an expanded row numbers its
+                                        // boxes the way the printed labels will be numbered.
+                                        const offset = boxGroups.slice(0, i).reduce((s, p) => s + groupCount(p), 0);
+                                        const weighed = Array.from({ length: count }, (_, k) => num(g.kg[k]) > 0).filter(Boolean).length;
+                                        const open = openGroups.has(i);
+                                        return (
+                                            <React.Fragment key={i}>
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', gap: 5, padding: '2px 5px',
+                                                    borderBottom: open ? 'none' : '1px solid #eceae2',
+                                                }}>
+                                                    {/* How many identical cartons this line stands for — the
+                                                        multiplier the packer actually counts on the floor. */}
+                                                    <input
+                                                        type="number"
+                                                        style={{ ...xpInput, width: 46, textAlign: 'right', flexShrink: 0, fontWeight: 'bold' }}
+                                                        value={g.count}
+                                                        onChange={e => updateGroup(i, { count: e.target.value })}
+                                                        min="0" step="1"
+                                                        title={`How many ${po.package_label.toLowerCase()}s of this size`}
+                                                    />
+                                                    <span style={{ fontSize: 11, color: '#888', width: 12, flexShrink: 0, textAlign: 'center' }}>×</span>
+                                                    {/* The count in each box, printed on the carton label. Stored
+                                                        rather than divided back out of the qty, which on a kg item
+                                                        is the scale reading. */}
+                                                    {hasAlt && (
+                                                        <>
+                                                            <input
+                                                                type="number"
+                                                                style={{ ...xpInput, width: 56, textAlign: 'right' }}
+                                                                value={g.alt}
+                                                                onChange={e => setGroupAlt(i, e.target.value)}
+                                                                min="0" step="any"
+                                                                title={`How many ${altUom} go into each ${po.package_label.toLowerCase()} on this line — printed on the label`}
+                                                            />
+                                                            <span style={{ fontSize: 9, color: '#888', width: 24, flexShrink: 0 }}>{altUom}</span>
+                                                        </>
+                                                    )}
+                                                    <input
+                                                        type="number"
+                                                        style={{ ...xpInput, flex: 1, minWidth: 0 }}
+                                                        value={g.qty}
+                                                        onChange={e => setGroupQty(i, e.target.value)}
+                                                        min="0" step="any"
+                                                        title={`${uom || 'Qty'} in each ${po.package_label.toLowerCase()} on this line`}
+                                                    />
+                                                    {/* The addition half: what this line contributes to the pack
+                                                        total, so the packer never multiplies in their head. */}
+                                                    <span style={{
+                                                        width: 78, flexShrink: 0, textAlign: 'right', fontSize: 10,
+                                                        fontWeight: 'bold', color: lineTotal > 0 ? '#2e7d32' : '#bbb',
+                                                        whiteSpace: 'nowrap',
+                                                    }}>
+                                                        = {lineTotal.toFixed(2)}
+                                                    </span>
+                                                    {/* Per-carton scale readings live one level down: cartons of
+                                                        the same size still weigh differently, and the label prints
+                                                        each box's own N.W. A kg item has no such row — its qty
+                                                        already IS that weight. */}
+                                                    {!qtyIsWeight ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleGroup(i)}
+                                                            style={{
+                                                                background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px',
+                                                                fontSize: 9, width: 22, flexShrink: 0, whiteSpace: 'nowrap',
+                                                                color: count > 0 && weighed < count ? '#9a6a00' : '#2e7d32',
+                                                            }}
+                                                            title={count > 0 && weighed < count
+                                                                ? `${count - weighed} of ${count} still to weigh`
+                                                                : `All ${count} weighed`}
+                                                        >
+                                                            <i className={`bi ${open ? 'bi-chevron-down' : 'bi-chevron-right'}`} />
+                                                            {count > 0 && weighed < count && <span style={{ marginLeft: 1 }}>{weighed}/{count}</span>}
+                                                        </button>
+                                                    ) : <span style={{ width: 22, flexShrink: 0 }} />}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeGroup(i)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aa0000', fontSize: 13, fontWeight: 'bold', padding: '0 3px', flexShrink: 0 }}
+                                                        title="Remove this line"
+                                                    >×</button>
+                                                </div>
+                                                {open && !qtyIsWeight && (
+                                                    <div style={{ borderBottom: '1px solid #eceae2', background: '#fbfaf6', padding: '2px 5px 3px 22px' }}>
+                                                        {count === 0 && (
+                                                            <div style={{ fontSize: 9, color: '#888' }}>
+                                                                Set a {po.package_label.toLowerCase()} count to weigh.
+                                                            </div>
+                                                        )}
+                                                        {Array.from({ length: count }, (_, k) => (
+                                                            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '1px 0' }}>
+                                                                <span style={{ fontSize: 9, color: '#888', width: 30, flexShrink: 0 }}>#{offset + k + 1}</span>
+                                                                <span style={{ fontSize: 9, color: '#999', flex: 1, minWidth: 0 }}>
+                                                                    {num(g.qty) > 0 ? `${num(g.qty)} ${uom || ''}` : '—'}
+                                                                </span>
+                                                                <span style={{ fontSize: 9, color: '#888', flexShrink: 0 }}>net wt</span>
+                                                                <input
+                                                                    type="number"
+                                                                    style={{ ...xpInput, width: 62, background: num(g.kg[k]) > 0 ? '#fff' : '#fffbe6' }}
+                                                                    value={g.kg[k] || ''}
+                                                                    onChange={e => setGroupWeight(i, k, e.target.value)}
+                                                                    min="0" step="any"
+                                                                    required
+                                                                    placeholder="net wt"
+                                                                    title="Net weight of this carton off the scale — printed as N.W. on the label"
+                                                                />
+                                                                <span style={{ fontSize: 9, color: '#888', width: 16, flexShrink: 0 }}>kg</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
                                 </div>
                                 <div style={{
                                     display: 'flex', alignItems: 'center', gap: 6, fontSize: 10,
