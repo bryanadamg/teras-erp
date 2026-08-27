@@ -901,7 +901,11 @@ async def list_work_orders_flat(
             color_id=str(mo.color_id) if mo and mo.color_id else None,
             color_code=color.code if color else None,
             color_name=color.name if color else None,
-            color_hex=color.hex if color else None,
+            # Color Library's own hex first; the mirrored `Colors` variant-attribute
+            # value (already resolved above for `color_label`) is a second source
+            # for the same shade and is filled in more often — same fallback chain
+            # `resolveColorHex` uses on the frontend for lotted batches.
+            color_hex=(color.hex if color else None) or (color_val.hex if color_val else None),
             labdip_variant_code=mo.labdip_variant_code if mo else None,
             completions=completions_flat,
             bom_line_item_ids=bom_line_item_ids,
