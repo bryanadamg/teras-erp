@@ -3129,6 +3129,8 @@ class PackingOrderResponse(BaseModel):
     ket_stock: str | None = None
     color_id: UUID | None = None
     color_name: str | None = None
+    color_code: str | None = None
+    color_hex: str | None = None
     attribute_value_ids: list[UUID] = []
     # The order's variant identity in StockBalance form (attribute UUIDs + `c:<uuid>`).
     # Empty string = the order declares no variant, so any lot of the item at the

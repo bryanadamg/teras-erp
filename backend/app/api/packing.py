@@ -129,6 +129,8 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     # pack screens, the labels and this API agree on one conversion.
     po.uom2_base_factor = packing_service.order_base_per_alt(po)
     po.color_name = po.color.name if po.color else None
+    po.color_code = po.color.code if po.color else None
+    po.color_hex = po.color.hex if po.color else None
     po.attribute_value_ids = [v.id for v in (po.attribute_values or [])]
     # Same key StockBalance rows are written under, so the lot picker can match a
     # lot's shade against the order's without restating the folding rules.

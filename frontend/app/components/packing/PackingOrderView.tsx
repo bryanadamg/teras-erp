@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,6 +19,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import { LotChips, LotChip } from '../shared/LotChips';
+import VariantChips from '../shared/VariantChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 import {
     BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
@@ -74,6 +76,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     const { confirm } = useConfirm();
     const { hasPermission } = useUser();
     const canManage = hasPermission('sales.manage');
+    const router = useRouter();
 
     // Page window, fetch, `loading` (true from first paint, so the list shows the
     // loader rather than "none yet") and the stale-response race guard all come from
@@ -449,10 +452,29 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                         onToggle={() => setExpandedId(prev => prev === String(po.id) ? null : String(po.id))} />
                                     <td style={td}><CodeChip code={po.code} classic={CLASSIC} tone="accent" style={{ fontWeight: 'bold' }} /></td>
                                     <td style={td}>
-                                        <div>{po.item_name || it?.name || po.item_id}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+                                            <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.item_name || it?.name || po.item_id}</span>
+                                            <VariantChips
+                                                colorCode={po.color_code}
+                                                colorName={po.color_name}
+                                                colorHex={po.color_hex}
+                                                scale="xs"
+                                                classic={CLASSIC}
+                                            />
+                                        </div>
                                         <div style={{ fontSize: 9, color: '#888' }}>{po.item_code || it?.code}</div>
                                     </td>
-                                    <td style={td}>{po.sales_order_code || <span style={{ color: '#888' }}>to stock</span>}</td>
+                                    <td style={td} onClick={e => e.stopPropagation()}>
+                                        {po.sales_order_code ? (
+                                            <CodeChip
+                                                code={po.sales_order_code}
+                                                classic={CLASSIC}
+                                                link
+                                                title={`Open Sales Order ${po.sales_order_code}`}
+                                                onClick={() => router.push(`/sales-orders?so=${encodeURIComponent(po.sales_order_code)}`)}
+                                            />
+                                        ) : <span style={{ color: '#888' }}>to stock</span>}
+                                    </td>
                                     <td style={td}><StatusChip status={po.status} /></td>
                                     <td style={{ ...td, textAlign: 'right' }}>{num(po.qty_target).toLocaleString()} {po.item_uom || it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
