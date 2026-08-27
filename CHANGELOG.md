@@ -15,6 +15,25 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-27
+
+### Added
+- Avatars now render from Dicebear pixel-art recipes instead of hand-drawn sprites, with a rebuilt picker on shared chrome that shows a hover-to-try-on preview and a mouth colour slot; roles get a default avatar template so a fresh executive account doesn't roll a party hat, seeded onto Administrator and Manager
+- The sidebar user button forms into a staff ID card around the user's avatar once their username is confirmed, and the login screen shows the signed-in user's own avatar and is branded as the Terras suite rather than a generic ERP login
+- Scheduled recurring database backups
+- Pack cartons are entered as count x qty each instead of one row per box, with a plus button to add lines
+
+### Changed
+- Settings is now entered from the sidebar avatar pill instead of a separate nav item; the settings shell is viewport-sized so it stops resizing between tabs, and panels lay out in columns instead of one full-bleed stack
+- `/stock-on-hand` is consolidated into `/stock`, closing the deprecated desktop stock-entry route
+- Scanner entry screen reworked onto the shared mobile scan-terminal chrome
+- Application name editing is restricted to admins
+- Routing's work-center code column is wider so nested codes stop wrapping
+
+### Fixed
+- Quarantine's "claimed by an open packing order" lock and the packing lot picker now scope by colour variant instead of item+location alone — one colour's open packing order no longer greys out or offers every other colour of the same finished good
+- Tooltip layer raised above the modal tier; the sidebar ID card's double tooltip is replaced with a glimmer hover; the login form no longer echoes every label and button on it as one giant tooltip at narrow widths
+
 ## [0.12.0] - 2026-08-26
 
 ### Added
