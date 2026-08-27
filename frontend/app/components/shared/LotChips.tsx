@@ -51,15 +51,19 @@ export const lotComboLabel = (b: LotLike): string | null => {
  * reads them together, so they never split into two chips. A lot ordered against
  * an unapproved lab dip has only `labdip_variant_code`; that shows as pending.
  */
-export const lotColorLabel = (b: LotLike): { label: string; hex?: string | null; pending: boolean } | null => {
+export const lotColorLabel = (b: LotLike): { label: string; name?: string | null; hex?: string | null; pending: boolean } | null => {
     const attrs = b?.variant_attributes || [];
     const attrCode = attrs.find(a => a.system_role === 'labdip_color');
     const attrName = attrs.find(a => a.system_role === 'color');
     const code = b?.color_code || attrCode?.value || null;
     const name = b?.color_name || attrName?.value || null;
     if (code || name) {
+        // Code and name are usually the same text — show the code alone, same as
+        // every other page's colour chip, and keep the name only for the tooltip
+        // when it actually says something the code doesn't.
         return {
-            label: [code, name].filter(Boolean).join(' '),
+            label: code || name || '',
+            name,
             hex: b?.color_hex || attrName?.hex || null,
             pending: false,
         };
@@ -148,12 +152,13 @@ export function LotChips({
         );
     }
     if (color) {
+        const colorFull = color.name && color.name !== color.label ? `${color.label} — ${color.name}` : color.label;
         chips.push(
             <LotChip
                 key="color"
                 tone={color.pending ? 'pending' : 'color'}
                 swatch={color.hex || null}
-                title={color.pending ? `Shade pending lab dip approval: ${color.label}` : `Color: ${color.label}`}
+                title={color.pending ? `Shade pending lab dip approval: ${colorFull}` : `Color: ${colorFull}`}
             >
                 {color.label}{color.pending ? ' (pending)' : ''}
             </LotChip>,
