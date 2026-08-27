@@ -1549,6 +1549,13 @@ async def add_mo_completion(
         # its own qty from the input location; these items are then skipped below.
         for item_id, lots in lots_by_item.items():
             for b, qty in lots:
+                # A batched output keeps its MO's variant attrs beside the batch
+                # (see the output post below), so a lot's stock does NOT sit under
+                # an empty variant key — re-post under whatever it is actually
+                # keyed as, or the deduction misses the row and 400s on a lot the
+                # floor can see. Beams are the empty-variant exception and resolve
+                # to [] here on their own.
+                l_attrs, l_color = await stock_service.batch_variant(db, b.id, wo_input_loc)
                 await stock_service.add_stock_entry(
                     db,
                     item_id=uuid.UUID(item_id),
@@ -1556,7 +1563,8 @@ async def add_mo_completion(
                     qty_change=-qty,
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    attribute_value_ids=[],
+                    attribute_value_ids=l_attrs,
+                    color_id=l_color,
                     batch_id=b.id,
                 )
                 consumed_by_batch[str(b.id)] = consumed_by_batch.get(str(b.id), 0.0) + qty
@@ -1572,6 +1580,10 @@ async def add_mo_completion(
                     )
                     continue
                 in_batch = batch_by_item.get(str(ai.item_id))
+                b_attrs, b_color = (
+                    await stock_service.batch_variant(db, in_batch.id, wo_input_loc)
+                    if in_batch else ([], None)
+                )
                 await stock_service.add_stock_entry(
                     db,
                     item_id=ai.item_id,
@@ -1579,7 +1591,8 @@ async def add_mo_completion(
                     qty_change=-float(ai.qty_used),
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    attribute_value_ids=[],
+                    attribute_value_ids=b_attrs,
+                    color_id=b_color,
                     batch_id=in_batch.id if in_batch else None,
                 )
                 if in_batch:
@@ -1602,6 +1615,12 @@ async def add_mo_completion(
                     continue
                 deduct_loc_id = comp.source_location_id or wo_input_loc
                 in_batch = batch_by_item.get(str(comp.item_id))
+                # A lot is not variant-less: re-post it under the key its balance
+                # row actually holds, not an assumed empty one.
+                c_attrs, c_color = (
+                    await stock_service.batch_variant(db, in_batch.id, deduct_loc_id)
+                    if in_batch else ([uuid.UUID(s) for s in comp.attribute_value_ids], None)
+                )
                 await stock_service.add_stock_entry(
                     db,
                     item_id=comp.item_id,
@@ -1609,8 +1628,8 @@ async def add_mo_completion(
                     qty_change=-req,
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    # lot batch rows carry no variant attrs — the batch is the identity
-                    attribute_value_ids=[] if in_batch else [uuid.UUID(s) for s in comp.attribute_value_ids],
+                    attribute_value_ids=c_attrs,
+                    color_id=c_color,
                     batch_id=in_batch.id if in_batch else None,
                 )
                 if in_batch:

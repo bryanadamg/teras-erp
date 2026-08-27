@@ -1177,6 +1177,14 @@ async def stage_wo_materials(
                 detail=f"Select a lot/beam for {rr.item_code or line.item_id} — it is batch-tracked",
             )
         attrs = [str(a) for a in (line.attribute_value_ids or rr.attribute_value_ids or [])]
+        # A lot's stock sits under whatever variant key it was produced with (a
+        # greige lot off a BLUE/M MO keeps those attrs beside the batch), so both
+        # sides of the transfer have to re-post under that same key. Reading it
+        # back off the balance row is the only source of truth — the WO's own
+        # required-material attrs are the demand, not what the lot was keyed under.
+        move_color = None
+        if line.batch_id:
+            attrs, move_color = await stock_service.batch_variant(db, line.batch_id, src)
 
         # A lot already staged to another WO at this source is that WO's material —
         # taking it here is the same theft the consumption guard blocks, one step
@@ -1197,13 +1205,13 @@ async def stage_wo_materials(
         await stock_service.add_stock_entry(
             db, item_id=line.item_id, location_id=src, qty_change=-move_qty,
             reference_type="Staging", reference_id=str(wo.id),
-            attribute_value_ids=[] if line.batch_id else attrs,
+            attribute_value_ids=attrs, color_id=move_color,
             batch_id=line.batch_id,
         )
         await stock_service.add_stock_entry(
             db, item_id=line.item_id, location_id=wo.input_location_id, qty_change=move_qty,
             reference_type="Staging", reference_id=str(wo.id),
-            attribute_value_ids=[] if line.batch_id else attrs,
+            attribute_value_ids=attrs, color_id=move_color,
             batch_id=line.batch_id,
         )
         staged_any = True
