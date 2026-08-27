@@ -100,13 +100,13 @@ def seed_system_attributes(db):
 #
 # `ht:` and `ac:` are the load-bearing pins: hat and accessories carry every
 # novelty variant in the pixel-art style, and turning them off is the whole reason
-# this exists. The rest (hair, clothing, eyes, mouth, beard and the four colours)
+# this exists. The rest (hair, clothing, eyes, mouth, beard and the five colours)
 # pin a plain business face, which means holders of these roles differ only in the
 # one slot left on Auto — glasses. That is deliberate: uniformity is the point for
 # a role that prints its name on a Surat Jalan.
 EXECUTIVE_AVATAR_TEMPLATE = (
     "v1|ayu|ht:|hr:short17|cl:variant03|ey:variant01|mo:sad06|bd:variant03|ac:"
-    "|sk:e0b687|hc:28150a|cc:03396c|hk:2e1e05"
+    "|sk:e0b687|hc:28150a|cc:03396c|hk:2e1e05|mc:c98276"
 )
 
 SYSTEM_CATEGORIES = {"Raw Material", "Finished Goods", "WIP", "Sample", "Chemical", "Dye"}
