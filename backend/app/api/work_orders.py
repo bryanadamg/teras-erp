@@ -29,7 +29,7 @@ from app.api.batches import (
 )
 from app.services import (
     audit_service, stock_service, beam_service, work_center_service, reject_service,
-    weaving_service, numbering_service,
+    weaving_service, numbering_service, staging_service,
 )
 from app.core.ws_manager import manager
 from datetime import datetime
@@ -1177,6 +1177,21 @@ async def stage_wo_materials(
                 detail=f"Select a lot/beam for {rr.item_code or line.item_id} — it is batch-tracked",
             )
         attrs = [str(a) for a in (line.attribute_value_ids or rr.attribute_value_ids or [])]
+
+        # A lot already staged to another WO at this source is that WO's material —
+        # taking it here is the same theft the consumption guard blocks, one step
+        # earlier. Normally a no-op: claims live at input locations and staging
+        # pulls from a store, so this only fires when the source IS someone's line.
+        if line.batch_id:
+            held = await staging_service.reserved_by_other(db, src, wo.id, [line.batch_id])
+            if held:
+                holder_codes = await staging_service.wo_codes(db, set(held.values()))
+                holder = holder_codes.get(next(iter(held.values()))) or "another work order"
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"That lot is already staged to {holder} — it has to leave that "
+                           f"work order's line before this one can take it",
+                )
 
         # Two-sided transfer: out of source store, into the WO's input location.
         await stock_service.add_stock_entry(

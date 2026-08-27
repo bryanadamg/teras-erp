@@ -14,6 +14,7 @@ from app.models.color import Color
 from app.services import (
     stock_service, audit_service, kpi_service, beam_service, mrp_service,
     work_center_service, so_fulfilment_service, reject_service, weaving_service,
+    staging_service,
 )
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
@@ -1418,6 +1419,34 @@ async def add_mo_completion(
             b = lot_map[str(cl.batch_id)]
             lots_by_item.setdefault(str(b.item_id), []).append((b, float(cl.qty)))
     lot_item_ids = set(lots_by_item.keys())
+
+    # A staged lot belongs to the WO it was staged to. Two sizes of one BOM run on
+    # the same machine, so they share an input location AND the same substrate
+    # item — without this the other size's operator can pick a bag off this line
+    # and consume another order's material (see services/staging_service.py).
+    # Enforced here rather than only in the picker: the mobile scanner, the desktop
+    # modal and a raw API call all land on this route.
+    if wo and wo_input_loc:
+        picked: dict[str, Batch] = {str(b.id): b for b in batch_by_item.values()}
+        for lots in lots_by_item.values():
+            for b, _qty in lots:
+                picked[str(b.id)] = b
+        if picked:
+            clash = await staging_service.reserved_by_other(
+                db, wo_input_loc, wo.id, list(picked.keys())
+            )
+            if clash:
+                holder_codes = await staging_service.wo_codes(db, set(clash.values()))
+                detail = "; ".join(
+                    f"{getattr(picked.get(bid), 'batch_number', None) or bid} is staged to "
+                    f"{holder_codes.get(holder) or 'another work order'}"
+                    for bid, holder in clash.items()
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{detail}. A staged lot is reserved for the work order it was "
+                           f"staged to — stage this WO's own lots instead.",
+                )
 
     # Per-operation consumption: a WO only consumes the materials allocated to its
     # routing step (planned_component.bom_operation_id == wo.bom_operation_id).

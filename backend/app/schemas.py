@@ -2837,6 +2837,13 @@ class BatchResponse(BaseModel):
     # beam's raw-material/yarn goods-receipt lots. Populated on demand only
     # (with_source_lots=true) so it powers RM-lot visibility at staging.
     source_lots: Optional[list[str]] = None
+    # Staging reservation: the WO this lot was staged to at the queried location
+    # (services/staging_service.py). Populated only when the caller passes a
+    # location_id — a claim is per (lot, location). A consumption picker must not
+    # offer a lot whose reserved_wo_id is some other WO: two sizes of one BOM
+    # share a machine, so they share an input location and the same substrate item.
+    reserved_wo_id: Optional[UUID] = None
+    reserved_wo_code: Optional[str] = None
 
     class Config:
         from_attributes = True

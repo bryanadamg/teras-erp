@@ -146,6 +146,13 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
             const b = await res.json();
             if (cartIdsRef.current.has(b.id)) { showToast(`${b.batch_number} already scanned`, 'warning'); return; }
             if (b.quality_status === 'REJECTED') { showToast(`${b.batch_number} is REJECTED — skipped`, 'danger'); return; }
+            // Already on another WO's line: that WO's stager put it there and its
+            // operator is going to consume it. Blocked here as well as server-side so
+            // the scan fails at the bag, not at the end of a 30-bag cart.
+            if (b.reserved_wo_id && String(b.reserved_wo_id) !== String(wo.id)) {
+                showToast(`${b.batch_number} is staged to ${b.reserved_wo_code || 'another work order'} — it must leave that line first`, 'danger');
+                return;
+            }
             if (!reqByItem[String(b.item_id)]) {
                 showToast(`${b.batch_number} (${b.item_code || 'item'}) is not a material for this WO`, 'danger');
                 return;

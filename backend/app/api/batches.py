@@ -20,7 +20,7 @@ from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchDispose, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service, quarantine_service
+from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service, quarantine_service, staging_service
 from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
 from datetime import datetime, timezone
@@ -336,6 +336,23 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
     # transfer to a normal store must not block anything (see quarantine_service).
     quarantine_loc_ids = await quarantine_service.quarantine_location_ids(db) if location_map else set()
 
+    # Which WO each lot was staged to. A staging claim is per (lot, location): with a
+    # location filter that is the queried one, and without one it is wherever the lot
+    # now sits — a lot moved back to a store is nobody's line stock any more. Honoured
+    # by every consumption picker; see services/staging_service.py.
+    reservation_map: dict[str, str] = {}
+    reservation_codes: dict[str, str] = {}
+    if batches:
+        if location_id:
+            reservation_map = await staging_service.batch_reservations(
+                db, location_id, [b.id for b in batches]
+            )
+        else:
+            reservation_map = await staging_service.reservations_at_current_location(
+                db, {str(b.id): location_map.get(str(b.id), (None, None))[0] for b in batches}
+            )
+        reservation_codes = await staging_service.wo_codes(db, set(reservation_map.values()))
+
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.location_id, b.location_name = location_map.get(str(b.id), (None, None))
@@ -344,6 +361,9 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
         b.item_code = b.item.code if b.item else None
         b.item_name = b.item.name if b.item else None
         b.held = bool(b.location_id in quarantine_loc_ids) and not quarantine_service.is_pass(b.quarantine_status)
+        holder = reservation_map.get(str(b.id))
+        b.reserved_wo_id = uuid.UUID(holder) if holder else None
+        b.reserved_wo_code = reservation_codes.get(holder) if holder else None
     await _resolve_gr_origins(db, list(batches))
     await _resolve_batch_origins(db, list(batches))
     await _resolve_batch_variants(db, list(batches))

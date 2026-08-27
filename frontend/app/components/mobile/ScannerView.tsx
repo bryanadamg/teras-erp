@@ -67,6 +67,10 @@ export default function MobileScannerView({
     const [subQuery, setSubQuery]               = useState('');
     const [beamNumber, setBeamNumber]           = useState('');
     const [batchesByItem, setBatchesByItem]     = useState<Record<string, any[]>>({});
+    // Lots on this line staged to a DIFFERENT WO — kept out of batchesByItem so the
+    // consumption checks never count a neighbour's bags, shown read-only so the
+    // operator learns why a bag in the rack isn't in the list.
+    const [reservedByItem, setReservedByItem]   = useState<Record<string, any[]>>({});
     const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
 
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
@@ -156,7 +160,7 @@ export default function MobileScannerView({
     // Lot input: each material line with batch stock at the input location gets a lot picker
     const materialItemIds = scannedWO ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
     useEffect(() => {
-        if (!materialItemIds.length) { setBatchesByItem({}); setConsumedBatches({}); return; }
+        if (!materialItemIds.length) { setBatchesByItem({}); setReservedByItem({}); setConsumedBatches({}); return; }
         const loc = scannedWO?.input_location_id;
         Promise.all(materialItemIds.map(id =>
             authFetch(`${API_BASE}/batches?item_id=${id}${loc ? `&location_id=${loc}` : ''}&limit=200`)
@@ -165,14 +169,21 @@ export default function MobileScannerView({
                 .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0 && b.quality_status !== 'REJECTED')] as const)
         )).then(pairs => {
             const map: Record<string, any[]> = {};
+            const held: Record<string, any[]> = {};
             for (const [id, list] of pairs) {
                 if (!list.length) continue;
                 // Weaving consumes from the merged kg pool — staged beams are
                 // consumed at WO start, so no per-beam pick here.
                 if (isWeavingWO && (isBeamItem(id) || list.every((b: any) => b.ends != null))) continue;
-                map[id] = list;
+                // Staged to another WO = that WO's material. The backend rejects it,
+                // so it is listed read-only rather than offered (see staging_service).
+                const mine = list.filter((b: any) => !b.reserved_wo_id || String(b.reserved_wo_id) === String(scannedWO?.id));
+                const theirs = list.filter((b: any) => b.reserved_wo_id && String(b.reserved_wo_id) !== String(scannedWO?.id));
+                if (theirs.length) held[id] = theirs;
+                if (mine.length) map[id] = mine;
             }
             setBatchesByItem(map);
+            setReservedByItem(held);
             setConsumedBatches(prev => {
                 const next: Record<string, string> = {};
                 for (const id of Object.keys(map)) { if (prev[id]) next[id] = prev[id]; }
@@ -472,23 +483,39 @@ export default function MobileScannerView({
                         })()}
 
                         {/* Lot pickers (consumption) */}
-                        {Object.keys(batchesByItem).map(itemId => (
+                        {Array.from(new Set([...Object.keys(batchesByItem), ...Object.keys(reservedByItem)])).map(itemId => (
                             <div key={itemId} style={{ marginBottom: 10 }}>
                                 <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
                                     Lot yang Dipakai — {materialRows.find(r => r.item_id === itemId)?.item_code || findItem(itemId)?.code || 'material'}
                                 </div>
-                                <select
-                                    value={consumedBatches[itemId] || ''}
-                                    onChange={e => setConsumedBatches(prev => ({ ...prev, [itemId]: e.target.value }))}
-                                    style={{ ...xpInput, appearance: 'auto' }}
-                                >
-                                    <option value="">— pilih lot —</option>
-                                    {batchesByItem[itemId].map((b: any) => (
-                                        <option key={b.id} value={b.id}>
-                                            {b.batch_number}{b.vendor_lot ? ` (supplier: ${b.vendor_lot})` : ''} — {Number(b.remaining ?? 0).toFixed(2)} sisa{b.ends ? `, ${b.ends} ends` : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                {(batchesByItem[itemId]?.length || 0) > 0 && (
+                                    <select
+                                        value={consumedBatches[itemId] || ''}
+                                        onChange={e => setConsumedBatches(prev => ({ ...prev, [itemId]: e.target.value }))}
+                                        style={{ ...xpInput, appearance: 'auto' }}
+                                    >
+                                        <option value="">— pilih lot —</option>
+                                        {batchesByItem[itemId].map((b: any) => (
+                                            <option key={b.id} value={b.id}>
+                                                {b.batch_number}{b.vendor_lot ? ` (supplier: ${b.vendor_lot})` : ''} — {Number(b.remaining ?? 0).toFixed(2)} sisa{b.ends ? `, ${b.ends} ends` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                                {/* Bags in the rack that belong to another WO's line — named, because
+                                    a bag the operator can see but not select reads as a broken list. */}
+                                {(reservedByItem[itemId] || []).length > 0 && (
+                                    <MobileNotice tone="amber" style={{ marginTop: 4, marginBottom: 0 }}>
+                                        <div style={{ fontWeight: 'bold', marginBottom: 3 }}>
+                                            Lot ini sudah di-stage ke WO lain — tidak bisa dipakai di sini:
+                                        </div>
+                                        {(reservedByItem[itemId] || []).map((b: any) => (
+                                            <div key={b.id}>
+                                                {b.batch_number} — {Number(b.remaining ?? 0).toFixed(2)} kg &rarr; {b.reserved_wo_code || 'WO lain'}
+                                            </div>
+                                        ))}
+                                    </MobileNotice>
+                                )}
                             </div>
                         ))}
 
