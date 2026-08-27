@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { rememberAvatar } from '../components/shared/avatarCache';
+import { resolveRecipe, serializeRecipe } from '../components/shared/avatarRecipe';
 
 interface Permission {
     id: string;
@@ -16,6 +17,8 @@ interface Role {
     allowed_work_center_types?: string[] | null;
     allowed_categories?: string[] | null;
     allowed_locations?: string[] | null;
+    /** Avatar template for users in this role with no saved avatar of their own. */
+    default_avatar_id?: string | null;
 }
 
 export interface User {
@@ -158,7 +161,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     // than to login() so it also covers session restore and profile saves —
     // including a reset back to the default, which forgets the old recipe.
     useEffect(() => {
-        if (currentUser) rememberAvatar(currentUser.username, currentUser.avatar_id);
+        if (!currentUser) return;
+        // Remember the EFFECTIVE recipe, not just an explicitly saved one: a role
+        // template lives behind auth, so the login screen can't re-derive it from
+        // the username the way it can re-derive a plain seeded face. Without this
+        // an executive would meet the unconstrained face on the login screen and
+        // their real one a second later.
+        rememberAvatar(currentUser.username, serializeRecipe(resolveRecipe(
+            currentUser.avatar_id,
+            currentUser.username,
+            currentUser.role?.default_avatar_id,
+        )));
     }, [currentUser]);
 
     const hasPermission = (permissionCode: string): boolean => {

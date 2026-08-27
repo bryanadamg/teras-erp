@@ -17,6 +17,7 @@ import {
     ColorKey,
     FEATURE_SLOTS,
     FeatureSlot,
+    parseRecipe,
     resolveRecipe,
     serializeRecipe,
     setColor,
@@ -112,6 +113,13 @@ interface AvatarPickerProps {
     onChange: (recipe: string) => void;
     /** Identity to seed from when `value` holds no recipe yet — usually username. */
     seed?: string | null;
+    /**
+     * Role default template applied while `value` is empty, so the picker opens on
+     * the face the rest of the app is already drawing for this user. Editing any
+     * slot commits the merged recipe, which is what promotes the role's pins into
+     * the user's own choice — after that the template no longer applies to them.
+     */
+    template?: string | null;
     classic?: boolean;
 }
 
@@ -124,9 +132,9 @@ interface AvatarPickerProps {
  * hovering an option previews it: a preview the picker doesn't own can't show a
  * candidate.
  */
-export default function AvatarPicker({ value, onChange, seed, classic }: AvatarPickerProps) {
+export default function AvatarPicker({ value, onChange, seed, template, classic }: AvatarPickerProps) {
     const [tab, setTab] = useState<TabKey>('hat');
-    const recipe = useMemo(() => resolveRecipe(value, seed), [value, seed]);
+    const recipe = useMemo(() => resolveRecipe(value, seed, template), [value, seed, template]);
 
     // The candidate under the cursor, or null when the stage is showing the real
     // avatar. Held as a whole recipe rather than a slot+value pair because a
@@ -142,6 +150,21 @@ export default function AvatarPicker({ value, onChange, seed, classic }: AvatarP
         setRolled(roll);
         setPreview(null);
         onChange(serializeRecipe(next));
+    };
+
+    /**
+     * Reset stores NOTHING rather than a pin-less recipe. The difference matters:
+     * `resolveRecipe` treats any stored recipe as "the user chose this" and stops
+     * before the role template, so a pin-less recipe would silently opt someone out
+     * of their role's default — the opposite of what a button called Reset means.
+     * Empty hands them back to whatever the default is (role template, else their
+     * username seed).
+     */
+    const clear = () => {
+        setNonce(n => n + 1);
+        setRolled(false);
+        setPreview(null);
+        onChange('');
     };
 
     const pinnedFeatures = FEATURE_SLOTS.filter(s => recipe.features[s.key] !== undefined);
@@ -284,11 +307,16 @@ export default function AvatarPicker({ value, onChange, seed, classic }: AvatarP
                         than in the slot tabs. */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', marginTop: 1 }}>
                         {smallBtn('Shuffle', 'bi-shuffle', 'Roll a brand new avatar', () => emit(shuffleRecipe(), true))}
-                        {pinnedCount > 0 && smallBtn(
+                        {/* Shown whenever there is anything to undo — a pinned slot, or a
+                            stored recipe that is only a shuffled seed (which pins nothing
+                            but is still a stored choice). */}
+                        {(pinnedCount > 0 || !!parseRecipe(value)) && smallBtn(
                             'Reset',
                             'bi-arrow-counterclockwise',
-                            'Clear every pinned slot back to Auto, keeping this seed',
-                            () => emit({ seed: recipe.seed, features: {}, colors: {} }),
+                            template
+                                ? 'Clear this avatar and go back to the role default'
+                                : 'Clear this avatar and go back to the default face',
+                            clear,
                         )}
                     </div>
                 </div>

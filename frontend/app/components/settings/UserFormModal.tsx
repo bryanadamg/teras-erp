@@ -63,6 +63,14 @@ export default function UserFormModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, user?.id]);
 
+    // Template comes from the role picked in this form, not the user's saved role:
+    // moving someone into an executive role should preview that role's default
+    // before the save, not after.
+    const roleAvatarTemplate = useMemo(
+        () => roles.find(r => r.id === roleId)?.default_avatar_id ?? null,
+        [roles, roleId],
+    );
+
     const rolePermissionIds = useMemo(() => {
         const role = roles.find(r => r.id === roleId);
         return role?.permissions?.map((p: any) => p.id) || [];
@@ -129,7 +137,7 @@ export default function UserFormModal({
                 hover-to-try-on stage) — don't add a second one here. */}
             <div className="mb-3">
                 <FieldLabel classic={classic}>Avatar</FieldLabel>
-                <AvatarPicker value={avatarId} onChange={setAvatarId} seed={username} classic={classic} />
+                <AvatarPicker value={avatarId} onChange={setAvatarId} seed={username} template={roleAvatarTemplate} classic={classic} />
             </div>
 
             {/* Paired two-up: at xl these single-line fields each stretching the full

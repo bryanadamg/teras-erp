@@ -402,7 +402,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
           }}
         >
           <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <PixelAvatar avatarId={currentUser?.avatar_id} seed={currentUser?.username} size={16} />
+            <PixelAvatar avatarId={currentUser?.avatar_id} seed={currentUser?.username} template={currentUser?.role?.default_avatar_id} size={16} />
           </div>
           <span data-testid="username-display" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser?.username}</span>
         </button>

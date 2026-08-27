@@ -56,11 +56,18 @@ interface PixelAvatarProps {
     avatarId?: string | null;
     /** Identity to seed from when there is no stored recipe — usually username. */
     seed?: string | null;
+    /**
+     * The user's role's `default_avatar_id` — a template whose pinned slots apply
+     * only while `avatarId` holds no recipe. Pass it wherever a user's avatar is
+     * drawn; leaving it off silently downgrades that one spot to the unconstrained
+     * seeded face, which is exactly the inconsistency it exists to prevent.
+     */
+    template?: string | null;
     size?: number;
     style?: CSSProperties;
 }
 
-export default function PixelAvatar({ avatarId, seed, size = 32, style }: PixelAvatarProps) {
-    const recipe = useMemo(() => resolveRecipe(avatarId, seed), [avatarId, seed]);
+export default function PixelAvatar({ avatarId, seed, template, size = 32, style }: PixelAvatarProps) {
+    const recipe = useMemo(() => resolveRecipe(avatarId, seed, template), [avatarId, seed, template]);
     return <PixelAvatarFromRecipe recipe={recipe} size={size} style={style} />;
 }

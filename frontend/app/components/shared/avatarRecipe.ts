@@ -14,6 +14,13 @@
  * rest of their avatar, and it maps onto DiceBear's `<slot>Probability`
  * companion options (0 = never, 100 = always).
  *
+ * The same string is also used as a ROLE TEMPLATE (`Role.default_avatar_id`),
+ * where only the `code:value` pairs matter and the seed is ignored — see
+ * `resolveRecipe`. That reuse is the whole reason the three-state slot encoding
+ * above exists: a template can say "no hat, no accessories" and leave hair, eyes
+ * and mouth to each user's own seed, so a role sets a dress code without giving
+ * everyone in it the same face.
+ *
  * Anything not starting with `v1|` is a pre-DiceBear value — the old '1'..'10'
  * hand-drawn sprite ids — and resolves to a username-seeded avatar instead.
  * The old sprites are gone, so there is nothing faithful to migrate them to.
@@ -161,16 +168,48 @@ export function parseRecipe(stored: string | null | undefined): AvatarRecipe | n
 }
 
 /**
- * The stored value if it is a real recipe, otherwise a bare recipe seeded from
- * the given identity — so a user who has never opened the picker still gets a
- * stable avatar of their own rather than everyone sharing one default.
+ * Resolve what to render, in three tiers:
+ *
+ *   1. the user's own saved recipe          — their choice always wins
+ *   2. `template`'s pins over `seed`        — the role default (dress code)
+ *   3. a bare recipe seeded from `seed`     — every slot from the seed, as before
+ *
+ * Tier 2 is a merge, not a substitution: the template contributes its pinned
+ * slots and NOTHING else, and the seed still comes from the user. That is what
+ * keeps a role's directors looking like different people while none of them can
+ * roll a party hat. A template with no pins is indistinguishable from no
+ * template, which is what makes "clear the default" a no-op rather than a
+ * special case.
+ *
+ * Tier 3 exists so a user who has never opened the picker still gets a stable
+ * avatar of their own rather than everyone sharing one default.
  */
 export function resolveRecipe(
     stored: string | null | undefined,
     seed?: string | null,
+    template?: string | null,
 ): AvatarRecipe {
-    return parseRecipe(stored)
-        ?? { seed: sanitizeSeed(seed || '') || AVATAR_SEED_FALLBACK, features: {}, colors: {} };
+    const own = parseRecipe(stored);
+    if (own) return own;
+
+    const base: AvatarRecipe = {
+        seed: sanitizeSeed(seed || '') || AVATAR_SEED_FALLBACK,
+        features: {},
+        colors: {},
+    };
+    const pins = parseRecipe(template);
+    if (!pins) return base;
+    // Template seed deliberately dropped — only its pins carry over.
+    return { ...base, features: { ...pins.features }, colors: { ...pins.colors } };
+}
+
+/**
+ * Does this recipe actually constrain anything? Used by the role form to store
+ * `null` instead of a pin-less recipe: a template that pins nothing is not a
+ * default, and storing one would put a row in the DB that reads as configured.
+ */
+export function hasPins(recipe: AvatarRecipe): boolean {
+    return Object.keys(recipe.features).length > 0 || Object.keys(recipe.colors).length > 0;
 }
 
 /** A fresh random seed, keeping every slot seed-driven. Used by "Shuffle". */

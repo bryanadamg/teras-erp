@@ -2417,6 +2417,11 @@ class RoleBase(BaseModel):
     allowed_work_center_types: list[str] | None = None
     allowed_categories: list[str] | None = None
     allowed_locations: list[str] | None = None
+    # Avatar template for users in this role who have saved no avatar of their own.
+    # On RoleBase (not just RoleResponse) so it rides along on the nested `role` of
+    # every UserResponse — which is how the sidebar and user lists resolve a face
+    # without a second fetch.
+    default_avatar_id: str | None = None
 
 class RoleCreate(RoleBase):
     permission_ids: list[UUID] = []
@@ -2428,6 +2433,9 @@ class RoleUpdate(BaseModel):
     allowed_work_center_types: Optional[list[str]] = None
     allowed_categories: Optional[list[str]] = None
     allowed_locations: Optional[list[str]] = None
+    # Empty string clears the template (a role that constrains nothing); null means
+    # "leave it alone", the same convention as every other field here.
+    default_avatar_id: Optional[str] = None
 
 class RoleResponse(RoleBase):
     id: UUID

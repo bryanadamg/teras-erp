@@ -83,7 +83,7 @@ export default function SettingsAccountTab() {
                         <FieldLabel classic={classic} hint="Hover an option to try it on; Shuffle rolls a whole new face.">
                             Choose Avatar
                         </FieldLabel>
-                        <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} seed={selfUsername} classic={classic} />
+                        <AvatarPicker value={selfAvatarId} onChange={setSelfAvatarId} seed={selfUsername} template={currentUser?.role?.default_avatar_id} classic={classic} />
                     </SettingsPanel>
                 </div>
 

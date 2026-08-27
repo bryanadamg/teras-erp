@@ -119,7 +119,7 @@ export default function MobileShell({
                         title="Settings"
                         style={headerBtn}
                     >
-                        <PixelAvatar avatarId={currentUser?.avatar_id} seed={currentUser?.username} size={14} />
+                        <PixelAvatar avatarId={currentUser?.avatar_id} seed={currentUser?.username} template={currentUser?.role?.default_avatar_id} size={14} />
                         <span data-testid="username-display">{currentUser?.username}</span>
                     </button>
 

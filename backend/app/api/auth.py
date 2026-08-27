@@ -166,6 +166,7 @@ def create_role(payload: RoleCreate, db: Session = Depends(get_db), current_user
         allowed_work_center_types=payload.allowed_work_center_types,
         allowed_categories=payload.allowed_categories,
         allowed_locations=payload.allowed_locations,
+        default_avatar_id=_clean_avatar_id(payload.default_avatar_id),
     )
     db.add(role)
     db.commit()
@@ -199,6 +200,11 @@ def update_role(role_id: str, payload: RoleUpdate, db: Session = Depends(get_db)
 
     if payload.allowed_locations is not None:
         role.allowed_locations = payload.allowed_locations or None
+
+    if payload.default_avatar_id is not None:
+        # `_clean_avatar_id` maps "" to None, which is how the form clears the
+        # template rather than storing an empty recipe nothing can parse.
+        role.default_avatar_id = _clean_avatar_id(payload.default_avatar_id)
 
     db.commit()
     db.refresh(role)

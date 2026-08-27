@@ -46,6 +46,14 @@ class Role(Base):
     # Location-id restriction for lot.* actions (If Null, allow all locations).
     allowed_locations: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
+    # Default avatar TEMPLATE for users in this role: a DiceBear recipe (same
+    # format as User.avatar_id) whose *pinned slots* apply to any user in the role
+    # who hasn't saved an avatar of their own. The template's own seed is ignored
+    # — each user still seeds from their username — so a role sets a dress code
+    # (no party hat on a director) without giving everyone in it the same face.
+    # Null = no constraint; the user's seed decides every slot, as before.
+    default_avatar_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     permissions = relationship("Permission", secondary=role_permissions)
 
 class User(Base):
