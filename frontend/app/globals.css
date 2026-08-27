@@ -2067,3 +2067,28 @@ textarea {
   }
   .login-badge-open:hover::after { animation: none; }
 }
+
+/* Sidebar footer's own copy of the badge - always "open" (no closed/idle
+   state to gate on, unlike the login card), so the pseudo-element sits
+   directly on the class instead of an -open variant. Same keyframe as the
+   login card: it's the same object, see Sidebar.tsx footer comment. */
+.sidebar-id-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.28) 46%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0.28) 54%,
+    transparent 62%);
+  transform: translateX(-120%);
+  opacity: 0;
+}
+.sidebar-id-card:hover::after {
+  animation: login-badge-glimmer 850ms cubic-bezier(0.3, 0.1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-id-card:hover::after { animation: none; }
+}

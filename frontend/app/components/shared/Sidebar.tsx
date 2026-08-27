@@ -368,14 +368,19 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
             one so there's a single, consistent way in. */}
         <button
           data-testid="user-dropdown"
-          className={XP_BTN}
+          className={`${XP_BTN} sidebar-id-card`}
           onClick={() => setActiveTab('settings')}
           {...H('settings')}
-          title={t('settings') || 'Settings'}
+          /* Card already shows name + role + a gear icon - a "Settings" title
+             on top just doubles up on what's already legible, and doubled as
+             a second stacked box with GlobalTooltip's clip-echo for the name/
+             role spans underneath it. Same opt-out as the login ID card. */
+          data-no-tip
           style={classic ? {
             width: '100%',
             padding: 0,
             borderRadius: 6,
+            position: 'relative',
             background: hovered === 'settings'
               ? 'linear-gradient(to bottom, #ffffff, #e6ecfa)'
               : 'linear-gradient(to bottom, #f7f9ff, #dde4f4)',
@@ -393,6 +398,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
           } : {
             width: '100%',
             padding: 0,
+            position: 'relative',
             background: hovered === 'settings' ? '#f8fafc' : '#ffffff',
             border: `1px solid ${hovered === 'settings' ? '#bfdbfe' : M_BORDER}`,
             borderRadius: 10,
