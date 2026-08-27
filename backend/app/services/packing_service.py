@@ -52,6 +52,12 @@ class Carton(NamedTuple):
     qty: float
     weight_kg: Optional[float] = None
     alt_qty: Optional[float] = None
+    # Which entry of the caller's `boxes` list this piece belongs to. Set only by
+    # `allocate_boxes_to_lots` — a box split at a lot seam yields two Cartons that
+    # share the same `box_index`, which is how the caller re-merges them into one
+    # physical carton. None on every other path (box-size split never crosses a
+    # lot boundary, so there is nothing to re-merge).
+    box_index: Optional[int] = None
 
 
 # --- Alt (selling) unit conversion -----------------------------------------
@@ -272,22 +278,24 @@ def allocate_boxes_to_lots(
             return None
         return float(seq[i])
 
-    # (remaining qty, original qty, original weight, remaining alt count) — the
-    # original qty is kept so a split share stays proportional to the whole box,
-    # while the alt count is drawn down so the shares always sum back to it.
-    queue: deque[tuple[float, float, Optional[float], Optional[float]]] = deque()
+    # (remaining qty, original qty, original weight, remaining alt count, box
+    # index) — the original qty is kept so a split share stays proportional to
+    # the whole box, the alt count is drawn down so the shares always sum back
+    # to it, and the index (position in the caller's `boxes` list) rides along
+    # unchanged across every split so the caller can re-merge a seam-split box.
+    queue: deque[tuple[float, float, Optional[float], Optional[float], int]] = deque()
     for i, b in enumerate(boxes):
         qty = round(float(b), 4)
         if qty <= 1e-9:
             continue
-        queue.append((qty, qty, _at(weights, i), _at(alt_qtys, i)))
+        queue.append((qty, qty, _at(weights, i), _at(alt_qtys, i), i))
 
     out: list[list[Carton]] = []
     for lot_qty in lot_qtys:
         remaining = round(float(lot_qty), 4)
         cartons: list[Carton] = []
         while remaining > 1e-6 and queue:
-            box, box_full, box_w, box_alt = queue[0]
+            box, box_full, box_w, box_alt, box_idx = queue[0]
             take = round(min(box, remaining), 4)
             share = None if box_w is None else round(box_w * take / box_full, 4)
             whole_box = take >= box - 1e-6
@@ -299,13 +307,13 @@ def allocate_boxes_to_lots(
                 alt_share = round(box_alt, 4)
             else:
                 alt_share = round(box_alt * take / box, 4)
-            cartons.append(Carton(take, share, alt_share))
+            cartons.append(Carton(take, share, alt_share, box_idx))
             remaining = round(remaining - take, 4)
             if whole_box:
                 queue.popleft()
             else:
                 rest_alt = None if box_alt is None else round(box_alt - (alt_share or 0), 4)
-                queue[0] = (round(box - take, 4), box_full, box_w, rest_alt)
+                queue[0] = (round(box - take, 4), box_full, box_w, rest_alt, box_idx)
         out.append(cartons)
     return out
 
@@ -544,6 +552,75 @@ async def mint_packed_units(
         units.append((pu, carton_qty))
 
     return units
+
+
+async def mint_merged_packed_unit(
+    db: AsyncSession,
+    po: PackingOrder,
+    completion: PackingCompletion,
+    pieces: list[dict],
+    attribute_value_ids: list[str],
+    color_id,
+    username: Optional[str] = None,
+) -> tuple[Batch, float]:
+    """Mint ONE physical carton from pieces drawn off one or more source lots.
+
+    A box the packer weighed as one unit must stay one `Batch`/label/QR even
+    when `allocate_boxes_to_lots` had to split it at a lot seam to keep each
+    piece pegged to a truthful source lot — merging here is what keeps the
+    packed-unit count equal to the boxes actually on the floor, not the number
+    of lots that fed them. Each `pieces` entry is
+    `{qty, weight_kg, alt_qty, source_batch_id}`; the OUT stock move for each
+    piece already happened against its own lot before this is called — this
+    only does the single IN move (mint qty) plus one `BatchConsumption` peg per
+    contributing lot, so genealogy still traces every gram to its real source.
+    """
+    if not po.output_location_id:
+        raise ValueError("Packing order has no output location")
+
+    total_qty = round(sum(float(p["qty"]) for p in pieces), 4)
+    weights = [p["weight_kg"] for p in pieces if p["weight_kg"] is not None]
+    weight_kg = round(sum(float(w) for w in weights), 4) if weights else None
+    alts = [p["alt_qty"] for p in pieces]
+    alt_qty = round(sum(float(a) for a in alts), 4) if all(a is not None for a in alts) else None
+
+    pu = Batch(
+        batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
+        item_id=po.item_id,
+        packing_order_id=po.id,
+        packing_completion_id=completion.id,
+        weight_kg=weight_kg,
+        alt_qty=alt_qty,
+        package_no=await _next_package_no(db, po.id),
+        package_label=po.package_label or "Carton",
+        packed_for_so_id=po.sales_order_id,
+        created_by=username,
+    )
+    db.add(pu)
+    await db.flush()
+
+    await stock_service.add_stock_entry(
+        db,
+        item_id=po.item_id,
+        location_id=po.output_location_id,
+        qty_change=total_qty,
+        reference_type="PACKING",
+        reference_id=po.code,
+        attribute_value_ids=attribute_value_ids,
+        color_id=color_id,
+        batch_id=pu.id,
+    )
+
+    for p in pieces:
+        if p["source_batch_id"]:
+            db.add(BatchConsumption(
+                packing_order_id=po.id,
+                input_batch_id=p["source_batch_id"],
+                output_batch_id=pu.id,
+                qty_consumed=float(p["qty"]),
+            ))
+
+    return pu, total_qty
 
 
 async def consume_packaging_materials(
