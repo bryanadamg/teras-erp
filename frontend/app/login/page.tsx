@@ -9,6 +9,10 @@ import { recallAvatar } from '../components/shared/avatarCache';
 import BootSplash, { useBootIndicator } from '../components/shared/BootSplash';
 import { modernFont } from '../components/shared/xpTheme';
 
+// Wordmark face (Sora, loaded in layout.tsx). Falls back to the system stack
+// if the var is missing, so the brand never renders in a default serif.
+const brandFont = `var(--font-display), ${modernFont}`;
+
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
 
@@ -299,11 +303,25 @@ export default function LoginPage() {
             >
                 {/* Mobile header */}
                 <div style={{ padding: '32px 28px 20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: 1, color: 'white', marginBottom: 4 }}>
-                        Terras ERP
+                    <div style={{
+                        display: 'flex', alignItems: 'baseline', justifyContent: 'center',
+                        gap: 6, marginBottom: 4,
+                    }}>
+                        <span style={{
+                            fontFamily: brandFont, fontSize: 30, fontWeight: 600,
+                            letterSpacing: 0, color: 'white',
+                        }}>
+                            Terras
+                        </span>
+                        <span style={{
+                            fontFamily: brandFont, fontSize: 11, fontWeight: 500,
+                            letterSpacing: 2, textTransform: 'uppercase', color: '#7f9ecb',
+                        }}>
+                            ERP
+                        </span>
                     </div>
                     <div style={{ fontSize: 11, color: '#a0c2f5', letterSpacing: 4, textTransform: 'uppercase' }}>
-                        Manufacturing &amp; Inventory
+                        Integrated Business Suite
                     </div>
                 </div>
 
@@ -520,17 +538,30 @@ export default function LoginPage() {
                 justifyContent: 'space-between',
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{
-                        fontSize: 'clamp(20px,calc(var(--app-vw) * 3.5 / 100),42px)', fontWeight: 600,
-                        letterSpacing: 1, color: 'white',
-                    }}>
-                        Terras ERP
+                    {/* "Terras" is the suite; "ERP" is only the module you're
+                        logging into, so it rides small and muted beside the
+                        wordmark rather than sharing its weight. */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'clamp(4px,calc(var(--app-vw) * 0.5 / 100),9px)' }}>
+                        <span style={{
+                            fontFamily: brandFont,
+                            fontSize: 'clamp(21px,calc(var(--app-vw) * 3.6 / 100),44px)', fontWeight: 600,
+                            letterSpacing: -0.1, color: 'white',
+                        }}>
+                            Terras
+                        </span>
+                        <span style={{
+                            fontFamily: brandFont,
+                            fontSize: 'clamp(9px,calc(var(--app-vw) * 1.2 / 100),15px)', fontWeight: 500,
+                            letterSpacing: 3, textTransform: 'uppercase', color: '#7f9ecb',
+                        }}>
+                            ERP
+                        </span>
                     </div>
                     <div style={{
                         fontSize: 'clamp(8px,calc(var(--app-vw) * 1.1 / 100),13px)', color: '#a0c2f5',
                         letterSpacing: 5, textTransform: 'uppercase',
                     }}>
-                        Manufacturing &amp; Inventory
+                        Integrated Business Suite
                     </div>
                 </div>
                 <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>

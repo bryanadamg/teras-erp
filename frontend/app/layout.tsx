@@ -13,6 +13,26 @@ import QueryProvider from './components/shared/QueryProvider';
 import MainLayout from './components/shared/MainLayout';
 import GlobalTooltip from './components/shared/GlobalTooltip';
 import SWRegister from './components/shared/SWRegister';
+import { IBM_Plex_Sans_JP } from 'next/font/google';
+
+// Brand face, used only for the "Terras" wordmark (login screen, docs header).
+// Self-hosted by next/font at build time so a floor client with no internet
+// still gets it, and `display: swap` + Next's size-adjust metrics keep the
+// wordmark from jumping. Exposed as a CSS var rather than applied to <body>:
+// the whole UI stays on the system stack.
+//
+// `preload: false` is load-bearing, not a tweak. The JP cut carries CJK, which
+// Google splits into ~120 unicode-range chunks per weight — preloading emitted
+// 122 <link rel=preload> tags on every page for glyphs one Latin wordmark will
+// never touch. With preload off, unicode-range gating means the browser fetches
+// only the single Latin chunk it actually renders.
+const displayFont = IBM_Plex_Sans_JP({
+  subsets: ['latin'],
+  weight: ['500', '600'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-display',
+});
 
 export const metadata = {
   title: 'Terras ERP',
@@ -37,7 +57,7 @@ export default function RootLayout({
   return (
     // suppressHydrationWarning: the boot script below stamps data-ui-scale on
     // <html> before React hydrates, which the server markup can't know about.
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={displayFont.variable} suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Standard counterpart to appleWebApp.capable above — Next's metadata API doesn't emit this one yet */}
