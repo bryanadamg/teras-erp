@@ -1068,10 +1068,14 @@ function MaterialRow({ row, authFetch, locPickerTreeOptions, onChange, onRemove 
 
 // ── pack logging ─────────────────────────────────────────────────────────────
 // Deliberately shaped like WOCompletionModal: same header progress panel, same
-// big "qty" entry, same "Lots to Consume" checkbox list with FIFO take-chips,
-// same legend-panel groupboxes and Previous-Entries table. Packing is the same
-// motion as logging WO output for the operator, so it reads the same. Keep the
-// two in step — a change to one of these patterns belongs in both.
+// "Lots to Consume" checkbox list with FIFO take-chips, same legend-panel
+// groupboxes and Previous-Entries table. Packing is the same motion as logging
+// WO output for the operator, so it reads the same. Keep the two in step — a
+// change to one of these patterns belongs in both.
+//
+// The one deliberate divergence is the qty entry: a WO completion states a
+// single number, but a pack event is a LIST of physical boxes, so the carton
+// list is the entry and the totals are read off it.
 function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTreeOptions, machineOptions, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
     const { hasPermission } = useUser();
     const { formatDateTime: tzDateTime } = useTimezone();
@@ -1087,10 +1091,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const remaining = Math.max(0, target - packed);
     const pct = target > 0 ? Math.min(100, Math.round((packed / target) * 100)) : 0;
 
-    const [qty, setQty] = useState<string>('');
+    // There is deliberately no "Qty to Pack" field: the carton list below IS the
+    // statement of what was packed, and a second figure the packer had to keep
+    // equal to it was only ever a way to get them out of step. Everything that
+    // used to read `qty` now reads the list's own total.
+    //
     // Alt selling unit of this order (Pic = a roll, Pcs = a cut piece). When set,
-    // the packer counts in it and every base figure is derived from it — `qty`,
-    // the box qtys and the label's CONTENT line all follow the same factor.
+    // the packer counts in it and every base figure is derived from it — the box
+    // qtys and the label's CONTENT line all follow the same factor.
     const altUom = po.uom2 || '';
     const altFactor = useMemo(() => orderBasePerAlt(po, it), [po, it]);
     const altLength = useMemo(
@@ -1098,8 +1106,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         [po.uom2_factor, po.uom2_length_uom],
     );
     const hasAlt = !!(altUom && altFactor);
-    const [qtyAlt, setQtyAlt] = useState<string>('');
     const [boxSize, setBoxSize] = useState<string>(() => (num(po.pack_size) > 0 ? String(num(po.pack_size)) : ''));
+    // Loose scrap found during this pack event — offcuts, stained ends, material
+    // that came out of the source bin and never made it into a box. It has to be
+    // stated because it physically LEFT the bin: omitting it would leave the
+    // shelf lighter than the system by exactly this much. It never becomes a
+    // carton, so it is entered here rather than as a flag on a carton line.
+    const [scrapQty, setScrapQty] = useState<string>('');
+    const [scrapReason, setScrapReason] = useState<string>('');
     const [operator, setOperator] = useState('');
     // Seeded from the order's machine so the common case is one click of nothing;
     // an override here rides on this event only and never rewrites the order.
@@ -1222,27 +1236,31 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const selAvailable = lots.filter((b: any) => selSet.has(String(b.id)))
         .reduce((s: number, b: any) => s + (b.remaining ?? 0), 0);
 
-    // Spread the logged qty FIFO across the checked lots — oldest first, each
-    // capped at its own remaining. /batches returns newest-first, hence reverse.
-    // Same rule as WOCompletionModal's multi-lot consume.
-    const lotAllocation = (): { batch_id: string; qty: number }[] => {
-        let need = num(qty);
+    // Spread a draw FIFO across the checked lots — oldest first, each capped at
+    // what is left of it. /batches returns newest-first, hence reverse. Same rule
+    // as WOCompletionModal's multi-lot consume.
+    //
+    // Cartons claim first and scrap takes what remains, which is why this is
+    // called twice against a shared `taken` ledger rather than once over a
+    // combined figure: the two halves land in different columns on the completion
+    // (`qty` vs `qty_rejected`) and in different bins in stock, so every lot has
+    // to know how much of its draw is which. Whatever neither claims stays on the
+    // lot for the next event.
+    const allocateOver = (need: number, taken: Record<string, number>): { batch_id: string; qty: number }[] => {
         if (need <= 0 || !selectedLots.length) return [];
         const out: { batch_id: string; qty: number }[] = [];
         for (const b of lots.filter((x: any) => selSet.has(String(x.id))).slice().reverse()) {
             if (need <= 1e-9) break;
-            const take = Math.min(need, b.remaining ?? 0);
+            const id = String(b.id);
+            const free = (b.remaining ?? 0) - (taken[id] || 0);
+            const take = Math.min(need, free);
             if (take <= 0) continue;
-            out.push({ batch_id: String(b.id), qty: Number(take.toFixed(4)) });
+            out.push({ batch_id: id, qty: Number(take.toFixed(4)) });
+            taken[id] = (taken[id] || 0) + take;
             need -= take;
         }
         return out;
     };
-    const alloc = lotAllocation();
-    const drawn = alloc.reduce((s, l) => s + l.qty, 0);
-    const short = num(qty) > 0 && drawn + 1e-6 < num(qty);
-    const takeByBatch: Record<string, number> = {};
-    for (const l of alloc) takeByBatch[l.batch_id] = l.qty;
 
     // Boxes are edited against the combined total regardless of how many lots feed
     // it — the server is the one that works out which lot backs each box (splitting
@@ -1259,21 +1277,28 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const [boxGroups, setBoxGroups] = useState<BoxGroup[]>([]);
     const [openGroups, setOpenGroups] = useState<Set<number>>(new Set());
     const boxRows = useMemo(() => expandBoxGroups(boxGroups), [boxGroups]);
-    const packTotal = useLotPicker ? drawn : num(qty);
 
-    // Seed once a qty is entered and no groups exist yet (a fresh form, or right
-    // after Regenerate clears them) — after that, edits belong to the user.
+    // Seeded from what the order still owes rather than from a typed qty — the
+    // packer opens onto a plausible list and edits it down to what they actually
+    // boxed. Runs on a fresh form and again after each log (a successful log
+    // clears the groups and `remaining` drops), never over the packer's edits.
     useEffect(() => {
-        if (boxGroups.length === 0 && packTotal > 0) {
-            setBoxGroups(seedBoxGroups(packTotal, num(boxSize), [], hasAlt ? altFactor : null));
+        if (boxGroups.length === 0 && remaining > 0) {
+            setBoxGroups(seedBoxGroups(remaining, num(boxSize), [], hasAlt ? altFactor : null));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [packTotal]);
+    }, [remaining]);
 
-    // Regenerate rebuilds the qty split but keeps weights already keyed in
-    // positionally — re-splitting after a typo shouldn't wipe the scale readings.
+    // Regenerate re-splits what is currently listed at the stated box size —
+    // "I have 24 kg down, break it into 4 kg boxes". Falls back to the order's
+    // remaining when the list is empty, which is the only figure left to split.
+    // Weights already keyed in are kept positionally: re-splitting after a typo
+    // shouldn't wipe the scale readings.
     const regenerateBoxes = () =>
-        setBoxGroups(prev => seedBoxGroups(packTotal, num(boxSize), prev, hasAlt ? altFactor : null));
+        setBoxGroups(prev => {
+            const listed = expandBoxGroups(prev).reduce((t, b) => t + num(b.qty), 0);
+            return seedBoxGroups(listed > 0 ? listed : remaining, num(boxSize), prev, hasAlt ? altFactor : null);
+        });
     const updateGroup = (i: number, patch: Partial<BoxGroup>) =>
         setBoxGroups(prev => prev.map((g, idx) => (idx === i ? { ...g, ...patch } : g)));
     const removeGroup = (i: number) => setBoxGroups(prev => prev.filter((_, idx) => idx !== i));
@@ -1314,14 +1339,6 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         });
     };
 
-    // Qty to Pack, entered as a count. The base figure follows so the lot draw,
-    // the box split and the stock movement all stay in the item's own UOM.
-    const onQtyAltChange = (val: string) => {
-        setQtyAlt(val);
-        const derived = altToBase(num(val), altFactor);
-        if (derived !== null && num(val) > 0) setQty(String(derived));
-    };
-
     // Weights stay positional against the qtys the server receives, so both are
     // filtered in one pass. Every carton must carry one: the log is written after
     // the boxes are packed and weighed, so a blank would print a label with no
@@ -1341,7 +1358,33 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
     const boxTotal = boxValues.reduce((s, v) => s + v, 0);
     const weightTotal = boxWeights.reduce((s: number, v) => s + v, 0);
-    const boxMismatch = packTotal > 0 && Math.abs(boxTotal - packTotal) > 1e-3;
+    // What the packer says was boxed. There is nothing left for it to disagree
+    // with, so the old "boxes don't match qty to pack" block is gone along with
+    // the field that caused it.
+    const packTotal = boxTotal;
+    const scrap = num(scrapQty);
+    // Everything that leaves the source bin: cartons plus scrap. This is what the
+    // selected lots have to cover, and what the server checks stock against.
+    const drawTotal = packTotal + scrap;
+
+    // Cartons claim their lots first, then scrap takes from what is left of the
+    // same lots — see `allocateOver`.
+    const takeByBatch: Record<string, number> = {};
+    const alloc = allocateOver(packTotal, takeByBatch);
+    const scrapAlloc = allocateOver(scrap, takeByBatch);
+    const drawn = Object.values(takeByBatch).reduce((t, v) => t + v, 0);
+    const short = drawTotal > 0 && drawn + 1e-6 < drawTotal;
+    // Per-lot payload: one entry per lot touched, carrying its share of each.
+    const lotPayload = () => {
+        const byId = new Map<string, { batch_id: string; qty: number; qty_rejected: number }>();
+        for (const l of alloc) byId.set(l.batch_id, { batch_id: l.batch_id, qty: l.qty, qty_rejected: 0 });
+        for (const l of scrapAlloc) {
+            const row = byId.get(l.batch_id);
+            if (row) row.qty_rejected = l.qty;
+            else byId.set(l.batch_id, { batch_id: l.batch_id, qty: 0, qty_rejected: l.qty });
+        }
+        return [...byId.values()];
+    };
 
     const toggleLot = (id: string, on: boolean) =>
         setSelectedLots(prev => on ? [...prev, id] : prev.filter(x => x !== id));
@@ -1354,26 +1397,21 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const logBlockedBy =
         locsMissing ? 'Set both locations on this order before packing'
         : locsDirty ? 'Save the location change before logging'
-        : num(qty) <= 0 ? 'Enter a quantity to pack'
-        : boxValues.length === 0 ? `Add at least one ${po.package_label.toLowerCase()}`
-        : boxMismatch ? `${po.package_label}s total ${boxTotal.toFixed(2)} but ${packTotal.toFixed(2)} is being packed`
+        // A scrap-only log is legitimate — a whole draw can fail QC and it still
+        // has to leave the bin — so an empty carton list only blocks when there
+        // is no scrap either. What is refused is a log that moves nothing.
+        : drawTotal <= 0 ? `Add at least one ${po.package_label.toLowerCase()}, or state what was rejected`
         : weightsMissing ? `Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`
         : useLotPicker && !selectedLots.length ? 'Select at least one lot to pack from'
-        : useLotPicker && short ? `Selected lots hold only ${drawn.toFixed(2)} of the ${num(qty).toFixed(2)} needed`
+        : useLotPicker && short ? `Selected lots hold only ${drawn.toFixed(2)} of the ${drawTotal.toFixed(2)} needed`
         : null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const q = num(qty);
         if (locsMissing) { showToast('Set both locations on this order before packing', 'danger'); return; }
         if (locsDirty) { showToast('Save the location change before logging', 'danger'); return; }
-        if (q <= 0) { showToast('Enter a positive quantity', 'danger'); return; }
-        if (boxValues.length <= 0) { showToast(`At least one ${po.package_label.toLowerCase()} is required`, 'danger'); return; }
-        if (boxMismatch) {
-            showToast(
-                `Boxes total ${boxTotal.toFixed(2)} but ${packTotal.toFixed(2)} is being packed — fix the box list`,
-                'danger',
-            );
+        if (drawTotal <= 0) {
+            showToast(`Add at least one ${po.package_label.toLowerCase()}, or state what was rejected`, 'danger');
             return;
         }
         if (weightsMissing) {
@@ -1381,33 +1419,29 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             return;
         }
 
-        let body: any = {
-            qty: q,
+        const common = {
             boxes: boxValues,
             box_weights: boxWeights,
             box_alt_qtys: boxAlts,
             work_center_id: workCenterId || null,
             operator: operator || null,
             notes: packNotes || null,
+            reject_reason: scrapReason.trim() || null,
         };
+        // `qty` is the good, boxed total — never the draw. Scrap rides in its own
+        // field so the server can send it to the defect store and keep it out of
+        // qty_packed.
+        let body: any = { ...common, qty: packTotal, qty_rejected: scrap };
         if (useLotPicker) {
             if (!selectedLots.length) { showToast('Select at least one lot to pack from', 'danger'); return; }
             if (short) {
                 showToast(
-                    `Selected lots hold only ${drawn.toFixed(2)} of the ${q.toFixed(2)} needed — select more lots`,
+                    `Selected lots hold only ${drawn.toFixed(2)} of the ${drawTotal.toFixed(2)} needed — select more lots`,
                     'danger',
                 );
                 return;
             }
-            body = {
-                lots: alloc,
-                boxes: boxValues,
-                box_weights: boxWeights,
-                box_alt_qtys: boxAlts,
-                work_center_id: workCenterId || null,
-                operator: operator || null,
-                notes: packNotes || null,
-            };
+            body = { ...common, lots: lotPayload() };
         }
 
         setLogging(true);
@@ -1419,8 +1453,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             if (res.ok) {
                 const fresh = await res.json();
                 setPo(fresh);
-                setQty(''); setQtyAlt(''); setPackNotes(''); setBoxGroups([]); setOpenGroups(new Set());
-                showToast(`Packed ${q} into ${boxValues.length} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
+                setPackNotes(''); setScrapQty(''); setScrapReason('');
+                setBoxGroups([]); setOpenGroups(new Set());
+                showToast(
+                    `Packed ${packTotal} into ${boxValues.length} ${po.package_label.toLowerCase()}(s)`
+                    + (scrap > 0 ? `, rejected ${scrap}` : '')
+                    + ` — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`,
+                    'success',
+                );
                 await onChanged();
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -1551,45 +1591,22 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                     {/* Entry fields */}
                     {!readOnly && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <div>
-                                <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span>Qty to Pack</span>
-                                    {uom && <span style={uomChip}>{uom}</span>}
-                                    {hasAlt && (
-                                        <span style={{ fontWeight: 'normal', color: '#888', fontSize: 9 }}>
-                                            1 {altUom} = {po.uom2_factor} {altLength?.uom || 'Yd'} = {altFactor} {uom}
-                                        </span>
-                                    )}
-                                </label>
-                                {/* On an alt-unit order the count leads and the base figure
-                                    follows it — the packer counts pieces, not kilos. The base
-                                    input stays editable: it is what actually moves in stock. */}
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                    {hasAlt && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
-                                            <input
-                                                type="number"
-                                                style={{ ...xpInput, width: '100%', fontSize: 13, height: 22, textAlign: 'right' }}
-                                                value={qtyAlt}
-                                                onChange={e => onQtyAltChange(e.target.value)}
-                                                min="0" step="any"
-                                                placeholder={String(baseToAlt(remaining > 0 ? remaining : target, altFactor) ?? '')}
-                                                autoFocus
-                                            />
-                                            <span style={uomChip}>{altUom}</span>
-                                        </div>
-                                    )}
-                                    <input
-                                        type="number"
-                                        style={{ ...xpInput, flex: 1, fontSize: 13, height: 22 }}
-                                        value={qty}
-                                        onChange={e => setQty(e.target.value)}
-                                        min="0.0001" step="any"
-                                        placeholder={remaining > 0 ? remaining.toFixed(2) : String(target)}
-                                        autoFocus={!hasAlt}
-                                        required
-                                    />
-                                </div>
+                            {/* No "Qty to Pack" field: the list below states the pack, and a
+                                second figure to keep equal to it was only ever a way to get
+                                out of step with it. The order's outstanding qty is shown for
+                                reference and seeds the list. */}
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#555',
+                                background: '#f5f4ee', border: '1px solid #d8d5cc', padding: '3px 6px',
+                            }}>
+                                <span>Still to pack on this order:</span>
+                                <strong style={{ color: '#2e7d32' }}>{remaining.toFixed(2)}</strong>
+                                {uom && <span style={uomChip}>{uom}</span>}
+                                {hasAlt && (
+                                    <span style={{ color: '#888', fontSize: 9 }}>
+                                        1 {altUom} = {po.uom2_factor} {altLength?.uom || 'Yd'} = {altFactor} {uom}
+                                    </span>
+                                )}
                             </div>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                                 <div style={{ flex: 1 }}>
@@ -1624,7 +1641,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     <span>
                                         {po.package_label}s to be Made
                                         <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
-                                            — count × qty each; the lines add up to the pack total
+                                            — count × qty each; these lines ARE the pack total
                                         </span>
                                         {hasAlt && (
                                             <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
@@ -1648,7 +1665,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 168, overflowY: 'auto' }}>
                                     {boxGroups.length === 0 && (
                                         <div style={{ fontSize: 10, color: '#888', padding: '4px 5px' }}>
-                                            Enter a quantity above to generate {po.package_label.toLowerCase()}s.
+                                            No {po.package_label.toLowerCase()}s listed — set a box size and hit
+                                            Regenerate, or add a line with +.
                                         </div>
                                     )}
                                     {boxGroups.length > 0 && (
@@ -1791,14 +1809,22 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 }}>
                                     <span style={{
                                         width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                                        background: boxMismatch ? '#cc3300' : weightsMissing ? '#d9a441' : '#4caf50',
+                                        background: weightsMissing ? '#d9a441' : '#4caf50',
                                     }} />
                                     <span style={{ color: '#555' }}>Boxed:</span>
-                                    <span style={{ fontWeight: 'bold', color: boxMismatch ? '#a00000' : '#2e7d32' }}>
-                                        {boxTotal.toFixed(2)}
+                                    <span style={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                                        {boxTotal.toFixed(2)} {uom}
                                     </span>
-                                    <span style={{ color: '#c0bdb5' }}>/</span>
-                                    <span style={{ fontWeight: 'bold' }}>{packTotal.toFixed(2)} {uom}</span>
+                                    {scrap > 0 && (
+                                        <>
+                                            <span style={{ color: '#c0bdb5' }}>|</span>
+                                            <span style={{ color: '#555' }}>Rejected:</span>
+                                            <span style={{ fontWeight: 'bold', color: '#a00000' }}>{scrap.toFixed(2)}</span>
+                                            <span style={{ color: '#c0bdb5' }}>|</span>
+                                            <span style={{ color: '#555' }}>Drawn:</span>
+                                            <span style={{ fontWeight: 'bold' }}>{drawTotal.toFixed(2)}</span>
+                                        </>
+                                    )}
                                     {hasAlt && (
                                         <>
                                             <span style={{ color: '#c0bdb5' }}>|</span>
@@ -1814,10 +1840,46 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     <span style={{ fontWeight: 'bold', color: weightsMissing ? '#7a4a00' : undefined }}>
                                         {weightTotal.toFixed(2)} kg
                                     </span>
-                                    {boxMismatch
-                                        ? <span style={{ color: '#a00000', marginLeft: 'auto', fontStyle: 'italic' }}>Doesn&apos;t match qty to pack</span>
-                                        : weightsMissing && <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>}
+                                    {weightsMissing && <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>}
                                 </div>
+                            </div>
+
+                            {/* Loose scrap. Sits under the carton list because that is the
+                                other half of the same draw: the packer states what went into
+                                boxes, then what came out of the bin and didn't. */}
+                            <div>
+                                <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>Rejected — not boxed</span>
+                                    <span style={{ fontWeight: 'normal', color: '#888' }}>
+                                        — offcuts or damage that left {sourceLocName || 'the pack-from bin'} but never
+                                        became a {po.package_label.toLowerCase()}
+                                    </span>
+                                </label>
+                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <input
+                                        type="number"
+                                        style={{ ...xpInput, width: 96, textAlign: 'right', background: scrap > 0 ? '#fff4f4' : undefined }}
+                                        value={scrapQty}
+                                        onChange={e => setScrapQty(e.target.value)}
+                                        min="0" step="any"
+                                        placeholder="0"
+                                        title={`Material drawn from the source that never became a ${po.package_label.toLowerCase()} — moved to the defect store, and never counted as packed`}
+                                    />
+                                    {uom && <span style={uomChip}>{uom}</span>}
+                                    <input
+                                        type="text"
+                                        style={{ ...xpInput, flex: 1, minWidth: 0 }}
+                                        value={scrapReason}
+                                        onChange={e => setScrapReason(e.target.value)}
+                                        placeholder="Reason (stained, offcuts, wet...)"
+                                        disabled={scrap <= 0}
+                                    />
+                                </div>
+                                {scrap > 0 && (
+                                    <div style={{ fontSize: 9, color: '#7a4a00', marginTop: 2 }}>
+                                        Moves to the defect store and never counts toward {target.toFixed(2)} {uom} packed.
+                                    </div>
+                                )}
                             </div>
                             <div style={{
                                 background: locsMissing ? '#fff4e5' : '#eef7ee',
@@ -1865,7 +1927,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             <span>Lots to Pack From — {po.item_code || it?.code || ''}</span>
                                             <span style={{ fontWeight: 'normal', color: short ? '#900' : '#555' }}>
                                                 {selectedLots.length} lot{selectedLots.length === 1 ? '' : 's'} · {selAvailable.toFixed(2)} available · drawing{' '}
-                                                <strong>{drawn.toFixed(2)}</strong>{short ? ` of ${num(qty).toFixed(2)}` : ''}
+                                                <strong>{drawn.toFixed(2)}</strong>{short ? ` of ${drawTotal.toFixed(2)}` : ''}
                                                 <button
                                                     type="button"
                                                     className={XP_BTN}

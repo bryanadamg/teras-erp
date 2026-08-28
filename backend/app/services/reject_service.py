@@ -106,25 +106,37 @@ async def move_unlotted_reject(
     attribute_value_ids: list | None = None,
     color_id=None,
     reference_type: str = "QC_REJECT",
+    batch_id=None,
 ) -> bool:
-    """Un-lotted scrap: two-sided transfer out of the good bin into the defect
-    store. Falls back to a one-sided write-off when no defect store is configured,
-    which is what the pre-routing behaviour was. Returns True if it relocated
-    (rather than wrote off). Caller commits."""
+    """Loose scrap: two-sided transfer out of the good bin into the defect store.
+
+    Falls back to a one-sided write-off when no defect store is configured, which
+    is what the pre-routing behaviour was. Returns True if it relocated (rather
+    than wrote off). Caller commits.
+
+    `batch_id` is a PARTIAL move of a lot that is otherwise still good — packing
+    scrapping 5kg of offcuts off a 30kg lot, say. It must ride on both sides:
+    the source stock sits under that lot's `batch_key`, so debiting with a null
+    batch would drive a phantom un-lotted row negative while the lot still reads
+    full. Deliberately does not touch `Batch.quality_status` — the rest of the
+    lot is untouched good stock, and it is the defect LOCATION that marks the
+    moved qty as scrap. Whole-lot rejects go through `quarantine_lot` instead,
+    which does grade the batch.
+    """
     if not from_location_id or qty <= 0:
         return False
     ids = attribute_value_ids or []
     await stock_service.add_stock_entry(
         db, item_id=item_id, location_id=from_location_id, qty_change=-float(qty),
         reference_type=reference_type, reference_id=reference_id,
-        attribute_value_ids=ids, color_id=color_id, batch_id=None,
+        attribute_value_ids=ids, color_id=color_id, batch_id=batch_id,
     )
     if not to_location_id or str(to_location_id) == str(from_location_id):
         return False
     await stock_service.add_stock_entry(
         db, item_id=item_id, location_id=to_location_id, qty_change=float(qty),
         reference_type=reference_type, reference_id=reference_id,
-        attribute_value_ids=ids, color_id=color_id, batch_id=None,
+        attribute_value_ids=ids, color_id=color_id, batch_id=batch_id,
     )
     return True
 
