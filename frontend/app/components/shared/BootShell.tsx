@@ -3,6 +3,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { SkeletonBar } from './xpTheme';
+import { SIDEBAR_BG, M_PRIMARY, M_PRIMARY_DK } from './Sidebar';
 
 /**
  * App chrome, painted immediately while the session is still resolving.
@@ -35,21 +36,37 @@ export default function BootShell({ appName = 'Terras ERP' }: { appName?: string
         <div className={`app-container ui-style-${uiStyle}`} aria-busy="true">
             <div
                 className="sidebar"
-                style={classic ? { background: '#ece9d8' } : undefined}
+                style={{ background: classic ? SIDEBAR_BG : '#ffffff' }}
             >
+                {/* Same brand block as Sidebar.tsx: real height var, real colors, the
+                    actual icon asset (a static file, so it needs no auth to draw). */}
                 <div
-                    style={{
-                        height: classic ? 30 : 64,
-                        display: 'flex', alignItems: 'center',
-                        padding: classic ? '0 8px' : '0 24px',
-                        borderBottom: `1px solid ${classic ? '#b0aaa0' : '#f3f4f6'}`,
-                        fontWeight: 'bold',
-                        fontSize: classic ? 12 : 15,
-                        color: classic ? '#1a3d90' : '#111827',
-                        whiteSpace: 'nowrap', overflow: 'hidden',
+                    style={classic ? {
+                        background: 'var(--xp-title-flat)',
+                        padding: '0 10px',
+                        borderBottom: '1px solid var(--xp-title-blue-border)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
+                        display: 'flex', alignItems: 'center', flexShrink: 0,
+                        height: 'var(--app-header-h)',
+                    } : {
+                        background: M_PRIMARY,
+                        padding: '0 16px',
+                        borderBottom: `1px solid ${M_PRIMARY_DK}`,
+                        display: 'flex', alignItems: 'center', flexShrink: 0,
+                        height: 'var(--app-header-h)',
                     }}
                 >
-                    {appName}
+                    <img
+                        className="app-brand-icon"
+                        src="/icons/icon-192.png"
+                        alt={appName}
+                        style={{
+                            width: classic ? 20 : 24,
+                            height: classic ? 20 : 24,
+                            flexShrink: 0,
+                            borderRadius: classic ? 3 : 5,
+                        }}
+                    />
                 </div>
 
                 <div style={{ padding: classic ? '8px 8px' : '12px 0' }}>

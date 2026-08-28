@@ -15,7 +15,10 @@ interface SidebarProps {
 }
 
 
-const SIDEBAR_BG   = '#d6dff7';
+// Exported so BootShell (the pre-auth skeleton reusing this same layout) can
+// paint the identical colors instead of drifting out of sync with a second
+// hand-rolled palette.
+export const SIDEBAR_BG   = '#d6dff7';
 const SUB_BG       = '#bcc9e8';
 const SUB_BG_DEEP  = '#a8b4cc';
 const HOVER_BG     = '#0058e6';
@@ -84,8 +87,8 @@ function sectionHdrStyle(isHovered: boolean): React.CSSProperties {
 // Light sidebar, corporate-blue accent. Mirrors the classic helpers above so the
 // component body can pick a palette without branching every style inline.
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const M_PRIMARY     = '#2563eb';
-const M_PRIMARY_DK  = '#1d4ed8';
+export const M_PRIMARY     = '#2563eb';
+export const M_PRIMARY_DK  = '#1d4ed8';
 const M_SOFT        = '#eff6ff';
 const M_HOVER_BG    = '#f1f5f9';
 const M_TEXT        = '#475569';
