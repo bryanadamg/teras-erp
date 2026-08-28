@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/public/icons/icon-512.png" alt="Terras ERP logo" width="96" height="96" />
+</p>
+
 # Terras ERP
 
 **Terras ERP** is a manufacturing and inventory ERP built for textile factories — warping, weaving, dyeing, and finishing lines where lot traceability and shop-floor speed matter as much as the paperwork. It runs the full loop from sales order to production planning, shop-floor execution, dyeing/setting recipes, and dispatch, with every stock movement and QC decision logged for audit.
