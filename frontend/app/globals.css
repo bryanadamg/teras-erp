@@ -2015,6 +2015,19 @@ textarea {
   }
 }
 
+/* "View Documentation" pill (login header/footer, both echoed on the docs
+   header's "Sign In" pill) - a plain glow on hover, not a travelling effect,
+   so it needs no reduced-motion guard the way the badge glimmer below does. */
+.login-docs-link {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.login-docs-link:hover {
+  border-color: rgba(122,176,232,0.75);
+  background: rgba(122,176,232,0.14);
+  color: #dcefff;
+  box-shadow: 0 0 10px rgba(122,176,232,0.55), 0 0 22px rgba(122,176,232,0.25);
+}
+
 /* -- Login staff ID card (password step) ------------------------------------
    The card's own motion lives in inline transitions on the component (the card
    face, the frame re-shape, the avatar's glide from centre to the left edge),

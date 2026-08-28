@@ -4,7 +4,7 @@ export const inventoryPage: DocPage = {
     slug: 'inventory',
     title: 'Inventory & Items',
     subtitle: 'Manage your product catalogue — items, variants, attributes, categories, and units of measure.',
-    badges: ['Items', 'Variants', 'Attributes', 'Categories', 'UOM'],
+    badges: ['Items', 'Variants', 'Attributes', 'Colour/Combo Library', 'Categories', 'UOM'],
     sections: [
         {
             heading: 'Items',
@@ -25,6 +25,10 @@ export const inventoryPage: DocPage = {
         {
             heading: 'Variants',
             body: 'A variant is a specific combination of attribute values for an item (e.g. "Red / Large / Cotton"). Stock, BOM lines, sales order lines, and purchase order lines all operate at the variant level. The internal variant key is a sorted, comma-joined list of AttributeValue UUIDs — this ensures consistent identity regardless of the order attribute values are selected.',
+        },
+        {
+            heading: 'Colour & Combo Libraries',
+            body: 'Colour and Combo (yarn-dyed pattern) are dedicated, searchable master lists for the two variant axes that outgrow a plain inline attribute list — a mill can have hundreds of named shades or combos. Each library row is mirrored one-to-one onto a normal Attribute Value behind the scenes, so BOM, Sales Order, and sample variant selection all keep working through the same Attributes system; the library is just a friendlier front end for managing a very large value set.',
         },
         {
             heading: 'Categories',

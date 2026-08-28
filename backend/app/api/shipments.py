@@ -27,7 +27,7 @@ from app.schemas import (
 from app.models.shipment import Shipment
 from app.models.pick_list import PickList, PickListLine
 from app.models.sales import SalesOrder, SalesOrderLine
-from app.api.auth import require_permission, require_any_permission
+from app.api.auth import require_permission, require_any_permission, user_has_permission
 from app.models.auth import User
 from app.services import (
     audit_service, kpi_service, so_fulfilment_service, numbering_service, dispatch_service,
@@ -410,6 +410,8 @@ async def verify_shipment(
     working, but a control that anyone with sales.manage can satisfy is not a
     control. Same reason the staging user is blocked below: four eyes means two
     people, and the check exists precisely because the first pair already looked.
+    Administrators (`admin.access`) are exempt from the staging-user block —
+    they're trusted to self-verify when no second checker is available.
     """
     shp = await _load(db, shp_id)
     if not shp:
@@ -418,7 +420,11 @@ async def verify_shipment(
         raise HTTPException(status_code=400, detail=f"Only a STAGED shipment can be verified (is {shp.status})")
     if not shp.pick_lists:
         raise HTTPException(status_code=400, detail="Nothing staged on this shipment")
-    if shp.staged_by_id and shp.staged_by_id == current_user.id:
+    if (
+        shp.staged_by_id
+        and shp.staged_by_id == current_user.id
+        and not user_has_permission(current_user, 'admin.access')
+    ):
         raise HTTPException(
             status_code=400,
             detail="The person who staged this shipment cannot verify it — a second checker must confirm the load",

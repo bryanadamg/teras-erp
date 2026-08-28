@@ -637,6 +637,14 @@ async def add_packing_completion(
       mobile packing scanner and non-lot-tracked FG. The variant then comes from
       the order, or is derived from the un-lotted stock at the source location.
 
+    Either shape may carry `qty_rejected` — loose material drawn off the source
+    that never became a carton (offcuts, stained ends). It is consumed on top of
+    the carton qty, moved into the defect store on its own lot, and counted into
+    `qty_rejected` rather than `qty`, so `qty_packed` only ever means good
+    output. A draw that yielded nothing good (`qty` 0, `qty_rejected` > 0) is
+    written as a rejected completion. Cartons that were minted and only then
+    failed QC go through the reject endpoint below instead.
+
     Note this never auto-closes the order when the target is reached — same rule
     as manufacturing orders, where closure is a deliberate act so a deliberately
     over-packed run is not blocked. `actual_end_date` is stamped on reaching
@@ -657,12 +665,15 @@ async def add_packing_completion(
 
     lots = list(payload.lots or [])
     if lots:
-        if any(float(l.qty or 0) <= 0 for l in lots):
+        # A lot may be drawn purely to be scrapped (qty 0, qty_rejected > 0) —
+        # the honest record when a whole draw failed QC — so the floor is the
+        # lot's total draw, not its carton qty.
+        if any(float(l.qty or 0) + float(l.qty_rejected or 0) <= 0 for l in lots):
             raise HTTPException(status_code=400, detail="Every selected lot needs a quantity greater than zero")
     else:
-        if float(payload.qty or 0) <= 0:
+        if float(payload.qty or 0) <= 0 and float(payload.qty_rejected or 0) <= 0:
             raise HTTPException(status_code=400, detail="Quantity must be greater than zero")
-        if int(payload.package_count or 0) <= 0:
+        if float(payload.qty or 0) > 0 and int(payload.package_count or 0) <= 0:
             raise HTTPException(status_code=400, detail="Package count must be at least 1")
         # Fold the single-event path into the same loop so there is one code path
         # minting cartons; batch_id stays None for non-lot-tracked FG.
@@ -670,6 +681,7 @@ async def add_packing_completion(
             batch_id=payload.source_batch_id,
             qty=payload.qty,
             package_count=payload.package_count,
+            qty_rejected=payload.qty_rejected,
         )] if payload.source_batch_id else [None]
 
     # QC hold gate. Packing pulls straight out of the quarantine location, so the
@@ -703,6 +715,17 @@ async def add_packing_completion(
         return float(po.pack_size or 0)
 
     lot_qtys = [float(lot.qty) if lot else float(payload.qty) for lot in lots]
+    # Loose scrap per lot: material that left the source location but never
+    # became a carton. Deliberately kept out of `lot_qtys` — those feed
+    # `allocate_boxes_to_lots`, which asserts the box list sums to the qty being
+    # boxed, and scrap is by definition not in a box.
+    lot_rejects = [
+        float((lot.qty_rejected if lot else payload.qty_rejected) or 0) for lot in lots
+    ]
+    reject_reason = (payload.reject_reason or "").strip() or None
+    reject_loc = await reject_service.resolve_reject_location(
+        db, item_id=po.item_id, explicit=payload.reject_location_id,
+    ) if any(r > 0 for r in lot_rejects) else None
 
     # An explicit, user-edited box list spans the whole event (every lot
     # combined) and wins over box_size entirely — a box that doesn't fit in
@@ -733,8 +756,14 @@ async def add_packing_completion(
     box_groups: dict[int, list[dict]] = {}
     for idx, lot in enumerate(lots):
         lot_qty = lot_qtys[idx]
+        lot_reject = lot_rejects[idx]
         batch_id = lot.batch_id if lot else None
-        if per_lot_cartons is not None:
+        if lot_qty <= 0:
+            # Reject-only draw: nothing is boxed. Guarded here because
+            # `split_qty(0, size)` still yields one zero-qty carton, which would
+            # mint an empty label.
+            carton_qtys = []
+        elif per_lot_cartons is not None:
             carton_qtys = per_lot_cartons[idx]
         else:
             # No explicit box list — the split is derived from the box size, and
@@ -774,10 +803,14 @@ async def add_packing_completion(
                 )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        if available + 1e-6 < lot_qty:
+        # Scrap comes out of the same draw, so it has to be covered by the same
+        # balance — a lot with 30kg cannot yield 28kg of cartons plus 5kg of
+        # offcuts.
+        needed = lot_qty + lot_reject
+        if available + 1e-6 < needed:
             raise HTTPException(
                 status_code=400,
-                detail=f"Insufficient stock at source — have {available}, need {lot_qty}",
+                detail=f"Insufficient stock at source — have {available}, need {needed}",
             )
 
         completion = PackingCompletion(
@@ -799,6 +832,19 @@ async def add_packing_completion(
             operator=payload.operator or current_user.username,
             notes=payload.notes,
             completed_at=datetime.utcnow(),
+            # Loose scrap off this draw. `qty` stays the GOOD qty, so qty_packed
+            # and the SO fulfilment recompute never count material that went to
+            # the defect store. `package_count_rejected` stays 0 — nothing was
+            # boxed, so there is no carton to count.
+            qty_rejected=lot_reject,
+            reject_reason=reject_reason if lot_reject > 0 else None,
+            reject_location_id=reject_loc if lot_reject > 0 else None,
+            rejected_at=datetime.utcnow() if lot_reject > 0 else None,
+            rejected_by=current_user.username if lot_reject > 0 else None,
+            # A draw that yielded nothing good is a rejected event outright, the
+            # same way a whole-event QC reject is — it must not sit in the log as
+            # an active completion with zero output.
+            rejected=lot_qty <= 0 and lot_reject > 0,
         )
         db.add(completion)
         await db.flush()
@@ -867,6 +913,25 @@ async def add_packing_completion(
                 raise HTTPException(status_code=400, detail=str(e))
             box_breakdown.extend(carton_qty for _, carton_qty in units)
 
+        # Scrap leaves the source bin for the defect store on the lot it was
+        # drawn from — it is still that lot's material, just no longer sellable.
+        # The batch is NOT re-graded: the rest of it is untouched good stock, so
+        # it is the defect LOCATION that marks this qty as scrap. (A whole-lot
+        # reject goes through the QC endpoint, which does grade the batch.)
+        if lot_reject > 0:
+            await reject_service.move_unlotted_reject(
+                db,
+                item_id=po.item_id,
+                qty=lot_reject,
+                from_location_id=po.source_location_id,
+                to_location_id=reject_loc,
+                reference_id=po.code,
+                reference_type="PACKING_REJECT",
+                attribute_value_ids=[str(a) for a in attr_ids],
+                color_id=color_id,
+                batch_id=batch_id,
+            )
+
     # Mint one carton per original box entry, in the order the packer typed
     # them — merging back whatever a lot seam split apart. The pieces list is
     # ordered by lot, so the LAST piece is the lot that closed the box out;
@@ -894,6 +959,7 @@ async def add_packing_completion(
 
     total_qty = sum(float(c.qty) for c in completions)
     total_cartons = sum(int(c.package_count) for c in completions)
+    total_rejected = sum(float(c.qty_rejected or 0) for c in completions)
 
     po = await _load(db, po_id)
     if po.status == "PENDING":
@@ -918,6 +984,7 @@ async def add_packing_completion(
     machine_name = (await db.execute(
         select(WorkCenter.name).filter(WorkCenter.id == machine_id)
     )).scalars().first() if machine_id else None
+    reject_loc_name = await reject_service.location_name(db, reject_loc) if total_rejected > 0 else None
     lot_note = f" from {len(completions)} lots" if len(completions) > 1 else ""
     breakdown = packing_service.describe_box_breakdown(box_breakdown)
     breakdown_note = f" ({breakdown})" if len(set(round(q, 4) for q in box_breakdown)) > 1 else ""
@@ -928,6 +995,9 @@ async def add_packing_completion(
             f"Packed {total_qty} into {total_cartons} {po.package_label.lower()}(s)"
             f"{breakdown_note}{lot_note} on {po.code}"
             + (f" @ {machine_name}" if machine_name else "")
+            + (f"; rejected {total_rejected:g}" if total_rejected > 0 else "")
+            + (f" → {reject_loc_name}" if total_rejected > 0 and reject_loc_name else "")
+            + (f": {reject_reason}" if total_rejected > 0 and reject_reason else "")
         ),
     )
     try:

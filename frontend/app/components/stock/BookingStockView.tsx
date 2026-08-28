@@ -9,6 +9,8 @@ import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, Exp
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, pageFillStyle } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra, TableEmpty } from '../shared/listViewTheme';
+import { EPS, HEALTH, healthOf, TERM } from './bookingStockTheme';
+import BookingStockInfoModal from './BookingStockInfoModal';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -17,15 +19,6 @@ import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, Expander
 
 const fmtQty = (n: number) =>
     Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
-
-// Net-free health, with a small epsilon so float dust doesn't read as a shortfall.
-const EPS = 0.0005;
-const HEALTH = {
-    short: { color: '#c00000', tint: '#fdeeee', label: 'SHORT' },
-    tight: { color: '#9a6a00', tint: '#fff8e6', label: 'TIGHT' },
-    ok:    { color: '#2d7a2d', tint: '#ffffff', label: 'OK' },
-};
-const healthOf = (nf: number) => (nf < -EPS ? HEALTH.short : nf <= EPS ? HEALTH.tight : HEALTH.ok);
 
 type Row = {
     item_id: string;
@@ -56,6 +49,7 @@ export default function BookingStockView() {
 
     const PAGE_SIZE = 50;
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [infoOpen, setInfoOpen] = useState(false);
 
     // Page window, the 350ms-debounced `?search=` box, loading flag and the
     // stale-response race guard all come from the shared hook
@@ -172,12 +166,12 @@ export default function BookingStockView() {
             padding: classic ? '8px 12px 10px 20px' : '10px 16px',
         }}>
             {detailSide(
-                t('demand_from_mos') || 'Required by', '#9a6a00', '#fff3d6',
+                t('demand_from_mos') || 'Required by', HEALTH.tight.color, '#fff3d6',
                 r.demand_mos.map(m => ({ mo_id: m.mo_id, mo_code: m.mo_code, qty: m.required_qty })),
                 '', r.uom,
             )}
             {detailSide(
-                t('incoming_from_mos') || 'Incoming from', '#1a5e2a', '#e2f3e2',
+                t('incoming_from_mos') || 'Incoming from', TERM.incoming, '#e2f3e2',
                 r.supply_mos.map(m => ({ mo_id: m.mo_id, mo_code: m.mo_code, qty: m.incoming_qty })),
                 '+', r.uom,
             )}
@@ -210,6 +204,14 @@ export default function BookingStockView() {
                     {classic && <div style={xpSep} />}
                     <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-outline-secondary'} onClick={fetchAvailability} title={classic ? 'Refresh' : undefined}>
                         <i className={classic ? 'bi bi-arrow-clockwise' : 'bi bi-arrow-clockwise me-1'} style={classic ? { marginRight: 4 } : undefined} />Refresh
+                    </button>
+                    {/* Opens modeless, so the explanation can stay up while the reader
+                        scrolls the table it describes. */}
+                    <button style={classic ? xpBtn() : undefined} className={classic ? XP_BTN : 'btn btn-sm btn-outline-info'}
+                        onClick={() => setInfoOpen(true)}
+                        title={t('how_booking_stock_calculated') || 'How is Booking Stock calculated?'}>
+                        <i className={classic ? 'bi bi-info-circle' : 'bi bi-info-circle me-1'} style={classic ? { marginRight: 4 } : undefined} />
+                        {t('how_calculated') || 'How is this calculated?'}
                     </button>
                     {/* Legend */}
                     <span style={classic ? { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, fontFamily: xpFont, fontSize: '10px', color: '#555' } : undefined} className={classic ? undefined : 'ms-auto small text-muted d-flex gap-3'}>
@@ -284,11 +286,11 @@ export default function BookingStockView() {
                                                         ? <span style={{ color: '#999', fontStyle: 'italic' }}>Standard</span>
                                                         : <span className="text-muted">Standard</span>)}
                                             </td>
-                                            <td style={{ ...(classic ? numCell : numCellM), color: '#00008b' }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_on_hand)}</td>
-                                            <td style={{ ...(classic ? numCell : numCellM), color: r.qty_incoming ? '#1a5e2a' : '#bbb' }} className={classic ? undefined : 'text-end'}>
+                                            <td style={{ ...(classic ? numCell : numCellM), color: TERM.onHand }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_on_hand)}</td>
+                                            <td style={{ ...(classic ? numCell : numCellM), color: r.qty_incoming ? TERM.incoming : '#bbb' }} className={classic ? undefined : 'text-end'}>
                                                 {r.qty_incoming ? `+${fmtQty(r.qty_incoming)}` : '—'}
                                             </td>
-                                            <td style={{ ...(classic ? numCell : numCellM), color: '#7a3a00' }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_required)}</td>
+                                            <td style={{ ...(classic ? numCell : numCellM), color: TERM.required }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_required)}</td>
                                             <td style={{ ...(classic ? numCell : numCellM), fontWeight: 'bold', color: h.color }} className={classic ? undefined : 'text-end fw-bold'}>
                                                 {fmtQty(r.qty_net_free)}
                                                 {classic
@@ -338,6 +340,8 @@ export default function BookingStockView() {
                     </div>
                 )}
             </div>
+
+            <BookingStockInfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
         </div>
     );
 }

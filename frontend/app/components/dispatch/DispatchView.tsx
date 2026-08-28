@@ -101,7 +101,6 @@ export default function DispatchView() {
     // Deck rows arrive as a rollup only — `/shipments/stageable` deliberately stays
     // cheap — so their cartons are fetched on first expand and then kept.
     const [deckDetail, setDeckDetail] = useState<Record<string, any>>({});
-    const [staging, setStaging] = useState<any[] | null>(null);   // pick lists chosen to stage
     const [editing, setEditing] = useState<any | null>(null);     // shipment header edit
     const [verifying, setVerifying] = useState<any | null>(null);
     const [printShp, setPrintShp] = useState<any | null>(null);
@@ -188,10 +187,19 @@ export default function DispatchView() {
         setDeckDetail(prev => ({ ...prev, [k]: data }));
     }, [authFetch, deckDetail]);
 
-    const doStage = async (form: any) => {
+    // Staging no longer collects carrier/vehicle/driver/notes up front — it mints
+    // the shipment immediately (defaults: next SJ number, today's date, everything
+    // else blank) and drops straight into the print preview, which is now the one
+    // place those loading-deck facts get typed in and saved.
+    const stageNow = useCallback(async (picks: any[]) => {
+        if (!picks.length) return;
+        if (new Set(picks.map((p: any) => p.customer_name || '')).size > 1) {
+            showToast('One Surat Jalan addresses one customer', 'danger');
+            return;
+        }
         const res = await authFetch(`${API_BASE}/shipments`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...form, pick_list_ids: selectedDeck.map(d => d.id) }),
+            body: JSON.stringify({ pick_list_ids: picks.map((d: any) => d.id) }),
         });
         if (!res.ok) {
             const e = await res.json().catch(() => ({}));
@@ -199,7 +207,6 @@ export default function DispatchView() {
             return;
         }
         const shp = await res.json();
-        setStaging(null);
         sel.clear();
         await refreshAll();
         // Clear any filter that would hide the row that was just minted, and open it.
@@ -207,7 +214,7 @@ export default function DispatchView() {
         setExpandedId(`shp:${shp.id}`);
         showToast(`Staged ${shp.code} — Surat Jalan ${shp.delivery_note_number}`, 'success');
         setPrintShp(shp);
-    };
+    }, [authFetch, refreshAll, sel, showToast]);
 
     const doVerify = async (shp: any, payload: any) => {
         const res = await authFetch(`${API_BASE}/shipments/${shp.id}/verify`, {
@@ -295,7 +302,7 @@ export default function DispatchView() {
                         </span>
                     )}
                     {canManage && (
-                        <button className={XP_BTN} style={xpBtnGreen()} disabled={mixedCustomers} onClick={() => setStaging(selectedDeck)}>
+                        <button className={XP_BTN} style={xpBtnGreen()} disabled={mixedCustomers} onClick={() => stageNow(selectedDeck)}>
                             Stage on Deck
                         </button>
                     )}
@@ -363,7 +370,17 @@ export default function DispatchView() {
                                         <td style={{ ...td, textAlign: 'right' }}>{d.carton_count}</td>
                                         <td style={td}><StatusChip status="PICKED" /></td>
                                         <td style={td}>{EMPTY_DASH}</td>
-                                        <td style={td} />
+                                        <td style={{ ...td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                                            {canManage && (
+                                                <XPActionButton
+                                                    classic
+                                                    tone="success"
+                                                    icon="bi-truck"
+                                                    title="Stage on Deck"
+                                                    onClick={() => stageNow([d])}
+                                                />
+                                            )}
+                                        </td>
                                     </tr>
                                     {open && (
                                         <tr>
@@ -410,6 +427,16 @@ export default function DispatchView() {
                                                     <XPActionButton classic tone="success" icon="bi-check2-square" title="Verify Load" onClick={() => setVerifying(shp)} />
                                                 </span>
                                             )}
+                                            {canManage && shp.status === 'VERIFIED' && (
+                                                <span style={{ marginRight: 2 }}>
+                                                    <XPActionButton classic tone="warning" icon="bi-arrow-counterclockwise" title="Reopen" onClick={() => doAction(shp, 'reopen')} />
+                                                </span>
+                                            )}
+                                            {canDispatch && shp.status === 'VERIFIED' && (
+                                                <span style={{ marginRight: 2 }}>
+                                                    <XPActionButton classic tone="success" icon="bi-truck" title="Confirm Dispatch" onClick={() => doAction(shp, 'dispatch', `Dispatch ${shp.code}? This posts goods issue and cannot be undone.`)} />
+                                                </span>
+                                            )}
                                             <span style={{ marginRight: 2 }}>
                                                 <XPActionButton classic tone="neutral" icon="bi-printer" title="Print Surat Jalan" onClick={() => setPrintShp(shp)} />
                                             </span>
@@ -450,27 +477,17 @@ export default function DispatchView() {
                 <FloatingMenu
                     pos={menuPos}
                     items={[
-                        // Surat Jalan and Verify Load are promoted to the row's action
-                        // column — the two things a deck user reaches for every time.
+                        // Surat Jalan, Verify Load, Reopen and Confirm Dispatch are all
+                        // promoted to the row's action column — the things a deck user
+                        // reaches for every time a shipment is in that state. Only Edit,
+                        // Cancel and Delete are left in the overflow menu.
                         ...(canManage && ['DRAFT', 'STAGED'].includes(menuShipment.status)
                             ? [{ key: 'edit', label: 'Edit', icon: 'bi-pencil', onClick: () => { menuClose(); openEdit(menuShipment); } }] : []),
-                        ...(canManage && menuShipment.status === 'VERIFIED'
-                            ? [{ key: 'reopen', label: 'Reopen', icon: 'bi-arrow-counterclockwise', onClick: () => { menuClose(); doAction(menuShipment, 'reopen'); } }] : []),
-                        ...(canDispatch && menuShipment.status === 'VERIFIED'
-                            ? [{ key: 'dispatch', label: 'Confirm Dispatch', icon: 'bi-truck', onClick: () => { menuClose(); doAction(menuShipment, 'dispatch', `Dispatch ${menuShipment.code}? This posts goods issue and cannot be undone.`); } }] : []),
                         ...(canManage && menuShipment.status !== 'DISPATCHED'
                             ? [{ key: 'cancel', label: 'Cancel', icon: 'bi-x-circle', onClick: () => { menuClose(); doAction(menuShipment, 'cancel', `Cancel ${menuShipment.code}? Pick lists return to the deck.`); } }] : []),
                         ...(canManage && menuShipment.status !== 'DISPATCHED'
                             ? [{ key: 'delete', label: 'Delete', icon: 'bi-trash', onClick: () => { menuClose(); doDelete(menuShipment); } }] : []),
                     ]}
-                />
-            )}
-
-            {staging && (
-                <StageModal
-                    picks={staging}
-                    onClose={() => setStaging(null)}
-                    onSubmit={doStage}
                 />
             )}
 
@@ -490,6 +507,7 @@ export default function DispatchView() {
                     shp={verifying}
                     onClose={() => setVerifying(null)}
                     onSubmit={(payload: any) => doVerify(verifying, payload)}
+                    showToast={showToast}
                 />
             )}
 
@@ -500,6 +518,7 @@ export default function DispatchView() {
                     companyProfile={companyProfile}
                     customerAddr={customerAddr}
                     onClose={() => setPrintShp(null)}
+                    onSaved={refreshAll}
                 />
             )}
         </ShellWindow>
@@ -626,76 +645,6 @@ function DeckDetail({ row, pl, tzDate, itemIndex }: any) {
     );
 }
 
-// ── Stage: capture the loading-deck facts and mint the Surat Jalan ─────────
-function StageModal({ picks, onClose, onSubmit }: any) {
-    const { todayInput } = useTimezone();
-    const [carrier, setCarrier] = useState('');
-    const [vehicle, setVehicle] = useState('');
-    const [driver, setDriver] = useState('');
-    const [dn, setDn] = useState('');
-    const [date, setDate] = useState(todayInput);
-    const [notes, setNotes] = useState('');
-
-    const cartons = picks.reduce((s: number, p: any) => s + num(p.carton_count), 0);
-
-    const field = (label: string, node: React.ReactNode, hint?: string) => (
-        <div style={{ marginBottom: 8 }}>
-            <div style={xpLabel}>{label}</div>
-            {node}
-            {hint && <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>{hint}</div>}
-        </div>
-    );
-
-    return (
-        <ModalWrapper
-            isOpen
-            onClose={onClose}
-            title="Stage on Loading Deck"
-            size="lg"
-            modeless
-            footer={
-                <>
-                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button>
-                    <button
-                        className={XP_BTN}
-                        style={xpBtnGreen()}
-                        onClick={() => onSubmit({
-                            carrier: carrier || null,
-                            vehicle_plate: vehicle || null,
-                            driver: driver || null,
-                            delivery_note_number: dn || null,
-                            delivery_date: date ? new Date(date).toISOString() : null,
-                            notes: notes || null,
-                        })}
-                    >Stage &amp; Print</button>
-                </>
-            }
-        >
-            <div style={{ fontFamily: xpFont, fontSize: 11 }}>
-                <div style={{ marginBottom: 10 }}>
-                    <strong>{picks.length} pick list(s)</strong> · {cartons} carton(s) · {picks[0]?.customer_name}
-                    <div style={{ marginTop: 4, fontFamily: CODE_FONT }}>
-                        {picks.map((p: any) => p.code).join(', ')}
-                    </div>
-                </div>
-                {field('Surat Jalan no.',
-                    <input style={{ ...xpInput, width: '100%' }} value={dn} onChange={e => setDn(e.target.value)} placeholder="Auto" />,
-                    'Leave blank to take the next number in the series.')}
-                {field('Delivery date',
-                    <input type="date" style={{ ...xpInput, width: '100%' }} value={date} onChange={e => setDate(e.target.value)} />)}
-                {field('Carrier',
-                    <input style={{ ...xpInput, width: '100%' }} value={carrier} onChange={e => setCarrier(e.target.value)} />)}
-                {field('Vehicle no.',
-                    <input style={{ ...xpInput, width: '100%' }} value={vehicle} onChange={e => setVehicle(e.target.value)} placeholder="B 9751 CCB" />)}
-                {field('Driver',
-                    <input style={{ ...xpInput, width: '100%' }} value={driver} onChange={e => setDriver(e.target.value)} />)}
-                {field('Notes',
-                    <input style={{ ...xpInput, width: '100%' }} value={notes} onChange={e => setNotes(e.target.value)} />)}
-            </div>
-        </ModalWrapper>
-    );
-}
-
 // ── Edit a staged shipment's header / membership ───────────────────────────
 function EditShipmentModal({ shp, deck, authFetch, showToast, onClose, onSaved }: any) {
     const [dn, setDn] = useState(shp.delivery_note_number || '');
@@ -779,15 +728,37 @@ function EditShipmentModal({ shp, deck, authFetch, showToast, onClose, onSaved }
 }
 
 // ── The deck check ─────────────────────────────────────────────────────────
-function VerifyModal({ shp, onClose, onSubmit }: any) {
+function VerifyModal({ shp, onClose, onSubmit, showToast }: any) {
     const [notes, setNotes] = useState('');
     const [discrepancy, setDiscrepancy] = useState(false);
     const [ticked, setTicked] = useState<Record<string, boolean>>({});
+    const [scanCode, setScanCode] = useState('');
+    const scanRef = useRef<HTMLInputElement | null>(null);
 
     const cartons = (shp.pick_lists || []).flatMap((pl: any) =>
         (pl.lines || []).filter((l: any) => l.batch_number).map((l: any) => ({ ...l, pl_code: pl.code })));
     const doneCount = cartons.filter((c: any) => ticked[String(c.id)]).length;
     const allTicked = cartons.length > 0 && doneCount === cartons.length;
+
+    useEffect(() => { scanRef.current?.focus(); }, []);
+
+    // Same scan-to-confirm shape as the pick list floor screen — the checker
+    // gun-scans (or types) each carton rather than hunting it in a checkbox list.
+    // Purely a local tally: nothing is written to the server until Confirm Load.
+    const scan = (code: string) => {
+        const trimmed = code.trim();
+        if (!trimmed) return;
+        const match = cartons.find((c: any) => (c.batch_number || '').toUpperCase() === trimmed.toUpperCase());
+        if (!match) {
+            showToast?.(`No carton '${trimmed}' on this shipment`, 'danger');
+        } else if (ticked[String(match.id)]) {
+            showToast?.(`${trimmed} already counted`, 'warning');
+        } else {
+            setTicked(t => ({ ...t, [String(match.id)]: true }));
+        }
+        setScanCode('');
+        scanRef.current?.focus();
+    };
 
     return (
         <ModalWrapper
@@ -807,8 +778,22 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
             <div style={{ fontFamily: xpFont, fontSize: 11 }}>
                 <div style={{ marginBottom: 8 }}>
                     Count the cartons on the deck against Surat Jalan{' '}
-                    <strong style={{ fontFamily: CODE_FONT }}>{shp.delivery_note_number}</strong>. Tick each one you
-                    have physically seen. You cannot verify a shipment you staged yourself.
+                    <strong style={{ fontFamily: CODE_FONT }}>{shp.delivery_note_number}</strong>. Scan each carton you
+                    have physically seen — you cannot verify a shipment you staged yourself.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <input
+                        ref={scanRef}
+                        style={{ ...xpInput, width: 260 }}
+                        placeholder="Scan or type carton number (PU-…)"
+                        value={scanCode}
+                        onChange={e => setScanCode(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); scan(scanCode); } }}
+                    />
+                    <button className={XP_BTN} style={xpBtn()} disabled={!scanCode.trim()} onClick={() => scan(scanCode)}>Confirm</button>
+                    <span style={{ fontSize: 10, color: allTicked && cartons.length > 0 ? '#0a3e0a' : '#c77800' }}>
+                        {doneCount}/{cartons.length} counted
+                    </span>
                 </div>
                 <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #b0a898', background: '#fff' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -841,9 +826,6 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                             )}
                         </tbody>
                     </table>
-                </div>
-                <div style={{ marginTop: 8 }}>
-                    {doneCount}/{cartons.length} counted
                 </div>
                 <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
                     <input type="checkbox" checked={discrepancy} onChange={e => setDiscrepancy(e.target.checked)} />

@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 const BOM_PAGE_SIZE = 50;
 
 export default function BOMPage() {
-    const { items, attributes, sizes, locations, operations, workCenters, partners, companyProfile, productionRuns, fetchData, authFetch, filters, subscribeLiveEvents } = useData();
+    const { items, attributes, sizes, locations, operations, workCenters, partners, companyProfile, fetchData, authFetch, filters, subscribeLiveEvents } = useData();
     const { confirm } = useConfirm();
     const searchParams = useSearchParams();
     const [initialCreateState, setInitialCreateState] = useState<any>(null);
@@ -138,14 +138,6 @@ export default function BOMPage() {
         return res.json();
     };
 
-    const handleCreateProductionRun = async (p: any) => {
-        const res = await authFetch(`${API_BASE}/production-runs`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
-        });
-        if (res.ok) fetchData();
-        return res;
-    };
-
     const handleDeleteMultipleBOMs = async (ids: string[]) => {
         const confirmed = await confirm({
             title: 'Delete BOMs',
@@ -187,8 +179,6 @@ export default function BOMPage() {
             onCreateItem={handleCreateItem}
             onUpdateItem={handleUpdateItem}
             locations={locations || []}
-            onCreateProductionRun={handleCreateProductionRun}
-            productionRuns={productionRuns || []}
             companyProfile={companyProfile}
             initialCreateState={initialCreateState}
             onClearInitialState={handleClearInitialState}

@@ -2974,9 +2974,15 @@ class PackingCompletionLotPayload(BaseModel):
     resolved from that row server-side rather than restated by the caller.
     """
     batch_id: UUID
+    # Qty that became good cartons. May be 0 when the whole draw was scrapped —
+    # the lot then contributes only `qty_rejected`.
     qty: float
     # Cartons minted from this lot; omit to derive from the order's pack_size.
     package_count: int | None = None
+    # Loose material drawn off this lot that never became a carton — offcuts,
+    # stained ends. Consumed from the source location on top of `qty` and moved
+    # into the defect store; no carton, label or QR is minted for it.
+    qty_rejected: float = 0
 
 class PackingCompletionCreate(BaseModel):
     # qty/package_count describe the whole event and are ignored when `lots` is
@@ -3012,6 +3018,16 @@ class PackingCompletionCreate(BaseModel):
     # Multi-lot pack: one completion row is written per lot, so each keeps a
     # truthful source_batch_id and its own carton range.
     lots: list[PackingCompletionLotPayload] | None = None
+    # Loose scrap for the single-event path (ignored when `lots` is given — each
+    # lot states its own). Material that left the source location but never
+    # became a carton, so it counts against qty_rejected and never against
+    # qty_packed. `reason` and the defect-store override apply to the whole
+    # event either way.
+    qty_rejected: float = 0
+    reject_reason: str | None = None
+    # Defect store override; omitted resolves through reject_service (item
+    # master default — packing has no work center to inherit from).
+    reject_location_id: UUID | None = None
     # Machine this pack event ran on. Omitted = the packing order's own machine;
     # never left null when the order names one, so per-machine output is readable.
     work_center_id: UUID | None = None
@@ -3383,6 +3399,29 @@ class PickableOrderResponse(BaseModel):
     qty_ready: float = 0
     cartons_ready: int = 0
     has_open_pick_list: bool = False
+
+
+class PickListSuggestedCarton(BaseModel):
+    """One FIFO-suggested carton, not yet on any pick list."""
+    batch_id: UUID
+    batch_number: str | None = None
+    package_no: int | None = None
+    qty: float
+    source_location_id: UUID | None = None
+
+
+class PickListSuggestedLine(BaseModel):
+    """Preview of what `create_pick_list` would auto-fill for one SO line —
+    lets the planner uncheck a carton (e.g. one that overshoots what's still
+    owed) before anything is written to a pick list."""
+    sales_order_line_id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    item_uom: str | None = None
+    ordered_qty: float = 0
+    remaining_qty: float = 0
+    cartons: list[PickListSuggestedCarton] = []
 
 # ── Work-Center Performance Monitoring (weaving runs + production calendar) ──
 

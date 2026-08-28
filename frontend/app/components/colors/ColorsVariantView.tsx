@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { FormSection, FormError, XP_BTN } from '../shared/xpTheme';
+import { FormSection, FormError, XP_BTN, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead, TableEmpty } from '../shared/listViewTheme';
 import { ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -74,6 +74,7 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
     const [editHex, setEditHex] = useState<string | null>(null);
     const [formError, setFormError] = useState('');
     const [saving, setSaving] = useState(false);
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(140);
 
     const sorted = [...(values || [])].sort((a, b) => String(a.value).localeCompare(String(b.value)));
     const filtered = search ? sorted.filter(v => String(v.value).toLowerCase().includes(search.toLowerCase())) : sorted;
@@ -206,18 +207,7 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                                                     </button>
                                                 </>
                                             ) : (
-                                                <>
-                                                    {canEdit && (
-                                                        <button title="Rename" onClick={() => startEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                                            <i className="bi bi-pencil" />
-                                                        </button>
-                                                    )}
-                                                    {canDelete && (
-                                                        <button title="Delete" onClick={() => handleDelete(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
-                                                            <i className="bi bi-trash" />
-                                                        </button>
-                                                    )}
-                                                </>
+                                                <MenuTriggerButton classic={classic} onClick={e => menuToggle(v.id, e)} />
                                             )}
                                         </div>
                                     )}
@@ -229,6 +219,21 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
             </div>
 
             <Pager page={clampedPage} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+
+            {/* Row ⋯ menu: Rename / Delete */}
+            {menuOpenId && (() => {
+                const v = paged.find(x => String(x.id) === menuOpenId);
+                if (!v) return null;
+                return (
+                    <FloatingMenu
+                        pos={menuPos}
+                        items={[
+                            { key: 'rename', label: 'Rename', icon: 'bi-pencil-square', hidden: !canEdit, onClick: () => { menuClose(); startEdit(v); } },
+                            { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !canDelete, onClick: () => { menuClose(); handleDelete(v); } },
+                        ]}
+                    />
+                );
+            })()}
 
             <ModalWrapper
                 isOpen={isModalOpen}
