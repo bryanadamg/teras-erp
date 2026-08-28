@@ -507,6 +507,7 @@ export default function DispatchView() {
                     shp={verifying}
                     onClose={() => setVerifying(null)}
                     onSubmit={(payload: any) => doVerify(verifying, payload)}
+                    showToast={showToast}
                 />
             )}
 
@@ -727,15 +728,37 @@ function EditShipmentModal({ shp, deck, authFetch, showToast, onClose, onSaved }
 }
 
 // ── The deck check ─────────────────────────────────────────────────────────
-function VerifyModal({ shp, onClose, onSubmit }: any) {
+function VerifyModal({ shp, onClose, onSubmit, showToast }: any) {
     const [notes, setNotes] = useState('');
     const [discrepancy, setDiscrepancy] = useState(false);
     const [ticked, setTicked] = useState<Record<string, boolean>>({});
+    const [scanCode, setScanCode] = useState('');
+    const scanRef = useRef<HTMLInputElement | null>(null);
 
     const cartons = (shp.pick_lists || []).flatMap((pl: any) =>
         (pl.lines || []).filter((l: any) => l.batch_number).map((l: any) => ({ ...l, pl_code: pl.code })));
     const doneCount = cartons.filter((c: any) => ticked[String(c.id)]).length;
     const allTicked = cartons.length > 0 && doneCount === cartons.length;
+
+    useEffect(() => { scanRef.current?.focus(); }, []);
+
+    // Same scan-to-confirm shape as the pick list floor screen — the checker
+    // gun-scans (or types) each carton rather than hunting it in a checkbox list.
+    // Purely a local tally: nothing is written to the server until Confirm Load.
+    const scan = (code: string) => {
+        const trimmed = code.trim();
+        if (!trimmed) return;
+        const match = cartons.find((c: any) => (c.batch_number || '').toUpperCase() === trimmed.toUpperCase());
+        if (!match) {
+            showToast?.(`No carton '${trimmed}' on this shipment`, 'danger');
+        } else if (ticked[String(match.id)]) {
+            showToast?.(`${trimmed} already counted`, 'warning');
+        } else {
+            setTicked(t => ({ ...t, [String(match.id)]: true }));
+        }
+        setScanCode('');
+        scanRef.current?.focus();
+    };
 
     return (
         <ModalWrapper
@@ -755,8 +778,22 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
             <div style={{ fontFamily: xpFont, fontSize: 11 }}>
                 <div style={{ marginBottom: 8 }}>
                     Count the cartons on the deck against Surat Jalan{' '}
-                    <strong style={{ fontFamily: CODE_FONT }}>{shp.delivery_note_number}</strong>. Tick each one you
-                    have physically seen. You cannot verify a shipment you staged yourself.
+                    <strong style={{ fontFamily: CODE_FONT }}>{shp.delivery_note_number}</strong>. Scan each carton you
+                    have physically seen — you cannot verify a shipment you staged yourself.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <input
+                        ref={scanRef}
+                        style={{ ...xpInput, width: 260 }}
+                        placeholder="Scan or type carton number (PU-…)"
+                        value={scanCode}
+                        onChange={e => setScanCode(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); scan(scanCode); } }}
+                    />
+                    <button className={XP_BTN} style={xpBtn()} disabled={!scanCode.trim()} onClick={() => scan(scanCode)}>Confirm</button>
+                    <span style={{ fontSize: 10, color: allTicked && cartons.length > 0 ? '#0a3e0a' : '#c77800' }}>
+                        {doneCount}/{cartons.length} counted
+                    </span>
                 </div>
                 <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #b0a898', background: '#fff' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -789,9 +826,6 @@ function VerifyModal({ shp, onClose, onSubmit }: any) {
                             )}
                         </tbody>
                     </table>
-                </div>
-                <div style={{ marginTop: 8 }}>
-                    {doneCount}/{cartons.length} counted
                 </div>
                 <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
                     <input type="checkbox" checked={discrepancy} onChange={e => setDiscrepancy(e.target.checked)} />
