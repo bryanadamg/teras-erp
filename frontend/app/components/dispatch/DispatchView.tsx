@@ -101,7 +101,6 @@ export default function DispatchView() {
     // Deck rows arrive as a rollup only — `/shipments/stageable` deliberately stays
     // cheap — so their cartons are fetched on first expand and then kept.
     const [deckDetail, setDeckDetail] = useState<Record<string, any>>({});
-    const [staging, setStaging] = useState<any[] | null>(null);   // pick lists chosen to stage
     const [editing, setEditing] = useState<any | null>(null);     // shipment header edit
     const [verifying, setVerifying] = useState<any | null>(null);
     const [printShp, setPrintShp] = useState<any | null>(null);
@@ -188,13 +187,19 @@ export default function DispatchView() {
         setDeckDetail(prev => ({ ...prev, [k]: data }));
     }, [authFetch, deckDetail]);
 
-    const doStage = async (form: any) => {
-        // Pulled from `staging` (what the modal is actually showing), not the
-        // checkbox selection — the per-row Stage button opens the modal on a
-        // single pick list without touching the checkboxes at all.
+    // Staging no longer collects carrier/vehicle/driver/notes up front — it mints
+    // the shipment immediately (defaults: next SJ number, today's date, everything
+    // else blank) and drops straight into the print preview, which is now the one
+    // place those loading-deck facts get typed in and saved.
+    const stageNow = useCallback(async (picks: any[]) => {
+        if (!picks.length) return;
+        if (new Set(picks.map((p: any) => p.customer_name || '')).size > 1) {
+            showToast('One Surat Jalan addresses one customer', 'danger');
+            return;
+        }
         const res = await authFetch(`${API_BASE}/shipments`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...form, pick_list_ids: (staging || []).map((d: any) => d.id) }),
+            body: JSON.stringify({ pick_list_ids: picks.map((d: any) => d.id) }),
         });
         if (!res.ok) {
             const e = await res.json().catch(() => ({}));
@@ -202,7 +207,6 @@ export default function DispatchView() {
             return;
         }
         const shp = await res.json();
-        setStaging(null);
         sel.clear();
         await refreshAll();
         // Clear any filter that would hide the row that was just minted, and open it.
@@ -210,7 +214,7 @@ export default function DispatchView() {
         setExpandedId(`shp:${shp.id}`);
         showToast(`Staged ${shp.code} — Surat Jalan ${shp.delivery_note_number}`, 'success');
         setPrintShp(shp);
-    };
+    }, [authFetch, refreshAll, sel, showToast]);
 
     const doVerify = async (shp: any, payload: any) => {
         const res = await authFetch(`${API_BASE}/shipments/${shp.id}/verify`, {
@@ -298,7 +302,7 @@ export default function DispatchView() {
                         </span>
                     )}
                     {canManage && (
-                        <button className={XP_BTN} style={xpBtnGreen()} disabled={mixedCustomers} onClick={() => setStaging(selectedDeck)}>
+                        <button className={XP_BTN} style={xpBtnGreen()} disabled={mixedCustomers} onClick={() => stageNow(selectedDeck)}>
                             Stage on Deck
                         </button>
                     )}
@@ -373,7 +377,7 @@ export default function DispatchView() {
                                                     tone="success"
                                                     icon="bi-truck"
                                                     title="Stage on Deck"
-                                                    onClick={() => setStaging([d])}
+                                                    onClick={() => stageNow([d])}
                                                 />
                                             )}
                                         </td>
@@ -479,14 +483,6 @@ export default function DispatchView() {
                 />
             )}
 
-            {staging && (
-                <StageModal
-                    picks={staging}
-                    onClose={() => setStaging(null)}
-                    onSubmit={doStage}
-                />
-            )}
-
             {editing && (
                 <EditShipmentModal
                     shp={editing}
@@ -513,6 +509,7 @@ export default function DispatchView() {
                     companyProfile={companyProfile}
                     customerAddr={customerAddr}
                     onClose={() => setPrintShp(null)}
+                    onSaved={refreshAll}
                 />
             )}
         </ShellWindow>
@@ -636,76 +633,6 @@ function DeckDetail({ row, pl, tzDate, itemIndex }: any) {
                 )}
             </div>
         </div>
-    );
-}
-
-// ── Stage: capture the loading-deck facts and mint the Surat Jalan ─────────
-function StageModal({ picks, onClose, onSubmit }: any) {
-    const { todayInput } = useTimezone();
-    const [carrier, setCarrier] = useState('');
-    const [vehicle, setVehicle] = useState('');
-    const [driver, setDriver] = useState('');
-    const [dn, setDn] = useState('');
-    const [date, setDate] = useState(todayInput);
-    const [notes, setNotes] = useState('');
-
-    const cartons = picks.reduce((s: number, p: any) => s + num(p.carton_count), 0);
-
-    const field = (label: string, node: React.ReactNode, hint?: string) => (
-        <div style={{ marginBottom: 8 }}>
-            <div style={xpLabel}>{label}</div>
-            {node}
-            {hint && <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>{hint}</div>}
-        </div>
-    );
-
-    return (
-        <ModalWrapper
-            isOpen
-            onClose={onClose}
-            title="Stage on Loading Deck"
-            size="lg"
-            modeless
-            footer={
-                <>
-                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button>
-                    <button
-                        className={XP_BTN}
-                        style={xpBtnGreen()}
-                        onClick={() => onSubmit({
-                            carrier: carrier || null,
-                            vehicle_plate: vehicle || null,
-                            driver: driver || null,
-                            delivery_note_number: dn || null,
-                            delivery_date: date ? new Date(date).toISOString() : null,
-                            notes: notes || null,
-                        })}
-                    >Stage &amp; Print</button>
-                </>
-            }
-        >
-            <div style={{ fontFamily: xpFont, fontSize: 11 }}>
-                <div style={{ marginBottom: 10 }}>
-                    <strong>{picks.length} pick list(s)</strong> · {cartons} carton(s) · {picks[0]?.customer_name}
-                    <div style={{ marginTop: 4, fontFamily: CODE_FONT }}>
-                        {picks.map((p: any) => p.code).join(', ')}
-                    </div>
-                </div>
-                {field('Surat Jalan no.',
-                    <input style={{ ...xpInput, width: '100%' }} value={dn} onChange={e => setDn(e.target.value)} placeholder="Auto" />,
-                    'Leave blank to take the next number in the series.')}
-                {field('Delivery date',
-                    <input type="date" style={{ ...xpInput, width: '100%' }} value={date} onChange={e => setDate(e.target.value)} />)}
-                {field('Carrier',
-                    <input style={{ ...xpInput, width: '100%' }} value={carrier} onChange={e => setCarrier(e.target.value)} />)}
-                {field('Vehicle no.',
-                    <input style={{ ...xpInput, width: '100%' }} value={vehicle} onChange={e => setVehicle(e.target.value)} placeholder="B 9751 CCB" />)}
-                {field('Driver',
-                    <input style={{ ...xpInput, width: '100%' }} value={driver} onChange={e => setDriver(e.target.value)} />)}
-                {field('Notes',
-                    <input style={{ ...xpInput, width: '100%' }} value={notes} onChange={e => setNotes(e.target.value)} />)}
-            </div>
-        </ModalWrapper>
     );
 }
 

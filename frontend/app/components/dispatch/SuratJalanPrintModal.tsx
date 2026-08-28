@@ -3,16 +3,24 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
+import { useToast } from '../shared/Toast';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { xpFont as font, xpInput as xpInputBase, PRINT_FONT } from '../shared/xpTheme';
 import { qtyFmt } from '../shared/format';
+
+// Same convention as DispatchView.tsx: always ends in `/api`.
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
 // Perincian spreads each group's cartons across fixed columns; a group with more
 // cartons than this spills onto continuation rows rather than squeezing the grid.
 const PERINCIAN_COLS = 8;
 
-function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, preparedBy, sjNoOverride }: any) {
-    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
+function SJDocument({
+    shp, lines, attributes, companyProfile, customerAddr, preparedBy, sjNoOverride,
+    vehicleOverride, driverOverride, notesOverride, dateOverride,
+}: any) {
+    // The logo is a static asset served off the bare origin, not `/api`.
+    const ORIGIN = API_BASE.replace(/\/api$/, '');
     const { itemIndex } = useData();
     const { formatCustom: tzFmt } = useTimezone();
 
@@ -79,12 +87,17 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
 
     const customerName = shp.customer_name || '';
     const sjNo = (sjNoOverride || '').trim() || shp.delivery_note_number || shp.code;
-    const tanggal = fmt(shp.delivery_date || shp.dispatched_at || shp.staged_at);
+    // These loading-deck facts are now entered right here rather than before
+    // staging, so the preview reads the in-progress edit, not just the saved row.
+    const vehiclePlate = (vehicleOverride ?? shp.vehicle_plate) || '';
+    const driverName = (driverOverride ?? shp.driver) || '';
+    const notesText = (notesOverride ?? shp.notes) || '';
+    const tanggal = fmt(dateOverride || shp.delivery_date || shp.dispatched_at || shp.staged_at);
 
     const CompanyBlock = () => (
         <div style={{ display: 'flex', gap: 8 }}>
             {companyProfile?.logo_url
-                ? <img src={`${API_BASE}${companyProfile.logo_url}`} alt="Logo" style={{ maxHeight: 34, maxWidth: 46, objectFit: 'contain' }} />
+                ? <img src={`${ORIGIN}${companyProfile.logo_url}`} alt="Logo" style={{ maxHeight: 34, maxWidth: 46, objectFit: 'contain' }} />
                 : <div style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 10 }}>SJ</div>}
             <div style={{ fontWeight: 'bold', fontSize: 12, letterSpacing: 0.5, alignSelf: 'center' }}>
                 {(companyProfile?.name || 'PT. BOLA INTAN ELASTIC').toUpperCase()}
@@ -134,8 +147,8 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
                 <table style={{ borderCollapse: 'collapse', fontSize: '9px' }}>
                     <tbody>
                         <tr><td style={{ paddingRight: 8 }}>Tanggal</td><td>: {tanggal}</td></tr>
-                        <tr><td style={{ paddingRight: 8 }}>Kendaraan No.</td><td>: {shp.vehicle_plate || ''}</td></tr>
-                        {shp.driver && <tr><td style={{ paddingRight: 8 }}>Supir</td><td>: {shp.driver}</td></tr>}
+                        <tr><td style={{ paddingRight: 8 }}>Kendaraan No.</td><td>: {vehiclePlate}</td></tr>
+                        {driverName && <tr><td style={{ paddingRight: 8 }}>Supir</td><td>: {driverName}</td></tr>}
                     </tbody>
                 </table>
                 <div style={{ width: '46%', paddingLeft: 12 }}>Hal : 1</div>
@@ -174,7 +187,7 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
                 </tbody>
             </table>
 
-            {shp.notes && <div style={{ marginTop: 6 }}>Catatan : {shp.notes}</div>}
+            {notesText && <div style={{ marginTop: 6 }}>Catatan : {notesText}</div>}
 
             <SignRow showCompany />
 
@@ -242,9 +255,21 @@ function SJDocument({ shp, lines, attributes, companyProfile, customerAddr, prep
     );
 }
 
-export default function SuratJalanPrintModal({ shipment, attributes, companyProfile, customerAddr, onClose }: any) {
+export default function SuratJalanPrintModal({ shipment, attributes, companyProfile, customerAddr, onClose, onSaved }: any) {
+    const { authFetch } = useData();
+    const { showToast } = useToast();
     const [preparedBy, setPreparedBy] = useState('');
     const [sjNo, setSjNo] = useState(shipment.delivery_note_number || shipment.code || '');
+    // Staging no longer asks for these up front — they start blank (or whatever
+    // was already saved, if this shipment is being reopened) and are saved to the
+    // shipment record as the user leaves each field.
+    const [vehicle, setVehicle] = useState(shipment.vehicle_plate || '');
+    const [driver, setDriver] = useState(shipment.driver || '');
+    const [carrier, setCarrier] = useState(shipment.carrier || '');
+    const [notes, setNotes] = useState(shipment.notes || '');
+    const [deliveryDate, setDeliveryDate] = useState(
+        shipment.delivery_date ? String(shipment.delivery_date).slice(0, 10) : '',
+    );
 
     // One flat carton list across every pick list on the shipment, each line
     // tagged with the customer PO it shipped against — the note's NO PO column.
@@ -259,15 +284,49 @@ export default function SuratJalanPrintModal({ shipment, attributes, companyProf
         return () => { document.body.classList.remove('so-print-preview-active'); };
     }, []);
 
-    const handlePrint = () => {
+    // Persists the whole header in one PUT rather than per-field patches — the
+    // fields are all edited on the same short form, so there is nothing to gain
+    // from tracking which one changed.
+    const persistDetails = async () => {
+        const res = await authFetch(`${API_BASE}/shipments/${shipment.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                delivery_note_number: sjNo.trim() || null,
+                delivery_date: deliveryDate ? new Date(deliveryDate).toISOString() : null,
+                carrier: carrier || null,
+                vehicle_plate: vehicle || null,
+                driver: driver || null,
+                notes: notes || null,
+            }),
+        });
+        if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            showToast(`Error: ${e.detail || 'could not save shipment details'}`, 'danger');
+            return;
+        }
+        onSaved?.();
+    };
+
+    const handlePrint = async () => {
+        // Flush whatever the user was still typing (blur may not have fired yet
+        // for the field that had focus) before the note goes out.
+        await persistDetails();
         const h = () => onClose();
         window.addEventListener('afterprint', h, { once: true });
         window.print();
     };
 
     const xpInput: React.CSSProperties = xpInputBase({ fontFamily: font, boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', width: '100%', boxSizing: 'border-box' });
+    const fieldLabel: React.CSSProperties = { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', margin: '14px 0 6px' };
 
-    const doc = <SJDocument shp={shipment} lines={lines} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} sjNoOverride={sjNo} />;
+    const doc = (
+        <SJDocument
+            shp={shipment} lines={lines} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr}
+            preparedBy={preparedBy} sjNoOverride={sjNo}
+            vehicleOverride={vehicle} driverOverride={driver} notesOverride={notes}
+            dateOverride={deliveryDate ? new Date(deliveryDate).toISOString() : undefined}
+        />
+    );
 
     return (
         <>
@@ -280,10 +339,20 @@ export default function SuratJalanPrintModal({ shipment, attributes, companyProf
                 modeless
             >
                 <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                    <div style={{ width: 200, borderRight: '1px solid #b0a898', background: '#f4f3ee', padding: 14 }}>
-                        <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', marginBottom: 6 }}>Surat Jalan No</div>
-                        <input style={xpInput} value={sjNo} onChange={e => setSjNo(e.target.value)} placeholder="No" />
-                        <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', margin: '14px 0 6px' }}>Prepared By</div>
+                    <div style={{ width: 220, borderRight: '1px solid #b0a898', background: '#f4f3ee', padding: 14, overflowY: 'auto' }}>
+                        <div style={{ ...fieldLabel, marginTop: 0 }}>Surat Jalan No</div>
+                        <input style={xpInput} value={sjNo} onChange={e => setSjNo(e.target.value)} onBlur={persistDetails} placeholder="No" />
+                        <div style={fieldLabel}>Delivery Date</div>
+                        <input type="date" style={xpInput} value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} onBlur={persistDetails} />
+                        <div style={fieldLabel}>Vehicle No</div>
+                        <input style={xpInput} value={vehicle} onChange={e => setVehicle(e.target.value)} onBlur={persistDetails} placeholder="B 9751 CCB" />
+                        <div style={fieldLabel}>Driver</div>
+                        <input style={xpInput} value={driver} onChange={e => setDriver(e.target.value)} onBlur={persistDetails} />
+                        <div style={fieldLabel}>Carrier</div>
+                        <input style={xpInput} value={carrier} onChange={e => setCarrier(e.target.value)} onBlur={persistDetails} />
+                        <div style={fieldLabel}>Notes</div>
+                        <input style={xpInput} value={notes} onChange={e => setNotes(e.target.value)} onBlur={persistDetails} />
+                        <div style={fieldLabel}>Prepared By</div>
                         <input style={xpInput} value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Name" />
                         <div style={{ fontSize: 10, color: '#555', marginTop: 14 }}>Paper size &amp; margins set in browser print dialog.</div>
                     </div>
@@ -293,7 +362,7 @@ export default function SuratJalanPrintModal({ shipment, attributes, companyProf
                         </div>
                     </div>
                 </div>
-                <PrintModalFooter onClose={onClose} onPrint={handlePrint} />
+                <PrintModalFooter note="Details are saved as you leave each field." onClose={onClose} onPrint={handlePrint} />
             </PrintModalShell>
 
             {createPortal(
