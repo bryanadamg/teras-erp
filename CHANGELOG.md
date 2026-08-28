@@ -15,6 +15,29 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-29
+
+### Added
+- The in-app Docs help section is rebuilt on the login screen's brand theme, with content updated to match current features
+- Booking Stock's calculation panel gains a modeless "how is this calculated" explainer with English/Indonesian tabs
+- Packing now supports logging a loose reject directly at pack time; the redundant Qty to Pack field is removed
+- The pick-list planner can uncheck suggested cartons before creating a pick list, instead of taking every suggestion as-is
+
+### Changed
+- Shipment loading-deck rows get a per-row Stage action, and Reopen/Confirm Dispatch are promoted to row action buttons for verified shipments
+- A shipment's carton load is now verified by scanning cartons instead of ticking manual checkboxes
+- Pick list cartons get their own checkbox and package-number columns
+- Administrators can now self-verify a shipment they staged themselves
+- Pick lists move to Staged immediately, and the print modal now captures delivery-note details
+- BOM, Combo Library, and Colors Variant row actions (Edit/Delete/Rename) are consolidated into a single ⋯ menu; the BOM expanded view's component table uses the shared sub-table styling and its print action is icon-only
+
+### Fixed
+- The BOM expand-row frame is visible again, the BOM code chip is truncated instead of overflowing, and the unused Start Production Run action is removed
+- The CodeChip clip-popout no longer overflows the viewport on long codes
+- Carton expectations no longer go stale after `box_index` was added
+- The boot/loading skeleton now matches the real sidebar's colors and brand icon
+- The in-app docs reading pane uses a light surface instead of the dark brand gradient
+
 ## [0.14.0] - 2026-08-27
 
 ### Added
