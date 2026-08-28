@@ -10,7 +10,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN, ProgressBar } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, lvThSticky, lvSubTable } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, lvThSticky, lvSubTable, RowCheckboxCell, LV_CHECK_COL_W } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -818,7 +818,9 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
                     <thead>
                         <tr>
+                            <th style={{ ...xpTableHeader, width: LV_CHECK_COL_W }} />
                             <th style={xpTableHeader}>Item / Carton</th>
+                            <th style={{ ...xpTableHeader, width: 50, textAlign: 'center' }}>#</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ordered</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Remaining</th>
                             <th style={{ ...xpTableHeader, width: 110, textAlign: 'right' }}>Qty</th>
@@ -829,7 +831,7 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                     </thead>
                     <tbody>
                         {soLoading && (
-                            <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#999' }}>Loading order lines...</td></tr>
+                            <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: '#999' }}>Loading order lines...</td></tr>
                         )}
                         {soLines.map((sl: any) => {
                             const it = itemById[String(sl.item_id)];
@@ -839,10 +841,12 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                             return (
                                 <React.Fragment key={sl.id}>
                                     <tr style={{ background: '#f5f4ef' }}>
+                                        <td style={td} />
                                         <td style={{ ...td, fontWeight: 'bold' }}>
                                             {it?.name || sl.item_name || sl.item_id}
                                             <span style={{ fontSize: 9, color: '#888', marginLeft: 6 }}>{it?.code || sl.item_code}</span>
                                         </td>
+                                        <td style={td} />
                                         <td style={{ ...td, textAlign: 'right' }}>{num(sl.qty).toLocaleString()} {it?.uom}</td>
                                         <td style={{ ...td, textAlign: 'right', color: rem > 0 ? '#0a3e0a' : '#999' }}>{rem.toLocaleString()}</td>
                                         <td style={{ ...td, textAlign: 'right', fontWeight: 'bold' }}>{totalPicked.toLocaleString()}</td>
@@ -852,11 +856,28 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                                     </tr>
                                     {rows.map((r: any) => (
                                         <tr key={r.id || r.__idx}>
+                                            {/* Manual fallback for a scanner-less floor or a damaged label —
+                                                ticking confirms the same carton scanning would, via its known
+                                                batch number. No unpick: once confirmed, only removing the line
+                                                undoes it. Bulk (uncartonised) lines have nothing to confirm. */}
+                                            {r.batch_id ? (
+                                                <RowCheckboxCell
+                                                    classic
+                                                    checked={!!r.picked_at}
+                                                    disabled={readOnly || !!r.picked_at || scanning}
+                                                    onChange={() => scan(r.batch_number)}
+                                                    label={`carton ${r.batch_number}`}
+                                                    tdStyle={td}
+                                                />
+                                            ) : (
+                                                <td style={td} />
+                                            )}
                                             <td style={{ ...td, paddingLeft: 22 }}>
-                                                {r.batch_number
-                                                    ? <span style={{ color: '#00309c' }}>{r.batch_number}{r.package_no ? ` · #${r.package_no}` : ''}</span>
+                                                {r.batch_id
+                                                    ? <span style={{ color: '#00309c' }}>{r.batch_number}</span>
                                                     : <span style={{ color: '#888' }}>Bulk (no carton)</span>}
                                             </td>
+                                            <td style={{ ...td, textAlign: 'center' }}>{r.package_no ? `#${r.package_no}` : '—'}</td>
                                             <td style={td} />
                                             <td style={td} />
                                             <td style={{ ...td, textAlign: 'right' }}>
