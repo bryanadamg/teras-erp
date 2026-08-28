@@ -63,12 +63,17 @@ def test_allocate_boxes_to_lots_mismatched_total_raises():
 
 
 def test_allocate_boxes_to_lots_no_weights_gives_none():
-    assert allocate_boxes_to_lots([10], [5, 5]) == [[C(5, None), C(5, None)]]
+    # box_index is the carton's position in the caller's own box list — it rides
+    # through unchanged so a box split at a lot seam can be merged back into one
+    # physical carton downstream.
+    assert allocate_boxes_to_lots([10], [5, 5]) == [
+        [C(5, None, None, 0), C(5, None, None, 1)],
+    ]
 
 
 def test_allocate_boxes_to_lots_carries_weights_positionally():
     assert allocate_boxes_to_lots([10], [5, 5], weights=[6.19, 6.2]) == [
-        [C(5, 6.19), C(5, 6.2)],
+        [C(5, 6.19, None, 0), C(5, 6.2, None, 1)],
     ]
 
 
@@ -76,15 +81,17 @@ def test_allocate_boxes_to_lots_splits_weight_pro_rata_at_lot_seam():
     # The 5kg box straddles the seam: 3kg stays in lot 1, 2kg carries into lot 2.
     # Its 10kg scale reading is shared 6/4 by qty, because the physical carton
     # became two cartons and neither one weighs the original 10.
+    # Both halves keep box_index 1, which is what lets the caller mint them as
+    # the single carton the packer actually weighed.
     assert allocate_boxes_to_lots([8, 2], [5, 5], weights=[8.0, 10.0]) == [
-        [C(5, 8.0), C(3, 6.0)],
-        [C(2, 4.0)],
+        [C(5, 8.0, None, 0), C(3, 6.0, None, 1)],
+        [C(2, 4.0, None, 1)],
     ]
 
 
 def test_allocate_boxes_to_lots_partial_weights_leave_others_none():
     assert allocate_boxes_to_lots([10], [5, 5], weights=[6.19, None]) == [
-        [C(5, 6.19), C(5, None)],
+        [C(5, 6.19, None, 0), C(5, None, None, 1)],
     ]
 
 
@@ -233,7 +240,7 @@ def test_base_to_alt_can_be_asked_not_to_snap():
 
 def test_allocate_carries_alt_counts_positionally():
     assert allocate_boxes_to_lots([10], [5, 5], weights=[5, 5], alt_qtys=[12, 12]) == [
-        [C(5, 5, 12), C(5, 5, 12)],
+        [C(5, 5, 12, 0), C(5, 5, 12, 1)],
     ]
 
 
@@ -242,13 +249,13 @@ def test_allocate_splits_an_alt_count_without_losing_a_piece():
     # pieces split 6/4 by qty, and the parts still sum to 10 — a discrete count
     # must not gain or lose a piece to rounding.
     out = allocate_boxes_to_lots([8, 2], [5, 5], weights=[8.0, 10.0], alt_qtys=[10, 10])
-    assert out == [[C(5, 8.0, 10), C(3, 6.0, 6.0)], [C(2, 4.0, 4.0)]]
+    assert out == [[C(5, 8.0, 10, 0), C(3, 6.0, 6.0, 1)], [C(2, 4.0, 4.0, 1)]]
     assert sum(c.alt_qty for lot in out for c in lot) == 20
 
 
 def test_allocate_without_alt_counts_leaves_them_none():
     assert allocate_boxes_to_lots([10], [5, 5], weights=[5, 5]) == [
-        [C(5, 5, None), C(5, 5, None)],
+        [C(5, 5, None, 0), C(5, 5, None, 1)],
     ]
 
 
