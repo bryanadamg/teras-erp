@@ -684,6 +684,7 @@ export default function LoginPage() {
                     <div style={{ marginTop: 8 }}>
                         <a
                             href="/docs"
+                            className="login-docs-link"
                             style={{
                                 fontSize: 12,
                                 color: '#a8cef2',
@@ -769,6 +770,7 @@ export default function LoginPage() {
                     </div>
                     <a
                         href="/docs"
+                        className="login-docs-link"
                         style={{
                             fontSize: 'clamp(9px,calc(var(--app-vw) * 0.9 / 100),11px)',
                             color: '#a8cef2',
