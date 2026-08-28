@@ -3,12 +3,26 @@
 import { useParams, useRouter } from 'next/navigation';
 import { getPageBySlug, docsSidebar } from '../docsContent';
 import { CODE_FONT } from '../../components/shared/xpTheme';
-import { DOCS_COLORS as C } from '../layout';
+
+// The reading pane sits on a light paper surface (set on the wrapper in
+// layout.tsx) — a separate, high-contrast palette from the dark brand chrome
+// (header/sidebar), which keeps its own local colors. Long-form text and
+// tables in light-on-dark read poorly at this density; dark-on-light doesn't.
+const C = {
+    bright: '#0f2454',
+    body: '#33415c',
+    muted: '#5b6b8c',
+    accent: '#2563c4',
+    accentDark: '#1a3fa8',
+    border: '#dbe4f3',
+    panel: '#f0f5fc',
+    badgeBg: '#eef3fc',
+};
 
 const CALLOUT_TONE: Record<'info' | 'tip' | 'warning', { border: string; bg: string; label: string; text: string }> = {
-    info: { border: '#4a90d9', bg: 'rgba(74,144,217,0.12)', label: 'Info', text: '#9dc4f0' },
-    tip: { border: '#3ecf8e', bg: 'rgba(62,207,142,0.1)', label: 'Tip', text: '#7fe0b4' },
-    warning: { border: '#e8b03a', bg: 'rgba(232,176,58,0.12)', label: 'Note', text: '#f0c868' },
+    info: { border: '#2563c4', bg: '#eef4fe', label: 'Info', text: '#154a9c' },
+    tip: { border: '#1a9c5c', bg: '#eafaf1', label: 'Tip', text: '#146b3f' },
+    warning: { border: '#c98a10', bg: '#fff6e8', label: 'Note', text: '#8a5a05' },
 };
 
 export default function DocsPage() {
@@ -25,7 +39,7 @@ export default function DocsPage() {
                 <p style={{ color: C.body, fontSize: 13 }}>
                     The documentation page <strong>{slug}</strong> does not exist.{' '}
                     <span
-                        style={{ color: '#9dc4f0', cursor: 'pointer', textDecoration: 'underline' }}
+                        style={{ color: C.accent, cursor: 'pointer', textDecoration: 'underline' }}
                         onClick={() => router.push('/docs/overview')}
                     >
                         Return to Overview
@@ -62,7 +76,7 @@ export default function DocsPage() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {page.badges.map(b => (
                             <span key={b} style={{
-                                background: 'rgba(255,255,255,0.06)',
+                                background: C.badgeBg,
                                 border: `1px solid ${C.border}`,
                                 color: C.body,
                                 fontSize: 11,
@@ -126,7 +140,7 @@ export default function DocsPage() {
 
                     {section.code && (
                         <pre style={{
-                            background: 'rgba(0,6,26,0.55)',
+                            background: '#101a33',
                             color: '#bcd4f5',
                             fontSize: 12,
                             lineHeight: 1.6,
@@ -135,7 +149,7 @@ export default function DocsPage() {
                             overflowX: 'auto',
                             margin: '8px 0 10px',
                             fontFamily: CODE_FONT,
-                            border: `1px solid ${C.border}`,
+                            border: '1px solid #24345c',
                         }}>
                             {section.code}
                         </pre>
@@ -162,7 +176,7 @@ export default function DocsPage() {
                                 </thead>
                                 <tbody>
                                     {section.table.rows.map((row, ri) => (
-                                        <tr key={ri} style={{ background: ri % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'transparent' }}>
+                                        <tr key={ri} style={{ background: ri % 2 === 0 ? C.panel : '#ffffff' }}>
                                             {row.map((cell, ci) => (
                                                 <td key={ci} style={{
                                                     padding: '6px 12px',
@@ -292,7 +306,7 @@ export default function DocsPage() {
                     <button
                         onClick={() => router.push(`/docs/${prev.slug}`)}
                         style={{
-                            background: 'rgba(255,255,255,0.06)',
+                            background: '#ffffff',
                             border: `1px solid ${C.border}`,
                             borderRadius: 4,
                             color: C.body,

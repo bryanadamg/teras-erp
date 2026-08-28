@@ -13,7 +13,10 @@ import { modernFont } from '../components/shared/xpTheme';
 const brandFont = `var(--font-display), ${modernFont}`;
 const BG_GRADIENT = 'linear-gradient(135deg, #0d1f5c 0%, #1a3fa8 40%, #0a246a 100%)';
 
-export const DOCS_COLORS = {
+// Next.js route layout files only allow a fixed set of exports (default,
+// metadata, ...) — a plain named export here fails typed-route generation.
+// Kept local; page.tsx (the light reading pane) has its own separate palette.
+const DOCS_COLORS = {
     bright: '#ffffff',
     body: '#c7d7f0',
     muted: '#9fb8dc',
@@ -223,10 +226,14 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                     </div>
                 )}
 
-                {/* Content area */}
+                {/* Content area — a light "paper" reading surface. The brand
+                    gradient is for chrome (header/sidebar); long paragraphs and
+                    tables in light text on a saturated blue read poorly, so the
+                    article itself gets a flat, high-contrast background instead. */}
                 <div style={{
                     flex: 1,
                     overflowY: 'auto',
+                    background: '#f8fafc',
                     padding: isMobile ? '20px 18px' : '32px 44px',
                 }}>
                     {children}
