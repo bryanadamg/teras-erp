@@ -427,6 +427,16 @@ export default function DispatchView() {
                                                     <XPActionButton classic tone="success" icon="bi-check2-square" title="Verify Load" onClick={() => setVerifying(shp)} />
                                                 </span>
                                             )}
+                                            {canManage && shp.status === 'VERIFIED' && (
+                                                <span style={{ marginRight: 2 }}>
+                                                    <XPActionButton classic tone="warning" icon="bi-arrow-counterclockwise" title="Reopen" onClick={() => doAction(shp, 'reopen')} />
+                                                </span>
+                                            )}
+                                            {canDispatch && shp.status === 'VERIFIED' && (
+                                                <span style={{ marginRight: 2 }}>
+                                                    <XPActionButton classic tone="success" icon="bi-truck" title="Confirm Dispatch" onClick={() => doAction(shp, 'dispatch', `Dispatch ${shp.code}? This posts goods issue and cannot be undone.`)} />
+                                                </span>
+                                            )}
                                             <span style={{ marginRight: 2 }}>
                                                 <XPActionButton classic tone="neutral" icon="bi-printer" title="Print Surat Jalan" onClick={() => setPrintShp(shp)} />
                                             </span>
@@ -467,14 +477,12 @@ export default function DispatchView() {
                 <FloatingMenu
                     pos={menuPos}
                     items={[
-                        // Surat Jalan and Verify Load are promoted to the row's action
-                        // column — the two things a deck user reaches for every time.
+                        // Surat Jalan, Verify Load, Reopen and Confirm Dispatch are all
+                        // promoted to the row's action column — the things a deck user
+                        // reaches for every time a shipment is in that state. Only Edit,
+                        // Cancel and Delete are left in the overflow menu.
                         ...(canManage && ['DRAFT', 'STAGED'].includes(menuShipment.status)
                             ? [{ key: 'edit', label: 'Edit', icon: 'bi-pencil', onClick: () => { menuClose(); openEdit(menuShipment); } }] : []),
-                        ...(canManage && menuShipment.status === 'VERIFIED'
-                            ? [{ key: 'reopen', label: 'Reopen', icon: 'bi-arrow-counterclockwise', onClick: () => { menuClose(); doAction(menuShipment, 'reopen'); } }] : []),
-                        ...(canDispatch && menuShipment.status === 'VERIFIED'
-                            ? [{ key: 'dispatch', label: 'Confirm Dispatch', icon: 'bi-truck', onClick: () => { menuClose(); doAction(menuShipment, 'dispatch', `Dispatch ${menuShipment.code}? This posts goods issue and cannot be undone.`); } }] : []),
                         ...(canManage && menuShipment.status !== 'DISPATCHED'
                             ? [{ key: 'cancel', label: 'Cancel', icon: 'bi-x-circle', onClick: () => { menuClose(); doAction(menuShipment, 'cancel', `Cancel ${menuShipment.code}? Pick lists return to the deck.`); } }] : []),
                         ...(canManage && menuShipment.status !== 'DISPATCHED'
