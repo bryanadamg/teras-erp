@@ -47,8 +47,10 @@ export const docsSidebar: DocSection[] = [
             { slug: 'stock', label: 'Stock & Locations', icon: 'bi-boxes' },
             { slug: 'bom', label: 'BOM Designer', icon: 'bi-diagram-3' },
             { slug: 'manufacturing', label: 'Manufacturing', icon: 'bi-gear' },
+            { slug: 'quality-quarantine', label: 'Quality & Quarantine', icon: 'bi-shield-exclamation' },
             { slug: 'sales-orders', label: 'Sales Orders', icon: 'bi-cart3' },
-            { slug: 'purchase', label: 'Purchase Orders', icon: 'bi-truck' },
+            { slug: 'packing-dispatch', label: 'Packing & Dispatch', icon: 'bi-truck' },
+            { slug: 'purchase', label: 'Purchase Orders', icon: 'bi-bag' },
             { slug: 'samples', label: 'Samples & PLM', icon: 'bi-flask' },
             { slug: 'dyeing-setting', label: 'Dyeing & Setting', icon: 'bi-palette' },
             { slug: 'reports', label: 'Reports & Dashboard', icon: 'bi-graph-up' },
@@ -72,7 +74,9 @@ import { inventoryPage } from './content/inventory';
 import { stockPage } from './content/stock';
 import { bomPage } from './content/bom';
 import { manufacturingPage } from './content/manufacturing';
+import { qualityQuarantinePage } from './content/quality-quarantine';
 import { salesOrdersPage } from './content/sales-orders';
+import { packingDispatchPage } from './content/packing-dispatch';
 import { purchasePage } from './content/purchase';
 import { samplesPage } from './content/samples';
 import { dyeingSettingPage } from './content/dyeing-setting';
@@ -88,7 +92,9 @@ export const docsPages: Record<string, DocPage> = {
     stock: stockPage,
     bom: bomPage,
     manufacturing: manufacturingPage,
+    'quality-quarantine': qualityQuarantinePage,
     'sales-orders': salesOrdersPage,
+    'packing-dispatch': packingDispatchPage,
     purchase: purchasePage,
     samples: samplesPage,
     'dyeing-setting': dyeingSettingPage,

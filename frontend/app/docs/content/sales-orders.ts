@@ -32,13 +32,18 @@ export const salesOrdersPage: DocPage = {
         },
         {
             heading: 'Order Statuses',
+            body: 'Fulfilment status is calculated automatically from production, packing, and dispatch progress — it is never set by hand. Cancelled is the only status a user sets directly.',
             items: [
-                'Draft — being prepared, not yet confirmed',
-                'Confirmed — accepted; lines are locked for fulfilment tracking',
-                'Partially Fulfilled — some lines have been shipped',
-                'Fulfilled — all lines shipped and closed',
+                'Pending — no line yet has enough packed, on-hand stock to ship',
+                'Ready — every line has enough packed stock physically on hand to fulfil it',
+                'Partial — some lines are ready or have shipped, others are not',
+                'Sent — every line has been fully dispatched through a Shipment',
                 'Cancelled — withdrawn before fulfilment',
             ],
+            callout: {
+                type: 'info',
+                text: 'An order only reaches Ready once packed cartons are actually in stock — finishing the production run alone is not enough. See Packing & Dispatch for the full Packing Order → Pick List → Shipment flow that drives this status.',
+            },
         },
         {
             heading: 'Print Templates',
@@ -54,7 +59,8 @@ export const salesOrdersPage: DocPage = {
                 'Click the per-line "Produce" button to create a linked Manufacturing Order',
                 'Edit an existing order to adjust its lines and quantities',
                 'Open the Lineage view to trace an order down to its MOs, WOs, and beams',
-                'Track fulfilment status at the order and line level',
+                'Track fulfilment status at the order and line level, driven automatically by packing and dispatch progress',
+                'Fulfil the order through Packing & Dispatch — pack cartons, pick them, and dispatch a shipment',
                 'Print individual SO documents or batch table summaries',
             ],
         },

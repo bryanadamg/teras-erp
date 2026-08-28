@@ -38,6 +38,10 @@ export const dyeingSettingPage: DocPage = {
             },
         },
         {
+            heading: 'Yarn Lab Dips',
+            body: 'Yarn substrate colours are approved through the same Lab Dip Request workflow, on their own Yarn Lab Dips screen and their own request-numbering series — kept separate from fabric/finished-good lab dips so a yarn approval batch is never gapped by unrelated fabric requests. A Lab Dip Report rolls up submission and approval activity across both fabric and yarn requests.',
+        },
+        {
             heading: 'Work Order Integration',
             body: 'Assigning a Work Order to a DYEING work centre wires the dyeing workflow automatically: the system finds the active dye recipe whose attribute values match the Manufacturing Order\'s attributes, sets it as the WO\'s planned recipe, and pre-creates a PENDING Dyeing Run with the substrate quantity already filled in. Both steps are hard requirements — the MO must have attributes and a matching active recipe must exist.',
         },

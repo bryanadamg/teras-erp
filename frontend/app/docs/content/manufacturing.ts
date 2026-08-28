@@ -4,7 +4,7 @@ export const manufacturingPage: DocPage = {
     slug: 'manufacturing',
     title: 'Manufacturing',
     subtitle: 'Plan, execute, and track production with Production Runs, Manufacturing Orders, and Work Orders.',
-    badges: ['Production Runs', 'Manufacturing Orders', 'Work Orders', 'Variant Consolidation', 'Beaming', 'Lot Tracking', 'MES'],
+    badges: ['Production Runs', 'Manufacturing Orders', 'Work Orders', 'Work Queue', 'Variant Consolidation', 'Beaming', 'Weaving Monitor', 'Lot Tracking', 'MES'],
     sections: [
         {
             heading: 'Three-Tier Production Model',
@@ -146,6 +146,30 @@ BOM-A-Red-X      →  Item-A [Red-X]
             body: 'Production traces back to the originating Sales Order. A Production Run, its MOs, its WOs, and the beams they produce all carry the SO reference, surfaced as SO badges across the PR, MO, and batch screens and as a dedicated Lineage view on the Sales Order. For shared component MOs (which have no direct SO), the beam falls back to the Production Run\'s Sales Order so origin is still traceable.',
         },
         {
+            heading: 'Work Queue — "What Can I Start Next?"',
+            body: 'The Work Queue is a shop-floor dispatch screen: one work-centre type\'s open Work Orders, priority-ordered, each stamped with a material-readiness verdict. Rather than trusting a raw stock number, it walks on-hand stock through open orders in priority order — the first order in line claims what it needs, and the next order only sees what is left — so two orders competing for the same greige are never both shown as ready.',
+            table: {
+                headers: ['Verdict', 'Meaning'],
+                rows: [
+                    ['Ready', 'Full material requirement is available now'],
+                    ['Partial', 'Some, but not all, of the requirement is available'],
+                    ['Short', 'Not enough material is available anywhere in the priority queue'],
+                    ['Staged', 'Material has already been transferred to this order and is waiting'],
+                    ['Running', 'The order already has logged activity'],
+                    ['Waiting Upstream / Waiting Prior', 'Blocked on an earlier routing step or a higher-priority order finishing first'],
+                    ['Not Released', 'An open Manufacturing Order with no Work Order dispatched yet — still competes fairly for the same stock'],
+                ],
+            },
+            callout: {
+                type: 'info',
+                text: 'Only the step\'s core substrate gates the verdict — greige for dyeing, yarn for warping, mounted beams for weaving. Auxiliary chemicals and trims are reported for visibility but never block a Ready verdict.',
+            },
+        },
+        {
+            heading: 'Weaving Monitor',
+            body: 'The Weaving Monitor tracks loom efficiency per work centre against a production calendar: a target output is calculated from each machine\'s rate and number of lines over a 24-hour, three-shift working day, and actual output (read from logged completions) is compared against it as an efficiency percentage. A per-machine calendar of working weekdays plus scheduled holidays decides which days count toward the target.',
+        },
+        {
             heading: 'Shop Floor QR Terminal',
             body: 'The /scanner page provides a mobile-optimised operator interface. Each printed Work Order carries a QR code; scanning it opens that WO\'s completion entry form, where the operator logs produced quantity, picks consumed lots, and (for beams) records the beam number. Status changes broadcast to all connected users via WebSocket.',
         },
@@ -161,6 +185,8 @@ BOM-A-Red-X      →  Item-A [Red-X]
                 'Track MO status through PENDING → IN_PROGRESS → DELIVERED → COMPLETED, where reaching the target quantity delivers the order but leaves it open for further logging',
                 'Over-issue a run deliberately (spare beams against bad yarn) by raising the overdelivery tolerance on that order, without touching the BOM',
                 'Monitor target vs. actual timestamps to measure schedule variance',
+                'Open the Work Queue to see, per work centre, which open Work Orders are actually ready to start with material on hand',
+                'Track loom efficiency against a per-machine production calendar on the Weaving Monitor',
                 'Scan WO QR codes at the shop floor terminal to log completions from mobile devices',
                 'Trace any production back to its originating Sales Order',
             ],

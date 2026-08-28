@@ -36,7 +36,7 @@ export const reportsPage: DocPage = {
         },
         {
             heading: 'Reject Locations',
-            body: 'QC-rejected stock never stays on the good shelf: it is transferred to a defect store. The bin is routed, not typed in — the producing work centre\'s Reject Location (set on the type or group and inherited by its machines, e.g. weaving to Gd Greige BS, beaming to Gd WiP Beam Reject), otherwise the item master\'s Default reject location. Reject can also be a downgrade rather than scrap: a lot marked "still usable" is quarantined and drops out of availability planning, but stays selectable in consumption pickers — which is how a rejected warp beam gets re-mounted for another item.',
+            body: 'QC-rejected stock never stays on the good shelf — it is transferred to a defect store, routed automatically by the producing work centre or the item\'s default reject location. See Quality & Quarantine for the full grading and routing rules, including the "still usable" downgrade that keeps a rejected lot selectable elsewhere instead of scrapping it outright.',
         },
         {
             heading: 'Key Actions',

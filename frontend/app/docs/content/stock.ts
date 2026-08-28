@@ -4,11 +4,11 @@ export const stockPage: DocPage = {
     slug: 'stock',
     title: 'Stock & Locations',
     subtitle: 'Track physical inventory across warehouse locations with a full transaction ledger.',
-    badges: ['Locations', 'Categories', 'Stock Balances', 'Lots', 'Packaging Units', 'Ledger', 'Scanner', 'Transfers'],
+    badges: ['Locations', 'Categories', 'Stock Balances', 'Booking Stock', 'Lots', 'Packaging Units', 'Ledger', 'Scanner', 'Transfers'],
     sections: [
         {
             heading: 'Locations',
-            body: 'Locations represent physical storage areas within your facility — warehouses, bays, bins, or any named space. You can define as many locations as needed. Stock balances are maintained per item-variant-location combination, so the same item can have different quantities in different locations.',
+            body: 'Locations represent physical storage areas within your facility — warehouses, bays, bins, or any named space. You can define as many locations as needed. Stock balances are maintained per item-variant-location combination, so the same item can have different quantities in different locations. A location can also be flagged as a quarantine hold area — see Quality & Quarantine for how that gates packing.',
         },
         {
             heading: 'Location Categories',
@@ -36,6 +36,10 @@ export const stockPage: DocPage = {
                 'Transfers — moving a lot-tracked item requires selecting the lot to move.',
                 'Backward trace — the Origin view walks any lot back through the lots it consumed, hop by hop, to raw fibre.',
             ],
+        },
+        {
+            heading: 'Booking Stock',
+            body: 'Booking Stock shows net-free availability rather than a raw balance: for each item and variant it nets on-hand quantity plus incoming production from other open Manufacturing Orders against what other open orders still require, either per location or plant-wide. A negative net-free figure is a real shortfall, not just a low balance. Expanding a row lists exactly which open orders are demanding it and which are due to supply it, so a shortage can be traced to a cause before it stalls production.',
         },
         {
             heading: 'Beam Stock',
@@ -69,6 +73,7 @@ export const stockPage: DocPage = {
                 'Record stock receipts, issues, and manual adjustments with optional lot and packaging counts',
                 'Transfer stock between locations',
                 'View current balance per item, variant, lot, and location',
+                'Check Booking Stock to see net-free availability and exactly which open orders are demanding or supplying an item',
                 'Trace any lot back through its consumed inputs to origin',
                 'Browse the full ledger history with filtering by item, location, type, and date',
                 'Use the scanner terminal for QR-based Work Order logging on mobile devices',

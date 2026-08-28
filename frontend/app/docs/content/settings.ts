@@ -4,7 +4,7 @@ export const settingsPage: DocPage = {
     slug: 'settings',
     title: 'Settings',
     subtitle: 'Configure company profile, database connections, routing, and application preferences.',
-    badges: ['Company Profile', 'Database', 'Routing', 'UI Preferences'],
+    badges: ['Company Profile', 'Database', 'Backups', 'Routing', 'Print Layouts', 'UI Preferences'],
     sections: [
         {
             heading: 'Company Profile',
@@ -21,11 +21,15 @@ export const settingsPage: DocPage = {
         },
         {
             heading: 'Database Infrastructure',
-            body: 'Terras ERP supports hot-swapping the active database connection without a server restart. From the Settings panel, administrators can configure and test alternate database URLs (PostgreSQL or SQLite), switch the active connection, and manage point-in-time snapshot backups.',
+            body: 'Terras ERP supports hot-swapping the active database connection without a server restart. From the Settings panel, administrators can configure and test alternate database URLs (PostgreSQL or SQLite), switch the active connection, take point-in-time snapshot backups, and schedule those backups to run automatically on a recurring basis.',
         },
         {
             heading: 'UI Preferences',
-            body: 'The application visual style can be changed per-session. Three themes are available: Modern, Compact, and Classic (Windows XP). Theme selection is stored in local browser settings. The application title displayed in the browser tab can also be customised.',
+            body: 'The application visual style can be switched per-device between two themes — Classic (a Windows-XP-styled look) and Modern (a flatter, Bootstrap-style look) — plus an independent interface scale for denser or larger screens. Theme and scale are stored in local browser settings, so the choice is per-device, not per-account. The application title displayed in the browser tab can also be customised.',
+        },
+        {
+            heading: 'Print Layouts',
+            body: 'Print Layouts lets an administrator adjust the branded A4 print templates used across the system (Sales Orders, Purchase Orders, Manufacturing Orders, BOM sheets, Sample Requests, Kartu Celup) without touching code.',
         },
         {
             heading: 'Locations Administration',
@@ -38,8 +42,9 @@ export const settingsPage: DocPage = {
                 'Define routing steps and work centres (with type, input/output locations, and groups) for BOM and WO operations',
                 'Group warehouse locations under location categories',
                 'Configure and hot-swap database connections without a restart',
-                'Take point-in-time database snapshots for backup and recovery',
-                'Change the UI theme (Modern / Compact / Classic)',
+                'Take point-in-time database snapshots, and schedule them to run automatically',
+                'Switch the UI theme (Classic / Modern) and interface scale',
+                'Adjust branded A4 print layouts from Print Layouts',
                 'Customise the application title',
             ],
         },

@@ -37,6 +37,10 @@ export const samplesPage: DocPage = {
             body: 'A Sample Request can be linked to a Sales Order to track which customer demand triggered the development. This traceability ensures that approved samples can be promoted to standard production items and that the originating customer order can be fulfilled once production is ready.',
         },
         {
+            heading: 'Sample Report',
+            body: 'The Sample Report gives a rolled-up view of sample activity across requests — counts and turnaround by stage, so a PLM team can see how many samples are stuck at Requested or In Production without opening each one individually.',
+        },
+        {
             heading: 'Key Actions',
             items: [
                 'Raise Sample Requests with full item and variant specifications',
@@ -46,6 +50,7 @@ export const samplesPage: DocPage = {
                 'Add reviewer notes at the Approved or Rejected stage',
                 'Print the Sample Request as a formatted A4 document',
                 'Link the request to a parent Sales Order for traceability',
+                'Review sample turnaround and stage counts on the Sample Report',
             ],
         },
     ],
