@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, VariantChip, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, VariantChip, BUTTON_RADIUS, XP_BTN, XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash, lvSubTable, lvSubTd, lvSubRow, lvThBanded } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton, SearchField, xpTitleBar, viewShellStyle } from '../shared/shellTheme';
@@ -67,7 +67,6 @@ export default function BOMView({
 
     const [isDesignerOpen, setIsDesignerOpen] = useState(false);
     const [editingBOM, setEditingBOM] = useState<any>(null);
-    const [editLoading, setEditLoading] = useState(false);
     const [printBOM, setPrintBOM] = useState<any>(null);
     const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
     // Cache of fetched BOM trees: rootBomId -> { bomId: bomObj } flat map
@@ -195,6 +194,7 @@ export default function BOMView({
     // Server already filters by search + root_only; boms is the current page result,
     // so select-all is page-scoped while ticked rows survive paging.
     const sel = useRowSelection<any>(boms, (b: any) => b.id);
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(140);
 
     const handleBulkDelete = async () => {
         if (onDeleteMultipleBOMs) { await onDeleteMultipleBOMs(sel.keys); sel.clear(); }
@@ -218,14 +218,9 @@ export default function BOMView({
 
     const handleEditBOM = async (bom: any) => {
         if (onFetchBOMTree) {
-            setEditLoading(true);
-            try {
-                const tree = await onFetchBOMTree(bom.id);
-                setEditingBOM(tree);
-                setIsDesignerOpen(true);
-            } finally {
-                setEditLoading(false);
-            }
+            const tree = await onFetchBOMTree(bom.id);
+            setEditingBOM(tree);
+            setIsDesignerOpen(true);
         } else {
             setEditingBOM(bom);
             setIsDesignerOpen(true);
@@ -580,13 +575,12 @@ export default function BOMView({
                                     {/* Header */}
                                     <div style={{ fontSize: 10, fontWeight: 'bold', color: '#000080', borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <span><i className="bi bi-clipboard" style={{ marginRight: 4 }} />BOM Details</span>
-                                        <button
-                                            onClick={() => setPrintBOM(displayBOM)}
+                                        <XPActionButton
+                                            classic={classic}
+                                            icon="bi-printer"
                                             title="Print BOM"
-                                            style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }}
-                                        >
-                                            <i className="bi bi-printer" style={{ marginRight: 3 }} />Print
-                                        </button>
+                                            onClick={() => setPrintBOM(displayBOM)}
+                                        />
                                     </div>
 
                                     {/* Identity */}
@@ -993,28 +987,7 @@ export default function BOMView({
                                                         </div>
                                                     </td>
                                                     <td style={classic ? { padding: '7px 6px', textAlign: 'right', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'pe-4 text-end'}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end' }}>
-                                                            {canManage && (
-                                                                <button
-                                                                    title="Edit BOM"
-                                                                    style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#00508a', padding: '0 2px' } : undefined}
-                                                                    className={classic ? '' : 'btn btn-sm btn-link text-primary'}
-                                                                    onClick={() => handleEditBOM(bom)}
-                                                                    disabled={editLoading}
-                                                                >
-                                                                    <i className={editLoading ? 'bi bi-hourglass-split' : 'bi bi-pencil'} />
-                                                                </button>
-                                                            )}
-                                                            {canManage && (
-                                                                <button
-                                                                    style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#a00', padding: '0 2px' } : undefined}
-                                                                    className={classic ? '' : 'btn btn-sm btn-link text-danger'}
-                                                                    onClick={() => onDeleteBOM(bom.id)}
-                                                                >
-                                                                    <i className="bi bi-trash" />
-                                                                </button>
-                                                            )}
-                                                        </div>
+                                                        {canManage && <MenuTriggerButton classic={classic} onClick={e => menuToggle(bom.id, e)} />}
                                                     </td>
                                                 </tr>
                                                 {isExpanded && renderDetailPanel(bom)}
@@ -1031,6 +1004,21 @@ export default function BOMView({
                 </div>
             </div>
         </div>
+
+        {/* Row ⋯ menu: Edit / Delete */}
+        {menuOpenId && (() => {
+            const bom = boms.find((b: any) => String(b.id) === menuOpenId);
+            if (!bom || !canManage) return null;
+            return (
+                <FloatingMenu
+                    pos={menuPos}
+                    items={[
+                        { key: 'edit', label: 'Edit', icon: 'bi-pencil-square', onClick: () => { menuClose(); handleEditBOM(bom); } },
+                        { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => { menuClose(); onDeleteBOM(bom.id); } },
+                    ]}
+                />
+            );
+        })()}
 
         {printBOM && (
             <BOMPrintModal
