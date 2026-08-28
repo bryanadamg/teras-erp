@@ -189,9 +189,12 @@ export default function DispatchView() {
     }, [authFetch, deckDetail]);
 
     const doStage = async (form: any) => {
+        // Pulled from `staging` (what the modal is actually showing), not the
+        // checkbox selection — the per-row Stage button opens the modal on a
+        // single pick list without touching the checkboxes at all.
         const res = await authFetch(`${API_BASE}/shipments`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...form, pick_list_ids: selectedDeck.map(d => d.id) }),
+            body: JSON.stringify({ ...form, pick_list_ids: (staging || []).map((d: any) => d.id) }),
         });
         if (!res.ok) {
             const e = await res.json().catch(() => ({}));
@@ -363,7 +366,17 @@ export default function DispatchView() {
                                         <td style={{ ...td, textAlign: 'right' }}>{d.carton_count}</td>
                                         <td style={td}><StatusChip status="PICKED" /></td>
                                         <td style={td}>{EMPTY_DASH}</td>
-                                        <td style={td} />
+                                        <td style={{ ...td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                                            {canManage && (
+                                                <XPActionButton
+                                                    classic
+                                                    tone="success"
+                                                    icon="bi-truck"
+                                                    title="Stage on Deck"
+                                                    onClick={() => setStaging([d])}
+                                                />
+                                            )}
+                                        </td>
                                     </tr>
                                     {open && (
                                         <tr>
