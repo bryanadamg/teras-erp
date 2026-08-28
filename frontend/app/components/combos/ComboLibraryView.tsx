@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics, XP_BTN } from '../shared/xpTheme';
+import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics, XP_BTN, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
@@ -46,6 +46,7 @@ export default function ComboLibraryView({
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState(emptyForm());
     const [searchInput, setSearchInput] = useState(search);
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(140);
 
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
@@ -150,18 +151,7 @@ export default function ComboLibraryView({
                                 <td style={{ ...lvTd(classic), textAlign: 'center' }}>{c.usage_count || 0}</td>
                                 <td style={lvTd(classic)}><StatusChip status={c.status} /></td>
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
-                                    <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                        {canManage && (
-                                        <button title="Edit" onClick={() => openEdit(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                            <i className="bi bi-pencil" />
-                                        </button>
-                                        )}
-                                        {canManage && (
-                                        <button title={c.usage_count > 0 ? 'Archive' : 'Delete'} onClick={() => handleDelete(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
-                                            <i className={c.usage_count > 0 ? 'bi bi-archive' : 'bi bi-trash'} />
-                                        </button>
-                                        )}
-                                    </div>
+                                    {canManage && <MenuTriggerButton classic={classic} onClick={e => menuToggle(c.id, e)} />}
                                 </td>
                             </tr>
                         ))}
@@ -170,6 +160,27 @@ export default function ComboLibraryView({
             </div>
 
             <Pager page={page} total={total} pageSize={size} onPageChange={onPageChange} />
+
+            {/* Row ⋯ menu: Edit / Delete (Archive when in use) */}
+            {menuOpenId && (() => {
+                const c = combos.find((x: any) => String(x.id) === menuOpenId);
+                if (!c || !canManage) return null;
+                return (
+                    <FloatingMenu
+                        pos={menuPos}
+                        items={[
+                            { key: 'edit', label: 'Edit', icon: 'bi-pencil-square', onClick: () => { menuClose(); openEdit(c); } },
+                            {
+                                key: 'delete',
+                                label: c.usage_count > 0 ? 'Archive' : 'Delete',
+                                icon: c.usage_count > 0 ? 'bi-archive' : 'bi-trash',
+                                danger: true,
+                                onClick: () => { menuClose(); handleDelete(c); },
+                            },
+                        ]}
+                    />
+                );
+            })()}
 
             <ModalWrapper
                 isOpen={isModalOpen}
