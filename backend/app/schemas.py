@@ -3400,6 +3400,29 @@ class PickableOrderResponse(BaseModel):
     cartons_ready: int = 0
     has_open_pick_list: bool = False
 
+
+class PickListSuggestedCarton(BaseModel):
+    """One FIFO-suggested carton, not yet on any pick list."""
+    batch_id: UUID
+    batch_number: str | None = None
+    package_no: int | None = None
+    qty: float
+    source_location_id: UUID | None = None
+
+
+class PickListSuggestedLine(BaseModel):
+    """Preview of what `create_pick_list` would auto-fill for one SO line —
+    lets the planner uncheck a carton (e.g. one that overshoots what's still
+    owed) before anything is written to a pick list."""
+    sales_order_line_id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    item_uom: str | None = None
+    ordered_qty: float = 0
+    remaining_qty: float = 0
+    cartons: list[PickListSuggestedCarton] = []
+
 # ── Work-Center Performance Monitoring (weaving runs + production calendar) ──
 
 class WeavingRunCreate(BaseModel):

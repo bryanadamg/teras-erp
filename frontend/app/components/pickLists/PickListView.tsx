@@ -146,21 +146,49 @@ export default function PickListView() {
         if (tab === 'topick' && !pickableLoaded && !pickableLoading) loadPickable();
     }, [tab, pickableLoaded, pickableLoading, loadPickable]);
 
-    const createForSO = async (so: any) => {
-        const res = await authFetch(`${API_BASE}/pick-lists`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sales_order_id: so.id }),
-        });
-        if (res.ok) {
-            const pl = await res.json();
-            // The order just consumed cartons — re-score the board before the
-            // planner returns to it, and land them on the list they just cut.
-            await Promise.all([loadAll(), loadPickable()]);
-            setTab('lists');
-            setEditing(pl);
-        } else {
-            const err = await res.json().catch(() => ({}));
-            showToast(`Error: ${err.detail || 'could not create'}`, 'danger');
+    // Clicking "Pick" no longer commits straight to a DRAFT — it previews what
+    // the server would auto-fill (FIFO, whole cartons) so the planner can
+    // uncheck one before anything is written. This matters when the only
+    // carton covering a line overshoots what's still owed (packed extra for
+    // tolerance/reject allowance) and that surplus should stay in stock.
+    const [suggestFor, setSuggestFor] = useState<any | null>(null);
+    const [suggestGroups, setSuggestGroups] = useState<any[]>([]);
+    const [suggestLoading, setSuggestLoading] = useState(false);
+    const [creatingPL, setCreatingPL] = useState(false);
+
+    const openSuggestFor = async (so: any) => {
+        setSuggestFor(so);
+        setSuggestGroups([]);
+        setSuggestLoading(true);
+        try {
+            const res = await authFetch(`${API_BASE}/pick-lists/suggest?sales_order_id=${so.id}`);
+            setSuggestGroups(res.ok ? (await res.json() || []) : []);
+        } finally {
+            setSuggestLoading(false);
+        }
+    };
+
+    const createWithLines = async (so: any, lines: any[]) => {
+        setCreatingPL(true);
+        try {
+            const res = await authFetch(`${API_BASE}/pick-lists`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sales_order_id: so.id, lines }),
+            });
+            if (res.ok) {
+                const pl = await res.json();
+                // The order just consumed cartons — re-score the board before the
+                // planner returns to it, and land them on the list they just cut.
+                await Promise.all([loadAll(), loadPickable()]);
+                setSuggestFor(null);
+                setTab('lists');
+                setEditing(pl);
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast(`Error: ${err.detail || 'could not create'}`, 'danger');
+            }
+        } finally {
+            setCreatingPL(false);
         }
     };
 
@@ -386,7 +414,7 @@ export default function PickListView() {
                     tzDate={tzDate}
                     canManage={canManage}
                     onRefresh={loadPickable}
-                    onPick={createForSO}
+                    onPick={openSuggestFor}
                 />
             ) : (
             <>
@@ -506,6 +534,18 @@ export default function PickListView() {
                     pl={printCard}
                     companyProfile={companyProfile}
                     onClose={() => setPrintCard(null)}
+                />
+            )}
+
+            {suggestFor && (
+                <PickListSuggestionModal
+                    so={suggestFor}
+                    groups={suggestGroups}
+                    loading={suggestLoading}
+                    creating={creatingPL}
+                    itemById={itemById}
+                    onClose={() => setSuggestFor(null)}
+                    onConfirm={(lines: any[]) => createWithLines(suggestFor, lines)}
                 />
             )}
 
@@ -633,6 +673,121 @@ function SOPickerBoard({ pickableSOs, loading, tzDate, canManage, onRefresh, onP
                     )}
             </div>
         </>
+    );
+}
+
+/**
+ * Preview of what "Pick" would auto-fill, before anything is written. Every
+ * carton the server's FIFO suggestion found starts checked — the planner only
+ * has to act when something is wrong, most commonly a carton that overshoots
+ * what a line still owes (the only box left is bigger than the remaining
+ * order, e.g. extra packed for tolerance/reject allowance) and should stay in
+ * stock rather than ship early.
+ */
+function PickListSuggestionModal({ so, groups, loading, creating, itemById, onClose, onConfirm }: any) {
+    const [checked, setChecked] = useState<Record<string, boolean>>({});
+
+    // Re-seed whenever a fresh suggestion arrives (new SO, or a refetch).
+    useEffect(() => {
+        const init: Record<string, boolean> = {};
+        (groups || []).forEach((g: any) => (g.cartons || []).forEach((c: any) => { init[String(c.batch_id)] = true; }));
+        setChecked(init);
+    }, [groups]);
+
+    const toggle = (batchId: string) => setChecked(prev => ({ ...prev, [batchId]: !prev[batchId] }));
+
+    const selectedLines = useMemo(() => {
+        const out: any[] = [];
+        (groups || []).forEach((g: any) => (g.cartons || []).forEach((c: any) => {
+            if (checked[String(c.batch_id)]) {
+                out.push({
+                    sales_order_line_id: g.sales_order_line_id,
+                    item_id: g.item_id,
+                    qty_picked: c.qty,
+                    source_location_id: c.source_location_id,
+                    batch_id: c.batch_id,
+                });
+            }
+        }));
+        return out;
+    }, [groups, checked]);
+
+    const totalCartons = (groups || []).reduce((s: number, g: any) => s + (g.cartons || []).length, 0);
+
+    return (
+        <ModalWrapper
+            isOpen
+            onClose={onClose}
+            title={`Pick Cartons — SO ${so.po_number}`}
+            size="lg"
+            footer={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button>
+                    <button
+                        className={XP_BTN}
+                        style={{ ...xpBtnGreen(), opacity: selectedLines.length && !creating ? 1 : 0.5, cursor: selectedLines.length && !creating ? 'pointer' : 'not-allowed' }}
+                        disabled={!selectedLines.length || creating}
+                        onClick={() => onConfirm(selectedLines)}
+                    >
+                        {creating ? 'Creating...' : `Create Pick List (${selectedLines.length} carton${selectedLines.length === 1 ? '' : 's'})`}
+                    </button>
+                </div>
+            }
+        >
+            <div style={{ fontFamily: xpFont }}>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 8, lineHeight: 1.3 }}>
+                    Every ready carton is pre-checked, oldest first. Uncheck one to leave it in stock — useful
+                    when the only carton left overshoots what&apos;s still owed on a line (e.g. extra packed
+                    for tolerance or an overestimated reject rate).
+                </div>
+                {loading ? (
+                    <div style={{ fontSize: 11, color: '#888', padding: 12 }}>Scoring available cartons...</div>
+                ) : totalCartons === 0 ? (
+                    <XPEmptyState icon="bi-inbox" message="Nothing packed and available for this order." />
+                ) : (
+                    (groups || []).filter((g: any) => (g.cartons || []).length > 0).map((g: any) => {
+                        const it = itemById[String(g.item_id)];
+                        const selectedQty = (g.cartons || [])
+                            .filter((c: any) => checked[String(c.batch_id)])
+                            .reduce((s: number, c: any) => s + num(c.qty), 0);
+                        const over = selectedQty > num(g.remaining_qty) + 1e-6;
+                        return (
+                            <div key={g.sales_order_line_id} style={{ marginBottom: 12, border: '1px solid #c8c4b8' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, background: '#f5f4ef', padding: '4px 8px', fontSize: 11 }}>
+                                    <span style={{ fontWeight: 'bold' }}>
+                                        {it?.code || g.item_code}
+                                        <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 6 }}>{it?.name || g.item_name}</span>
+                                    </span>
+                                    <span style={{ whiteSpace: 'nowrap' }}>
+                                        Remaining <b>{num(g.remaining_qty).toLocaleString()}</b> {it?.uom || g.item_uom}
+                                        {' · '}
+                                        <span style={{ color: over ? '#a00000' : '#0a3e0a', fontWeight: 'bold' }}>
+                                            selected {selectedQty.toLocaleString()}
+                                        </span>
+                                        {over && <span style={{ color: '#a00000' }}> (overshoots)</span>}
+                                    </span>
+                                </div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <tbody>
+                                        {(g.cartons || []).map((c: any) => (
+                                            <tr key={c.batch_id}>
+                                                <td style={{ ...td, width: LV_CHECK_COL_W }}>
+                                                    <input type="checkbox" checked={!!checked[String(c.batch_id)]} onChange={() => toggle(String(c.batch_id))} />
+                                                </td>
+                                                <td style={{ ...td, fontFamily: CODE_FONT, color: '#00309c' }}>
+                                                    {c.batch_number}{c.package_no ? ` · #${c.package_no}` : ''}
+                                                </td>
+                                                <td style={{ ...td, textAlign: 'right' }}>{num(c.qty).toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+        </ModalWrapper>
     );
 }
 

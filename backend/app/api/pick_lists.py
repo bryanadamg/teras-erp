@@ -10,6 +10,7 @@ from app.db.session import get_async_db
 from app.schemas import (
     PickListCreate, PickListUpdate, PickListResponse, PickListListResponse,
     PickListScanPayload, PickableOrderResponse,
+    PickListSuggestedLine, PickListSuggestedCarton,
 )
 from app.models.pick_list import PickList, PickListLine
 from app.models.batch import Batch
@@ -151,19 +152,24 @@ async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder, exclude_pl_id=
     return remaining
 
 
-async def _suggest_lines(db: AsyncSession, pl: PickList, so: SalesOrder) -> list[PickListLine]:
-    """Seed a pick list with whole cartons, FIFO, for every outstanding SO line.
+async def _suggest_cartons(db: AsyncSession, so: SalesOrder, source_location_id=None) -> list[PickListSuggestedLine]:
+    """FIFO-suggest whole cartons covering every outstanding SO line, without
+    writing anything. Shared by the `/suggest` preview (planner unchecks a
+    carton before a pick list exists) and `_suggest_lines` (auto-fill fallback
+    for a caller that posts no explicit line selection).
 
     Carton-only by design: a pick list is downstream of packing, so a line with
-    nothing packed yet simply isn't seeded — it comes onto a later pick list once
-    its cartons exist. (This replaced a bulk-qty fallback that let un-cartonised
-    stock ship straight off a pick list, which put goods on a Surat Jalan that no
-    physical box backed and left the carton genealogy with a hole.)
+    nothing packed yet simply isn't suggested — it comes onto a later pick list
+    once its cartons exist. (This replaced a bulk-qty fallback that let
+    un-cartonised stock ship straight off a pick list, which put goods on a
+    Surat Jalan that no physical box backed and left the carton genealogy with
+    a hole.)
     """
     remaining = await _remaining_by_so_line(db, so)
+    ordered_map = await so_fulfilment_service.ordered_base_map(db, [line.id for line in so.lines])
     taken = await packing_service.allocated_unit_ids(db)
-    lines: list[PickListLine] = []
 
+    out: list[PickListSuggestedLine] = []
     for so_line in so.lines:
         rem = remaining.get(str(so_line.id), 0.0)
         if rem <= 0:
@@ -171,21 +177,48 @@ async def _suggest_lines(db: AsyncSession, pl: PickList, so: SalesOrder) -> list
         attr_ids = [str(v.id) for v in (so_line.attribute_values or [])]
         units = await packing_service.suggest_units_for_line(
             db, so_line.item_id, rem,
-            location_id=pl.source_location_id,
+            location_id=source_location_id,
             attribute_value_ids=attr_ids,
             color_id=so_line.color_id,
             exclude_ids=taken,
         )
+        cartons: list[PickListSuggestedCarton] = []
         for pu, qty in units:
             taken.add(pu.id)
             loc = await _unit_location(db, pu)
+            cartons.append(PickListSuggestedCarton(
+                batch_id=pu.id, batch_number=pu.batch_number,
+                package_no=pu.package_no, qty=qty, source_location_id=loc,
+            ))
+        it = so_line.item
+        out.append(PickListSuggestedLine(
+            sales_order_line_id=so_line.id,
+            item_id=so_line.item_id,
+            item_code=it.code if it else None,
+            item_name=it.name if it else None,
+            item_uom=it.uom if it else None,
+            ordered_qty=ordered_map.get(str(so_line.id), 0.0),
+            remaining_qty=rem,
+            cartons=cartons,
+        ))
+    return out
+
+
+async def _suggest_lines(db: AsyncSession, pl: PickList, so: SalesOrder) -> list[PickListLine]:
+    """Seed a pick list with every carton `_suggest_cartons` finds — the
+    auto-fill fallback used when a caller (e.g. an older client) posts no
+    explicit line selection."""
+    groups = await _suggest_cartons(db, so, source_location_id=pl.source_location_id)
+    lines: list[PickListLine] = []
+    for g in groups:
+        for c in g.cartons:
             lines.append(PickListLine(
                 pick_list_id=pl.id,
-                sales_order_line_id=so_line.id,
-                item_id=so_line.item_id,
-                qty_picked=qty,
-                source_location_id=loc,
-                batch_id=pu.id,
+                sales_order_line_id=g.sales_order_line_id,
+                item_id=g.item_id,
+                qty_picked=c.qty,
+                source_location_id=c.source_location_id,
+                batch_id=c.batch_id,
             ))
     return lines
 
@@ -347,6 +380,34 @@ async def list_pickable_orders(
     return out
 
 
+@router.get("/suggest", response_model=list[PickListSuggestedLine])
+async def suggest_pick_list_cartons(
+    sales_order_id: uuid.UUID,
+    source_location_id: Optional[uuid.UUID] = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Preview of what creating a pick list for this order would auto-fill —
+    lets the planner uncheck a carton (e.g. the only one available overshoots
+    what's still owed, packed extra for tolerance/reject allowance) before a
+    pick list, and its carton allocation, exists at all.
+
+    Declared above `/{pl_id}` for the same routing reason as `/pickable-orders`.
+    """
+    so_result = await db.execute(
+        select(SalesOrder)
+        .options(
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+        )
+        .filter(SalesOrder.id == sales_order_id)
+    )
+    so = so_result.scalars().first()
+    if not so:
+        raise HTTPException(status_code=404, detail="Sales order not found")
+    return await _suggest_cartons(db, so, source_location_id=source_location_id)
+
+
 @router.get("/resolve", response_model=PickListResponse)
 async def resolve_pick_list(
     code: str,
@@ -415,7 +476,10 @@ async def create_pick_list(
 ):
     so_result = await db.execute(
         select(SalesOrder)
-        .options(selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values))
+        .options(
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+        )
         .filter(SalesOrder.id == payload.sales_order_id)
     )
     so = so_result.scalars().first()
