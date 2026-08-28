@@ -4,7 +4,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 const BOMDesigner = dynamic(() => import('./BOMDesigner'), { ssr: false });
 const BOMPrintModal = dynamic(() => import('./BOMPrintModal'), { ssr: false });
-const ProductionRunModal = dynamic(() => import('../manufacturing/ProductionRunModal'), { ssr: false });
 import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
@@ -45,7 +44,6 @@ export default function BOMView({
     onUploadBOMPhoto, onUploadBOMDesign, onFetchBOMTree,
     companyProfile,
     initialCreateState, onClearInitialState,
-    onCreateProductionRun, productionRuns,
     onEnsureItems,
     // Pagination props (managed by bom/page.tsx)
     bomPage = 1, bomTotal = 0, bomPageSize = 50,
@@ -71,7 +69,6 @@ export default function BOMView({
     const [editingBOM, setEditingBOM] = useState<any>(null);
     const [editLoading, setEditLoading] = useState(false);
     const [printBOM, setPrintBOM] = useState<any>(null);
-    const [startPRBom, setStartPRBom] = useState<any>(null);
     const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
     // Cache of fetched BOM trees: rootBomId -> { bomId: bomObj } flat map
     const [bomTreeCache, setBomTreeCache] = useState<Record<string, Record<string, any>>>({});
@@ -594,9 +591,9 @@ export default function BOMView({
 
                                     {/* Identity */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px', marginBottom: 6 }}>
-                                        <div style={{ gridColumn: '1/-1' }}>
+                                        <div style={{ gridColumn: '1/-1', minWidth: 0 }}>
                                             <div style={lbl}>BOM Code</div>
-                                            <CodeChip code={displayBOM.code} classic={classic} tone="accent" />
+                                            <CodeChip code={displayBOM.code} classic={classic} tone="accent" style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                                         </div>
                                         <div style={{ gridColumn: '1/-1' }}>
                                             <div style={lbl}>Item</div>
@@ -758,22 +755,6 @@ export default function BOMView({
                                             )}
                                         </div>
                                     )}
-
-                                    {/* Actions */}
-                                    <div style={{ marginTop: 6 }}>
-                                        <button
-                                            onClick={() => setStartPRBom(displayBOM)}
-                                            style={{
-                                                fontFamily: xpFont, fontSize: 10,
-                                                padding: '2px 8px', width: '100%',
-                                                background: 'linear-gradient(to bottom, #b4d0f8, #7aacf0)',
-                                                border: '1px solid', borderColor: '#c8e0ff #003080 #003080 #c8e0ff',
-                                                cursor: 'pointer', fontWeight: 'bold', color: '#00007a',
-                                            }}
-                                        >
-                                            Start Production Run
-                                        </button>
-                                    </div>
 
                                 </div>
                             );
@@ -1057,18 +1038,6 @@ export default function BOMView({
                 companyProfile={companyProfile}
                 getAttributeValueName={getAttributeValueName}
                 onClose={() => setPrintBOM(null)}
-            />
-        )}
-        {startPRBom && locations && (
-            <ProductionRunModal
-                boms={boms || []}
-                items={items || []}
-                attributes={attributes || []}
-                locations={locations}
-                onSave={onCreateProductionRun}
-                onClose={() => setStartPRBom(null)}
-                initialBomId={startPRBom?.id}
-                productionRuns={productionRuns || []}
             />
         )}
         </>
