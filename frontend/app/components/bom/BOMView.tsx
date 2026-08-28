@@ -11,53 +11,13 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont, colorHexFor, expandedRowFrame, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, VariantChip, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
-import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
+import { lvThead, LV_STICKY_THEAD, ExpanderCell, useRowSelection, RowCheckbox, SelectAllCheckbox, LV_CHECK_COL_W, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash, lvSubTable, lvSubTd, lvSubRow, lvThBanded } from '../shared/listViewTheme';
 import { FilterChipBar, xpToolbar, ToolbarButton, SearchField, xpTitleBar, viewShellStyle } from '../shared/shellTheme';
 
 const BOM_SCOPE_FILTERS = [
     { value: 'root', label: 'Root BOMs' },
     { value: 'all', label: 'All BOMs' },
 ];
-
-const xpTh: React.CSSProperties = {
-    background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
-    border: '1px solid #808080',
-    padding: '3px 7px',
-    fontWeight: 'bold',
-    fontSize: 10,
-    textAlign: 'left',
-    whiteSpace: 'nowrap',
-    color: '#000',
-    fontFamily: xpFont,
-};
-
-const xpTd: React.CSSProperties = {
-    border: '1px solid #d4d0c8',
-    padding: '3px 7px',
-    verticalAlign: 'middle',
-    fontFamily: xpFont,
-    fontSize: 11,
-    color: '#000',
-};
-
-const xpFooterTd: React.CSSProperties = {
-    ...xpTd,
-    background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)',
-    borderTop: '1px solid #808080',
-    fontSize: 10,
-    color: '#444',
-};
-
-const xpSectionHdr: React.CSSProperties = {
-    background: 'linear-gradient(to bottom, #fff, #d6d3ce)',
-    border: '1px solid #808080',
-    padding: '2px 7px',
-    fontWeight: 'bold',
-    fontSize: 10,
-    color: '#000',
-    marginBottom: 3,
-    fontFamily: xpFont,
-};
 
 // --- Dense-row display helpers -----------------------------------------
 // colorHexFor() now lives in components/shared/xpTheme.tsx (shared with lab dips).
@@ -198,17 +158,6 @@ export default function BOMView({
     // Beam items carry a warp-ends count; for a beam BOM the qty IS the ends (set on BOM creation).
     const getItemEnds = (id: string): number | null => { const e = items.find((i: any) => i.id === id)?.ends ?? itemIndex?.[String(id)]?.ends; return e != null ? e : null; };
     const uomBadge: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
-    const getAttrValues = (ids: string[]) => {
-        if (!ids?.length) return '—';
-        const names = ids.map((valId: string) => {
-            for (const attr of attributes) {
-                const val = attr.values?.find((v: any) => v.id === valId);
-                if (val) return val.value;
-            }
-            return null;
-        }).filter(Boolean);
-        return names.length ? names.join(', ') : '—';
-    };
     const getAttributeValueName = (valId: string) => {
         if (!valId || !attributes) return '-';
         for (const attr of attributes) {
@@ -474,11 +423,15 @@ export default function BOMView({
 
         return (
             <tr key={`${bom.id}-detail`}>
-                {/* Frame on the cell, inner grounds untouched: this expansion is a two-pane
+                {/* Frame on a wrapper, inner grounds untouched: this expansion is a two-pane
                     BOM workspace, not a detail readout, so it keeps its own beige panes and
-                    takes only the standard rail + edge rules. */}
-                <td colSpan={9} style={{ padding: 0, ...expandedRowFrame(classic) }}>
-                    <div style={{ display: 'flex', height: 420, background: '#ece9d8', fontFamily: xpFont, fontSize: 11, paddingLeft: classic ? 4 : 3 }}>
+                    takes only the standard rail + edge rules. The frame's box-shadow and its
+                    reveal padding must live on the same box (padding:0 on the td would let the
+                    two-pane div's opaque background paint straight over the shadow), so the
+                    frame sits on this wrapper instead of the td. */}
+                <td colSpan={9} style={{ padding: 0 }}>
+                    <div style={{ ...expandedRowFrame(classic), padding: `2px 0 2px ${classic ? 4 : 3}px` }}>
+                    <div style={{ display: 'flex', height: 420, background: '#ece9d8', fontFamily: xpFont, fontSize: 11 }}>
 
                         {/* LEFT: Tree */}
                         <div style={{ width: 320, flexShrink: 0, borderRight: '2px solid #aca899', display: 'flex', flexDirection: 'column', background: '#ddd9c8' }}>
@@ -536,37 +489,36 @@ export default function BOMView({
                                 )}
                             </div>
 
-                            {/* Scrollable body */}
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-
-                                {/* Components */}
-                                <div>
-                                    <div style={xpSectionHdr}><i className="bi bi-gear-fill" style={{ marginRight: 4 }} />Components</div>
+                            {/* Scrollable body — bordered white panel matching the tree pane's inset framing and margin, so the table fills the pane instead of floating at the top with leftover space below. */}
+                            <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+                                <div style={{ border: '2px inset #aaa', background: 'white', flex: 1, margin: 4, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                     {lines.length === 0 ? (
                                         <div style={{ fontSize: 10, color: '#555', fontStyle: 'italic', padding: '4px 6px' }}>No components defined.</div>
                                     ) : (
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', fontFamily: xpFont, fontSize: 11 }}>
+                                    <>
+                                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                                        <table style={{ ...lvSubTable(classic), border: 'none' }}>
                                             <thead>
                                                 <tr>
-                                                    <th style={xpTh}>Item</th>
-                                                    <th style={{ ...xpTh, textAlign: 'right' }}>Required</th>
-                                                    {beamBom && <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>}
-                                                    <th style={xpTh}>Attributes</th>
+                                                    <th style={lvThBanded(classic)}>Item</th>
+                                                    <th style={{ ...lvThBanded(classic), textAlign: 'right' }}>Required</th>
+                                                    {beamBom && <th style={{ ...lvThBanded(classic), textAlign: 'right' }}>Ends</th>}
+                                                    <th style={lvThBanded(classic)}>Attributes</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {lines.map((line: any, i: number) => {
                                                     const isSubBOM = !!findSubBOM(line);
                                                     return (
-                                                        <tr key={line.id} style={{ background: lvZebra(true, i) }}>
-                                                            <td style={xpTd}>
+                                                        <tr key={line.id} style={lvSubRow(classic, i, { zebra: true })}>
+                                                            <td style={lvSubTd(classic)}>
                                                                 <CodeChip code={line.item_code} classic={classic} tone="accent" />
                                                                 <span style={{ marginLeft: 5, color: '#000' }}>{line.item_name}</span>
                                                                 {isSubBOM && (
                                                                     <span style={{ borderRadius: CHIP_RADIUS, marginLeft: 5, background: '#e6eeff', border: '1px solid #0058e6', color: '#003080', fontSize: 9, padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
                                                                 )}
                                                             </td>
-                                                            <td style={{ ...xpTd, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                            <td style={{ ...lvSubTd(classic), textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                 {(line.percentage || 0) > 0 ? (
                                                                     <span style={{ background: '#b46a00', color: '#fff', fontSize: 9, padding: '1px 5px', fontWeight: 'bold' }}>{line.percentage}%</span>
                                                                 ) : (line.qty || 0) > 0 ? (
@@ -577,35 +529,33 @@ export default function BOMView({
                                                                 )}
                                                             </td>
                                                             {beamBom && (
-                                                                <td style={{ ...xpTd, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                                <td style={{ ...lvSubTd(classic), textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                     {(Number(line.qty) || 0) > 0
                                                                         ? <span style={{ borderRadius: CHIP_RADIUS, background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 10, padding: '0 5px' }}>{Math.round(Number(line.qty))} ends</span>
                                                                         : <span style={{ color: '#888' }}>—</span>}
                                                                 </td>
                                                             )}
-                                                            <td style={{ ...xpTd, fontSize: 10, color: '#444' }}>{getAttrValues(line.attribute_value_ids || [])}</td>
+                                                            <td style={lvSubTd(classic)}>
+                                                                {(line.attribute_value_ids || []).length > 0 ? renderVariantChips(line.attribute_value_ids) : <span style={{ color: '#888' }}>—</span>}
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
                                             </tbody>
-                                            <tfoot>
-                                                <tr>
-                                                    <td colSpan={beamBom ? 4 : 3} style={{ ...xpFooterTd, textAlign: 'right' }}>
-                                                        {lines.length} component{lines.length !== 1 ? 's' : ''}
-                                                        {hasPct && (
-                                                            <> · Total %: <span style={{ fontWeight: 'bold', color: Math.abs(totalPct - 100) < 0.01 ? '#004400' : '#880000' }}>{totalPct.toFixed(1)}%</span></>
-                                                        )}
-                                                        {beamBom && totalLineEnds > 0 && (
-                                                            <> · Total yarn ends: <span style={{ fontWeight: 'bold', color: '#1a6e2e' }}>{Math.round(totalLineEnds)}</span></>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
                                         </table>
+                                    </div>
+                                    <div style={{ ...lvSubTd(classic), flexShrink: 0, background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderTop: '1px solid #808080', fontSize: 10, color: '#444', textAlign: 'right' }}>
+                                        {lines.length} component{lines.length !== 1 ? 's' : ''}
+                                        {hasPct && (
+                                            <> · Total %: <span style={{ fontWeight: 'bold', color: Math.abs(totalPct - 100) < 0.01 ? '#004400' : '#880000' }}>{totalPct.toFixed(1)}%</span></>
+                                        )}
+                                        {beamBom && totalLineEnds > 0 && (
+                                            <> · Total yarn ends: <span style={{ fontWeight: 'bold', color: '#1a6e2e' }}>{Math.round(totalLineEnds)}</span></>
+                                        )}
+                                    </div>
+                                    </>
                                     )}
                                 </div>
-
-
                             </div>
                         </div>
 
@@ -829,6 +779,7 @@ export default function BOMView({
                             );
                         })()}
 
+                    </div>
                     </div>
                 </td>
             </tr>
