@@ -437,6 +437,25 @@ export default function StockOnHandView({ locations, attributes, categories, ite
         return id ? getAttrValueName(id) : null;
     };
 
+    // Colors (system_role='color') value carried by the row's own variant pick —
+    // separate from `colorInfo` (the producing MO's Color Library shade, resolved
+    // server-side). A color-variant FG item's stock is identified by this attribute
+    // value directly, and it can carry its own swatch (AttributeValue.hex) same as
+    // any other attribute value — shown here so that swatch isn't lost.
+    const colorValueIds = useMemo(() => {
+        const attr = (attributes || []).find((a: any) => a.system_role === 'color');
+        return new Set((attr?.values || []).map((v: any) => String(v.id)));
+    }, [attributes]);
+    const getColorAttrValue = (bal: any): { name: string; hex: string | null } | null => {
+        const id = (bal.attribute_value_ids || []).find((vid: string) => colorValueIds.has(String(vid)));
+        if (!id) return null;
+        for (const attr of attributes) {
+            const v = attr.values?.find((v: any) => v.id === id);
+            if (v) return { name: v.value, hex: v.hex || null };
+        }
+        return null;
+    };
+
     // Packaging counts (no UOM conversion) — show only nonzero units.
     const pkgParts = (bal: any): { n: number; label: string }[] => {
         const out: { n: number; label: string }[] = [];
@@ -582,9 +601,13 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
     const renderRow = (bal: any, i: number) => {
         const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '—';
-        // Shade identity of the lot's producing MO (Color Library) — same helper
-        // the Lot page uses, so a lot's colour chip reads identically everywhere.
+        // Shade identity: prefer the lot's producing MO (Color Library, same helper
+        // the Lot page uses) — richer (code + name + pending state). Rows with no
+        // such lineage (no batch, or a lotted row whose MO never got a Color Library
+        // pick) fall back to the row's own `Colors` variant attribute value, which
+        // carries its own swatch (AttributeValue.hex) same as any other attribute.
         const colorInfo = lotColorLabel(bal);
+        const ownColorAttr = !colorInfo ? getColorAttrValue(bal) : null;
         // QC-rejected/disposed lots sit in the same bin as good stock — tint the row
         // and flag the lot so the qty is never mistaken for available.
         const qStatus: string = bal.quality_status && bal.quality_status !== 'GOOD' ? bal.quality_status : '';
@@ -695,14 +718,20 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 {colorInfo.label}{colorInfo.pending ? ' (pending)' : ''}
                             </VariantChip>
                         )}
-                        {/* Combo already renders above as a VariantChip — skip its raw
-                            value here so the same pick doesn't show twice in one cell. */}
+                        {!colorInfo && ownColorAttr && (
+                            <VariantChip kind="color" classic={classic} swatch={ownColorAttr.hex} title={`Color: ${ownColorAttr.name}`}>
+                                {ownColorAttr.name}
+                            </VariantChip>
+                        )}
+                        {/* Combo and Colors already render above as VariantChips —
+                            skip their raw values here so the same pick doesn't show
+                            twice in one cell. */}
                         {bal.attribute_value_ids
-                            ?.filter((vid: string) => !comboValueIds.has(String(vid)))
+                            ?.filter((vid: string) => !comboValueIds.has(String(vid)) && !colorValueIds.has(String(vid)))
                             .map((vid: string) => (
                                 <Chip key={vid} classic={classic} size="xs">{getAttrValueName(vid)}</Chip>
                             ))}
-                        {!bal.size_label && !getComboLabel(bal) && !colorInfo && !bal.attribute_value_ids?.length && (
+                        {!bal.size_label && !getComboLabel(bal) && !colorInfo && !ownColorAttr && !bal.attribute_value_ids?.length && (
                             <Dash classic={classic} />
                         )}
                     </div>
