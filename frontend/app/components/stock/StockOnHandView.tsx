@@ -38,7 +38,7 @@ interface StockOnHandViewProps {
 // Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
 // squeezing chip columns (Lot carries MO codes ~30 chars) into overlapping percentages.
 const COL_W = {
-    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 220, attrs: 150,
+    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 220, attrs: 260,
     qty: 110, uom: 60, packaging: 130, notes: 190, actions: 74,
 };
 const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
@@ -616,28 +616,6 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     <CodeChip code={bal.item_code} classic={classic} tier={2}
                         style={classic ? { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}
                         className={classic ? undefined : 'text-truncate d-block'} />
-                    {(getComboLabel(bal) || bal.size_label || colorInfo) && (
-                        <div style={classic ? { display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 } : undefined} className={classic ? undefined : 'd-flex flex-wrap gap-1 mt-1'}>
-                            {getComboLabel(bal) && (
-                                <VariantChip kind="combo" classic={classic} title={`Combo: ${getComboLabel(bal)}`}>{getComboLabel(bal)}</VariantChip>
-                            )}
-                            {bal.size_label && (
-                                <VariantChip kind="size" classic={classic} title={`Size: ${bal.size_label}`}>{bal.size_label}</VariantChip>
-                            )}
-                            {colorInfo && (
-                                <VariantChip
-                                    kind={colorInfo.pending ? 'pending' : 'color'}
-                                    classic={classic}
-                                    swatch={colorInfo.hex || null}
-                                    title={colorInfo.pending
-                                        ? `Shade pending lab dip approval: ${colorInfo.label}`
-                                        : `Color: ${colorInfo.name && colorInfo.name !== colorInfo.label ? `${colorInfo.label} — ${colorInfo.name}` : colorInfo.label}`}
-                                >
-                                    {colorInfo.label}{colorInfo.pending ? ' (pending)' : ''}
-                                </VariantChip>
-                            )}
-                        </div>
-                    )}
                 </td>
                 <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
                     {bal.item_ends != null ? bal.item_ends : ''}
@@ -699,11 +677,32 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 </td>
                 <td style={classic ? { padding: '4px 8px', ...colDivider } : colDivider}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                        {bal.attribute_value_ids?.length > 0 ? (
-                            bal.attribute_value_ids.map((vid: string) => (
+                        {bal.size_label && (
+                            <VariantChip kind="size" classic={classic} title={`Size: ${bal.size_label}`}>{bal.size_label}</VariantChip>
+                        )}
+                        {getComboLabel(bal) && (
+                            <VariantChip kind="combo" classic={classic} title={`Combo: ${getComboLabel(bal)}`}>{getComboLabel(bal)}</VariantChip>
+                        )}
+                        {colorInfo && (
+                            <VariantChip
+                                kind={colorInfo.pending ? 'pending' : 'color'}
+                                classic={classic}
+                                swatch={colorInfo.hex || null}
+                                title={colorInfo.pending
+                                    ? `Shade pending lab dip approval: ${colorInfo.label}`
+                                    : `Color: ${colorInfo.name && colorInfo.name !== colorInfo.label ? `${colorInfo.label} — ${colorInfo.name}` : colorInfo.label}`}
+                            >
+                                {colorInfo.label}{colorInfo.pending ? ' (pending)' : ''}
+                            </VariantChip>
+                        )}
+                        {/* Combo already renders above as a VariantChip — skip its raw
+                            value here so the same pick doesn't show twice in one cell. */}
+                        {bal.attribute_value_ids
+                            ?.filter((vid: string) => !comboValueIds.has(String(vid)))
+                            .map((vid: string) => (
                                 <Chip key={vid} classic={classic} size="xs">{getAttrValueName(vid)}</Chip>
-                            ))
-                        ) : (
+                            ))}
+                        {!bal.size_label && !getComboLabel(bal) && !colorInfo && !bal.attribute_value_ids?.length && (
                             <Dash classic={classic} />
                         )}
                     </div>
