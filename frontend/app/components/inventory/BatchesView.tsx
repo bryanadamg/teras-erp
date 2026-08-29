@@ -19,6 +19,7 @@ const LOT_STATUS_FILTERS = [
   { value: '', label: 'All' },
 ];
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
+import SearchableSelect from '../shared/SearchableSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
 import { ExpanderCell, SortableTh, lvZebra, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
@@ -121,6 +122,10 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const [locationFilter, setLocationFilter] = useState('');  // '' | 'wh:<id>' | 'loc:<id>'
 
   const locationTree = React.useMemo(() => buildLocationFilterTree(locations || []), [locations]);
+  const itemFilterOptions = React.useMemo(() => [
+    { value: '', label: 'All Items' },
+    ...items.map((i: Item) => ({ value: i.id, label: i.name, subLabel: i.code })),
+  ], [items]);
 
   // Expand the picked warehouse/zone/bin into its full descendant leaf set so a lot
   // recorded at any depth below it still matches. Sent as one comma-joined value —
@@ -805,10 +810,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
             <SearchField classic value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={240} />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Item:</span>
-            <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
-              <option value="">All Items</option>
-              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-            </select>
+            <div style={{ width: 200, flexShrink: 0 }}>
+              <SearchableSelect options={itemFilterOptions} value={itemFilter} onChange={setItemFilter} placeholder="All Items" size="sm" />
+            </div>
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Location:</span>
             <TreeSelect
               options={locationTree}
@@ -919,10 +923,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           {/* ── Filter/search bar + actions ── */}
           <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
             <SearchField classic={false} value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={260} />
-            <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
-              <option value="">All Items</option>
-              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-            </select>
+            <div style={{ width: 200, flexShrink: 0 }}>
+              <SearchableSelect options={itemFilterOptions} value={itemFilter} onChange={setItemFilter} placeholder="All Items" size="sm" />
+            </div>
             <TreeSelect
               options={locationTree}
               value={locationFilter}
