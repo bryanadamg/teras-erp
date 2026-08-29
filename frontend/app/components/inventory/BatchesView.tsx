@@ -22,7 +22,7 @@ import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLoc
 import SearchableSelect from '../shared/SearchableSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
-import { ExpanderCell, SortableTh, lvZebra, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
+import { ExpanderCell, SortableTh, lvZebra, lvThead, lvTh, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
 import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -808,12 +808,6 @@ export default function BatchesView({ items, locations, categories, authFetch, a
     borderCollapse: 'collapse', whiteSpace: 'nowrap',
   } : { width: '100%', minWidth: TABLE_MIN_W, whiteSpace: 'nowrap' };
 
-  const xpTh: React.CSSProperties = classic ? {
-    background: 'linear-gradient(to bottom, #f0ede4, #d8d4c8)', border: '1px solid #9090a0',
-    padding: '2px 6px', fontWeight: 'bold', textAlign: 'left', whiteSpace: 'nowrap',
-    position: 'sticky', top: 0,
-  } : {};
-
   const xpTd = (alt: boolean): React.CSSProperties => classic ? {
     border: '1px solid #c8c8c8', padding: '2px 6px',
     background: lvZebra(true, alt ? 1 : 0), verticalAlign: 'middle',
@@ -874,21 +868,21 @@ export default function BatchesView({ items, locations, categories, authFetch, a
           {/* ── Table ── */}
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', minHeight: 0, background: '#ffffff', scrollbarGutter: 'stable' } as React.CSSProperties}>
             <table style={xpTable}>
-              <thead>
+              <thead style={lvThead(true, true)}>
                 <tr>
-                  <th style={{ ...xpTh, width: 20 }}></th>
-                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={xpTh}>Lot Number</SortableTh>
-                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={xpTh}>Item</SortableTh>
-                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Ends</SortableTh>
-                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={xpTh}>Origin</SortableTh>
-                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...xpTh, width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
-                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...xpTh, width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
-                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={{ ...xpTh, width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>PR</SortableTh>
-                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={xpTh}>Location</SortableTh>
-                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Remaining</SortableTh>
-                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={xpTh}>Notes</SortableTh>
-                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={xpTh}>Created</SortableTh>
-                  <th style={xpTh}></th>
+                  <th style={{ ...lvTh(true), width: 20 }}></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={lvTh(true)}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={lvTh(true)}>Item</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...lvTh(true), textAlign: 'right' }}>Ends</SortableTh>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={lvTh(true)}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
+                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
+                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={lvTh(true)}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...lvTh(true), textAlign: 'right' }}>Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={lvTh(true)}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={lvTh(true)}>Created</SortableTh>
+                  <th style={{ ...lvTh(true), borderRight: 'none' }}></th>
                 </tr>
               </thead>
               <tbody ref={listBodyRef}>
@@ -995,22 +989,22 @@ export default function BatchesView({ items, locations, categories, authFetch, a
 
           {/* ── Table ── */}
           <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0, scrollbarGutter: 'stable' } as React.CSSProperties}>
-            <table className="table table-sm table-hover table-bordered mb-0" style={xpTable}>
-              <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+            <table className="table table-sm table-hover mb-0" style={xpTable}>
+              <thead style={lvThead(false, true)}>
                 <tr>
-                  <th style={{ width: 24 }}></th>
-                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort}>Lot Number</SortableTh>
-                  <SortableTh sort={sort} colKey="product" onSort={toggleSort}>Item</SortableTh>
-                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} className="text-end">Ends</SortableTh>
-                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort}>Origin</SortableTh>
-                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
-                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
-                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>PR</SortableTh>
-                  <SortableTh sort={sort} colKey="location" onSort={toggleSort}>Location</SortableTh>
-                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} className="text-end">Remaining</SortableTh>
-                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort}>Notes</SortableTh>
-                  <SortableTh sort={sort} colKey="created" onSort={toggleSort}>Created</SortableTh>
-                  <th></th>
+                  <th style={{ ...lvTh(false), width: 24 }}></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={lvTh(false)}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={lvTh(false)}>Item</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...lvTh(false), textAlign: 'right' }}>Ends</SortableTh>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={lvTh(false)}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
+                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
+                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={lvTh(false)}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...lvTh(false), textAlign: 'right' }}>Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={lvTh(false)}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={lvTh(false)}>Created</SortableTh>
+                  <th style={{ ...lvTh(false), borderRight: 'none' }}></th>
                 </tr>
               </thead>
               <tbody ref={listBodyRef}>
