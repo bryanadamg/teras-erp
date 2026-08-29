@@ -420,6 +420,7 @@ async def list_batches_paginated(
     search: str | None = Query(None, description="Matches lot number, supplier lot, or item code/name"),
     status: str | None = Query(None, description="'active' (remaining > 0) or 'depleted' (0 remaining); None = all"),
     location_id: list[str] | None = Query(None, description="Filter to lots with current stock at any of these leaf location ids (caller expands warehouse/zone → descendants). Repeat the param or pass one comma-separated list."),
+    category_id: str | None = Query(None, description="Item category id, or comma-separated ids (a category plus its descendants — caller expands the tree, same contract as /stock/balance/paginated)"),
     window: PageWindow = Depends(PageParams(default_size=50)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
@@ -456,6 +457,10 @@ async def list_batches_paginated(
             .group_by(StockBalance.batch_key)
         )
         filters.append(Batch.id.in_(loc_keys))
+    if category_id:
+        cat_ids = [x for x in category_id.split(",") if x]
+        if cat_ids:
+            filters.append(Batch.item_id.in_(select(Item.id).filter(Item.category_id.in_(cat_ids))))
     if status in ("active", "depleted"):
         # remaining = sum of StockBalance rows keyed by str(batch id). "active" =
         # any positive balance; "depleted" = no positive balance (summed <= 0 or

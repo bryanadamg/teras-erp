@@ -18,7 +18,7 @@ const LOT_STATUS_FILTERS = [
   { value: 'depleted', label: 'Depleted' },
   { value: '', label: 'All' },
 ];
-import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
+import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue, buildCategoryTree } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
@@ -105,11 +105,12 @@ interface RowTraceState {
 interface BatchesViewProps {
   items: Item[];
   locations: any[];
+  categories: any[];
   authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
   apiBase: string;
 }
 
-export default function BatchesView({ items, locations, authFetch, apiBase }: BatchesViewProps) {
+export default function BatchesView({ items, locations, categories, authFetch, apiBase }: BatchesViewProps) {
   const { showToast } = useToast();
   const { uiStyle } = useTheme();
   const { formatDate: tzDate } = useTimezone();
@@ -120,12 +121,36 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const [itemFilter, setItemFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'depleted'>('active');
   const [locationFilter, setLocationFilter] = useState('');  // '' | 'wh:<id>' | 'loc:<id>'
+  const [selectedCat, setSelectedCat] = useState('');
 
   const locationTree = React.useMemo(() => buildLocationFilterTree(locations || []), [locations]);
   const itemFilterOptions = React.useMemo(() => [
     { value: '', label: 'All Items' },
     ...items.map((i: Item) => ({ value: i.id, label: i.name, subLabel: i.code })),
   ], [items]);
+
+  // ── Category filter — same tree-select + descendant-inclusive expansion as
+  // Stock On-Hand (components/stock/StockOnHandView.tsx). Sent to the server as a
+  // comma-joined id list; the backend just does `Item.category_id IN (...)`.
+  const cats = categories || [];
+  const catTreeOptions = React.useMemo(() => buildCategoryTree(cats), [cats]);
+  const catMatchIds = React.useMemo(() => {
+    if (!selectedCat) return '';
+    const childrenOf: Record<string, string[]> = {};
+    for (const c of cats) {
+      if (!c.parent_id) continue;
+      (childrenOf[c.parent_id] ||= []).push(c.id);
+    }
+    const set = new Set<string>();
+    const stack = [selectedCat];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (set.has(id)) continue;
+      set.add(id);
+      for (const child of (childrenOf[id] || [])) stack.push(child);
+    }
+    return Array.from(set).join(',');
+  }, [cats, selectedCat]);
 
   // Expand the picked warehouse/zone/bin into its full descendant leaf set so a lot
   // recorded at any depth below it still matches. Sent as one comma-joined value —
@@ -149,6 +174,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
       item_id: itemFilter,
       status: statusFilter,
       location_id: locationIds,
+      category_id: catMatchIds,
     },
     onError: () => showToast('Failed to load lots', 'danger'),
   });
@@ -813,6 +839,15 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
             <div style={{ width: 200, flexShrink: 0 }}>
               <SearchableSelect options={itemFilterOptions} value={itemFilter} onChange={setItemFilter} placeholder="All Items" size="sm" />
             </div>
+            <span style={{ fontFamily: xpFont, fontSize: 11 }}>Category:</span>
+            <TreeSelect
+              options={catTreeOptions}
+              value={selectedCat}
+              onChange={setSelectedCat}
+              allowEmpty
+              emptyLabel="All Categories"
+              style={{ width: 180 }}
+            />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Location:</span>
             <TreeSelect
               options={locationTree}
@@ -926,6 +961,16 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
             <div style={{ width: 200, flexShrink: 0 }}>
               <SearchableSelect options={itemFilterOptions} value={itemFilter} onChange={setItemFilter} placeholder="All Items" size="sm" />
             </div>
+            <TreeSelect
+              options={catTreeOptions}
+              value={selectedCat}
+              onChange={setSelectedCat}
+              allowEmpty
+              emptyLabel="All Categories"
+              placeholder="All Categories"
+              size="sm"
+              style={{ width: 180 }}
+            />
             <TreeSelect
               options={locationTree}
               value={locationFilter}
