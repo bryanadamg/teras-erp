@@ -37,8 +37,8 @@ interface StockOnHandViewProps {
 // Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
 // squeezing chip columns (Lot carries MO codes ~30 chars) into overlapping percentages.
 const COL_W = {
-    check: 34, item: 230, category: 140, location: 190, lot: 220, attrs: 150,
-    qty: 110, uom: 60, packaging: 130, notes: 190, ends: 60, actions: 74,
+    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 220, attrs: 150,
+    qty: 110, uom: 60, packaging: 130, notes: 190, actions: 74,
 };
 const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
 
@@ -623,6 +623,9 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                         </div>
                     )}
                 </td>
+                <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
+                    {bal.item_ends != null ? bal.item_ends : ''}
+                </td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140, ...colDivider } : { maxWidth: 140, ...colDivider }}>
                     {bal.item_category_name ? (
                         // Shared Chip in both themes: these six badges each carried a
@@ -719,9 +722,6 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     ) : (
                         <Dash classic={classic} />
                     )}
-                </td>
-                <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
-                    {bal.item_ends != null ? bal.item_ends : ''}
                 </td>
                 <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : undefined}>
                     <div style={classic ? { display: 'flex', gap: 4 } : undefined} className={classic ? undefined : 'd-flex gap-1'}>
@@ -1202,6 +1202,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                         title={sel.allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'} />
                                 </th>
                                 <SortableTh sort={sort} colKey="item" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.item } : { width: COL_W.item, ...colDivider }}>Item</SortableTh>
+                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.ends } : { width: COL_W.ends, ...colDivider }}>Ends</th>
                                 <SortableTh sort={sort} colKey="itemCategory" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.category } : { width: COL_W.category, ...colDivider }}>Item Category</SortableTh>
                                 <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.location } : { width: COL_W.location, ...colDivider }}>{t('locations') || 'Location'}</SortableTh>
                                 <SortableTh sort={sort} colKey="batch" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.lot } : { width: COL_W.lot, ...colDivider }}>Lot</SortableTh>
@@ -1210,7 +1211,6 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.uom } : { width: COL_W.uom, ...colDivider }}>UOM</th>
                                 <SortableTh sort={sort} colKey="packaging" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.packaging } : { width: COL_W.packaging, ...colDivider }}>Packaging</SortableTh>
                                 <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.notes } : { width: COL_W.notes, ...colDivider }}>Notes</SortableTh>
-                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.ends } : { width: COL_W.ends, ...colDivider }}>Ends</th>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.actions, borderRight: 'none' } : { width: COL_W.actions }}></th>
                             </tr>
                         </thead>

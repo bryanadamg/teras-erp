@@ -333,6 +333,9 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
     # Operator note captured when the lot was produced (WO completion) — carried here
     # so on-hand shows the same remark as the bag label and the Lot table.
     batch_notes_map: dict[str, str] = {}
+    # A beam lot's own ends overrides the item spec at birth (WorkOrder.ends) — same
+    # fallback chain as work_orders.py's beam WO helpers.
+    batch_ends_map: dict[str, int] = {}
     # Production origin: a lot minted by a WO completion carries source_wo_id, which
     # resolves WO -> MO. Goods-receipt (GR-) lots have no source WO and stay blank.
     batch_origin_map: dict[str, dict] = {}
@@ -350,11 +353,11 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                 select(
                     Batch.id, Batch.batch_number, Batch.bom_size_snapshot,
                     Batch.vendor_lot, Batch.quality_status, Batch.notes,
-                    Batch.source_wo_id,
+                    Batch.source_wo_id, Batch.ends,
                 ).filter(Batch.id.in_(valid_ids))
             )
             wo_by_batch: dict = {}
-            for bid, bnum, snapshot, vlot, qstatus, bnotes, src_wo in batch_rows.all():
+            for bid, bnum, snapshot, vlot, qstatus, bnotes, src_wo, bends in batch_rows.all():
                 batch_number_map[str(bid)] = bnum
                 label = _bom_size_label(snapshot)
                 if label:
@@ -365,6 +368,8 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                     batch_quality_map[str(bid)] = qstatus
                 if bnotes and bnotes.strip():
                     batch_notes_map[str(bid)] = bnotes.strip()
+                if bends:
+                    batch_ends_map[str(bid)] = bends
                 if src_wo:
                     wo_by_batch[str(bid)] = src_wo
 
@@ -392,7 +397,7 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             "item_name": r.item.name if r.item else str(r.item_id),
             "item_code": r.item.code if r.item else str(r.item_id),
             "item_uom": r.item.uom if r.item else "",
-            "item_ends": r.item.ends if r.item else None,
+            "item_ends": (batch_ends_map.get(r.batch_key) if r.batch_key else None) or (r.item.ends if r.item else None),
             "item_category_id": (r.item.category_id if r.item else None),
             "item_category_name": (r.item.category.name if r.item and r.item.category else None),
             "location_id": r.location_id,

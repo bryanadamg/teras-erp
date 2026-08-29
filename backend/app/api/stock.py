@@ -649,7 +649,7 @@ async def get_stock_balance_paginated(
                 Item.name, Item.code, Item.uom, Item.ends, Item.category_id, Category.name,
                 LocL.name,
                 Batch.batch_number, Batch.vendor_lot, Batch.quality_status, Batch.notes,
-                Batch.bom_size_snapshot,
+                Batch.bom_size_snapshot, Batch.ends,
                 ManufacturingOrder.id, ManufacturingOrder.code, WorkOrder.code,
             ))
             .options(selectinload(StockBalance.attribute_values))
@@ -659,7 +659,7 @@ async def get_stock_balance_paginated(
 
     items = []
     for (bal, i_name, i_code, i_uom, i_ends, i_cat_id, cat_name, loc_name,
-         b_number, b_vendor_lot, b_quality, b_notes, b_snapshot,
+         b_number, b_vendor_lot, b_quality, b_notes, b_snapshot, b_ends,
          mo_id, mo_code, wo_code) in rows:
         lotted = bool(bal.batch_key)
         notes = (b_notes or "").strip() if lotted else ""
@@ -668,7 +668,9 @@ async def get_stock_balance_paginated(
             "item_name": i_name or str(bal.item_id),
             "item_code": i_code or str(bal.item_id),
             "item_uom": i_uom or "",
-            "item_ends": i_ends,
+            # A specific lot's ends overrides the item spec at beam birth (see
+            # WorkOrder.ends) — same fallback chain as work_orders.py's beam WO helpers.
+            "item_ends": b_ends if lotted and b_ends else i_ends,
             "item_category_id": i_cat_id,
             "item_category_name": cat_name,
             "location_id": bal.location_id,
