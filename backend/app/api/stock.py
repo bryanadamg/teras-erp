@@ -510,9 +510,30 @@ async def get_stock_balance_paginated(
     from sqlalchemy.orm import aliased, selectinload
     from app.models.category import Category
     from app.models.batch import Batch
-    from app.models.manufacturing import ManufacturingOrder
+    from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
     from app.models.color import Color
+    from app.models.attribute import Attribute, AttributeValue
     from app.services.stock_service import _bom_size_label
+
+    # A shade's hex can live in the Color Library row (Color.hex) or, when that's
+    # blank, the mirrored `Colors` variant attribute value the MO carries
+    # (AttributeValue.hex) — same fallback chain resolveColorHex uses on the
+    # frontend and _resolve_batch_variants resolves for /batches/paginated.
+    # Scalar subquery (not a join) so a color pick doesn't multiply balance rows
+    # the way joining the MO<->attribute-value M2M directly would.
+    attr_color_hex = (
+        select(AttributeValue.hex)
+        .select_from(manufacturing_order_values)
+        .join(AttributeValue, AttributeValue.id == manufacturing_order_values.c.attribute_value_id)
+        .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+        .where(
+            manufacturing_order_values.c.manufacturing_order_id == ManufacturingOrder.id,
+            Attribute.system_role == "color",
+        )
+        .limit(1)
+        .correlate(ManufacturingOrder)
+        .scalar_subquery()
+    )
 
     # Location + its parent + its grandparent: the hierarchy is warehouse > zone > bin,
     # so the root warehouse of a row is the grandparent for a bin and the parent for a
@@ -653,7 +674,8 @@ async def get_stock_balance_paginated(
                 Batch.batch_number, Batch.vendor_lot, Batch.quality_status, Batch.notes,
                 Batch.bom_size_snapshot, Batch.ends,
                 ManufacturingOrder.id, ManufacturingOrder.code, WorkOrder.code,
-                ManufacturingOrder.labdip_variant_code, Color.code, Color.name, Color.hex,
+                ManufacturingOrder.labdip_variant_code, Color.code, Color.name,
+                func.coalesce(Color.hex, attr_color_hex),
             ))
             .options(selectinload(StockBalance.attribute_values))
             .order_by(*order)

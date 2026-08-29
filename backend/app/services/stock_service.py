@@ -378,12 +378,32 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             # /batches/paginated uses (_resolve_batch_origins).
             if wo_by_batch:
                 from app.models.work_order import WorkOrder
-                from app.models.manufacturing import ManufacturingOrder
+                from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
                 from app.models.color import Color
+                from app.models.attribute import Attribute, AttributeValue
+                # A shade's hex can live in the Color Library row or, when that's
+                # blank, the mirrored `Colors` variant attribute value the MO
+                # carries — same fallback chain _resolve_batch_variants resolves
+                # for /batches/paginated. Scalar subquery, not a join, so a colour
+                # pick doesn't multiply rows via the MO<->attribute-value M2M.
+                attr_color_hex = (
+                    select(AttributeValue.hex)
+                    .select_from(manufacturing_order_values)
+                    .join(AttributeValue, AttributeValue.id == manufacturing_order_values.c.attribute_value_id)
+                    .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+                    .where(
+                        manufacturing_order_values.c.manufacturing_order_id == ManufacturingOrder.id,
+                        Attribute.system_role == "color",
+                    )
+                    .limit(1)
+                    .correlate(ManufacturingOrder)
+                    .scalar_subquery()
+                )
                 mo_rows = await db.execute(
                     select(
                         WorkOrder.id, WorkOrder.code, ManufacturingOrder.id, ManufacturingOrder.code,
-                        ManufacturingOrder.labdip_variant_code, Color.code, Color.name, Color.hex,
+                        ManufacturingOrder.labdip_variant_code, Color.code, Color.name,
+                        func.coalesce(Color.hex, attr_color_hex),
                     )
                     .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
                     .outerjoin(Color, Color.id == ManufacturingOrder.color_id)
