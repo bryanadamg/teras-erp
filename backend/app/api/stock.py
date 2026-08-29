@@ -511,6 +511,7 @@ async def get_stock_balance_paginated(
     from app.models.category import Category
     from app.models.batch import Batch
     from app.models.manufacturing import ManufacturingOrder
+    from app.models.color import Color
     from app.services.stock_service import _bom_size_label
 
     # Location + its parent + its grandparent: the hierarchy is warehouse > zone > bin,
@@ -590,6 +591,7 @@ async def get_stock_balance_paginated(
             .outerjoin(Batch, cast(Batch.id, SAString) == StockBalance.batch_key)
             .outerjoin(WorkOrder, WorkOrder.id == Batch.source_wo_id)
             .outerjoin(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+            .outerjoin(Color, Color.id == ManufacturingOrder.color_id)
             .where(*conditions)
         )
 
@@ -651,6 +653,7 @@ async def get_stock_balance_paginated(
                 Batch.batch_number, Batch.vendor_lot, Batch.quality_status, Batch.notes,
                 Batch.bom_size_snapshot, Batch.ends,
                 ManufacturingOrder.id, ManufacturingOrder.code, WorkOrder.code,
+                ManufacturingOrder.labdip_variant_code, Color.code, Color.name, Color.hex,
             ))
             .options(selectinload(StockBalance.attribute_values))
             .order_by(*order)
@@ -660,7 +663,8 @@ async def get_stock_balance_paginated(
     items = []
     for (bal, i_name, i_code, i_uom, i_ends, i_cat_id, cat_name, loc_name,
          b_number, b_vendor_lot, b_quality, b_notes, b_snapshot, b_ends,
-         mo_id, mo_code, wo_code) in rows:
+         mo_id, mo_code, wo_code,
+         mo_labdip_code, color_code, color_name, color_hex) in rows:
         lotted = bool(bal.batch_key)
         notes = (b_notes or "").strip() if lotted else ""
         items.append({
@@ -689,6 +693,13 @@ async def get_stock_balance_paginated(
             "mo_id": mo_id if lotted else None,
             "mo_code": mo_code if lotted else None,
             "wo_code": wo_code if lotted else None,
+            # Shade identity of the MO that produced this lot (Color Library, via
+            # source_wo -> MO.color_id) — same resolution /batches/paginated uses
+            # (_resolve_batch_origins), so a lot's shade chip agrees everywhere.
+            "color_code": color_code if lotted else None,
+            "color_name": color_name if lotted else None,
+            "color_hex": color_hex if lotted else None,
+            "labdip_variant_code": mo_labdip_code if lotted else None,
         })
 
     return window.envelope(

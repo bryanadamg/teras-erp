@@ -1449,6 +1449,12 @@ class StockBalanceResponse(BaseModel):
     mo_id: UUID | None = None
     mo_code: str | None = None
     wo_code: str | None = None
+    # Shade identity of the lot's producing MO (Color Library, via MO.color_id) —
+    # same fields /batches/paginated resolves, so the shade chip matches everywhere.
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    labdip_variant_code: str | None = None
 
 class PaginatedStockBalanceResponse(BaseModel):
     """Envelope for GET /stock/balance/paginated — the Stock On-Hand grid.

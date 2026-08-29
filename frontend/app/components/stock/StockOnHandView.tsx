@@ -10,6 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
+import { lotColorLabel } from '../shared/LotChips';
 import { useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky, lvZebra, Dash } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
@@ -581,6 +582,9 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
     const renderRow = (bal: any, i: number) => {
         const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '—';
+        // Shade identity of the lot's producing MO (Color Library) — same helper
+        // the Lot page uses, so a lot's colour chip reads identically everywhere.
+        const colorInfo = lotColorLabel(bal);
         // QC-rejected/disposed lots sit in the same bin as good stock — tint the row
         // and flag the lot so the qty is never mistaken for available.
         const qStatus: string = bal.quality_status && bal.quality_status !== 'GOOD' ? bal.quality_status : '';
@@ -612,13 +616,25 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     <CodeChip code={bal.item_code} classic={classic} tier={2}
                         style={classic ? { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}
                         className={classic ? undefined : 'text-truncate d-block'} />
-                    {(getComboLabel(bal) || bal.size_label) && (
+                    {(getComboLabel(bal) || bal.size_label || colorInfo) && (
                         <div style={classic ? { display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 } : undefined} className={classic ? undefined : 'd-flex flex-wrap gap-1 mt-1'}>
                             {getComboLabel(bal) && (
                                 <VariantChip kind="combo" classic={classic} title={`Combo: ${getComboLabel(bal)}`}>{getComboLabel(bal)}</VariantChip>
                             )}
                             {bal.size_label && (
                                 <VariantChip kind="size" classic={classic} title={`Size: ${bal.size_label}`}>{bal.size_label}</VariantChip>
+                            )}
+                            {colorInfo && (
+                                <VariantChip
+                                    kind={colorInfo.pending ? 'pending' : 'color'}
+                                    classic={classic}
+                                    swatch={colorInfo.hex || null}
+                                    title={colorInfo.pending
+                                        ? `Shade pending lab dip approval: ${colorInfo.label}`
+                                        : `Color: ${colorInfo.name && colorInfo.name !== colorInfo.label ? `${colorInfo.label} — ${colorInfo.name}` : colorInfo.label}`}
+                                >
+                                    {colorInfo.label}{colorInfo.pending ? ' (pending)' : ''}
+                                </VariantChip>
                             )}
                         </div>
                     )}
