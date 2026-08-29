@@ -515,6 +515,10 @@ export default function BatchesView({ items, locations, categories, authFetch, a
   // clipped with an ellipsis and pop out unclipped on hover (Chip's truncate prop).
   const ORIGIN_COL_W = 150;
 
+  // Attributes (size/combo/shade chips, split out of the Item column) gets its own
+  // width so a row with all three isn't cramped.
+  const ATTRS_COL_W = 220;
+
   // Location — Store / Zone / Bin as distinct badges (root-first hierarchy).
   const LOC_LEVEL = [
     { fg: '#33506e', bg: '#e2e9f2', border: '#a8bcd0' },  // Store (warehouse)
@@ -560,27 +564,27 @@ export default function BatchesView({ items, locations, categories, authFetch, a
     );
   };
 
-  // Product — item code on line 1, then what the lot actually IS as chips: size
-  // (from the lot's stamped bom_size_snapshot), combo and shade (from the producing
-  // MO's variant attributes). Same identity vocabulary as the staging/completion
-  // lot pickers — see components/shared/LotChips.tsx for the label rules.
-  const productCell = (b: Batch) => {
+  // Product — just the item code. Size/combo/shade identity moved to its own
+  // Attributes column (attrsCell below) so it isn't cramped under the item.
+  const productCell = (b: Batch) => <span>{batchItemCode(b)}</span>;
+
+  // Attributes — what the lot actually IS: size (from the lot's stamped
+  // bom_size_snapshot), combo and shade (from the producing MO's variant
+  // attributes). Same identity vocabulary as the staging/completion lot pickers —
+  // see components/shared/LotChips.tsx for the label rules.
+  const attrsCell = (b: Batch) => {
     const sz = lotSizeLabel(b);
     const combo = lotComboLabel(b);
     const shade = lotColorLabel(b);
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', lineHeight: 1.2 }}>
-        <span>{batchItemCode(b)}</span>
-        {(sz || combo || shade) && chipRow(
-          <>
-            {sz && <VariantChip kind="size" classic={classic} title={`Size: ${sz}`}>{sz}</VariantChip>}
-            {combo && <VariantChip kind="combo" classic={classic} title={`Combo: ${combo}`}>{combo}</VariantChip>}
-            {shade && (shade.pending
-              ? <VariantChip kind="pending" classic={classic} title={`Shade pending lab dip approval: ${shade.label}`}>{shade.label} (pending)</VariantChip>
-              : <VariantChip kind="color" classic={classic} swatch={shade.hex} title={`Color: ${shade.label}`}>{shade.label}</VariantChip>)}
-          </>,
-        )}
-      </div>
+    if (!sz && !combo && !shade) return emDash;
+    return chipRow(
+      <>
+        {sz && <VariantChip kind="size" classic={classic} title={`Size: ${sz}`}>{sz}</VariantChip>}
+        {combo && <VariantChip kind="combo" classic={classic} title={`Combo: ${combo}`}>{combo}</VariantChip>}
+        {shade && (shade.pending
+          ? <VariantChip kind="pending" classic={classic} title={`Shade pending lab dip approval: ${shade.label}`}>{shade.label} (pending)</VariantChip>
+          : <VariantChip kind="color" classic={classic} swatch={shade.hex} title={`Color: ${shade.label}`}>{shade.label}</VariantChip>)}
+      </>,
     );
   };
 
@@ -801,7 +805,7 @@ export default function BatchesView({ items, locations, categories, authFetch, a
 
   // minWidth + nowrap: cells never wrap, the table scrolls sideways instead. Keeps
   // multi-chip rows (Product / WO-MO-PR / Location) one line tall.
-  const TABLE_MIN_W = 1500;
+  const TABLE_MIN_W = 1500 + ATTRS_COL_W;
 
   const xpTable: React.CSSProperties = classic ? {
     fontFamily: xpFont, fontSize: '11px', width: '100%', minWidth: TABLE_MIN_W,
@@ -813,7 +817,7 @@ export default function BatchesView({ items, locations, categories, authFetch, a
     background: lvZebra(true, alt ? 1 : 0), verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
-  const colSpan = 13; // Chevron, Lot Number, Product, Origin, WO, MO, PR, Location, Remaining, Ends, Notes, Created, Actions
+  const colSpan = 14; // Chevron, Lot Number, Item, Ends, Attributes, Origin, WO, MO, PR, Location, Remaining, Notes, Created, Actions
 
   // Fixed row height keeps the table visually even despite multi-badge cells.
   const ROW_H = classic ? 40 : 44;
@@ -874,6 +878,7 @@ export default function BatchesView({ items, locations, categories, authFetch, a
                   <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={lvTh(true)}>Lot Number</SortableTh>
                   <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={lvTh(true)}>Item</SortableTh>
                   <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...lvTh(true), textAlign: 'right' }}>Ends</SortableTh>
+                  <th style={{ ...lvTh(true), width: ATTRS_COL_W, maxWidth: ATTRS_COL_W }}>Attributes</th>
                   <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={lvTh(true)}>Origin</SortableTh>
                   <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
                   <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
@@ -906,6 +911,7 @@ export default function BatchesView({ items, locations, categories, authFetch, a
                       </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{productCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{b.ends ?? '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), width: ATTRS_COL_W, maxWidth: ATTRS_COL_W, background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{attrsCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{originCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{woCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{moCell(b)}</td>
@@ -996,6 +1002,7 @@ export default function BatchesView({ items, locations, categories, authFetch, a
                   <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={lvTh(false)}>Lot Number</SortableTh>
                   <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={lvTh(false)}>Item</SortableTh>
                   <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...lvTh(false), textAlign: 'right' }}>Ends</SortableTh>
+                  <th style={{ ...lvTh(false), width: ATTRS_COL_W, maxWidth: ATTRS_COL_W }}>Attributes</th>
                   <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={lvTh(false)}>Origin</SortableTh>
                   <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
                   <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
@@ -1025,6 +1032,7 @@ export default function BatchesView({ items, locations, categories, authFetch, a
                       </td>
                       <td>{productCell(b)}</td>
                       <td className="text-end">{b.ends ?? '-'}</td>
+                      <td style={{ width: ATTRS_COL_W, maxWidth: ATTRS_COL_W }}>{attrsCell(b)}</td>
                       <td>{originCell(b)}</td>
                       <td style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden' }}>{woCell(b)}</td>
                       <td style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden' }}>{moCell(b)}</td>
