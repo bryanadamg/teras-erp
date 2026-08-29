@@ -2862,8 +2862,9 @@ class PaginatedBatchResponse(BaseModel):
 
 class BatchConsumptionResponse(BaseModel):
     id: UUID
-    manufacturing_order_id: UUID
+    manufacturing_order_id: Optional[UUID] = None
     mo_code: Optional[str] = None          # resolved from MO
+    packing_order_id: Optional[UUID] = None
     input_batch_id: UUID
     output_batch_id: Optional[UUID] = None
     output_batch_number: Optional[str] = None  # resolved from output Batch
