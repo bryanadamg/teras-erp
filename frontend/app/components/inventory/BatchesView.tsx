@@ -23,6 +23,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
 import { ExpanderCell, SortableTh, lvZebra, lvThead, lvTh, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
+import { Tabs, TabDef } from '../shared/Tabs';
 import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -106,11 +107,12 @@ interface BatchesViewProps {
   items: Item[];
   locations: any[];
   categories: any[];
+  workCenters: any[];
   authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
   apiBase: string;
 }
 
-export default function BatchesView({ items, locations, categories, authFetch, apiBase }: BatchesViewProps) {
+export default function BatchesView({ items, locations, categories, workCenters, authFetch, apiBase }: BatchesViewProps) {
   const { showToast } = useToast();
   const { uiStyle } = useTheme();
   const { formatDate: tzDate } = useTimezone();
@@ -122,6 +124,12 @@ export default function BatchesView({ items, locations, categories, authFetch, a
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'depleted'>('active');
   const [locationFilter, setLocationFilter] = useState('');  // '' | 'wh:<id>' | 'loc:<id>'
   const [selectedCat, setSelectedCat] = useState('');
+  // Lot type: classifies a lot by the process that produced it — a WorkCenter
+  // TYPE's center_type (WEAVING, DYEING, BEAMING, ...), resolved server-side
+  // through source_wo -> work_center -> TYPE-root (see /batches/paginated's
+  // lot_type param). 'GR' (goods-receipt/manual) and 'PACK' (packed carton) are
+  // the two buckets with no producing work center. '' = All.
+  const [lotTypeFilter, setLotTypeFilter] = useState('');
 
   const locationTree = React.useMemo(() => buildLocationFilterTree(locations || []), [locations]);
   const itemFilterOptions = React.useMemo(() => [
@@ -152,6 +160,37 @@ export default function BatchesView({ items, locations, categories, authFetch, a
     return Array.from(set).join(',');
   }, [cats, selectedCat]);
 
+  // ── Lot type filter — tabs built from whichever WorkCenter TYPE roots actually
+  // exist (center_type on node_type='TYPE' rows), so a canonical bucket doesn't
+  // show up empty just because that production stage hasn't been set up yet.
+  // GR and PACK are fixed: they're lots with no producing work center at all.
+  // Same shared Tabs strip + 'ALL' sentinel pattern as InventoryView's category tabs.
+  const LOT_TYPE_META: Record<string, { label: string; icon: string }> = {
+    GR: { label: 'Goods Receipt', icon: 'bi-truck' },
+    BEAMING: { label: 'Beam', icon: 'bi-record-circle' },
+    WARPING: { label: 'Warping', icon: 'bi-diagram-3' },
+    WEAVING: { label: 'Weaving', icon: 'bi-layers' },
+    DYEING: { label: 'Dyeing', icon: 'bi-droplet-half' },
+    SETTING: { label: 'Setting', icon: 'bi-thermometer-half' },
+    FINISHING: { label: 'Finishing', icon: 'bi-check2-circle' },
+    GENERAL: { label: 'General', icon: 'bi-gear' },
+    PACK: { label: 'Packing', icon: 'bi-box-seam' },
+  };
+  const lotTypeTabs: TabDef<string>[] = React.useMemo(() => {
+    const centerTypes = Array.from(new Set(
+      (workCenters || [])
+        .filter((wc: any) => wc.node_type === 'TYPE' && wc.center_type)
+        .map((wc: any) => wc.center_type as string),
+    )).sort();
+    return [
+      { key: 'ALL', label: 'All', icon: 'bi-collection' },
+      { key: 'GR', label: LOT_TYPE_META.GR.label, icon: LOT_TYPE_META.GR.icon },
+      ...centerTypes.map(ct => ({ key: ct, label: LOT_TYPE_META[ct]?.label || ct, icon: LOT_TYPE_META[ct]?.icon })),
+      { key: 'PACK', label: LOT_TYPE_META.PACK.label, icon: LOT_TYPE_META.PACK.icon },
+    ];
+  }, [workCenters]);
+  const handleLotTypeTabChange = (key: string) => setLotTypeFilter(key === 'ALL' ? '' : key);
+
   // Expand the picked warehouse/zone/bin into its full descendant leaf set so a lot
   // recorded at any depth below it still matches. Sent as one comma-joined value —
   // the shared list hook serializes each filter as a single query param, and
@@ -175,6 +214,7 @@ export default function BatchesView({ items, locations, categories, authFetch, a
       status: statusFilter,
       location_id: locationIds,
       category_id: catMatchIds,
+      lot_type: lotTypeFilter,
     },
     onError: () => showToast('Failed to load lots', 'danger'),
   });
@@ -830,6 +870,8 @@ export default function BatchesView({ items, locations, categories, authFetch, a
           <div style={xpTitleBar}>
             <span>Lot Management</span>
           </div>
+          {/* ── Lot type tabs — classifies by the process that produced the lot ── */}
+          <Tabs<string> tabs={lotTypeTabs} activeKey={lotTypeFilter || 'ALL'} onChange={handleLotTypeTabChange} classic />
           {/* ── Filter/search bar + actions ── */}
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
             <SearchField classic value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={240} />
@@ -955,6 +997,8 @@ export default function BatchesView({ items, locations, categories, authFetch, a
           <div className="card-header d-flex align-items-center gap-2" style={{ flexShrink: 0 }}>
             <h5 className="mb-0 fw-bold">Lot Management</h5>
           </div>
+          {/* ── Lot type tabs — classifies by the process that produced the lot ── */}
+          <Tabs<string> tabs={lotTypeTabs} activeKey={lotTypeFilter || 'ALL'} onChange={handleLotTypeTabChange} classic={false} />
           {/* ── Filter/search bar + actions ── */}
           <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
             <SearchField classic={false} value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={260} />

@@ -79,6 +79,29 @@ async def group_of(db: AsyncSession, wc: WorkCenter) -> Optional[WorkCenter]:
     return None
 
 
+def type_of_cte():
+    """Recursive CTE of {work_center id -> its TYPE-root's center_type}, for every
+    work center in the tree (TYPE/GROUP/MACHINE alike).
+
+    TYPE nodes are the tree's roots (parent_id IS NULL) — the opposite shape of
+    `_descendants_cte`, which walks down from one arbitrary node. Seeding at every
+    TYPE row and walking down means one query classifies the whole table, so
+    callers (e.g. classifying lots by the process that produced them) can join
+    this once instead of resolving `ancestors()` per row.
+    """
+    wc = WorkCenter.__table__
+    base = (
+        select(wc.c.id, wc.c.center_type.label("center_type"))
+        .where(wc.c.node_type == "TYPE")
+        .cte("wc_type_of", recursive=True)
+    )
+    child = wc.alias("wc_type_child")
+    return base.union_all(
+        select(child.c.id, base.c.center_type)
+        .where(child.c.parent_id == base.c.id)
+    )
+
+
 # --- Input/output location inheritance -------------------------------------
 # Staging areas are a property of the *area*, not of each machine: every loom in
 # a hall feeds from the same supply bin. So a machine's input/output location is
