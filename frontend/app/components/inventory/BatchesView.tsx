@@ -161,32 +161,32 @@ export default function BatchesView({ items, locations, categories, workCenters,
   }, [cats, selectedCat]);
 
   // ── Lot type filter — tabs built from whichever WorkCenter TYPE roots actually
-  // exist (center_type on node_type='TYPE' rows), so a canonical bucket doesn't
-  // show up empty just because that production stage hasn't been set up yet.
-  // GR and PACK are fixed: they're lots with no producing work center at all.
+  // exist under Routing & Ops (node_type='TYPE'), so a canonical bucket doesn't
+  // show up empty just because that production stage hasn't been set up yet, and
+  // its label is always whatever that TYPE row is actually named there — never a
+  // second hardcoded copy that could drift from a rename on the Routing page.
+  // Icons have no Routing & Ops equivalent (WorkCenter carries no icon field), so
+  // those alone stay a small cosmetic lookup keyed by center_type.
+  // GR and PACK are fixed: they're lots with no producing work center at all, so
+  // there's no Routing & Ops row to read a label from.
   // Same shared Tabs strip + 'ALL' sentinel pattern as InventoryView's category tabs.
-  const LOT_TYPE_META: Record<string, { label: string; icon: string }> = {
-    GR: { label: 'Goods Receipt', icon: 'bi-truck' },
-    BEAMING: { label: 'Beam', icon: 'bi-record-circle' },
-    WARPING: { label: 'Warping', icon: 'bi-diagram-3' },
-    WEAVING: { label: 'Weaving', icon: 'bi-layers' },
-    DYEING: { label: 'Dyeing', icon: 'bi-droplet-half' },
-    SETTING: { label: 'Setting', icon: 'bi-thermometer-half' },
-    FINISHING: { label: 'Finishing', icon: 'bi-check2-circle' },
-    GENERAL: { label: 'General', icon: 'bi-gear' },
-    PACK: { label: 'Packing', icon: 'bi-box-seam' },
+  const LOT_TYPE_ICON: Record<string, string> = {
+    BEAMING: 'bi-record-circle', WARPING: 'bi-diagram-3', WEAVING: 'bi-layers',
+    DYEING: 'bi-droplet-half', SETTING: 'bi-thermometer-half', FINISHING: 'bi-check2-circle',
+    GENERAL: 'bi-gear',
   };
   const lotTypeTabs: TabDef<string>[] = React.useMemo(() => {
-    const centerTypes = Array.from(new Set(
-      (workCenters || [])
-        .filter((wc: any) => wc.node_type === 'TYPE' && wc.center_type)
-        .map((wc: any) => wc.center_type as string),
-    )).sort();
+    const seen = new Set<string>();
+    const centerTypeTabs = (workCenters || [])
+      .filter((wc: any) => wc.node_type === 'TYPE' && wc.center_type)
+      .filter((wc: any) => (seen.has(wc.center_type) ? false : (seen.add(wc.center_type), true)))
+      .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
+      .map((wc: any) => ({ key: wc.center_type as string, label: wc.name, icon: LOT_TYPE_ICON[wc.center_type] || 'bi-gear' }));
     return [
       { key: 'ALL', label: 'All', icon: 'bi-collection' },
-      { key: 'GR', label: LOT_TYPE_META.GR.label, icon: LOT_TYPE_META.GR.icon },
-      ...centerTypes.map(ct => ({ key: ct, label: LOT_TYPE_META[ct]?.label || ct, icon: LOT_TYPE_META[ct]?.icon })),
-      { key: 'PACK', label: LOT_TYPE_META.PACK.label, icon: LOT_TYPE_META.PACK.icon },
+      { key: 'GR', label: 'Goods Receipt', icon: 'bi-truck' },
+      ...centerTypeTabs,
+      { key: 'PACK', label: 'Packing', icon: 'bi-box-seam' },
     ];
   }, [workCenters]);
   const handleLotTypeTabChange = (key: string) => setLotTypeFilter(key === 'ALL' ? '' : key);
