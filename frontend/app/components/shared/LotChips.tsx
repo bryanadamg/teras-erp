@@ -22,6 +22,10 @@ export interface LotVariantAttr {
 export interface LotLike {
     bom_size_id?: string | null;
     bom_size_snapshot?: { size_name?: string | null; label?: string | null } | null;
+    // Already-resolved size text, for rows that never carry a snapshot: an SO
+    // line's size is a live BOMSize row, not a stamped copy, so the server sends
+    // the label alone (SalesOrderLineResponse / PickableOrderLine).
+    size_label?: string | null;
     variant_attributes?: LotVariantAttr[] | null;
     color_code?: string | null;
     color_name?: string | null;
@@ -36,7 +40,7 @@ export interface LotLike {
 
 export const lotSizeLabel = (b: LotLike): string | null => {
     const s = b?.bom_size_snapshot;
-    if (!s) return null;
+    if (!s) return (b?.size_label || '').trim() || null;
     return ((s.size_name || s.label || '') as string).trim() || null;
 };
 

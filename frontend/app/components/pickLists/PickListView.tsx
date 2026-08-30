@@ -9,7 +9,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { LotChip } from '../shared/LotChips';
+import { LotChip, LotChips, LotChipRow } from '../shared/LotChips';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN, ProgressBar } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, lvThSticky, lvSubTable, RowCheckboxCell, LV_CHECK_COL_W } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
@@ -609,6 +609,7 @@ function SOPickerBoard({ pickableSOs, loading, tzDate, canManage, onRefresh, onP
                                 <tr>
                                     <th style={xpTableHeader}>Sales Order</th>
                                     <th style={xpTableHeader}>Customer</th>
+                                    <th style={xpTableHeader}>Items</th>
                                     <th style={xpTableHeader}>Delivery due</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}>Outstanding</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ready</th>
@@ -634,6 +635,32 @@ function SOPickerBoard({ pickableSOs, loading, tzDate, canManage, onRefresh, onP
                                             <td style={td}>
                                                 {so.customer_name}
                                                 <div style={{ marginTop: 1 }}><StatusChip status={so.status} tint /></div>
+                                            </td>
+                                            {/* What the order is actually made of. The row's numbers are the
+                                                order's total, and two lines of the same item differing only by
+                                                shade or size are indistinguishable without this — the picker
+                                                would be releasing "235 of something". Chips are the same lot
+                                                vocabulary the cartons carry, so ordered identity and packed
+                                                identity read alike. */}
+                                            <td style={{ ...td, maxWidth: 260 }}>
+                                                {(so.lines || []).length === 0
+                                                    ? <span style={{ color: '#999' }}>&mdash;</span>
+                                                    : (so.lines || []).map((l: any) => (
+                                                        <div key={l.sales_order_line_id} style={{ marginBottom: 2 }}>
+                                                            <LotChipRow>
+                                                                <span style={{ fontFamily: CODE_FONT, color: '#00309c', fontSize: 10 }}
+                                                                    title={l.item_name || undefined}>
+                                                                    {l.item_code || '—'}
+                                                                </span>
+                                                                <LotChips batch={l} />
+                                                                <span style={{ fontSize: 9, color: num(l.cartons_ready) > 0 ? '#0a3e0a' : '#999' }}>
+                                                                    {num(l.qty_outstanding).toLocaleString()} {l.item_uom || ''}
+                                                                    {' · '}
+                                                                    {l.cartons_ready} ctn ready
+                                                                </span>
+                                                            </LotChipRow>
+                                                        </div>
+                                                    ))}
                                             </td>
                                             <td style={td}>
                                                 <span style={{ borderRadius: CHIP_RADIUS,
@@ -727,6 +754,7 @@ function PickListSuggestionModal({ so, groups, loading, creating, itemById, onCl
             onClose={onClose}
             title={`Pick Cartons — SO ${so.po_number}`}
             size="lg"
+            modeless
             footer={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                     <button className={XP_BTN} style={xpBtn()} onClick={onClose}>Cancel</button>
@@ -764,6 +792,11 @@ function PickListSuggestionModal({ so, groups, loading, creating, itemById, onCl
                                     <span style={{ fontWeight: 'bold' }}>
                                         {it?.code || g.item_code}
                                         <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 6 }}>{it?.name || g.item_name}</span>
+                                        {/* What the LINE ordered. The cartons below carry their own chips —
+                                            they are what is physically in each box, and the two can differ. */}
+                                        <LotChipRow style={{ display: 'inline-flex', marginLeft: 6, verticalAlign: 'middle' }}>
+                                            <LotChips batch={g} />
+                                        </LotChipRow>
                                     </span>
                                     <span style={{ whiteSpace: 'nowrap' }}>
                                         Remaining <b>{num(g.remaining_qty).toLocaleString()}</b> {it?.uom || g.item_uom}
@@ -781,8 +814,15 @@ function PickListSuggestionModal({ so, groups, loading, creating, itemById, onCl
                                                 <td style={{ ...td, width: LV_CHECK_COL_W }}>
                                                     <input type="checkbox" checked={!!checked[String(c.batch_id)]} onChange={() => toggle(String(c.batch_id))} />
                                                 </td>
-                                                <td style={{ ...td, fontFamily: CODE_FONT, color: '#00309c' }}>
-                                                    {c.batch_number}{c.package_no ? ` · #${c.package_no}` : ''}
+                                                <td style={{ ...td, color: '#00309c' }}>
+                                                    <LotChipRow>
+                                                        <span style={{ fontFamily: CODE_FONT }}>
+                                                            {c.batch_number}{c.package_no ? ` · #${c.package_no}` : ''}
+                                                        </span>
+                                                        {/* Size off the carton's own Batch row, shade/combo off its
+                                                            stock key — the box's identity, not the order's. */}
+                                                        <LotChips batch={c} />
+                                                    </LotChipRow>
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'right' }}>{num(c.qty).toLocaleString()}</td>
                                             </tr>
