@@ -34,8 +34,8 @@ type Block =
 type Doc = {
     title: string;
     close: string;
-    /** The four names in the formula, in this language's vocabulary. */
-    terms: { netFree: string; onHand: string; incoming: string; required: string };
+    /** The five names in the formula, in this language's vocabulary. */
+    terms: { netFree: string; onHand: string; incoming: string; required: string; reserved: string };
     keying: React.ReactNode;
     health: { short: string; tight: string; ok: string };
     sections: { title: string; blocks: Block[] }[];
@@ -50,9 +50,10 @@ const DOCS: Record<Lang, Doc> = {
     en: {
         title: 'How Booking Stock is calculated',
         close: 'Close',
-        terms: { netFree: 'Net Free', onHand: 'On Hand', incoming: 'Incoming', required: 'Required' },
-        keying: <>One row per <b>item + variant</b>, netted <b>plant-wide</b>. A row exists only if some
-            ongoing Manufacturing Order still demands that component.</>,
+        terms: { netFree: 'Net Free', onHand: 'On Hand', incoming: 'Incoming', required: 'Required', reserved: 'Reserved' },
+        keying: <>One row per <b>item + variant</b>, netted <b>plant-wide</b>. A row exists if some ongoing
+            Manufacturing Order still demands that component, or if an open sales order is holding stock
+            of it.</>,
         health: {
             short: 'net free is negative: the demand cannot be met',
             tight: `net free is zero (±${EPS}): covered with nothing spare`,
@@ -113,7 +114,29 @@ const DOCS: Record<Lang, Doc> = {
                 ],
             },
             {
-                title: '5 · How a row is keyed',
+                title: '5 · Reserved — stock promised to a sales order',
+                blocks: [
+                    { k: 'p', body: <><T c={TERM.reserved}>Reserved</T> is finished goods that are physically on hand but already
+                        promised to an open sales order. It is subtracted for the same reason <T c={TERM.required}>Required</T> is:
+                        the stock exists, but you may not plan against it.</> },
+                    { k: 'p', body: <>A reservation is written when a <b>Production Run created for a sales order</b> covers part of
+                        its finished goods from stock. That covered quantity produces <i>no</i> Manufacturing Order — so without a
+                        reservation it would leave no trace at all, and the next sales order would net the same physical pile away
+                        a second time. Both orders would then be planned short of the same stock.</> },
+                    { k: 'code', body: 'reserved = Σ (qty − qty_released) of ACTIVE reservations\n           whose sales order is still PENDING / READY / PARTIAL' },
+                    { k: 'p', body: <>A reservation stops counting on its own once its order reaches <b>SENT</b>, <b>DELIVERED</b> or
+                        <b> CANCELLED</b>, and is drawn down at <b>goods issue</b> — the point the stock physically leaves. Packing
+                        does not release it: packing only turns bulk into cartons of the same item, so on hand has not changed and
+                        releasing there would subtract the same quantity twice.</> },
+                    { k: 'p', body: <>Two things clear a hold early: deleting the Production Run (its reservations go with it), and
+                        the <b>release</b> action on the sales order's lineage panel, for an order put on hold or stock the customer
+                        no longer wants held.</> },
+                    { k: 'p', body: <>Expanding a row lists each holder under <T c={TERM.reserved}>Reserved by</T>, so a shortfall
+                        caused by a promise rather than by production can be traced to the order that made it.</> },
+                ],
+            },
+            {
+                title: '6 · How a row is keyed',
                 blocks: [
                     { k: 'p', body: <>Rows are keyed by <b>(item, variant)</b> — the sorted set of attribute values, with a finished
                         good's colour folded in as a trailing token so two shades of one item net separately. Demand and stock are
@@ -125,7 +148,7 @@ const DOCS: Record<Lang, Doc> = {
                 ],
             },
             {
-                title: '6 · How fresh the numbers are',
+                title: '7 · How fresh the numbers are',
                 blocks: [
                     { k: 'p', body: <>The netting pass is expensive, so it is computed once and shared. Results are held for
                         <b> 60&nbsp;seconds</b>, and are marked stale immediately by any stock, Manufacturing Order, Work Order or
@@ -138,11 +161,13 @@ const DOCS: Record<Lang, Doc> = {
                 ],
             },
             {
-                title: '7 · What this figure is not',
+                title: '8 · What this figure is not',
                 blocks: [
                     { k: 'ul', items: [
-                        <><b>Not a reservation.</b> Nothing here locks or allocates stock. It is an advisory planning view — the
-                            numbers say who <i>wants</i> what, not who <i>owns</i> it.</>,
+                        <><b>Not an allocation, except for <T c={TERM.reserved}>Reserved</T>.</b> Demand and supply here are
+                            advisory — they say who <i>wants</i> what. <T c={TERM.reserved}>Reserved</T> is the one column that
+                            records a real claim, and even it holds a <i>quantity</i> of an item, never a particular lot: which
+                            roll or carton ships is decided later, at packing.</>,
                         <><b>Not a purchasing forecast.</b> Open purchase orders never appear as incoming.</>,
                         <><b>Not per-location.</b> A positive net free does not promise the stock sits at the work centre that
                             needs it.</>,
@@ -159,9 +184,10 @@ const DOCS: Record<Lang, Doc> = {
     id: {
         title: 'Cara Stok Booking dihitung',
         close: 'Tutup',
-        terms: { netFree: 'Sisa Bebas', onHand: 'Tersedia', incoming: 'Masuk', required: 'Dibutuhkan' },
-        keying: <>Satu baris per <b>item + varian</b>, dihitung <b>seluruh pabrik</b>. Sebuah baris hanya
-            muncul jika masih ada Perintah Produksi (MO) berjalan yang membutuhkan komponen tersebut.</>,
+        terms: { netFree: 'Sisa Bebas', onHand: 'Tersedia', incoming: 'Masuk', required: 'Dibutuhkan', reserved: 'Dipesan' },
+        keying: <>Satu baris per <b>item + varian</b>, dihitung <b>seluruh pabrik</b>. Sebuah baris muncul jika
+            masih ada Perintah Produksi (MO) berjalan yang membutuhkan komponen tersebut, atau jika ada sales
+            order terbuka yang menahan stoknya.</>,
         health: {
             short: 'sisa bebas negatif: kebutuhan tidak dapat dipenuhi',
             tight: `sisa bebas nol (±${EPS}): cukup persis, tanpa cadangan`,
@@ -227,7 +253,33 @@ const DOCS: Record<Lang, Doc> = {
                 ],
             },
             {
-                title: '5 · Cara sebuah baris dikunci',
+                title: '5 · Dipesan — stok yang dijanjikan ke sales order',
+                blocks: [
+                    { k: 'p', body: <><T c={TERM.reserved}>Dipesan</T> adalah barang jadi yang secara fisik ada di gudang tetapi sudah
+                        dijanjikan kepada sales order yang masih terbuka. Angka ini dikurangkan dengan alasan yang sama seperti
+                        <T c={TERM.required}> Dibutuhkan</T>: stoknya ada, tetapi tidak boleh Anda rencanakan untuk keperluan
+                        lain.</> },
+                    { k: 'p', body: <>Pemesanan dicatat ketika sebuah <b>Production Run yang dibuat untuk sales order</b> menutupi
+                        sebagian kebutuhan barang jadinya dari stok. Kuantitas yang tertutup itu <i>tidak</i> menghasilkan Perintah
+                        Produksi — jadi tanpa pencatatan pemesanan, kuantitas tersebut tidak meninggalkan jejak apa pun, dan sales
+                        order berikutnya akan memakai stok fisik yang sama untuk kedua kalinya. Akibatnya kedua order sama-sama
+                        direncanakan kekurangan stok yang sama.</> },
+                    { k: 'code', body: 'dipesan = Σ (qty − qty_released) dari pemesanan berstatus ACTIVE\n          yang sales order-nya masih PENDING / READY / PARTIAL' },
+                    { k: 'p', body: <>Sebuah pemesanan berhenti dihitung dengan sendirinya begitu order-nya mencapai <b>SENT</b>,
+                        <b> DELIVERED</b> atau <b>CANCELLED</b>, dan dikurangi saat <b>barang keluar (goods issue)</b> — yaitu saat
+                        stok benar-benar meninggalkan gudang. Packing tidak melepasnya: packing hanya mengubah curah menjadi karton
+                        dari item yang sama, sehingga stok tersedia tidak berubah, dan melepas di sana berarti mengurangi kuantitas
+                        yang sama dua kali.</> },
+                    { k: 'p', body: <>Dua hal dapat melepas tahanan lebih awal: menghapus Production Run-nya (pemesanannya ikut
+                        terhapus), dan tombol <b>lepas</b> pada panel lineage sales order — untuk order yang ditunda atau stok yang
+                        tidak lagi ingin ditahan pelanggan.</> },
+                    { k: 'p', body: <>Membuka sebuah baris akan menampilkan setiap penahan di bagian <T c={TERM.reserved}>Dipesan
+                        oleh</T>, sehingga kekurangan stok yang disebabkan oleh janji — bukan oleh produksi — dapat dilacak sampai
+                        ke order yang membuatnya.</> },
+                ],
+            },
+            {
+                title: '6 · Cara sebuah baris dikunci',
                 blocks: [
                     { k: 'p', body: <>Baris dikunci berdasarkan <b>(item, varian)</b> — kumpulan nilai atribut yang diurutkan, dengan
                         warna barang jadi disisipkan sebagai token di akhir agar dua shade dari satu item dihitung terpisah.
@@ -239,7 +291,7 @@ const DOCS: Record<Lang, Doc> = {
                 ],
             },
             {
-                title: '6 · Seberapa baru angka yang ditampilkan',
+                title: '7 · Seberapa baru angka yang ditampilkan',
                 blocks: [
                     { k: 'p', body: <>Perhitungan ini mahal, jadi dijalankan sekali lalu dipakai bersama. Hasilnya disimpan selama
                         <b> 60&nbsp;detik</b>, dan langsung ditandai kedaluwarsa oleh setiap perubahan stok, Perintah Produksi (MO),
@@ -253,12 +305,14 @@ const DOCS: Record<Lang, Doc> = {
                 ],
             },
             {
-                title: '7 · Yang BUKAN arti angka ini',
+                title: '8 · Yang BUKAN arti angka ini',
                 blocks: [
                     { k: 'ul', items: [
-                        <><b>Bukan reservasi.</b> Tidak ada yang mengunci atau mengalokasikan stok di sini. Ini adalah tampilan
-                            perencanaan yang bersifat saran — angkanya menyatakan siapa yang <i>membutuhkan</i> apa, bukan siapa
-                            yang <i>memiliki</i>.</>,
+                        <><b>Bukan alokasi, kecuali kolom <T c={TERM.reserved}>Dipesan</T>.</b> Kebutuhan dan pasokan di sini
+                            bersifat saran — angkanya menyatakan siapa yang <i>membutuhkan</i> apa.
+                            <T c={TERM.reserved}> Dipesan</T> adalah satu-satunya kolom yang mencatat klaim nyata, dan itu pun
+                            menahan <i>kuantitas</i> sebuah item, bukan lot tertentu: roll atau karton mana yang dikirim baru
+                            ditentukan kemudian, saat packing.</>,
                         <><b>Bukan ramalan pembelian.</b> Purchase order yang masih terbuka tidak pernah muncul sebagai Masuk.</>,
                         <><b>Bukan per lokasi.</b> Sisa bebas yang positif tidak menjamin stoknya berada di work center yang
                             membutuhkannya.</>,
@@ -357,7 +411,8 @@ export default function BookingStockInfoModal({ isOpen, onClose }: {
                         <b>{doc.terms.netFree}</b>{'  =  '}
                         <span style={kw(TERM.onHand)}>{doc.terms.onHand}</span>{'  +  '}
                         <span style={kw(TERM.incoming)}>{doc.terms.incoming}</span>{'  −  '}
-                        <span style={kw(TERM.required)}>{doc.terms.required}</span>
+                        <span style={kw(TERM.required)}>{doc.terms.required}</span>{'  −  '}
+                        <span style={kw(TERM.reserved)}>{doc.terms.reserved}</span>
                     </div>
                     <div style={{ marginTop: 8, fontSize: classic ? 10.5 : 12, color: '#555', textAlign: 'center' }}>
                         {doc.keying}
