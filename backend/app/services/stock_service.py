@@ -333,6 +333,9 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
     # Operator note captured when the lot was produced (WO completion) — carried here
     # so on-hand shows the same remark as the bag label and the Lot table.
     batch_notes_map: dict[str, str] = {}
+    # A beam lot's own ends overrides the item spec at birth (WorkOrder.ends) — same
+    # fallback chain as work_orders.py's beam WO helpers.
+    batch_ends_map: dict[str, int] = {}
     # Production origin: a lot minted by a WO completion carries source_wo_id, which
     # resolves WO -> MO. Goods-receipt (GR-) lots have no source WO and stay blank.
     batch_origin_map: dict[str, dict] = {}
@@ -350,11 +353,11 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                 select(
                     Batch.id, Batch.batch_number, Batch.bom_size_snapshot,
                     Batch.vendor_lot, Batch.quality_status, Batch.notes,
-                    Batch.source_wo_id,
+                    Batch.source_wo_id, Batch.ends,
                 ).filter(Batch.id.in_(valid_ids))
             )
             wo_by_batch: dict = {}
-            for bid, bnum, snapshot, vlot, qstatus, bnotes, src_wo in batch_rows.all():
+            for bid, bnum, snapshot, vlot, qstatus, bnotes, src_wo, bends in batch_rows.all():
                 batch_number_map[str(bid)] = bnum
                 label = _bom_size_label(snapshot)
                 if label:
@@ -365,21 +368,54 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                     batch_quality_map[str(bid)] = qstatus
                 if bnotes and bnotes.strip():
                     batch_notes_map[str(bid)] = bnotes.strip()
+                if bends:
+                    batch_ends_map[str(bid)] = bends
                 if src_wo:
                     wo_by_batch[str(bid)] = src_wo
 
-            # One grouped WO -> MO lookup for the whole page; no N+1.
+            # One grouped WO -> MO -> Color lookup for the whole page; no N+1. Color
+            # is the MO's shade (Color Library, via MO.color_id) — same resolution
+            # /batches/paginated uses (_resolve_batch_origins).
             if wo_by_batch:
                 from app.models.work_order import WorkOrder
-                from app.models.manufacturing import ManufacturingOrder
+                from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
+                from app.models.color import Color
+                from app.models.attribute import Attribute, AttributeValue
+                # A shade's hex can live in the Color Library row or, when that's
+                # blank, the mirrored `Colors` variant attribute value the MO
+                # carries — same fallback chain _resolve_batch_variants resolves
+                # for /batches/paginated. Scalar subquery, not a join, so a colour
+                # pick doesn't multiply rows via the MO<->attribute-value M2M.
+                attr_color_hex = (
+                    select(AttributeValue.hex)
+                    .select_from(manufacturing_order_values)
+                    .join(AttributeValue, AttributeValue.id == manufacturing_order_values.c.attribute_value_id)
+                    .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+                    .where(
+                        manufacturing_order_values.c.manufacturing_order_id == ManufacturingOrder.id,
+                        Attribute.system_role == "color",
+                    )
+                    .limit(1)
+                    .correlate(ManufacturingOrder)
+                    .scalar_subquery()
+                )
                 mo_rows = await db.execute(
-                    select(WorkOrder.id, WorkOrder.code, ManufacturingOrder.id, ManufacturingOrder.code)
+                    select(
+                        WorkOrder.id, WorkOrder.code, ManufacturingOrder.id, ManufacturingOrder.code,
+                        ManufacturingOrder.labdip_variant_code, Color.code, Color.name,
+                        func.coalesce(Color.hex, attr_color_hex),
+                    )
                     .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+                    .outerjoin(Color, Color.id == ManufacturingOrder.color_id)
                     .filter(WorkOrder.id.in_(set(wo_by_batch.values())))
                 )
                 by_wo = {
-                    wo_id: {"wo_code": wo_code, "mo_id": mo_id, "mo_code": mo_code}
-                    for wo_id, wo_code, mo_id, mo_code in mo_rows.all()
+                    wo_id: {
+                        "wo_code": wo_code, "mo_id": mo_id, "mo_code": mo_code,
+                        "color_code": color_code, "color_name": color_name, "color_hex": color_hex,
+                        "labdip_variant_code": labdip_code,
+                    }
+                    for wo_id, wo_code, mo_id, mo_code, labdip_code, color_code, color_name, color_hex in mo_rows.all()
                 }
                 for bid_str, wo_id in wo_by_batch.items():
                     info = by_wo.get(wo_id)
@@ -392,7 +428,7 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             "item_name": r.item.name if r.item else str(r.item_id),
             "item_code": r.item.code if r.item else str(r.item_id),
             "item_uom": r.item.uom if r.item else "",
-            "item_ends": r.item.ends if r.item else None,
+            "item_ends": (batch_ends_map.get(r.batch_key) if r.batch_key else None) or (r.item.ends if r.item else None),
             "item_category_id": (r.item.category_id if r.item else None),
             "item_category_name": (r.item.category.name if r.item and r.item.category else None),
             "location_id": r.location_id,
@@ -412,6 +448,10 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             "mo_id": (batch_origin_map.get(r.batch_key) or {}).get("mo_id") if r.batch_key else None,
             "mo_code": (batch_origin_map.get(r.batch_key) or {}).get("mo_code") if r.batch_key else None,
             "wo_code": (batch_origin_map.get(r.batch_key) or {}).get("wo_code") if r.batch_key else None,
+            "color_code": (batch_origin_map.get(r.batch_key) or {}).get("color_code") if r.batch_key else None,
+            "color_name": (batch_origin_map.get(r.batch_key) or {}).get("color_name") if r.batch_key else None,
+            "color_hex": (batch_origin_map.get(r.batch_key) or {}).get("color_hex") if r.batch_key else None,
+            "labdip_variant_code": (batch_origin_map.get(r.batch_key) or {}).get("labdip_variant_code") if r.batch_key else None,
         }
         for r in results
         if r.qty != 0 or r.qty_cones or r.qty_boxes or r.qty_drums

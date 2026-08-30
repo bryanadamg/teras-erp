@@ -9,6 +9,7 @@ import {
     xpFont, FieldLabel, FormError, ModalFooterActions, XPEmptyState, XPLoading,
     xpInput as xpInputBase, xpSelect, xpPanel,
 } from '../shared/xpTheme';
+import LotLabelPrintModal from './LotLabelPrintModal';
 
 const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px', width: '100%', boxSizing: 'border-box' });
 
@@ -47,6 +48,8 @@ export default function LeftoverBeamModal({ wo, onClose, onDone }: Props) {
     const [notes, setNotes] = useState('');
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    // Newly-minted leftover lot to print right after a successful dismount.
+    const [printLot, setPrintLot] = useState<any>(null);
 
     // Stock lives only in leaf locations — same filter the monitor's unmount strip uses.
     const leafLocations = useMemo(
@@ -109,20 +112,37 @@ export default function LeftoverBeamModal({ wo, onClose, onDone }: Props) {
                 throw new Error(err.detail || 'Failed to register leftover');
             }
             const out = await res.json();
-            showToast(
-                out?.leftover_beam_number
-                    ? `Leftover lot ${out.leftover_beam_number} created (${weighed})`
-                    : 'Beam unmounted.',
-                'success',
-            );
-            onDone?.();
-            onClose();
+            if (out?.leftover_beam_number) {
+                showToast(`Leftover lot ${out.leftover_beam_number} created (${weighed})`, 'success');
+                // Print the new lot label right away — the beam is off the loom
+                // now and the remnant needs a physical tag before it moves.
+                setPrintLot({
+                    id: out.leftover_batch_id,
+                    batch_number: out.leftover_beam_number,
+                    remaining: out.leftover_qty,
+                    item_name: selected?.item_name,
+                    item_code: selected?.item_code,
+                });
+            } else {
+                showToast('Beam unmounted.', 'success');
+                onDone?.();
+                onClose();
+            }
         } catch (err: any) {
             setError(err.message);
         } finally {
             setSubmitting(false);
         }
     };
+
+    if (printLot) {
+        return (
+            <LotLabelPrintModal
+                lots={[printLot]}
+                onClose={() => { setPrintLot(null); onDone?.(); onClose(); }}
+            />
+        );
+    }
 
     return (
         <ModalWrapper

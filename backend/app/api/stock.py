@@ -6,7 +6,7 @@ from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
-from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, BookingReservedSO, PaginatedBookingStockResponse
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, get_current_admin, category_scope_ok
 from app.models.item import Item
@@ -510,8 +510,30 @@ async def get_stock_balance_paginated(
     from sqlalchemy.orm import aliased, selectinload
     from app.models.category import Category
     from app.models.batch import Batch
-    from app.models.manufacturing import ManufacturingOrder
+    from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
+    from app.models.color import Color
+    from app.models.attribute import Attribute, AttributeValue
     from app.services.stock_service import _bom_size_label
+
+    # A shade's hex can live in the Color Library row (Color.hex) or, when that's
+    # blank, the mirrored `Colors` variant attribute value the MO carries
+    # (AttributeValue.hex) — same fallback chain resolveColorHex uses on the
+    # frontend and _resolve_batch_variants resolves for /batches/paginated.
+    # Scalar subquery (not a join) so a color pick doesn't multiply balance rows
+    # the way joining the MO<->attribute-value M2M directly would.
+    attr_color_hex = (
+        select(AttributeValue.hex)
+        .select_from(manufacturing_order_values)
+        .join(AttributeValue, AttributeValue.id == manufacturing_order_values.c.attribute_value_id)
+        .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+        .where(
+            manufacturing_order_values.c.manufacturing_order_id == ManufacturingOrder.id,
+            Attribute.system_role == "color",
+        )
+        .limit(1)
+        .correlate(ManufacturingOrder)
+        .scalar_subquery()
+    )
 
     # Location + its parent + its grandparent: the hierarchy is warehouse > zone > bin,
     # so the root warehouse of a row is the grandparent for a bin and the parent for a
@@ -590,6 +612,7 @@ async def get_stock_balance_paginated(
             .outerjoin(Batch, cast(Batch.id, SAString) == StockBalance.batch_key)
             .outerjoin(WorkOrder, WorkOrder.id == Batch.source_wo_id)
             .outerjoin(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+            .outerjoin(Color, Color.id == ManufacturingOrder.color_id)
             .where(*conditions)
         )
 
@@ -649,8 +672,10 @@ async def get_stock_balance_paginated(
                 Item.name, Item.code, Item.uom, Item.ends, Item.category_id, Category.name,
                 LocL.name,
                 Batch.batch_number, Batch.vendor_lot, Batch.quality_status, Batch.notes,
-                Batch.bom_size_snapshot,
+                Batch.bom_size_snapshot, Batch.ends,
                 ManufacturingOrder.id, ManufacturingOrder.code, WorkOrder.code,
+                ManufacturingOrder.labdip_variant_code, Color.code, Color.name,
+                func.coalesce(Color.hex, attr_color_hex),
             ))
             .options(selectinload(StockBalance.attribute_values))
             .order_by(*order)
@@ -659,8 +684,9 @@ async def get_stock_balance_paginated(
 
     items = []
     for (bal, i_name, i_code, i_uom, i_ends, i_cat_id, cat_name, loc_name,
-         b_number, b_vendor_lot, b_quality, b_notes, b_snapshot,
-         mo_id, mo_code, wo_code) in rows:
+         b_number, b_vendor_lot, b_quality, b_notes, b_snapshot, b_ends,
+         mo_id, mo_code, wo_code,
+         mo_labdip_code, color_code, color_name, color_hex) in rows:
         lotted = bool(bal.batch_key)
         notes = (b_notes or "").strip() if lotted else ""
         items.append({
@@ -668,7 +694,9 @@ async def get_stock_balance_paginated(
             "item_name": i_name or str(bal.item_id),
             "item_code": i_code or str(bal.item_id),
             "item_uom": i_uom or "",
-            "item_ends": i_ends,
+            # A specific lot's ends overrides the item spec at beam birth (see
+            # WorkOrder.ends) — same fallback chain as work_orders.py's beam WO helpers.
+            "item_ends": b_ends if lotted and b_ends else i_ends,
             "item_category_id": i_cat_id,
             "item_category_name": cat_name,
             "location_id": bal.location_id,
@@ -687,6 +715,13 @@ async def get_stock_balance_paginated(
             "mo_id": mo_id if lotted else None,
             "mo_code": mo_code if lotted else None,
             "wo_code": wo_code if lotted else None,
+            # Shade identity of the MO that produced this lot (Color Library, via
+            # source_wo -> MO.color_id) — same resolution /batches/paginated uses
+            # (_resolve_batch_origins), so a lot's shade chip agrees everywhere.
+            "color_code": color_code if lotted else None,
+            "color_name": color_name if lotted else None,
+            "color_hex": color_hex if lotted else None,
+            "labdip_variant_code": mo_labdip_code if lotted else None,
         })
 
     return window.envelope(
@@ -810,6 +845,12 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
     Demand is OUTSTANDING-based: a component is scaled by the MO's remaining
     output (MO.qty - completed), so already-produced quantity stops counting.
 
+    Reserved: on-hand promised to an open sales order by `stock_reservations`
+    (written when a PR's root FG netting covered part of an order from stock) is
+    subtracted too, and seeds a row of its own even for an item no MO demands —
+    otherwise this screen would call reserved FG free while PR netting refuses to
+    plan against it, and the two would disagree about the same pile.
+
     Plant-level (location-agnostic) netting: rows are keyed by (item, variant);
     on-hand is summed across ALL stock locations.
     """
@@ -817,7 +858,11 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
     from uuid import UUID
     from sqlalchemy.orm import selectinload, joinedload
     from app.models.manufacturing import ManufacturingOrder
-    from app.services.netting_service import _sales_order_linked_prs, _output_committed
+    from app.models.reservation import StockReservation
+    from app.models.sales import SalesOrder
+    from app.services.netting_service import (
+        _sales_order_linked_prs, _output_committed, OPEN_SO_STATUSES,
+    )
 
     ONGOING = ("PENDING", "IN_PROGRESS", "DELIVERED")   # see netting_service.ONGOING
     mo_rows = (await db.execute(
@@ -877,6 +922,41 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), incoming_qty=outstanding,
         ))
 
+    # ── Reserved: on-hand held for open sales orders ──
+    # Seeds its own demand key when no MO demands the item, so reserved finished
+    # goods are visible here rather than silently reducing a row that never shows.
+    reserved: dict[tuple, float] = defaultdict(float)
+    reserved_sos: dict[tuple, list] = defaultdict(list)
+    res_rows = (await db.execute(
+        select(
+            StockReservation.item_id, StockReservation.variant_key,
+            StockReservation.attribute_value_ids,
+            StockReservation.qty, StockReservation.qty_released,
+            StockReservation.sales_order_id, SalesOrder.po_number,
+        )
+        .join(SalesOrder, SalesOrder.id == StockReservation.sales_order_id)
+        .where(
+            StockReservation.status == "ACTIVE",
+            SalesOrder.status.in_(OPEN_SO_STATUSES),
+        )
+    )).all()
+    for iid, vkey, attr_ids, qty, released, so_id, po_number in res_rows:
+        held = float(qty or 0) - float(released or 0)
+        if held <= 0:
+            continue
+        key = (str(iid), vkey or "")
+        reserved[key] += held
+        reserved_sos[key].append(BookingReservedSO(
+            sales_order_id=so_id, so_number=po_number or "", reserved_qty=held,
+        ))
+        if key not in demand:
+            d = demand[key]
+            d["item_id"] = iid
+            # variant_key folds a color in as a trailing `c:<uuid>` token, which is
+            # not an attribute value id — take the stored display list instead of
+            # splitting the key, or the row renders a bogus chip.
+            d["attr_ids"] = [str(a) for a in (attr_ids or [])]
+
     if not demand:
         return []
 
@@ -907,6 +987,7 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
         sup = supply.get((item_id_str, attr_key))
         incoming = sup["total_incoming"] if sup else 0.0
         required = data["total_required"]
+        res_qty = reserved.get((item_id_str, attr_key), 0.0)
         rows.append(BookingStockRow(
             item_id=data["item_id"],
             item_code=item.code if item else str(data["item_id"]),
@@ -918,9 +999,11 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             qty_on_hand=on_hand,
             qty_required=required,
             qty_incoming=incoming,
-            qty_net_free=on_hand + incoming - required,
+            qty_reserved=res_qty,
+            qty_net_free=on_hand + incoming - required - res_qty,
             demand_mos=data["contributions"],
             supply_mos=sup["contributions"] if sup else [],
+            reserved_sos=reserved_sos.get((item_id_str, attr_key), []),
         ))
 
     return rows

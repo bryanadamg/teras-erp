@@ -10,7 +10,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
-import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, TableEmpty, Dash } from '../shared/listViewTheme';
+import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, lvThead, lvTh, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
@@ -1112,13 +1112,8 @@ export default function ManufacturingOrdersTab({
                             <col style={{ width: '90px' }} />
                             <col style={{ width: '78px' }} />
                         </colgroup>
-                        <thead>
-                            <tr style={{
-                                background: classic
-                                    ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
-                                    : undefined,
-                                fontSize: classic ? '10px' : '9pt',
-                            }} className={classic ? '' : 'table-light'}>
+                        <thead style={{ ...lvThead(classic), fontSize: classic ? '10px' : '9pt' }}>
+                            <tr>
                                 {[
                                     { label: '',                  align: 'left',   cls: '' },
                                     { label: 'MO Code',           align: 'left',   cls: 'ps-3' },
@@ -1132,12 +1127,8 @@ export default function ManufacturingOrdersTab({
                                     { label: 'Actions',           align: 'right',  cls: 'pe-3 no-print' },
                                 ].map(({ label, align, cls }) => (
                                     <th key={label} className={cls} style={{
-                                        border: classic ? '1px solid #808080' : undefined,
-                                        padding: classic ? '3px 8px' : undefined,
+                                        ...lvTh(classic),
                                         textAlign: align as any,
-                                        color: '#000',
-                                        fontWeight: 'bold',
-                                        whiteSpace: 'nowrap',
                                         overflow: 'hidden',
                                     }}>{label}</th>
                                 ))}

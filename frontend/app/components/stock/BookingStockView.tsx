@@ -31,9 +31,11 @@ type Row = {
     qty_on_hand: number;
     qty_required: number;
     qty_incoming: number;
+    qty_reserved: number;
     qty_net_free: number;
     demand_mos: { mo_id: string; mo_code: string; mo_qty: number; required_qty: number }[];
     supply_mos: { mo_id: string; mo_code: string; mo_qty: number; incoming_qty: number }[];
+    reserved_sos: { sales_order_id: string; so_number: string; reserved_qty: number }[];
 };
 
 export default function BookingStockView() {
@@ -80,6 +82,7 @@ export default function BookingStockView() {
         on_hand: (r) => r.qty_on_hand,
         incoming: (r) => r.qty_incoming,
         required: (r) => r.qty_required,
+        reserved: (r) => r.qty_reserved,
         net_free: (r) => r.qty_net_free,
     });
 
@@ -105,6 +108,7 @@ export default function BookingStockView() {
         { key: 'on_hand', label: t('on_hand') || 'On Hand', align: 'right' },
         { key: 'incoming', label: t('incoming') || 'Incoming', align: 'right' },
         { key: 'required', label: t('required') || 'Required', align: 'right' },
+        { key: 'reserved', label: t('reserved') || 'Reserved', align: 'right' },
         { key: 'net_free', label: t('net_free') || 'Net Free', align: 'right' },
     ];
 
@@ -113,6 +117,7 @@ export default function BookingStockView() {
     const detailSide = (
         title: string, color: string, tint: string,
         items: { mo_id: string; mo_code: string; qty: number }[], sign: string, uom: string,
+        codeLabel: string = 'MO',
     ) => {
         const total = items.reduce((s, m) => s + m.qty, 0);
         // Shared sub-table chrome, with the header band recoloured per side: this
@@ -128,7 +133,7 @@ export default function BookingStockView() {
                 <table style={lvSubTable(classic)}>
                     <thead>
                         <tr>
-                            <th style={th}>MO</th>
+                            <th style={th}>{codeLabel}</th>
                             <th style={{ ...th, textAlign: 'right' }}>Qty</th>
                         </tr>
                     </thead>
@@ -174,6 +179,13 @@ export default function BookingStockView() {
                 t('incoming_from_mos') || 'Incoming from', TERM.incoming, '#e2f3e2',
                 r.supply_mos.map(m => ({ mo_id: m.mo_id, mo_code: m.mo_code, qty: m.incoming_qty })),
                 '+', r.uom,
+            )}
+            {/* Only when something is held: an empty third pane on every row would
+                cost the two real ones their width for nothing. */}
+            {(r.reserved_sos || []).length > 0 && detailSide(
+                t('reserved_by_sos') || 'Reserved by', TERM.reserved, '#f7e6f2',
+                r.reserved_sos.map(x => ({ mo_id: x.sales_order_id, mo_code: x.so_number, qty: x.reserved_qty })),
+                '', r.uom, 'SO',
             )}
         </ExpandedRowPanel>
     );
@@ -291,6 +303,13 @@ export default function BookingStockView() {
                                                 {r.qty_incoming ? `+${fmtQty(r.qty_incoming)}` : '—'}
                                             </td>
                                             <td style={{ ...(classic ? numCell : numCellM), color: TERM.required }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_required)}</td>
+                                            {/* Dimmed at zero, like Incoming: on most rows nothing is held, and a
+                                                column of bright 0.000s would pull the eye off the shortfalls. */}
+                                            <td style={{ ...(classic ? numCell : numCellM), color: r.qty_reserved ? TERM.reserved : '#bbb' }}
+                                                className={classic ? undefined : 'text-end'}
+                                                title={r.qty_reserved ? 'On hand, but promised to a sales order — expand the row for which' : undefined}>
+                                                {r.qty_reserved ? `−${fmtQty(r.qty_reserved)}` : '—'}
+                                            </td>
                                             <td style={{ ...(classic ? numCell : numCellM), fontWeight: 'bold', color: h.color }} className={classic ? undefined : 'text-end fw-bold'}>
                                                 {fmtQty(r.qty_net_free)}
                                                 {classic

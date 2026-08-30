@@ -10,6 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
+import { lotColorLabel } from '../shared/LotChips';
 import { useRowSelection, RowCheckbox, SelectAllCheckbox, SortableTh, lvThSticky, lvZebra, Dash } from '../shared/listViewTheme';
 
 const STOCK_PAGE_SIZE = 50;
@@ -37,8 +38,8 @@ interface StockOnHandViewProps {
 // Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
 // squeezing chip columns (Lot carries MO codes ~30 chars) into overlapping percentages.
 const COL_W = {
-    check: 34, item: 230, category: 140, location: 190, lot: 220, attrs: 150,
-    qty: 110, uom: 60, packaging: 130, notes: 190, ends: 60, actions: 74,
+    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 220, attrs: 260,
+    qty: 110, uom: 60, packaging: 130, notes: 190, actions: 74,
 };
 const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
 
@@ -436,6 +437,25 @@ export default function StockOnHandView({ locations, attributes, categories, ite
         return id ? getAttrValueName(id) : null;
     };
 
+    // Colors (system_role='color') value carried by the row's own variant pick —
+    // separate from `colorInfo` (the producing MO's Color Library shade, resolved
+    // server-side). A color-variant FG item's stock is identified by this attribute
+    // value directly, and it can carry its own swatch (AttributeValue.hex) same as
+    // any other attribute value — shown here so that swatch isn't lost.
+    const colorValueIds = useMemo(() => {
+        const attr = (attributes || []).find((a: any) => a.system_role === 'color');
+        return new Set((attr?.values || []).map((v: any) => String(v.id)));
+    }, [attributes]);
+    const getColorAttrValue = (bal: any): { name: string; hex: string | null } | null => {
+        const id = (bal.attribute_value_ids || []).find((vid: string) => colorValueIds.has(String(vid)));
+        if (!id) return null;
+        for (const attr of attributes) {
+            const v = attr.values?.find((v: any) => v.id === id);
+            if (v) return { name: v.value, hex: v.hex || null };
+        }
+        return null;
+    };
+
     // Packaging counts (no UOM conversion) — show only nonzero units.
     const pkgParts = (bal: any): { n: number; label: string }[] => {
         const out: { n: number; label: string }[] = [];
@@ -581,6 +601,13 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
     const renderRow = (bal: any, i: number) => {
         const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '—';
+        // Shade identity: prefer the lot's producing MO (Color Library, same helper
+        // the Lot page uses) — richer (code + name + pending state). Rows with no
+        // such lineage (no batch, or a lotted row whose MO never got a Color Library
+        // pick) fall back to the row's own `Colors` variant attribute value, which
+        // carries its own swatch (AttributeValue.hex) same as any other attribute.
+        const colorInfo = lotColorLabel(bal);
+        const ownColorAttr = !colorInfo ? getColorAttrValue(bal) : null;
         // QC-rejected/disposed lots sit in the same bin as good stock — tint the row
         // and flag the lot so the qty is never mistaken for available.
         const qStatus: string = bal.quality_status && bal.quality_status !== 'GOOD' ? bal.quality_status : '';
@@ -612,16 +639,9 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     <CodeChip code={bal.item_code} classic={classic} tier={2}
                         style={classic ? { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}
                         className={classic ? undefined : 'text-truncate d-block'} />
-                    {(getComboLabel(bal) || bal.size_label) && (
-                        <div style={classic ? { display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 } : undefined} className={classic ? undefined : 'd-flex flex-wrap gap-1 mt-1'}>
-                            {getComboLabel(bal) && (
-                                <VariantChip kind="combo" classic={classic} title={`Combo: ${getComboLabel(bal)}`}>{getComboLabel(bal)}</VariantChip>
-                            )}
-                            {bal.size_label && (
-                                <VariantChip kind="size" classic={classic} title={`Size: ${bal.size_label}`}>{bal.size_label}</VariantChip>
-                            )}
-                        </div>
-                    )}
+                </td>
+                <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
+                    {bal.item_ends != null ? bal.item_ends : ''}
                 </td>
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140, ...colDivider } : { maxWidth: 140, ...colDivider }}>
                     {bal.item_category_name ? (
@@ -680,11 +700,38 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 </td>
                 <td style={classic ? { padding: '4px 8px', ...colDivider } : colDivider}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                        {bal.attribute_value_ids?.length > 0 ? (
-                            bal.attribute_value_ids.map((vid: string) => (
+                        {bal.size_label && (
+                            <VariantChip kind="size" classic={classic} title={`Size: ${bal.size_label}`}>{bal.size_label}</VariantChip>
+                        )}
+                        {getComboLabel(bal) && (
+                            <VariantChip kind="combo" classic={classic} title={`Combo: ${getComboLabel(bal)}`}>{getComboLabel(bal)}</VariantChip>
+                        )}
+                        {colorInfo && (
+                            <VariantChip
+                                kind={colorInfo.pending ? 'pending' : 'color'}
+                                classic={classic}
+                                swatch={colorInfo.hex || null}
+                                title={colorInfo.pending
+                                    ? `Shade pending lab dip approval: ${colorInfo.label}`
+                                    : `Color: ${colorInfo.name && colorInfo.name !== colorInfo.label ? `${colorInfo.label} — ${colorInfo.name}` : colorInfo.label}`}
+                            >
+                                {colorInfo.label}{colorInfo.pending ? ' (pending)' : ''}
+                            </VariantChip>
+                        )}
+                        {!colorInfo && ownColorAttr && (
+                            <VariantChip kind="color" classic={classic} swatch={ownColorAttr.hex} title={`Color: ${ownColorAttr.name}`}>
+                                {ownColorAttr.name}
+                            </VariantChip>
+                        )}
+                        {/* Combo and Colors already render above as VariantChips —
+                            skip their raw values here so the same pick doesn't show
+                            twice in one cell. */}
+                        {bal.attribute_value_ids
+                            ?.filter((vid: string) => !comboValueIds.has(String(vid)) && !colorValueIds.has(String(vid)))
+                            .map((vid: string) => (
                                 <Chip key={vid} classic={classic} size="xs">{getAttrValueName(vid)}</Chip>
-                            ))
-                        ) : (
+                            ))}
+                        {!bal.size_label && !getComboLabel(bal) && !colorInfo && !ownColorAttr && !bal.attribute_value_ids?.length && (
                             <Dash classic={classic} />
                         )}
                     </div>
@@ -719,9 +766,6 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     ) : (
                         <Dash classic={classic} />
                     )}
-                </td>
-                <td className={classic ? undefined : 'text-end small'} style={classic ? { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider } : { whiteSpace: 'nowrap', ...colDivider }}>
-                    {bal.item_ends != null ? bal.item_ends : ''}
                 </td>
                 <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : undefined}>
                     <div style={classic ? { display: 'flex', gap: 4 } : undefined} className={classic ? undefined : 'd-flex gap-1'}>
@@ -1202,6 +1246,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                         title={sel.allPageSelected ? 'Clear selection on this page' : 'Select every movable row on this page'} />
                                 </th>
                                 <SortableTh sort={sort} colKey="item" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.item } : { width: COL_W.item, ...colDivider }}>Item</SortableTh>
+                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.ends } : { width: COL_W.ends, ...colDivider }}>Ends</th>
                                 <SortableTh sort={sort} colKey="itemCategory" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.category } : { width: COL_W.category, ...colDivider }}>Item Category</SortableTh>
                                 <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.location } : { width: COL_W.location, ...colDivider }}>{t('locations') || 'Location'}</SortableTh>
                                 <SortableTh sort={sort} colKey="batch" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.lot } : { width: COL_W.lot, ...colDivider }}>Lot</SortableTh>
@@ -1210,7 +1255,6 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.uom } : { width: COL_W.uom, ...colDivider }}>UOM</th>
                                 <SortableTh sort={sort} colKey="packaging" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.packaging } : { width: COL_W.packaging, ...colDivider }}>Packaging</SortableTh>
                                 <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.notes } : { width: COL_W.notes, ...colDivider }}>Notes</SortableTh>
-                                <th className={classic ? undefined : 'text-end'} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.ends } : { width: COL_W.ends, ...colDivider }}>Ends</th>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.actions, borderRight: 'none' } : { width: COL_W.actions }}></th>
                             </tr>
                         </thead>

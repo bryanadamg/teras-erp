@@ -65,8 +65,8 @@ export const lvLabel = (classic: boolean): React.CSSProperties => (classic
     : { fontFamily: LV_MODERN_FONT, fontSize: 12, color: '#475569', fontWeight: 600, display: 'block', marginBottom: 3 });
 
 export const lvTh = (classic: boolean): React.CSSProperties => (classic ? {
-    padding: '3px 6px', borderRight: '1px solid #b0aaa0', textAlign: 'left', whiteSpace: 'nowrap',
-    fontFamily: LV_XP_FONT, fontSize: 10, fontWeight: 'bold', color: '#000',
+    padding: '2px 6px', borderRight: '1px solid #9090a0', textAlign: 'left', whiteSpace: 'nowrap',
+    fontFamily: LV_XP_FONT, fontSize: 11, fontWeight: 'bold', color: '#000',
 } : {
     padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap',
     fontFamily: LV_MODERN_FONT, fontSize: 11, fontWeight: 700, color: '#475569',
@@ -78,7 +78,7 @@ export const lvTh = (classic: boolean): React.CSSProperties => (classic ? {
 // body is its own scroll region.
 export const lvThead = (classic: boolean, sticky = false): React.CSSProperties => ({
     ...(classic
-        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
+        ? { background: 'linear-gradient(to bottom, #f0ede4, #d8d4c8)', borderBottom: '1px solid #9090a0' }
         : { background: '#eef1f6', borderBottom: '1.5px solid #cbd3df' }),
     ...(sticky ? { position: 'sticky' as const, top: 0, zIndex: 1 } : {}),
 });

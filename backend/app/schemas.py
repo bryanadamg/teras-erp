@@ -686,6 +686,13 @@ class BookingSupplyMO(BaseModel):
     mo_qty: float
     incoming_qty: float
 
+class BookingReservedSO(BaseModel):
+    """One sales order holding part of this row's on-hand — see stock_reservations."""
+    sales_order_id: UUID
+    so_number: str = ""
+    reserved_qty: float
+
+
 class BookingStockRow(BaseModel):
     item_id: UUID
     item_code: str
@@ -697,9 +704,11 @@ class BookingStockRow(BaseModel):
     qty_on_hand: float       # current physical balance
     qty_required: float      # outstanding demand from ongoing MOs
     qty_incoming: float       # scheduled receipts from in-flight production MOs
-    qty_net_free: float      # on_hand + incoming - required  (negative = shortfall)
+    qty_reserved: float = 0.0 # on-hand promised to open sales orders (stock_reservations)
+    qty_net_free: float      # on_hand + incoming - required - reserved  (negative = shortfall)
     demand_mos: list[BookingDemandMO]
     supply_mos: list[BookingSupplyMO]
+    reserved_sos: list[BookingReservedSO] = []
 
 class PaginatedBookingStockResponse(BaseModel):
     items: list[BookingStockRow]
@@ -738,7 +747,8 @@ class NettingPreviewNode(BaseModel):
     on_hand: float                      # leaf-rolled physical stock at the location
     incoming: float                     # other open MOs' scheduled output
     required_other: float               # other open MOs' demand (excl. this unit)
-    net_free: float                     # on_hand + incoming - required_other
+    reserved_other: float = 0.0         # on-hand promised to OTHER open sales orders
+    net_free: float                     # on_hand + incoming - required_other - reserved_other
     net_qty: float                      # qty actually made after netting
     decision: str                       # MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED
     chips: list[NettingPreviewChip] = []    # size / color / combo identity of the row
@@ -955,15 +965,13 @@ class BeamMountCreate(BaseModel):
 
 
 class BeamDismountPayload(BaseModel):
-    # Where the remnant goes. Null leaves it parked at the loom — the beam keeps
-    # its lot either way, so there is nothing to re-create.
+    # Where the remnant goes. Null leaves it parked at the loom.
     to_location_id: UUID | None = None
-    # Weighed remnant. Null = plain dismount (beam keeps its lot and its system
-    # remaining). A number = the floor stripped and weighed the warp: that qty
-    # becomes a NEW leftover lot, the parent beam is retired at 0, and the
-    # difference against the system remaining is written off on the parent.
+    # Weighed remnant — the floor strips and weighs the warp on every dismount.
+    # That qty becomes a NEW leftover lot, the parent beam is retired at 0, and
+    # the difference against the system remaining is written off on the parent.
     # 0 is meaningful — "nothing left", so reconcile the beam down to empty.
-    leftover_qty: float | None = None
+    leftover_qty: float
     leftover_beam_number: str | None = None   # blank → auto LFT-YYYYMMDD-NNNN
     leftover_ends: int | None = None          # blank → inherit the parent beam's ends
     leftover_notes: str | None = None
@@ -978,7 +986,7 @@ class BeamDismountResult(BeamMountResponse):
     """
     leftover_batch_id: UUID | None = None
     leftover_beam_number: str | None = None
-    leftover_qty: float | None = None
+    leftover_qty: float = 0.0
     # weighed − system remaining. Negative = warp the system thought was there
     # and the scale says is not (the usual direction).
     leftover_variance: float = 0.0
@@ -1449,6 +1457,12 @@ class StockBalanceResponse(BaseModel):
     mo_id: UUID | None = None
     mo_code: str | None = None
     wo_code: str | None = None
+    # Shade identity of the lot's producing MO (Color Library, via MO.color_id) —
+    # same fields /batches/paginated resolves, so the shade chip matches everywhere.
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    labdip_variant_code: str | None = None
 
 class PaginatedStockBalanceResponse(BaseModel):
     """Envelope for GET /stock/balance/paginated — the Stock On-Hand grid.
@@ -1852,6 +1866,9 @@ class SalesOrderResponse(BaseModel):
     # responses leave it empty — every SO mutation refetches the list, so nothing
     # renders off a stale [].
     production_runs: list[SOPRRef] = []
+    # Same deal (_populate_reserved): on-hand FG this order's PR netted away and
+    # now holds. 0 on mutation responses.
+    reserved_qty: float = 0.0
     class Config:
         from_attributes = True
 
@@ -1872,6 +1889,40 @@ class SOPRCoverageResponse(BaseModel):
     """Duplicate-PR guard for one SO — see GET /sales-orders/{id}/pr-coverage."""
     covered_size_ids: list[str] = []
     covered_entries: list[SOPRCoverageEntry] = []
+
+class StockReservationResponse(BaseModel):
+    """One pile of on-hand FG promised to a sales order — see
+    GET /sales-orders/{id}/reservations."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    sales_order_id: UUID
+    production_run_id: UUID | None = None
+    production_run_code: str | None = None
+    item_id: UUID
+    item_code: str = ""
+    item_name: str = ""
+    uom: str = ""
+    variant_key: str = ""
+    attribute_value_ids: list[str] = []
+    color_id: UUID | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    size_label: str | None = None
+    qty: float
+    qty_released: float = 0.0
+    qty_remaining: float = 0.0
+    status: str
+    created_at: datetime | None = None
+    released_at: datetime | None = None
+
+
+class SOReservationSummary(BaseModel):
+    """Reservations for one SO plus the roll-up the SO page shows."""
+    reservations: list[StockReservationResponse] = []
+    total_reserved: float = 0.0     # sum of qty_remaining on ACTIVE rows
+    total_released: float = 0.0
+
 
 # --- Sample Request Schemas ---
 
@@ -2856,8 +2907,9 @@ class PaginatedBatchResponse(BaseModel):
 
 class BatchConsumptionResponse(BaseModel):
     id: UUID
-    manufacturing_order_id: UUID
+    manufacturing_order_id: Optional[UUID] = None
     mo_code: Optional[str] = None          # resolved from MO
+    packing_order_id: Optional[UUID] = None
     input_batch_id: UUID
     output_batch_id: Optional[UUID] = None
     output_batch_number: Optional[str] = None  # resolved from output Batch

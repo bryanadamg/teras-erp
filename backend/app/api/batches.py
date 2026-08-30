@@ -20,7 +20,7 @@ from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchDispose, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service, quarantine_service, staging_service
+from app.services import audit_service, kpi_service, stock_service, reject_service, numbering_service, quarantine_service, staging_service, work_center_service
 from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
 from datetime import datetime, timezone
@@ -420,6 +420,8 @@ async def list_batches_paginated(
     search: str | None = Query(None, description="Matches lot number, supplier lot, or item code/name"),
     status: str | None = Query(None, description="'active' (remaining > 0) or 'depleted' (0 remaining); None = all"),
     location_id: list[str] | None = Query(None, description="Filter to lots with current stock at any of these leaf location ids (caller expands warehouse/zone → descendants). Repeat the param or pass one comma-separated list."),
+    category_id: str | None = Query(None, description="Item category id, or comma-separated ids (a category plus its descendants — caller expands the tree, same contract as /stock/balance/paginated)"),
+    lot_type: str | None = Query(None, description="'GR' (goods-receipt/manual, no producing WO or packing order), 'PACK' (packed carton), or a WorkCenter TYPE's center_type (WEAVING, DYEING, BEAMING, SETTING, ...) — classifies a lot by the process that produced it"),
     window: PageWindow = Depends(PageParams(default_size=50)),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("lot.view", "work_order.view", "stock_on_hand.view", "beam.view", "quarantine.view")),
@@ -456,6 +458,27 @@ async def list_batches_paginated(
             .group_by(StockBalance.batch_key)
         )
         filters.append(Batch.id.in_(loc_keys))
+    if category_id:
+        cat_ids = [x for x in category_id.split(",") if x]
+        if cat_ids:
+            filters.append(Batch.item_id.in_(select(Item.id).filter(Item.category_id.in_(cat_ids))))
+    if lot_type == "GR":
+        # Goods-receipt or manually-created lots: no producing WO, not a carton.
+        filters.append(Batch.source_wo_id.is_(None))
+        filters.append(Batch.packing_order_id.is_(None))
+    elif lot_type == "PACK":
+        filters.append(Batch.packing_order_id.isnot(None))
+    elif lot_type:
+        # A WorkCenter TYPE's center_type — resolve every WO whose work center
+        # rolls up to it, via the TYPE-root CTE, same "in a subquery" shape as
+        # every other filter here rather than joining the CTE into count/page.
+        wc_type = work_center_service.type_of_cte()
+        matching_wo_ids = (
+            select(WorkOrder.id)
+            .join(wc_type, wc_type.c.id == WorkOrder.work_center_id)
+            .filter(wc_type.c.center_type == lot_type)
+        )
+        filters.append(Batch.source_wo_id.in_(matching_wo_ids))
     if status in ("active", "depleted"):
         # remaining = sum of StockBalance rows keyed by str(batch id). "active" =
         # any positive balance; "depleted" = no positive balance (summed <= 0 or

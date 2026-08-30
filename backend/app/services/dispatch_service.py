@@ -18,8 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.pick_list import PickList, PickListLine
+from app.models.reservation import StockReservation
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.services import stock_service
+from app.services.stock_service import _generate_variant_key
 
 
 async def load_for_issue(db: AsyncSession, pl_id: uuid.UUID) -> Optional[PickList]:
@@ -105,6 +107,63 @@ async def issue_stock(db: AsyncSession, pl: PickList, pick_lines: list[PickListL
             color_id=sol_colors.get(str(l.sales_order_line_id)),
             batch_id=l.batch_id,
         )
+
+
+async def release_reservations(db: AsyncSession, pl: PickList, pick_lines: list[PickListLine]) -> float:
+    """Draw down this SO's stock reservations by what just left the building.
+
+    Goods issue is the ONLY point the reserved stock physically goes away —
+    packing merely converts bulk into cartons of the same item, so on-hand is
+    unchanged there. Releasing any earlier would double-count (stock still
+    present AND no longer reserved); releasing never would double-count the other
+    way once the order ships partially, because on-hand drops while the full
+    reservation keeps standing.
+
+    Matched on (sales order, item, variant_key) — the reservation's own grain.
+    Drawn down oldest-first; a row is marked RELEASED once it is exhausted.
+    Returns the total qty released, for the caller's audit line.
+    """
+    sol_attrs, sol_colors = _variant_maps(pl)
+
+    shipped: dict[tuple, float] = {}
+    for l in pick_lines:
+        vkey = _generate_variant_key(
+            sol_attrs.get(str(l.sales_order_line_id), []),
+            sol_colors.get(str(l.sales_order_line_id)),
+        )
+        key = (str(l.item_id), vkey)
+        shipped[key] = shipped.get(key, 0.0) + float(l.qty_picked or 0)
+    if not shipped:
+        return 0.0
+
+    rows = (await db.execute(
+        select(StockReservation)
+        .where(
+            StockReservation.sales_order_id == pl.sales_order_id,
+            StockReservation.status == "ACTIVE",
+        )
+        .order_by(StockReservation.created_at)
+    )).scalars().all()
+
+    now = datetime.utcnow()
+    total = 0.0
+    for r in rows:
+        remaining_ship = shipped.get((str(r.item_id), r.variant_key or ""), 0.0)
+        if remaining_ship <= 0:
+            continue
+        held = float(r.qty or 0) - float(r.qty_released or 0)
+        if held <= 0:
+            r.status = "RELEASED"
+            r.released_at = r.released_at or now
+            continue
+        take = min(held, remaining_ship)
+        r.qty_released = float(r.qty_released or 0) + take
+        shipped[(str(r.item_id), r.variant_key or "")] = remaining_ship - take
+        total += take
+        if float(r.qty or 0) - float(r.qty_released or 0) <= 1e-6:
+            r.status = "RELEASED"
+            r.released_at = now
+    return total
 
 
 def mark_dispatched(pl: PickList, when: datetime) -> None:

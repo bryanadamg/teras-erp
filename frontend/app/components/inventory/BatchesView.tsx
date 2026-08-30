@@ -18,10 +18,12 @@ const LOT_STATUS_FILTERS = [
   { value: 'depleted', label: 'Depleted' },
   { value: '', label: 'All' },
 ];
-import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
+import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue, buildCategoryTree } from '../shared/TreeSelect';
+import SearchableSelect from '../shared/SearchableSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
-import { ExpanderCell, SortableTh, lvZebra, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
+import { ExpanderCell, SortableTh, lvZebra, lvThead, lvTh, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
+import { Tabs, TabDef } from '../shared/Tabs';
 import { rejectGradeLabel } from '../shared/rejectDisplay';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -104,11 +106,13 @@ interface RowTraceState {
 interface BatchesViewProps {
   items: Item[];
   locations: any[];
+  categories: any[];
+  workCenters: any[];
   authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
   apiBase: string;
 }
 
-export default function BatchesView({ items, locations, authFetch, apiBase }: BatchesViewProps) {
+export default function BatchesView({ items, locations, categories, workCenters, authFetch, apiBase }: BatchesViewProps) {
   const { showToast } = useToast();
   const { uiStyle } = useTheme();
   const { formatDate: tzDate } = useTimezone();
@@ -119,8 +123,73 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const [itemFilter, setItemFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'depleted'>('active');
   const [locationFilter, setLocationFilter] = useState('');  // '' | 'wh:<id>' | 'loc:<id>'
+  const [selectedCat, setSelectedCat] = useState('');
+  // Lot type: classifies a lot by the process that produced it — a WorkCenter
+  // TYPE's center_type (WEAVING, DYEING, BEAMING, ...), resolved server-side
+  // through source_wo -> work_center -> TYPE-root (see /batches/paginated's
+  // lot_type param). 'GR' (goods-receipt/manual) and 'PACK' (packed carton) are
+  // the two buckets with no producing work center. '' = All.
+  const [lotTypeFilter, setLotTypeFilter] = useState('');
 
   const locationTree = React.useMemo(() => buildLocationFilterTree(locations || []), [locations]);
+  const itemFilterOptions = React.useMemo(() => [
+    { value: '', label: 'All Items' },
+    ...items.map((i: Item) => ({ value: i.id, label: i.name, subLabel: i.code })),
+  ], [items]);
+
+  // ── Category filter — same tree-select + descendant-inclusive expansion as
+  // Stock On-Hand (components/stock/StockOnHandView.tsx). Sent to the server as a
+  // comma-joined id list; the backend just does `Item.category_id IN (...)`.
+  const cats = categories || [];
+  const catTreeOptions = React.useMemo(() => buildCategoryTree(cats), [cats]);
+  const catMatchIds = React.useMemo(() => {
+    if (!selectedCat) return '';
+    const childrenOf: Record<string, string[]> = {};
+    for (const c of cats) {
+      if (!c.parent_id) continue;
+      (childrenOf[c.parent_id] ||= []).push(c.id);
+    }
+    const set = new Set<string>();
+    const stack = [selectedCat];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (set.has(id)) continue;
+      set.add(id);
+      for (const child of (childrenOf[id] || [])) stack.push(child);
+    }
+    return Array.from(set).join(',');
+  }, [cats, selectedCat]);
+
+  // ── Lot type filter — tabs built from whichever WorkCenter TYPE roots actually
+  // exist under Routing & Ops (node_type='TYPE'), so a canonical bucket doesn't
+  // show up empty just because that production stage hasn't been set up yet, and
+  // its label is always whatever that TYPE row is actually named there — never a
+  // second hardcoded copy that could drift from a rename on the Routing page.
+  // Icons have no Routing & Ops equivalent (WorkCenter carries no icon field), so
+  // those alone stay a small cosmetic lookup keyed by center_type.
+  // GR and PACK are fixed: they're lots with no producing work center at all, so
+  // there's no Routing & Ops row to read a label from.
+  // Same shared Tabs strip + 'ALL' sentinel pattern as InventoryView's category tabs.
+  const LOT_TYPE_ICON: Record<string, string> = {
+    BEAMING: 'bi-record-circle', WARPING: 'bi-diagram-3', WEAVING: 'bi-layers',
+    DYEING: 'bi-droplet-half', SETTING: 'bi-thermometer-half', FINISHING: 'bi-check2-circle',
+    GENERAL: 'bi-gear',
+  };
+  const lotTypeTabs: TabDef<string>[] = React.useMemo(() => {
+    const seen = new Set<string>();
+    const centerTypeTabs = (workCenters || [])
+      .filter((wc: any) => wc.node_type === 'TYPE' && wc.center_type)
+      .filter((wc: any) => (seen.has(wc.center_type) ? false : (seen.add(wc.center_type), true)))
+      .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
+      .map((wc: any) => ({ key: wc.center_type as string, label: wc.name, icon: LOT_TYPE_ICON[wc.center_type] || 'bi-gear' }));
+    return [
+      { key: 'ALL', label: 'All', icon: 'bi-collection' },
+      { key: 'GR', label: 'Goods Receipt', icon: 'bi-truck' },
+      ...centerTypeTabs,
+      { key: 'PACK', label: 'Packing', icon: 'bi-box-seam' },
+    ];
+  }, [workCenters]);
+  const handleLotTypeTabChange = (key: string) => setLotTypeFilter(key === 'ALL' ? '' : key);
 
   // Expand the picked warehouse/zone/bin into its full descendant leaf set so a lot
   // recorded at any depth below it still matches. Sent as one comma-joined value —
@@ -144,6 +213,8 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
       item_id: itemFilter,
       status: statusFilter,
       location_id: locationIds,
+      category_id: catMatchIds,
+      lot_type: lotTypeFilter,
     },
     onError: () => showToast('Failed to load lots', 'danger'),
   });
@@ -478,7 +549,15 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   // more than one of them doesn't crowd a single cell.
   const woCell = (b: Batch) => b.wo_code ? <OriginChip kind="wo" code={b.wo_code} classic={classic} prefix={false} truncate /> : emDash;
   const moCell = (b: Batch) => b.mo_code ? <OriginChip kind="mo" code={b.mo_code} classic={classic} prefix={false} truncate /> : emDash;
-  const prCell = (b: Batch) => b.production_run_code ? <OriginChip kind="pr" code={b.production_run_code} classic={classic} /> : emDash;
+  const prCell = (b: Batch) => b.production_run_code ? <OriginChip kind="pr" code={b.production_run_code} classic={classic} truncate /> : emDash;
+
+  // WO/MO/PR share one fixed width so the three origin columns line up — codes are
+  // clipped with an ellipsis and pop out unclipped on hover (Chip's truncate prop).
+  const ORIGIN_COL_W = 150;
+
+  // Attributes (size/combo/shade chips, split out of the Item column) gets its own
+  // width so a row with all three isn't cramped.
+  const ATTRS_COL_W = 220;
 
   // Location — Store / Zone / Bin as distinct badges (root-first hierarchy).
   const LOC_LEVEL = [
@@ -525,27 +604,27 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     );
   };
 
-  // Product — item code on line 1, then what the lot actually IS as chips: size
-  // (from the lot's stamped bom_size_snapshot), combo and shade (from the producing
-  // MO's variant attributes). Same identity vocabulary as the staging/completion
-  // lot pickers — see components/shared/LotChips.tsx for the label rules.
-  const productCell = (b: Batch) => {
+  // Product — just the item code. Size/combo/shade identity moved to its own
+  // Attributes column (attrsCell below) so it isn't cramped under the item.
+  const productCell = (b: Batch) => <span>{batchItemCode(b)}</span>;
+
+  // Attributes — what the lot actually IS: size (from the lot's stamped
+  // bom_size_snapshot), combo and shade (from the producing MO's variant
+  // attributes). Same identity vocabulary as the staging/completion lot pickers —
+  // see components/shared/LotChips.tsx for the label rules.
+  const attrsCell = (b: Batch) => {
     const sz = lotSizeLabel(b);
     const combo = lotComboLabel(b);
     const shade = lotColorLabel(b);
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', lineHeight: 1.2 }}>
-        <span>{batchItemCode(b)}</span>
-        {(sz || combo || shade) && chipRow(
-          <>
-            {sz && <VariantChip kind="size" classic={classic} title={`Size: ${sz}`}>{sz}</VariantChip>}
-            {combo && <VariantChip kind="combo" classic={classic} title={`Combo: ${combo}`}>{combo}</VariantChip>}
-            {shade && (shade.pending
-              ? <VariantChip kind="pending" classic={classic} title={`Shade pending lab dip approval: ${shade.label}`}>{shade.label} (pending)</VariantChip>
-              : <VariantChip kind="color" classic={classic} swatch={shade.hex} title={`Color: ${shade.label}`}>{shade.label}</VariantChip>)}
-          </>,
-        )}
-      </div>
+    if (!sz && !combo && !shade) return emDash;
+    return chipRow(
+      <>
+        {sz && <VariantChip kind="size" classic={classic} title={`Size: ${sz}`}>{sz}</VariantChip>}
+        {combo && <VariantChip kind="combo" classic={classic} title={`Combo: ${combo}`}>{combo}</VariantChip>}
+        {shade && (shade.pending
+          ? <VariantChip kind="pending" classic={classic} title={`Shade pending lab dip approval: ${shade.label}`}>{shade.label} (pending)</VariantChip>
+          : <VariantChip kind="color" classic={classic} swatch={shade.hex} title={`Color: ${shade.label}`}>{shade.label}</VariantChip>)}
+      </>,
     );
   };
 
@@ -766,25 +845,19 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
   // minWidth + nowrap: cells never wrap, the table scrolls sideways instead. Keeps
   // multi-chip rows (Product / WO-MO-PR / Location) one line tall.
-  const TABLE_MIN_W = 1500;
+  const TABLE_MIN_W = 1500 + ATTRS_COL_W;
 
   const xpTable: React.CSSProperties = classic ? {
     fontFamily: xpFont, fontSize: '11px', width: '100%', minWidth: TABLE_MIN_W,
     borderCollapse: 'collapse', whiteSpace: 'nowrap',
   } : { width: '100%', minWidth: TABLE_MIN_W, whiteSpace: 'nowrap' };
 
-  const xpTh: React.CSSProperties = classic ? {
-    background: 'linear-gradient(to bottom, #f0ede4, #d8d4c8)', border: '1px solid #9090a0',
-    padding: '2px 6px', fontWeight: 'bold', textAlign: 'left', whiteSpace: 'nowrap',
-    position: 'sticky', top: 0,
-  } : {};
-
   const xpTd = (alt: boolean): React.CSSProperties => classic ? {
     border: '1px solid #c8c8c8', padding: '2px 6px',
     background: lvZebra(true, alt ? 1 : 0), verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
-  const colSpan = 13; // Chevron, Lot Number, Product, Origin, WO, MO, PR, Location, Remaining, Ends, Notes, Created, Actions
+  const colSpan = 14; // Chevron, Lot Number, Item, Ends, Attributes, Origin, WO, MO, PR, Location, Remaining, Notes, Created, Actions
 
   // Fixed row height keeps the table visually even despite multi-badge cells.
   const ROW_H = classic ? 40 : 44;
@@ -797,14 +870,24 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           <div style={xpTitleBar}>
             <span>Lot Management</span>
           </div>
+          {/* ── Lot type tabs — classifies by the process that produced the lot ── */}
+          <Tabs<string> tabs={lotTypeTabs} activeKey={lotTypeFilter || 'ALL'} onChange={handleLotTypeTabChange} classic />
           {/* ── Filter/search bar + actions ── */}
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
             <SearchField classic value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={240} />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Item:</span>
-            <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
-              <option value="">All Items</option>
-              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-            </select>
+            <div style={{ width: 200, flexShrink: 0 }}>
+              <SearchableSelect options={itemFilterOptions} value={itemFilter} onChange={setItemFilter} placeholder="All Items" size="sm" />
+            </div>
+            <span style={{ fontFamily: xpFont, fontSize: 11 }}>Category:</span>
+            <TreeSelect
+              options={catTreeOptions}
+              value={selectedCat}
+              onChange={setSelectedCat}
+              allowEmpty
+              emptyLabel="All Categories"
+              style={{ width: 180 }}
+            />
             <span style={{ fontFamily: xpFont, fontSize: 11 }}>Location:</span>
             <TreeSelect
               options={locationTree}
@@ -831,21 +914,22 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           {/* ── Table ── */}
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', minHeight: 0, background: '#ffffff', scrollbarGutter: 'stable' } as React.CSSProperties}>
             <table style={xpTable}>
-              <thead>
+              <thead style={lvThead(true, true)}>
                 <tr>
-                  <th style={{ ...xpTh, width: 20 }}></th>
-                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={xpTh}>Lot Number</SortableTh>
-                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={xpTh}>Product</SortableTh>
-                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={xpTh}>Origin</SortableTh>
-                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...xpTh, width: 80, maxWidth: 80 }}>WO</SortableTh>
-                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...xpTh, width: 90, maxWidth: 90 }}>MO</SortableTh>
-                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={xpTh}>PR</SortableTh>
-                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={xpTh}>Location</SortableTh>
-                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Remaining</SortableTh>
-                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...xpTh, textAlign: 'right' }}>Ends</SortableTh>
-                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={xpTh}>Notes</SortableTh>
-                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={xpTh}>Created</SortableTh>
-                  <th style={xpTh}></th>
+                  <th style={{ ...lvTh(true), width: 20 }}></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={lvTh(true)}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={lvTh(true)}>Item</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...lvTh(true), textAlign: 'right' }}>Ends</SortableTh>
+                  <th style={{ ...lvTh(true), width: ATTRS_COL_W, maxWidth: ATTRS_COL_W }}>Attributes</th>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={lvTh(true)}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
+                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
+                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={{ ...lvTh(true), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={lvTh(true)}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...lvTh(true), textAlign: 'right' }}>Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={lvTh(true)}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={lvTh(true)}>Created</SortableTh>
+                  <th style={{ ...lvTh(true), borderRight: 'none' }}></th>
                 </tr>
               </thead>
               <tbody ref={listBodyRef}>
@@ -868,13 +952,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                         {qualityChip(b)}
                       </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{productCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{b.ends ?? '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), width: ATTRS_COL_W, maxWidth: ATTRS_COL_W, background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{attrsCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{originCell(b)}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), width: 80, maxWidth: 80, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{woCell(b)}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), width: 90, maxWidth: 90, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{moCell(b)}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{prCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{woCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{moCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{prCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{locationCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined, whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{b.ends ?? '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{notesCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }}>{createdCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', textAlign: 'right', background: expandedRows[b.id] ? rowStateBg('expanded', true) : undefined }} onClick={e => e.stopPropagation()}>
@@ -912,13 +997,24 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
           <div className="card-header d-flex align-items-center gap-2" style={{ flexShrink: 0 }}>
             <h5 className="mb-0 fw-bold">Lot Management</h5>
           </div>
+          {/* ── Lot type tabs — classifies by the process that produced the lot ── */}
+          <Tabs<string> tabs={lotTypeTabs} activeKey={lotTypeFilter || 'ALL'} onChange={handleLotTypeTabChange} classic={false} />
           {/* ── Filter/search bar + actions ── */}
           <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
             <SearchField classic={false} value={searchInput} onChange={setSearch} placeholder="Search lot, item, WO/MO/PR, SO..." width={260} />
-            <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
-              <option value="">All Items</option>
-              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-            </select>
+            <div style={{ width: 200, flexShrink: 0 }}>
+              <SearchableSelect options={itemFilterOptions} value={itemFilter} onChange={setItemFilter} placeholder="All Items" size="sm" />
+            </div>
+            <TreeSelect
+              options={catTreeOptions}
+              value={selectedCat}
+              onChange={setSelectedCat}
+              allowEmpty
+              emptyLabel="All Categories"
+              placeholder="All Categories"
+              size="sm"
+              style={{ width: 180 }}
+            />
             <TreeSelect
               options={locationTree}
               value={locationFilter}
@@ -943,22 +1039,23 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
 
           {/* ── Table ── */}
           <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0, scrollbarGutter: 'stable' } as React.CSSProperties}>
-            <table className="table table-sm table-hover table-bordered mb-0" style={xpTable}>
-              <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+            <table className="table table-sm table-hover mb-0" style={xpTable}>
+              <thead style={lvThead(false, true)}>
                 <tr>
-                  <th style={{ width: 24 }}></th>
-                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort}>Lot Number</SortableTh>
-                  <SortableTh sort={sort} colKey="product" onSort={toggleSort}>Product</SortableTh>
-                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort}>Origin</SortableTh>
-                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ width: 80, maxWidth: 80 }}>WO</SortableTh>
-                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ width: 90, maxWidth: 90 }}>MO</SortableTh>
-                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort}>PR</SortableTh>
-                  <SortableTh sort={sort} colKey="location" onSort={toggleSort}>Location</SortableTh>
-                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} className="text-end">Remaining</SortableTh>
-                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} className="text-end">Ends</SortableTh>
-                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort}>Notes</SortableTh>
-                  <SortableTh sort={sort} colKey="created" onSort={toggleSort}>Created</SortableTh>
-                  <th></th>
+                  <th style={{ ...lvTh(false), width: 24 }}></th>
+                  <SortableTh sort={sort} colKey="lot" onSort={toggleSort} style={lvTh(false)}>Lot Number</SortableTh>
+                  <SortableTh sort={sort} colKey="product" onSort={toggleSort} style={lvTh(false)}>Item</SortableTh>
+                  <SortableTh sort={sort} colKey="ends" onSort={toggleSort} style={{ ...lvTh(false), textAlign: 'right' }}>Ends</SortableTh>
+                  <th style={{ ...lvTh(false), width: ATTRS_COL_W, maxWidth: ATTRS_COL_W }}>Attributes</th>
+                  <SortableTh sort={sort} colKey="origin" onSort={toggleSort} style={lvTh(false)}>Origin</SortableTh>
+                  <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>WO</SortableTh>
+                  <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>MO</SortableTh>
+                  <SortableTh sort={sort} colKey="pr" onSort={toggleSort} style={{ ...lvTh(false), width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W }}>PR</SortableTh>
+                  <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={lvTh(false)}>Location</SortableTh>
+                  <SortableTh sort={sort} colKey="remaining" onSort={toggleSort} style={{ ...lvTh(false), textAlign: 'right' }}>Remaining</SortableTh>
+                  <SortableTh sort={sort} colKey="notes" onSort={toggleSort} style={lvTh(false)}>Notes</SortableTh>
+                  <SortableTh sort={sort} colKey="created" onSort={toggleSort} style={lvTh(false)}>Created</SortableTh>
+                  <th style={{ ...lvTh(false), borderRight: 'none' }}></th>
                 </tr>
               </thead>
               <tbody ref={listBodyRef}>
@@ -978,13 +1075,14 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                         {qualityChip(b)}
                       </td>
                       <td>{productCell(b)}</td>
+                      <td className="text-end">{b.ends ?? '-'}</td>
+                      <td style={{ width: ATTRS_COL_W, maxWidth: ATTRS_COL_W }}>{attrsCell(b)}</td>
                       <td>{originCell(b)}</td>
-                      <td style={{ width: 80, maxWidth: 80, overflow: 'hidden' }}>{woCell(b)}</td>
-                      <td style={{ width: 90, maxWidth: 90, overflow: 'hidden' }}>{moCell(b)}</td>
-                      <td>{prCell(b)}</td>
+                      <td style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden' }}>{woCell(b)}</td>
+                      <td style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden' }}>{moCell(b)}</td>
+                      <td style={{ width: ORIGIN_COL_W, maxWidth: ORIGIN_COL_W, overflow: 'hidden' }}>{prCell(b)}</td>
                       <td>{locationCell(b)}</td>
                       <td className="text-end" style={{ whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
-                      <td className="text-end">{b.ends ?? '-'}</td>
                       <td>{notesCell(b)}</td>
                       <td>{createdCell(b)}</td>
                       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={e => e.stopPropagation()}>

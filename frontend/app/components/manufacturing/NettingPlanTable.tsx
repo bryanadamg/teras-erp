@@ -31,6 +31,7 @@ export interface NettingNode {
     on_hand: number;
     incoming: number;
     required_other: number;
+    reserved_other?: number;   // on-hand promised to OTHER open sales orders
     net_free: number;
     net_qty: number;
     decision: string; // MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED | DECOUPLED
@@ -165,6 +166,7 @@ export default function NettingPlanTable({
                             <th style={th('left')}>Net from</th>
                             <th style={th('right')}>Required</th>
                             <th style={th('right')}>On hand</th>
+                            <th style={th('right')}>Reserved</th>
                             <th style={th('right')}>Net free</th>
                             <th style={th('right')}>Make</th>
                         </tr>
@@ -175,7 +177,7 @@ export default function NettingPlanTable({
                             const dim = n.decision === 'SKIP';
                             const divider = multiRoot && i === firstComponentIdx ? (
                                 <tr key={`div-${i}`}>
-                                    <td colSpan={7} style={{
+                                    <td colSpan={8} style={{
                                         padding: '4px 10px', fontSize: 9, fontWeight: 700,
                                         letterSpacing: '0.06em', textTransform: 'uppercase',
                                         color: classic ? '#666' : '#94a3b8',
@@ -220,7 +222,17 @@ export default function NettingPlanTable({
                                     </td>
                                     <td style={tdNum}>{num(n.gross_required)}</td>
                                     <td style={tdNum}>{num(n.on_hand)}</td>
-                                    <td style={{ ...tdNum, color: n.net_free > 0 ? '#15803d' : '#94a3b8' }}>
+                                    {/* Reserved is the difference between "there is stock" and
+                                        "there is stock you may plan against" — without it a
+                                        planner reads On hand 400 / Net free 0 as a bug. */}
+                                    <td style={{ ...tdNum, color: (n.reserved_other || 0) > 0 ? '#b45309' : '#cbd5e1' }}
+                                        title={(n.reserved_other || 0) > 0
+                                            ? 'Held for other open sales orders — on hand, but already promised'
+                                            : undefined}>
+                                        {num(n.reserved_other || 0)}
+                                    </td>
+                                    <td style={{ ...tdNum, color: n.net_free > 0 ? '#15803d' : '#94a3b8' }}
+                                        title={`on hand ${num(n.on_hand)} + incoming ${num(n.incoming)} − other orders ${num(n.required_other)} − reserved ${num(n.reserved_other || 0)}`}>
                                         {num(n.net_free)}
                                     </td>
                                     <td style={{ ...tdNum, fontWeight: 700, color: n.net_qty > 0 ? (classic ? '#000' : '#0f172a') : '#cbd5e1' }}>
@@ -238,7 +250,7 @@ export default function NettingPlanTable({
                 padding: '5px 10px', fontSize: 9, color: '#94a3b8',
                 borderTop: classic ? '1px solid #c0bdb5' : '1px solid #f1f5f9',
             }}>
-                Net free = on hand + incoming − demand from other open orders, at the source location (rolled up across its spots). Components covered by stock are not produced. "Pooled separately" items are decoupling points — their demand is recorded but no order is created here; replenish them on a standalone pooled order.
+                Net free = on hand + incoming − demand from other open orders − stock reserved to other sales orders, at the source location (rolled up across its spots). Components covered by stock are not produced; on a sales-order run, the covered finished goods are reserved to that order so a later order cannot plan against the same stock. "Pooled separately" items are decoupling points — their demand is recorded but no order is created here; replenish them on a standalone pooled order.
             </div>
         </div>
     );
