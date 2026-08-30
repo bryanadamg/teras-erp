@@ -15,6 +15,22 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-30
+
+### Added
+- On-hand finished goods netted away by a production run are now reserved to that sales order (a new `stock_reservations` table), so the next order's netting no longer claims the same pile of stock a second time
+- Booking Stock shows reserved qty alongside on-hand and incoming, and its "how is this calculated" modal documents where the number comes from
+- The Lot page gains type tabs (classified by the producing work center), a category tree filter mirroring Stock On-Hand, and a searchable Item filter
+- Stock On-Hand and the Lot page show a lot's colour swatch consistently, falling back to the Colors attribute value's hex when the lot itself has none
+
+### Changed
+- Beam dismount is now weigh-and-relot only — every dismount strips and weighs the remnant into a new lot instead of leaving a plain unmount path; the loom's beam picker accepts a scanned lot number to mount directly, and a freshly dismounted leftover's label prints automatically
+- Stock On-Hand and the Lot table both move variant chips into their own Attributes column (off Item), and Stock On-Hand's Ends column now reads the lot's own ends and sits next to Item
+- The Lot table's Item column (renamed from Product), WO/MO/PR column widths, and classic-theme header gradient are aligned with Stock On-Hand; MO/PR table headers migrate onto the shared `lvThead`/`lvTh` primitive
+
+### Fixed
+- `BatchConsumptionResponse.manufacturing_order_id` accepts null — packing-sourced consumption rows peg to a packing order instead of an MO and were 500ing lot trace
+
 ## [0.15.0] - 2026-08-29
 
 ### Added
