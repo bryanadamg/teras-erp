@@ -288,6 +288,10 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                 <span style={{ color: '#888', width: 18, flexShrink: 0 }}>#{u.package_no}</span>
                                                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                                                     <CodeChip code={u.batch_number} classic={CLASSIC} link style={{ cursor: 'default', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
+                                                    {/* A carton is a lot and labels itself like one: shade/combo
+                                                        resolved from its stock key, size stamped on it at packing.
+                                                        Renders nothing when it carries no identity. */}
+                                                    <LotChips batch={u} showOtherAttrs={false} />
                                                 </span>
                                                 {/* The count that went in the box, when the order is
                                                     counted in one. Read off the carton, not divided out
@@ -2066,6 +2070,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         <tr style={{ background: '#dddbd0' }}>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899', width: 34 }}>#</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Lot</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Identity</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 90 }}>In stock</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899', width: 90 }}>Status</th>
                                         </tr>
@@ -2075,6 +2080,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             <tr key={u.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
                                                 <td style={{ padding: '2px 6px' }}>{u.package_no}</td>
                                                 <td style={{ padding: '2px 6px', fontFamily: CODE_FONT, color: '#00309c' }}>{u.batch_number}</td>
+                                                {/* Size / shade / combo of THIS carton — the sized cartons of one
+                                                    order differ here even though the order states one variant. */}
+                                                <td style={{ padding: '2px 6px' }}><LotChips batch={u} /></td>
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
                                                     {num(u.qty).toLocaleString()}
                                                 </td>

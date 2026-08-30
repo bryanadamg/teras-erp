@@ -3138,6 +3138,27 @@ class PackedUnitResponse(BaseModel):
     packed_for_so_id: UUID | None = None
     quality_status: str = "GOOD"
     created_at: datetime | None = None
+
+    # --- Variant identity ---------------------------------------------------
+    # A carton is a lot and must label itself like one: these are the same field
+    # names `LotChips` reads on a batch, so one component labels both.
+    #
+    # Shade / combo / other attributes are NOT stored on the carton's Batch row —
+    # they live in the StockBalance row keyed by this carton (`variant_key`), the
+    # same place its qty lives, so there is no second copy to drift. They are
+    # resolved onto the response at read time (stock_service.describe_variant_keys).
+    variant_key: str | None = None
+    variant_attributes: list[dict] | None = None
+    color_id: UUID | None = None
+    color_name: str | None = None
+    color_code: str | None = None
+    color_hex: str | None = None
+    # Size is the exception: it is never folded into `variant_key`, so it is
+    # copied onto the carton off its source lot at mint time and read from the
+    # Batch row here (packing_service.lot_size_identity).
+    bom_size_id: UUID | None = None
+    bom_size_snapshot: dict | None = None
+    size_label: str | None = None
     class Config:
         from_attributes = True
 
@@ -3295,6 +3316,11 @@ class PickListLineResponse(BaseModel):
     color_name: str | None = None
     color_code: str | None = None
     attribute_value_ids: list[UUID] = []
+    # The picked CARTON's own size, off its Batch row. Colour above is what was
+    # ordered; this is what is physically in the box, and it is the one identity
+    # a picker cannot recover from the SO line when an order runs several sizes.
+    bom_size_snapshot: dict | None = None
+    size_label: str | None = None
     class Config:
         from_attributes = True
 

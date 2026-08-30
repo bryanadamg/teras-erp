@@ -9,6 +9,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
+import { LotChip } from '../shared/LotChips';
 import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, XPActionButton, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN, ProgressBar } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvLabel, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, lvThSticky, lvSubTable, RowCheckboxCell, LV_CHECK_COL_W } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
@@ -337,6 +338,12 @@ export default function PickListView() {
                                                         <td style={{ ...td, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}
                                                             title={l.item_name || undefined}>
                                                             {l.item_code || itemById[String(l.item_id)]?.code || '—'}
+                                                            {/* Size of the CARTON, not of the order line: an SO running
+                                                                several sizes ships them out of one pick list, and the
+                                                                colour column above is the ordered shade. */}
+                                                            {l.size_label && (
+                                                                <LotChip tone="size" title={`Size: ${l.size_label}`}>{l.size_label}</LotChip>
+                                                            )}
                                                         </td>
                                                         <td style={{ ...td, textAlign: 'right', fontWeight: 'bold' }}>{num(l.qty_picked).toFixed(2)}</td>
                                                         <td style={{ ...td, color: '#555', whiteSpace: 'nowrap' }}>

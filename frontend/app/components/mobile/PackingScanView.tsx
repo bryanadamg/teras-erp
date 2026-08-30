@@ -5,6 +5,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared/xpTheme';
 import { toNum } from '../shared/format';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
+import { LotChips } from '../shared/LotChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 import {
     BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
@@ -327,6 +328,10 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
             {unit && (
                 <MobilePanel icon="bi-box2-fill" title={`Carton ${unit.batch_number}`}>
                     <Row label="Item" value={`${unit.item_name || ''} (${unit.item_code || ''})`} />
+                    {/* What is actually in the box: shade/combo off the carton's stock
+                        key, size stamped on it at packing. The whole point of the
+                        report is telling two same-item cartons apart. */}
+                    <div style={{ margin: '2px 0 6px' }}><LotChips batch={unit} /></div>
                     <Row label="Carton no." value={String(unit.package_no ?? '—')} />
                     <Row label="Qty in stock" value={num(unit.qty).toLocaleString()} />
                     <Row label="Location" value={unit.location_name || '—'} />

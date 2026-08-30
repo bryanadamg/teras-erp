@@ -63,6 +63,50 @@ async def _load(db: AsyncSession, po_id) -> Optional[PackingOrder]:
     return result.scalars().first()
 
 
+def _pu_response(b, bal, po_code=None, loc_name=None, variant=None) -> PackedUnitResponse:
+    """Build one carton's response — the ONE place a PackedUnit is serialized.
+
+    Three endpoints hand back cartons (the order detail, the carton list, the
+    scanner lookup) and a carton's identity is assembled from three sources: the
+    Batch row (number, package no, weight, size), its StockBalance row (qty,
+    location, variant_key) and the resolved display names for that key. Three
+    hand-rolled constructors is how a carton ended up labelled with its size in
+    one screen and not in the next.
+    """
+    v = variant or {}
+    return PackedUnitResponse(
+        id=b.id,
+        batch_number=b.batch_number,
+        item_id=b.item_id,
+        item_name=b.item.name if b.item else None,
+        item_code=b.item.code if b.item else None,
+        package_no=b.package_no,
+        package_label=b.package_label,
+        weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
+        alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
+        qty=float(bal.qty) if bal else 0.0,
+        location_id=bal.location_id if bal else None,
+        location_name=loc_name,
+        packing_order_id=b.packing_order_id,
+        packing_order_code=po_code,
+        packing_completion_id=b.packing_completion_id,
+        packed_for_so_id=b.packed_for_so_id,
+        quality_status=b.quality_status,
+        created_at=b.created_at,
+        # Shade/combo/attributes come from the carton's own stock key; size from
+        # the Batch row it was stamped with at mint. See PackedUnitResponse.
+        variant_key=(bal.variant_key if bal else None) or None,
+        variant_attributes=v.get("variant_attributes") or None,
+        color_id=v.get("color_id"),
+        color_name=v.get("color_name"),
+        color_code=v.get("color_code"),
+        color_hex=v.get("color_hex"),
+        bom_size_id=b.bom_size_id,
+        bom_size_snapshot=b.bom_size_snapshot,
+        size_label=stock_service._bom_size_label(b.bom_size_snapshot),
+    )
+
+
 async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
     """Cartons minted by each packing order, with live qty from StockBalance.
 
@@ -80,7 +124,7 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
         # over any zeroed leftover row from an earlier location.
         .order_by(Batch.package_no.asc(), nulls_last(StockBalance.qty.desc()))
     )
-    out: dict = {}
+    rows = []
     seen = set()
     for batch, bal in result.all():
         # One row per carton: the outerjoin can match several balance rows for a
@@ -88,25 +132,18 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
         if batch.id in seen:
             continue
         seen.add(batch.id)
+        rows.append((batch, bal))
+
+    # One resolve for the whole page — a carton's shade/combo lives in its stock
+    # key, and a per-carton lookup here would scale with page size.
+    variants = await stock_service.describe_variant_keys(
+        db, {bal.variant_key for _, bal in rows if bal and bal.variant_key}
+    )
+
+    out: dict = {}
+    for batch, bal in rows:
         out.setdefault(str(batch.packing_order_id), []).append(
-            PackedUnitResponse(
-                id=batch.id,
-                batch_number=batch.batch_number,
-                item_id=batch.item_id,
-                item_name=batch.item.name if batch.item else None,
-                item_code=batch.item.code if batch.item else None,
-                package_no=batch.package_no,
-                package_label=batch.package_label,
-                weight_kg=float(batch.weight_kg) if batch.weight_kg is not None else None,
-                alt_qty=float(batch.alt_qty) if batch.alt_qty is not None else None,
-                qty=float(bal.qty) if bal else 0.0,
-                location_id=bal.location_id if bal else None,
-                packing_order_id=batch.packing_order_id,
-                packing_completion_id=batch.packing_completion_id,
-                packed_for_so_id=batch.packed_for_so_id,
-                quality_status=batch.quality_status,
-                created_at=batch.created_at,
-            )
+            _pu_response(batch, bal, variant=variants.get(bal.variant_key if bal else None))
         )
     return out
 
@@ -327,25 +364,15 @@ async def list_packed_units(
         locs = await db.execute(select(Location.id, Location.name).filter(Location.id.in_(loc_ids)))
         loc_names = {lid: name for lid, name in locs.all()}
 
+    variants = await stock_service.describe_variant_keys(
+        db, {bal.variant_key for _, bal, _ in rows if bal and bal.variant_key}
+    )
+
     return [
-        PackedUnitResponse(
-            id=b.id,
-            batch_number=b.batch_number,
-            item_id=b.item_id,
-            item_name=b.item.name if b.item else None,
-            item_code=b.item.code if b.item else None,
-            package_no=b.package_no,
-            package_label=b.package_label,
-            weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
-            alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
-            qty=float(bal.qty) if bal else 0.0,
-            location_id=bal.location_id if bal else None,
-            location_name=loc_names.get(bal.location_id) if bal else None,
-            packing_order_id=b.packing_order_id,
-            packing_order_code=po_code,
-            packed_for_so_id=b.packed_for_so_id,
-            quality_status=b.quality_status,
-            created_at=b.created_at,
+        _pu_response(
+            b, bal, po_code=po_code,
+            loc_name=loc_names.get(bal.location_id) if bal else None,
+            variant=variants.get(bal.variant_key if bal else None),
         )
         for b, bal, po_code in rows
     ]
@@ -382,24 +409,13 @@ async def resolve_packed_unit(
             select(Location.name).filter(Location.id == bal.location_id)
         )).scalar()
 
-    return PackedUnitResponse(
-        id=b.id,
-        batch_number=b.batch_number,
-        item_id=b.item_id,
-        item_name=b.item.name if b.item else None,
-        item_code=b.item.code if b.item else None,
-        package_no=b.package_no,
-        package_label=b.package_label,
-        weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
-        alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
-        qty=float(bal.qty) if bal else 0.0,
-        location_id=bal.location_id if bal else None,
-        location_name=loc_name,
-        packing_order_id=b.packing_order_id,
-        packing_order_code=po_code,
-        packed_for_so_id=b.packed_for_so_id,
-        quality_status=b.quality_status,
-        created_at=b.created_at,
+    variants = await stock_service.describe_variant_keys(
+        db, [bal.variant_key] if bal and bal.variant_key else []
+    )
+
+    return _pu_response(
+        b, bal, po_code=po_code, loc_name=loc_name,
+        variant=variants.get(bal.variant_key if bal else None),
     )
 
 

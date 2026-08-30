@@ -6,6 +6,7 @@ normal `StockBalance` row keyed by `batch_key = <batch id>` at the packed
 location, and there is no second qty record to drift. `Batch.packing_order_id`
 is the discriminator: non-null means "this batch is a carton".
 """
+import json
 import uuid
 from collections import Counter, deque
 from datetime import datetime
@@ -466,6 +467,39 @@ async def _next_package_no(db: AsyncSession, packing_order_id) -> int:
     return await numbering_service.allocate(db, f"PACKED_UNIT:{packing_order_id}", seed=_seed)
 
 
+async def lot_size_identity(db: AsyncSession, batch_ids) -> tuple:
+    """The `(bom_size_id, bom_size_snapshot)` a carton inherits from its source lot(s).
+
+    Size is the one part of a lot's identity that is NOT folded into
+    `variant_key` — it is stamped on the `Batch` row itself at WO completion — so
+    unlike shade/combo it cannot be read back off the carton's StockBalance row.
+    It has to be copied forward at mint time or it is simply lost the moment bulk
+    FG becomes a carton.
+
+    A box fed by several lots keeps the size only when every contributing lot that
+    carries one agrees; a genuinely mixed-size box has no single size and says so
+    with None rather than picking whichever lot happened to close it out. Lots with
+    no size stamp are unknown, not a disagreement, so they don't veto.
+    """
+    ids = [b for b in dict.fromkeys(str(x) for x in batch_ids if x)]
+    if not ids:
+        return None, None
+    rows = (await db.execute(
+        select(Batch.bom_size_id, Batch.bom_size_snapshot).filter(Batch.id.in_(ids))
+    )).all()
+    sized = [(sid, snap) for sid, snap in rows if sid or snap]
+    if not sized:
+        return None, None
+    # json.dumps(sort_keys) rather than str(dict): the snapshot is the identity
+    # when a lot has no bom_size_id (a free-mode size, or a BOMSize since deleted),
+    # and two equal dicts can stringify differently by key order.
+    def _ident(sid, snap):
+        return str(sid) if sid else json.dumps(snap, sort_keys=True, default=str)
+    if len({_ident(sid, snap) for sid, snap in sized}) > 1:
+        return None, None
+    return sized[0]
+
+
 async def mint_packed_units(
     db: AsyncSession,
     po: PackingOrder,
@@ -498,13 +532,23 @@ async def mint_packed_units(
 
     completion.package_count = len(carton_qtys)
     units: list[tuple[Batch, float]] = []
+    # Size rides forward from the source lot; shade/combo/attributes do not need
+    # to, because they travel in the stock key written below. See lot_size_identity.
+    bom_size_id, bom_size_snapshot = await lot_size_identity(db, [source_batch_id])
 
-    for carton_qty, net_weight, alt_qty in carton_qtys:
+    for carton in carton_qtys:
+        # Read by name, not by unpacking: `Carton` has already grown a field once
+        # (`box_index`) and positional unpacking turned that into a 400 on the
+        # floor — "too many values to unpack (expected 3)" — for every pack event
+        # on the box-size path.
+        carton_qty, net_weight, alt_qty = carton.qty, carton.weight_kg, carton.alt_qty
         pu = Batch(
             batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
             item_id=po.item_id,
             packing_order_id=po.id,
             packing_completion_id=completion.id,
+            bom_size_id=bom_size_id,
+            bom_size_snapshot=bom_size_snapshot,
             weight_kg=net_weight,
             alt_qty=alt_qty,
             # Allocated per carton, not as a pre-reserved block: a block computed
@@ -584,11 +628,17 @@ async def mint_merged_packed_unit(
     alts = [p["alt_qty"] for p in pieces]
     alt_qty = round(sum(float(a) for a in alts), 4) if all(a is not None for a in alts) else None
 
+    bom_size_id, bom_size_snapshot = await lot_size_identity(
+        db, [p["source_batch_id"] for p in pieces]
+    )
+
     pu = Batch(
         batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
         item_id=po.item_id,
         packing_order_id=po.id,
         packing_completion_id=completion.id,
+        bom_size_id=bom_size_id,
+        bom_size_snapshot=bom_size_snapshot,
         weight_kg=weight_kg,
         alt_qty=alt_qty,
         package_no=await _next_package_no(db, po.id),

@@ -8,6 +8,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { xpFont, PRINT_FONT } from '../shared/xpTheme';
 import { orderBasePerAlt, baseToAlt, lengthPerAlt } from '../shared/altUnit';
+import { lotSizeLabel, lotComboLabel, lotColorLabel } from '../shared/LotChips';
 
 // Code 128 (1D) alongside the QR so the factory's existing laser scanners can
 // read the carton number too — same payload as the QR, matching the bag label.
@@ -41,6 +42,11 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
  *            for a kg item that qty is the scale reading, and 10.62 kg over
  *            0.9 kg/Pcs prints 11.8 pieces for a box holding 12. Cartons packed
  *            before the count was recorded still fall back to that division.
+ *   HEADLINE style code + the CARTON's own shade, not the order's: shade travels
+ *            in the carton's stock key and is resolved onto it by the API, so a
+ *            label can never claim a colour the box isn't. Size and combo (and any
+ *            other variant attribute) print on the line beneath — size is stamped
+ *            on the carton itself at packing, off the lot it was packed from.
  *   PO. NO   the customer's own `customer_po_ref`, our SO number under it.
  *   LOT. NO  the source lot this carton was packed from (via its completion).
  *   N W      `Batch.weight_kg` — the packer's scale reading at pack time. For a
@@ -80,6 +86,23 @@ export default function PackedUnitLabelPrintModal({
     }, [po.completions]);
 
     const lotOf = (u: any) => lotByCompletion[String(u.packing_completion_id || '')] || '';
+
+    // Shade of the CARTON, falling back to the order's. The API resolves a
+    // carton's shade off the stock key it was minted under, so it is the one
+    // figure that cannot disagree with what is physically in the box; the order
+    // is the fallback for cartons packed before that was served.
+    const shadeOf = (u: any) => lotColorLabel(u)?.label || po.color_name || null;
+
+    // Size / combo / any other variant attribute, one compact line. Size comes off
+    // the carton's own Batch row (stamped at packing from the source lot); the rest
+    // off its stock key. Shade is excluded — it is already in the headline.
+    const identityOf = (u: any) => [
+        lotSizeLabel(u),
+        lotComboLabel(u),
+        ...((u.variant_attributes || []) as any[])
+            .filter(a => !['combo', 'color', 'labdip_color'].includes(a.system_role || ''))
+            .map(a => a.value),
+    ].filter(Boolean).join('  ·  ');
 
     // Count in a carton. The packer's own figure wins; `baseToAlt` only covers
     // cartons minted before that was recorded (and snaps a scale reading back to a
@@ -175,8 +198,11 @@ export default function PackedUnitLabelPrintModal({
                             </td>
                             <td style={{ ...cell, padding: '4px 8px' }}>
                                 <div style={{ fontSize: 19, fontWeight: 'bold', lineHeight: 1.1, letterSpacing: 0.5 }}>
-                                    {[u.item_code || po.item_code, po.color_name].filter(Boolean).join(' ') || u.item_name || po.item_name || ''}
+                                    {[u.item_code || po.item_code, shadeOf(u)].filter(Boolean).join(' ') || u.item_name || po.item_name || ''}
                                 </div>
+                                {identityOf(u) && (
+                                    <div style={{ fontSize: 10, fontWeight: 'bold', marginTop: 2, letterSpacing: 0.5 }}>{identityOf(u)}</div>
+                                )}
                                 <div style={{ fontSize: 10, marginTop: 2, letterSpacing: 0.5 }}>~{u.batch_number}</div>
                             </td>
                             {barRow(bc.unit)}

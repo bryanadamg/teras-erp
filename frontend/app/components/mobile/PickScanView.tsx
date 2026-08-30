@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { StatusChip, xpFont as XP_FONT, xpInput as xpInputBase } from '../shared/xpTheme';
 import { MOBILE_BG, MobilePanel, MobileScreenBar, MobileButton, MobileNotice } from './mobileTheme';
+import { LotChips } from '../shared/LotChips';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 const xpInput: React.CSSProperties = xpInputBase({ fontSize: 13, height: 'auto', padding: '6px 8px', width: '100%', boxSizing: 'border-box' });
@@ -242,6 +243,10 @@ export default function PickScanView({ authFetch, initialCode, onClose }: { auth
             {unit ? (
                 <MobilePanel icon="bi-box2-fill" title={`Carton ${unit.batch_number}`}>
                     <Row label="Item" value={`${unit.item_name || ''} (${unit.item_code || ''})`} />
+                    {/* What is actually in the box: shade/combo off the carton's stock
+                        key, size stamped on it at packing. The whole point of the
+                        report is telling two same-item cartons apart. */}
+                    <div style={{ margin: '2px 0 6px' }}><LotChips batch={unit} /></div>
                     <Row label="Carton no." value={String(unit.package_no ?? '—')} />
                     <Row label="Qty in stock" value={num(unit.qty).toLocaleString()} />
                     <Row label="Location" value={unit.location_name || '—'} />

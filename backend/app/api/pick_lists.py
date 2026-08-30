@@ -80,6 +80,11 @@ def _decorate(pl: PickList) -> PickList:
         # have one; ours is the fallback.
         line.color_code = (color.customer_color_code or color.code) if color else None
         line.attribute_value_ids = [v.id for v in (sol.attribute_values or [])] if sol else []
+        # Size of the carton actually picked — stamped on the carton at packing
+        # from the lot it was packed out of (packing_service.lot_size_identity).
+        if line.batch is not None:
+            line.bom_size_snapshot = line.batch.bom_size_snapshot
+            line.size_label = stock_service._bom_size_label(line.batch.bom_size_snapshot)
     return pl
 
 

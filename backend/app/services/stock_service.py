@@ -77,6 +77,70 @@ def _parse_variant_key(variant_key: str):
             attr_ids.append(_uuid.UUID(tok))
     return attr_ids, color_id
 
+async def describe_variant_keys(db: AsyncSession, keys) -> dict:
+    """Resolve stored `variant_key`s to the display identity of what they hold.
+
+    The inverse of `_generate_variant_key` for humans: `{key: {variant_attributes,
+    color_id, color_name, color_code, color_hex}}`, in the exact shape SO lines and
+    lots already serve (`LotChips` on the frontend reads these field names), so a
+    row identified only by its balance key labels itself like every other lot.
+
+    Lives here rather than in a caller because the key's folding rules (sorted
+    attribute UUIDs plus a trailing ``c:<uuid>`` colour token) are this module's,
+    and a second hand-rolled parser is how a colour token ends up rendered as an
+    attribute. One query per kind for the whole set — never per row.
+    """
+    from app.models.attribute import Attribute
+    from app.models.color import Color
+
+    parsed: dict = {}
+    attr_ids: set = set()
+    color_ids: set = set()
+    for key in {k for k in keys if k}:
+        ids, cid = _parse_variant_key(key)
+        parsed[key] = (ids, cid)
+        attr_ids.update(str(i) for i in ids)
+        if cid:
+            color_ids.add(str(cid))
+    if not parsed:
+        return {}
+
+    attr_map: dict = {}
+    if attr_ids:
+        rows = (await db.execute(
+            select(AttributeValue.id, Attribute.name, Attribute.system_role,
+                   AttributeValue.value, AttributeValue.hex)
+            .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+            .filter(AttributeValue.id.in_(attr_ids))
+            .order_by(Attribute.name, AttributeValue.value)
+        )).all()
+        attr_map = {
+            str(vid): {"name": name, "system_role": role, "value": value, "hex": hexv}
+            for vid, name, role, value, hexv in rows
+        }
+
+    color_map: dict = {}
+    if color_ids:
+        rows = (await db.execute(
+            select(Color.id, Color.code, Color.name, Color.hex, Color.customer_color_code)
+            .filter(Color.id.in_(color_ids))
+        )).all()
+        color_map = {
+            str(cid): {"color_id": cid, "color_code": cust or code, "color_name": name, "color_hex": hexv}
+            for cid, code, name, hexv, cust in rows
+        }
+
+    out: dict = {}
+    for key, (ids, cid) in parsed.items():
+        info: dict = {
+            "variant_attributes": [attr_map[str(i)] for i in ids if str(i) in attr_map],
+            "color_id": None, "color_code": None, "color_name": None, "color_hex": None,
+        }
+        info.update(color_map.get(str(cid), {}) if cid else {})
+        out[key] = info
+    return out
+
+
 async def batch_variant(db: AsyncSession, batch_id, location_id=None) -> tuple[list, str | None]:
     """The variant identity a lot's stock actually sits under, as
     ``(attribute_value_ids, color_id)`` ready to hand back to ``add_stock_entry``.
