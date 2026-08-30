@@ -7,10 +7,12 @@ from app.db.session import get_async_db
 from app.schemas import (
     SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse, PaginatedSalesOrderResponse,
     SOPRCoverageEntry, SOPRCoverageResponse,
+    StockReservationResponse, SOReservationSummary,
 )
 from app.models.sales import SalesOrder, SalesOrderLine, sales_order_line_values
 from app.models.attribute import Attribute, AttributeValue
 from app.models.bom import BOMSize
+from app.models.size import Size
 from app.models.color import Color
 from app.models.production_run import ProductionRun, PRBomEntry
 from app.models.manufacturing import ManufacturingOrder
@@ -18,9 +20,11 @@ from app.models.work_order import WorkOrder
 from app.models.batch import Batch
 from app.models.stock_balance import StockBalance
 from app.models.packing import PackingOrder
+from app.models.reservation import StockReservation
+from app.models.item import Item as ItemModel
 from app.api.auth import get_current_user, require_permission, require_any_permission, user_has_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service, so_fulfilment_service
+from app.services import audit_service, kpi_service, netting_service, so_fulfilment_service
 from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
 from typing import Optional
@@ -126,6 +130,38 @@ async def _populate_production_runs(db: AsyncSession, orders: list) -> None:
         by_so.setdefault(str(so_id), []).append({"id": pr_id, "code": code})
     for so in orders:
         so.production_runs = by_so.get(str(so.id), [])
+
+
+async def _populate_reserved(db: AsyncSession, orders: list) -> None:
+    """Attach `reserved_qty` — on-hand FG this order's PR took from stock.
+
+    Needed on the list, not just behind a click: an order whose PR covered
+    everything from stock has a PR chip and no MOs at all, which reads as a
+    failed run unless the row can say "700 came from stock". One grouped query
+    scoped to the page's SO ids, same shape as `_populate_production_runs`.
+
+    Must be declared on SalesOrderResponse or response_model drops it silently.
+    """
+    if not orders:
+        return
+    totals: dict[str, float] = {}
+    for so_id, qty, released in (
+        await db.execute(
+            select(
+                StockReservation.sales_order_id,
+                StockReservation.qty,
+                StockReservation.qty_released,
+            ).filter(
+                StockReservation.sales_order_id.in_([o.id for o in orders]),
+                StockReservation.status == "ACTIVE",
+            )
+        )
+    ).all():
+        held = float(qty or 0) - float(released or 0)
+        if held > 0:
+            totals[str(so_id)] = totals.get(str(so_id), 0.0) + held
+    for so in orders:
+        so.reserved_qty = totals.get(str(so.id), 0.0)
 
 
 async def _populate_variant_attrs(db: AsyncSession, orders: list) -> None:
@@ -299,6 +335,7 @@ async def get_sales_orders(
     await _populate_fulfilment(db, list(orders))
     await _populate_variant_attrs(db, list(orders))
     await _populate_production_runs(db, list(orders))
+    await _populate_reserved(db, list(orders))
     await _populate_mo_progress(db, list(orders))
 
     # Unfiltered, all-time counts for the status-bar summary ("X total / Y
@@ -310,6 +347,110 @@ async def get_sales_orders(
     status_counts = {s: c for s, c in status_rows}
 
     return window.envelope(orders, total, status_counts=status_counts)
+
+
+@router.get("/{so_id}/reservations", response_model=SOReservationSummary)
+async def get_so_reservations(
+    so_id: uuid.UUID,
+    include_closed: bool = False,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission("sales_order.view", "production_run.view")),
+):
+    """On-hand finished goods this order's Production Run took from stock.
+
+    The covered qty produces no MO, so without this list the SO page shows a PR
+    that made nothing and no explanation of where the rest of the order went.
+    `total_reserved` is what is still held; dispatched qty has already been drawn
+    down by `dispatch_service.release_reservations`.
+    """
+    q = (
+        # Size is joined as a column, not through BOMSize.size — that relationship
+        # is lazy and this is an async route (MissingGreenlet on first access).
+        select(StockReservation, ItemModel, ProductionRun.code, Color,
+               BOMSize.label, Size.name)
+        .join(ItemModel, ItemModel.id == StockReservation.item_id)
+        .outerjoin(ProductionRun, ProductionRun.id == StockReservation.production_run_id)
+        .outerjoin(Color, Color.id == StockReservation.color_id)
+        .outerjoin(BOMSize, BOMSize.id == StockReservation.bom_size_id)
+        .outerjoin(Size, Size.id == BOMSize.size_id)
+        .filter(StockReservation.sales_order_id == so_id)
+        .order_by(StockReservation.created_at)
+    )
+    if not include_closed:
+        q = q.filter(StockReservation.status == "ACTIVE")
+
+    rows = (await db.execute(q)).all()
+    out: list[StockReservationResponse] = []
+    total_reserved = 0.0
+    total_released = 0.0
+    for r, item, pr_code, color, size_label, size_name in rows:
+        remaining = float(r.qty or 0) - float(r.qty_released or 0)
+        if r.status == "ACTIVE":
+            total_reserved += max(0.0, remaining)
+        total_released += float(r.qty_released or 0)
+        out.append(StockReservationResponse(
+            id=r.id,
+            sales_order_id=r.sales_order_id,
+            production_run_id=r.production_run_id,
+            production_run_code=pr_code,
+            item_id=r.item_id,
+            item_code=item.code if item else "",
+            item_name=item.name if item else "",
+            uom=item.uom if item else "",
+            variant_key=r.variant_key or "",
+            attribute_value_ids=[str(a) for a in (r.attribute_value_ids or [])],
+            color_id=r.color_id,
+            color_code=color.code if color else None,
+            color_name=color.name if color else None,
+            size_label=size_label or size_name,
+            qty=float(r.qty or 0),
+            qty_released=float(r.qty_released or 0),
+            qty_remaining=max(0.0, remaining),
+            status=r.status,
+            created_at=r.created_at,
+            released_at=r.released_at,
+        ))
+    return SOReservationSummary(
+        reservations=out, total_reserved=total_reserved, total_released=total_released,
+    )
+
+
+@router.post("/{so_id}/reservations/{reservation_id}/release", response_model=SOReservationSummary)
+async def release_so_reservation(
+    so_id: uuid.UUID,
+    reservation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission("sales_order.edit")),
+):
+    """Hand a reservation back to the free pool without shipping it.
+
+    The planner's escape hatch: an order put on hold, or stock the customer no
+    longer wants held. Deliberately a status flip and not a delete — the row is
+    the record of what the PR netted away, and deleting it would make the run's
+    missing MO unexplainable after the fact.
+    """
+    r = (await db.execute(
+        select(StockReservation).filter(
+            StockReservation.id == reservation_id,
+            StockReservation.sales_order_id == so_id,
+        )
+    )).scalars().first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    if r.status != "ACTIVE":
+        raise HTTPException(status_code=400, detail=f"Reservation already {r.status}")
+
+    r.status = "RELEASED"
+    r.released_at = datetime.utcnow()
+    await db.commit()
+
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="RELEASE",
+        entity_type="StockReservation", entity_id=str(reservation_id),
+        details=f"Released {float(r.qty or 0) - float(r.qty_released or 0):g} reserved from SO {so_id}",
+    )
+    await manager.broadcast({"type": "SALES_ORDER_UPDATE", "id": str(so_id)})
+    return await get_so_reservations(so_id, False, db, current_user)
 
 
 @router.get("/{so_id}/pr-coverage", response_model=SOPRCoverageResponse)
@@ -523,6 +664,21 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
 
     return so_refreshed
 
+async def _close_reservations(db: AsyncSession, so_id, new_status: str) -> int:
+    """Mark this SO's ACTIVE stock reservations RELEASED/CANCELLED. Returns the count."""
+    rows = (await db.execute(
+        select(StockReservation).filter(
+            StockReservation.sales_order_id == so_id,
+            StockReservation.status == "ACTIVE",
+        )
+    )).scalars().all()
+    now = datetime.utcnow()
+    for r in rows:
+        r.status = new_status
+        r.released_at = now
+    return len(rows)
+
+
 @router.put("/{so_id}/status", response_model=SalesOrderResponse)
 async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales_order.edit'))):
     result = await db.execute(
@@ -545,6 +701,16 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
     so.status = status
     if status == "DELIVERED":
         so.delivered_at = datetime.utcnow()
+
+    # An order that has left the open set no longer holds on-hand FG. Netting
+    # already filters reservations by open SO status, so this is bookkeeping, not
+    # correctness — it stops rows sitting ACTIVE forever and keeps the SO's own
+    # reservation panel honest. CANCELLED is a cancel, the rest are a release.
+    if status not in netting_service.OPEN_SO_STATUSES:
+        await _close_reservations(
+            db, so.id,
+            "CANCELLED" if status == "CANCELLED" else "RELEASED",
+        )
 
     await db.commit()
 

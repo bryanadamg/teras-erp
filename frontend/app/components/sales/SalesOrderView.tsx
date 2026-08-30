@@ -11,8 +11,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme';
+import { nextSortState, StatusChip, statusTint, TableSkeleton, useTableSkeletonMetrics, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase, CodeChip, CODE_FONT, xpFont, CHIP_RADIUS, CODE_CHIP_RADIUS, Chip, VariantChip, VariantKind, variantChipTone, colorLabel, colorHexFor, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 
+import { qtyFmt } from '../shared/format';
 import { useComboSearch, useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import Pager from '../shared/Pager';
 import { Tooltip } from '../shared/Tooltip';
@@ -90,6 +91,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const { uiStyle: currentStyle } = useTheme();
   const {
       companyProfile, uoms, authFetch, itemIndex, loading: dataLoading, soStatusCounts, soQuery,
+      refreshSalesOrders,
       pagination: { soPage, setSoPage, soTotal, pageSize: soPageSize },
       filters: { soSearch: searchTerm, setSoSearch: setSearchTerm, soCustomerSearch: customerSearch, setSoCustomerSearch: setCustomerSearch, soStatusFilter: statusFilter, setSoStatusFilter: setStatusFilter, soSort, setSoSort },
   } = useData();
@@ -120,15 +122,26 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [lineageSO, setLineageSO] = useState<any>(null);
   const [lineageData, setLineageData] = useState<any>(null);
   const [lineageLoading, setLineageLoading] = useState(false);
+  // Stock this order took instead of producing. Fetched alongside the lineage
+  // because it answers the same question the lineage modal is opened to answer —
+  // "where is my order?" — for the half that has no MO to show.
+  const [lineageReservations, setLineageReservations] = useState<any[]>([]);
 
   const openLineage = async (so: any) => {
     setLineageSO(so);
     setLineageData(null);
+    setLineageReservations([]);
     setLineageLoading(true);
     try {
-      const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders/${so.id}/lineage`);
+      const [res, resvRes] = await Promise.all([
+        authFetch(`${LINEAGE_API_BASE}/sales-orders/${so.id}/lineage`),
+        authFetch(`${LINEAGE_API_BASE}/sales-orders/${so.id}/reservations`),
+      ]);
       if (res.ok) setLineageData(await res.json());
       else showToast('Failed to load lineage', 'danger');
+      // Reservations are supplementary — a failure here must not blank the
+      // lineage the user actually clicked for.
+      if (resvRes.ok) setLineageReservations(((await resvRes.json()) || {}).reservations || []);
     } catch {
       showToast('Failed to load lineage', 'danger');
     } finally {
@@ -136,7 +149,18 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
     }
   };
 
-  const closeLineage = () => { setLineageSO(null); setLineageData(null); };
+  const releaseReservation = async (soId: string, resId: string) => {
+    const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders/${soId}/reservations/${resId}/release`, { method: 'POST' });
+    if (res.ok) {
+      setLineageReservations(((await res.json()) || {}).reservations || []);
+      showToast('Stock released back to the free pool', 'success');
+      refreshSalesOrders?.();
+    } else {
+      showToast('Could not release the reservation', 'danger');
+    }
+  };
+
+  const closeLineage = () => { setLineageSO(null); setLineageData(null); setLineageReservations([]); };
   const goToMO = (code: string) => { closeLineage(); router.push(`/manufacturing-orders?mo=${encodeURIComponent(code)}`); };
   const goToPR = (code: string) => { closeLineage(); router.push(`/production-runs?pr=${encodeURIComponent(code)}`); };
 
@@ -1113,17 +1137,93 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
        {(lineageSO || lineageData) && (
            <ModalWrapper
                isOpen={!!(lineageSO || lineageData)}
-               onClose={() => { setLineageSO(null); setLineageData(null); }}
+               onClose={closeLineage}
                title={<>
                    <i className="bi bi-diagram-3 me-2"></i>Production Lineage — {lineageSO?.po_number}
                    {lineageSO?.customer_name && <span style={{ fontWeight: 'normal', fontSize: '0.85em', marginLeft: 8, opacity: 0.9 }}>{lineageSO.customer_name}</span>}
                </>}
                size="xxl"
                modeless
-               footer={<button className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>}
+               footer={<button className={classic ? XP_BTN : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={closeLineage}>Close</button>}
            >
                        <div style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? xpFont : undefined }}>
                            {lineageLoading && <p className="text-muted">Loading lineage...</p>}
+
+                           {/* Covered from stock. Sits ABOVE the PR sections deliberately: this is
+                               the part of the order with no MO to trace, so a user hunting for
+                               "the rest of my order" meets it before the empty-looking run. */}
+                           {!lineageLoading && lineageReservations.length > 0 && (() => {
+                               const sectBorder = classic ? '1px solid #b8c4de' : '1px solid #dbe5f5';
+                               const thStyle: React.CSSProperties = {
+                                   padding: '3px 8px', fontSize: classic ? '0.66rem' : '0.7rem', fontWeight: 'bold',
+                                   color: '#555', textAlign: 'left', borderBottom: sectBorder, whiteSpace: 'nowrap',
+                               };
+                               const tdStyle: React.CSSProperties = {
+                                   padding: '3px 8px', fontSize: classic ? '0.7rem' : '0.75rem',
+                               };
+                               const tdNum: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontFamily: CODE_FONT };
+                               const totalHeld = lineageReservations.reduce((a: number, r: any) => a + Number(r.qty_remaining || 0), 0);
+                               return (
+                                   <div style={{ marginBottom: 16 }}>
+                                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '5px 8px', background: classic ? '#fdf3e0' : '#fff8ed', border: sectBorder, borderBottom: 'none' }}>
+                                           <i className="bi bi-box-seam" style={{ color: '#b45309' }}></i>
+                                           <strong style={{ fontSize: '0.75rem' }}>Covered from stock</strong>
+                                           <span style={{ color: '#777', fontSize: '0.72rem' }}>
+                                               {qtyFmt(2)(totalHeld)} reserved to this order &mdash; no manufacturing order was created for it
+                                           </span>
+                                       </div>
+                                       <table style={{ width: '100%', borderCollapse: 'collapse', border: sectBorder }}>
+                                           <thead>
+                                               <tr style={{ background: classic ? '#f1f0eb' : '#f8fafc' }}>
+                                                   <th style={thStyle}>Item</th>
+                                                   <th style={thStyle}>Variant</th>
+                                                   <th style={{ ...thStyle, textAlign: 'right' }}>Reserved</th>
+                                                   <th style={{ ...thStyle, textAlign: 'right' }}>Shipped</th>
+                                                   <th style={{ ...thStyle, textAlign: 'right' }}>Still held</th>
+                                                   <th style={thStyle}>From run</th>
+                                                   <th style={thStyle}></th>
+                                               </tr>
+                                           </thead>
+                                           <tbody>
+                                               {lineageReservations.map((r: any) => (
+                                                   <tr key={r.id} style={{ borderTop: classic ? '1px dashed #d0cdc8' : '1px dashed #e4e4e4' }}>
+                                                       <td style={tdStyle}>
+                                                           <div style={{ fontWeight: 600 }}>{r.item_name}</div>
+                                                           <CodeChip code={r.item_code} classic={classic} tier={2} />
+                                                       </td>
+                                                       <td style={tdStyle}>
+                                                           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 2 }}>
+                                                               {r.size_label && <VariantChip kind="size" classic={classic}>{String(r.size_label).toUpperCase()}</VariantChip>}
+                                                               {(r.color_code || r.color_name) && (
+                                                                   <VariantChip kind="color" classic={classic} swatch={colorHexFor(r.color_name || r.color_code || '')}>
+                                                                       {colorLabel(r.color_code, r.color_name)}
+                                                                   </VariantChip>
+                                                               )}
+                                                           </div>
+                                                       </td>
+                                                       <td style={tdNum}>{qtyFmt(2)(r.qty)} {r.uom}</td>
+                                                       <td style={{ ...tdNum, color: '#777' }}>{qtyFmt(2)(r.qty_released)}</td>
+                                                       <td style={{ ...tdNum, fontWeight: 700 }}>{qtyFmt(2)(r.qty_remaining)}</td>
+                                                       <td style={tdStyle}>
+                                                           {r.production_run_code
+                                                               ? lineageCodeChip(r.production_run_code, () => goToPR(r.production_run_code), 'pr')
+                                                               : <span style={{ color: '#999' }}>&mdash;</span>}
+                                                       </td>
+                                                       <td style={{ ...tdStyle, textAlign: 'right' }}>
+                                                           {canManage && r.status === 'ACTIVE' && (
+                                                               <XPActionButton classic={classic} tone="danger" icon="bi-unlock"
+                                                                   title="Release this stock back to the free pool - other orders may then plan against it"
+                                                                   onClick={() => releaseReservation(lineageSO?.id || r.sales_order_id, r.id)} />
+                                                           )}
+                                                       </td>
+                                                   </tr>
+                                               ))}
+                                           </tbody>
+                                       </table>
+                                   </div>
+                               );
+                           })()}
+
                            {!lineageLoading && lineageData && (lineageData.production_runs || []).length === 0 && (
                                <p className="text-muted">No Production Runs created from this Sales Order yet. Everything produced for this order will appear here once a PR is created.</p>
                            )}
@@ -1842,6 +1942,10 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                // client-side filter over the windowed /production-runs feed, which
                                // dropped the chip for any SO whose PR aged past the newest 50.
                                const soPRs: any[] = so.production_runs || [];
+                               // On-hand FG this order's PR netted away (see _populate_reserved).
+                               // Without the chip an order fully covered from stock shows a PR that
+                               // created no MOs, which reads as a failed run.
+                               const soReserved: number = Number(so.reserved_qty || 0);
 
                                const poCellContent = (
                                    <>
@@ -1864,6 +1968,16 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                        {pr.code}
                                                    </Chip>
                                                ))}
+                                           </div>
+                                       )}
+                                       {soReserved > 0 && (
+                                           <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, marginTop:3 }}>
+                                               <Chip classic={classic} tone={statusTint('PENDING')} bold truncate
+                                                   icon="bi-box-seam" size="xs"
+                                                   title="Part of this order is covered by finished goods already in stock, reserved to it. That part has no manufacturing order."
+                                                   onClick={() => openLineage(so)} style={{ fontFamily: CODE_FONT }}>
+                                                   {qtyFmt(2)(soReserved)} from stock
+                                               </Chip>
                                            </div>
                                        )}
                                    </>

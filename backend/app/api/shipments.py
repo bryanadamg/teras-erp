@@ -525,6 +525,16 @@ async def dispatch_shipment(
     for pl, lines in loaded:
         await dispatch_service.issue_stock(db, pl, lines)
 
+    # Draw down the stock this order had reserved against on-hand FG (netted away
+    # at PR creation, so it never had an MO). Goods issue is the only point that
+    # stock actually leaves, so releasing here — not at packing — is what keeps
+    # on-hand and the reservation from being subtracted twice. Sessions are
+    # expire_on_commit=False, so the instances issue_stock committed over are
+    # still usable. Committed with everything else below.
+    released_qty = 0.0
+    for pl, lines in loaded:
+        released_qty += await dispatch_service.release_reservations(db, pl, lines)
+
     # Stock writes commit internally, so everything below re-reads.
     now = datetime.utcnow()
     so_ids = set()
@@ -556,7 +566,11 @@ async def dispatch_shipment(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="DISPATCH", entity_type="Shipment",
-        entity_id=str(shp_id), details=f"Dispatched shipment {code} ({len(pl_ids)} pick list(s))",
+        entity_id=str(shp_id),
+        details=(
+            f"Dispatched shipment {code} ({len(pl_ids)} pick list(s))"
+            + (f", released {released_qty:g} of reserved stock" if released_qty else "")
+        ),
     )
     try:
         await kpi_service.invalidate_kpis_async(db)

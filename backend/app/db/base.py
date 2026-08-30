@@ -49,3 +49,4 @@ from app.models.shipment import Shipment
 from app.models.weaving import WeavingRun, WeavingRunPause, WorkCenterHoliday
 from app.models.print_template import PrintTemplate
 from app.models.numbering import NumberRange
+from app.models.reservation import StockReservation

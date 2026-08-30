@@ -20,6 +20,7 @@ from app.schemas import (
     PRMaterialStatusRequest, PRMaterialStatusItem, PRMaterialLot,
 )
 from app.models.production_run import PRBomEntry, PRBomEntrySize
+from app.models.reservation import StockReservation
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.attribute import AttributeValue
@@ -811,6 +812,36 @@ async def create_production_run(
     bom_ro_pairs: list[tuple] = []  # [(bom, [root_mos])]
     total_root_mo_count = 0
 
+    # Coverage taken from stock is promised to this run's sales order. Without a
+    # row here the covered qty produces no MO and therefore leaves NO trace, so
+    # the next order's netting sees the same physical pile as free and plans
+    # short too — the whole point of the reservation table.
+    #
+    # Only for SO-linked runs: a stock-build PR (no sales_order_id) nets exactly
+    # as before, because its coverage is not promised to anybody. And only for
+    # ROOT finished goods — a netted-away component belongs to no single order,
+    # and its consuming MO already carries the demand that shields it.
+    reservations: list[StockReservation] = []
+
+    def _reserve(covered: float, bom, root_attrs, bom_entry, pr_entry, bom_size_id=None):
+        if not payload.sales_order_id or covered <= 0:
+            return
+        reservations.append(StockReservation(
+            sales_order_id=payload.sales_order_id,
+            production_run_id=pr.id,
+            pr_bom_entry_id=pr_entry.id,
+            item_id=bom.item_id,
+            # Same key the netting read and the same key StockBalance stores, so
+            # the row joins on-hand directly. Deriving it any other way here is
+            # how the reserved qty would silently miss its own stock.
+            variant_key=_generate_variant_key(root_attrs, bom_entry.color_id),
+            attribute_value_ids=[str(a) for a in root_attrs],
+            color_id=bom_entry.color_id,
+            bom_size_id=bom_size_id,
+            qty=covered,
+            created_by_id=current_user.id,
+        ))
+
     for entry_idx, bom_entry in enumerate(payload.bom_entries):
         bom_result = await db.execute(
             select(BOM).options(joinedload(BOM.item), selectinload(BOM.attribute_values))
@@ -861,7 +892,11 @@ async def create_production_run(
                 if bom_entry.force_create:
                     net_qty = gross
                 else:
-                    net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id)
+                    net_qty, net_detail = await availability.consume_detailed(
+                        bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id
+                    )
+                    _reserve(net_detail.get("covered", 0.0), bom, root_attrs, bom_entry,
+                             pr_entry, bom_size_id=size_entry.bom_size_id)
                 if net_qty <= 0:
                     continue  # fully covered by stock -> no root MO for this size line
 
@@ -895,7 +930,10 @@ async def create_production_run(
             if bom_entry.force_create:
                 net_qty = gross
             else:
-                net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id)
+                net_qty, net_detail = await availability.consume_detailed(
+                    bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id
+                )
+                _reserve(net_detail.get("covered", 0.0), bom, root_attrs, bom_entry, pr_entry)
             if net_qty > 0:
                 root_mo = await mrp_service.create_mo_recursive(
                     db, bom.id, net_qty, (location.id if location else None), current_user.id,
@@ -928,6 +966,11 @@ async def create_production_run(
 
         if entry_root_mos:
             bom_ro_pairs.append((bom, entry_root_mos))
+
+    for r in reservations:
+        db.add(r)
+    if reservations:
+        await db.flush()
 
     # ── Pass 2: Aggregate demand across ALL BOM entries, create consolidated shared MOs ──
     # Reuses the same `availability` ledger Pass 1 netted roots against, so a

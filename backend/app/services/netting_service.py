@@ -37,8 +37,23 @@ Scope notes (Tier 1):
   is scoped to each node's planned source location and its leaf spots.
 - Safety stock and BOM tolerance % are ignored (gross = qty x percentage / 100);
   this mirrors the qty an MO is actually sized at.
-- net_free is a creation-time snapshot. There is no reservation row written, so
-  re-running planning after stock moves requires a re-net (out of scope here).
+- net_free is a creation-time snapshot for COMPONENTS: no reservation row is
+  written for them, so re-running planning after stock moves requires a re-net.
+  Root finished goods netted for a SALES-ORDER-linked run are the exception —
+  see the reserved term below.
+
+Reserved term: a root FG requirement covered from stock produces no MO, so before
+`stock_reservations` existed the coverage left no trace anywhere and the NEXT
+sales order netted the same physical pile away again (both orders planned short).
+`POST /production-runs` now writes a `StockReservation` for the covered qty, and
+that qty is subtracted here exactly like MO component demand. It is tracked in a
+separate `_reserved` bucket purely so the creation preview can tell the planner
+"400 is on hand but promised to SO-00123" rather than blaming an MO.
+
+A reservation counts only while its row is ACTIVE and its sales order is still
+OPEN (`OPEN_SO_STATUSES`). Both conditions matter: the status filter means a
+SENT/DELIVERED/CANCELLED order releases its hold even if the release write never
+ran, so a stale row can never permanently strand stock.
 """
 from __future__ import annotations
 from collections import defaultdict
@@ -52,6 +67,8 @@ from app.models.stock_balance import StockBalance
 from app.models.location import Location
 from app.models.manufacturing import ManufacturingOrder
 from app.models.production_run import ProductionRun
+from app.models.reservation import StockReservation
+from app.models.sales import SalesOrder
 from app.models.batch import Batch
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.size import Size
@@ -77,6 +94,11 @@ def rejected_batch_keys():
 # remaining demand or supply (outstanding <= 0 short-circuits below) but is included
 # so an order whose qty is later raised, or whose output is rejected, nets correctly.
 ONGOING = ("PENDING", "IN_PROGRESS", "DELIVERED")
+
+# Sales orders whose stock is still spoken for. SENT/DELIVERED are gone from the
+# building and CANCELLED never leaves, so all three stop holding a reservation.
+# Mirrors so_fulfilment_service._RECOMPUTABLE, which is the same "still open" set.
+OPEN_SO_STATUSES = ("PENDING", "READY", "PARTIAL")
 
 
 async def _sales_order_linked_prs(db: AsyncSession, mos) -> set[str]:
@@ -123,12 +145,14 @@ class Availability:
         self.exclude_mo_ids = {str(m) for m in (exclude_mo_ids or [])}
         self._demand: dict[tuple, float] = defaultdict(float)   # (item, vkey) -> required
         self._supply: dict[tuple, float] = defaultdict(float)   # (item, vkey) -> incoming
+        self._reserved: dict[tuple, float] = defaultdict(float) # (item, vkey) -> promised to open SOs
         self._remaining: dict[tuple, float] = {}                # running free-stock ledger
 
     @classmethod
     async def create(cls, db: AsyncSession, exclude_pr_id=None, exclude_mo_ids=None) -> "Availability":
         self = cls(db, exclude_pr_id, exclude_mo_ids)
         await self._load_open_demand()
+        await self._load_reservations()
         return self
 
     async def _load_open_demand(self):
@@ -176,6 +200,42 @@ class Availability:
             out_vkey = _generate_variant_key([str(v.id) for v in mo.attribute_values], getattr(mo, "color_id", None))
             self._supply[(str(mo.item_id), out_vkey)] += outstanding
 
+    async def _load_reservations(self):
+        """Aggregate FG already promised to open sales orders.
+
+        Excludes the unit being planned (`exclude_pr_id`) for the same reason
+        `_load_open_demand` does: re-previewing or re-netting a run must not see
+        its own reservations as somebody else's claim, which would shrink the
+        free pool on every pass and make the plan drift.
+
+        A row is only a claim while it is ACTIVE *and* its sales order is still
+        open — the join is the safety net that stops an unreleased row from
+        stranding stock forever.
+        """
+        rows = (await self.db.execute(
+            select(
+                StockReservation.item_id,
+                StockReservation.variant_key,
+                StockReservation.qty,
+                StockReservation.qty_released,
+            )
+            .join(SalesOrder, SalesOrder.id == StockReservation.sales_order_id)
+            .where(
+                StockReservation.status == "ACTIVE",
+                SalesOrder.status.in_(OPEN_SO_STATUSES),
+                *(
+                    [StockReservation.production_run_id.is_(None)
+                     | (cast(StockReservation.production_run_id, String) != self.exclude_pr_id)]
+                    if self.exclude_pr_id else []
+                ),
+            )
+        )).all()
+        for item_id, vkey, qty, released in rows:
+            remaining = float(qty or 0) - float(released or 0)
+            if remaining <= 0:
+                continue
+            self._reserved[(str(item_id), vkey or "")] += remaining
+
     async def _on_hand(self, item_id: str, vkey: str) -> float:
         """Physical on-hand of (item, variant), summed across ALL stock locations
         (single-plant scope)."""
@@ -191,7 +251,12 @@ class Availability:
     async def _net_free(self, item_id: str, vkey: str) -> float:
         on_hand = await self._on_hand(item_id, vkey)
         key = (item_id, vkey)
-        return on_hand + self._supply.get(key, 0.0) - self._demand.get(key, 0.0)
+        return (
+            on_hand
+            + self._supply.get(key, 0.0)
+            - self._demand.get(key, 0.0)
+            - self._reserved.get(key, 0.0)
+        )
 
     async def consume_detailed(self, item_id, attribute_value_ids, location_id, gross_req: float, color_id=None):
         """Dry-run variant of consume() for the creation preview. ``location_id``
@@ -204,7 +269,8 @@ class Availability:
         ledger exactly like consume() so the preview matches what creation does.
         """
         empty = {"on_hand": 0.0, "incoming": 0.0, "required_other": 0.0,
-                 "net_free": 0.0, "free_before": 0.0, "covered": 0.0}
+                 "reserved_other": 0.0, "net_free": 0.0, "free_before": 0.0,
+                 "covered": 0.0}
         if gross_req <= 0:
             return 0.0, empty
         if item_id is None:
@@ -215,7 +281,8 @@ class Availability:
         on_hand = await self._on_hand(item_s, vkey)
         incoming = self._supply.get(key, 0.0)
         required = self._demand.get(key, 0.0)
-        net_free = on_hand + incoming - required
+        reserved = self._reserved.get(key, 0.0)
+        net_free = on_hand + incoming - required - reserved
         if key not in self._remaining:
             self._remaining[key] = net_free
         free_before = self._remaining[key]
@@ -223,6 +290,7 @@ class Availability:
         self._remaining[key] = free_before - covered
         return gross_req - covered, {
             "on_hand": on_hand, "incoming": incoming, "required_other": required,
+            "reserved_other": reserved,
             "net_free": net_free, "free_before": free_before, "covered": covered,
         }
 
@@ -277,6 +345,7 @@ def _root_node(bom, qty: float, location, loc_names: dict, attr_ids=()) -> dict:
         "net_from_location_id": location.id if location else None,
         "net_from_location_name": (loc_names.get(str(location.id), location.code or "") if location else ""),
         "gross_required": qty, "on_hand": 0.0, "incoming": 0.0, "required_other": 0.0,
+        "reserved_other": 0.0,
         "net_free": 0.0, "net_qty": qty, "decision": "MAKE_ROOT",
         "chips": [], "_attr_ids": list(attr_ids or []),
     }
@@ -298,7 +367,8 @@ def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detai
         "net_from_location_name": loc_names.get(str(loc_id), ""),
         "gross_required": gross,
         "on_hand": detail["on_hand"], "incoming": detail["incoming"],
-        "required_other": detail["required_other"], "net_free": detail["net_free"],
+        "required_other": detail["required_other"],
+        "reserved_other": detail.get("reserved_other", 0.0), "net_free": detail["net_free"],
         "net_qty": net, "decision": decision,
         "chips": [], "_attr_ids": list(attr_ids or []),
         "_bom_size_id": str(bom_size_id) if bom_size_id else None,
@@ -314,8 +384,10 @@ async def _info_detail(avail: "Availability", item_id, attribute_value_ids, colo
     key = (item_s, vkey)
     incoming = avail._supply.get(key, 0.0)
     required = avail._demand.get(key, 0.0)
+    reserved = avail._reserved.get(key, 0.0)
     return {"on_hand": on_hand, "incoming": incoming, "required_other": required,
-            "net_free": on_hand + incoming - required}
+            "reserved_other": reserved,
+            "net_free": on_hand + incoming - required - reserved}
 
 
 def _root_netted_node(bom, gross: float, net: float, detail: dict, loc_id, loc_names: dict, forced: bool,
@@ -336,7 +408,8 @@ def _root_netted_node(bom, gross: float, net: float, detail: dict, loc_id, loc_n
         "net_from_location_name": loc_names.get(str(loc_id), ""),
         "gross_required": gross,
         "on_hand": detail["on_hand"], "incoming": detail["incoming"],
-        "required_other": detail["required_other"], "net_free": detail["net_free"],
+        "required_other": detail["required_other"],
+        "reserved_other": detail.get("reserved_other", 0.0), "net_free": detail["net_free"],
         "net_qty": net, "decision": decision,
         "chips": [], "_attr_ids": list(attr_ids or []),
         "_bom_size_id": str(bom_size_id) if bom_size_id else None,

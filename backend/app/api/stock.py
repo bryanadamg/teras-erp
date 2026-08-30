@@ -6,7 +6,7 @@ from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
-from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, StockBulkTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, BookingReservedSO, PaginatedBookingStockResponse
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, get_current_admin, category_scope_ok
 from app.models.item import Item
@@ -845,6 +845,12 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
     Demand is OUTSTANDING-based: a component is scaled by the MO's remaining
     output (MO.qty - completed), so already-produced quantity stops counting.
 
+    Reserved: on-hand promised to an open sales order by `stock_reservations`
+    (written when a PR's root FG netting covered part of an order from stock) is
+    subtracted too, and seeds a row of its own even for an item no MO demands —
+    otherwise this screen would call reserved FG free while PR netting refuses to
+    plan against it, and the two would disagree about the same pile.
+
     Plant-level (location-agnostic) netting: rows are keyed by (item, variant);
     on-hand is summed across ALL stock locations.
     """
@@ -852,7 +858,11 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
     from uuid import UUID
     from sqlalchemy.orm import selectinload, joinedload
     from app.models.manufacturing import ManufacturingOrder
-    from app.services.netting_service import _sales_order_linked_prs, _output_committed
+    from app.models.reservation import StockReservation
+    from app.models.sales import SalesOrder
+    from app.services.netting_service import (
+        _sales_order_linked_prs, _output_committed, OPEN_SO_STATUSES,
+    )
 
     ONGOING = ("PENDING", "IN_PROGRESS", "DELIVERED")   # see netting_service.ONGOING
     mo_rows = (await db.execute(
@@ -912,6 +922,41 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), incoming_qty=outstanding,
         ))
 
+    # ── Reserved: on-hand held for open sales orders ──
+    # Seeds its own demand key when no MO demands the item, so reserved finished
+    # goods are visible here rather than silently reducing a row that never shows.
+    reserved: dict[tuple, float] = defaultdict(float)
+    reserved_sos: dict[tuple, list] = defaultdict(list)
+    res_rows = (await db.execute(
+        select(
+            StockReservation.item_id, StockReservation.variant_key,
+            StockReservation.attribute_value_ids,
+            StockReservation.qty, StockReservation.qty_released,
+            StockReservation.sales_order_id, SalesOrder.po_number,
+        )
+        .join(SalesOrder, SalesOrder.id == StockReservation.sales_order_id)
+        .where(
+            StockReservation.status == "ACTIVE",
+            SalesOrder.status.in_(OPEN_SO_STATUSES),
+        )
+    )).all()
+    for iid, vkey, attr_ids, qty, released, so_id, po_number in res_rows:
+        held = float(qty or 0) - float(released or 0)
+        if held <= 0:
+            continue
+        key = (str(iid), vkey or "")
+        reserved[key] += held
+        reserved_sos[key].append(BookingReservedSO(
+            sales_order_id=so_id, so_number=po_number or "", reserved_qty=held,
+        ))
+        if key not in demand:
+            d = demand[key]
+            d["item_id"] = iid
+            # variant_key folds a color in as a trailing `c:<uuid>` token, which is
+            # not an attribute value id — take the stored display list instead of
+            # splitting the key, or the row renders a bogus chip.
+            d["attr_ids"] = [str(a) for a in (attr_ids or [])]
+
     if not demand:
         return []
 
@@ -942,6 +987,7 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
         sup = supply.get((item_id_str, attr_key))
         incoming = sup["total_incoming"] if sup else 0.0
         required = data["total_required"]
+        res_qty = reserved.get((item_id_str, attr_key), 0.0)
         rows.append(BookingStockRow(
             item_id=data["item_id"],
             item_code=item.code if item else str(data["item_id"]),
@@ -953,9 +999,11 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             qty_on_hand=on_hand,
             qty_required=required,
             qty_incoming=incoming,
-            qty_net_free=on_hand + incoming - required,
+            qty_reserved=res_qty,
+            qty_net_free=on_hand + incoming - required - res_qty,
             demand_mos=data["contributions"],
             supply_mos=sup["contributions"] if sup else [],
+            reserved_sos=reserved_sos.get((item_id_str, attr_key), []),
         ))
 
     return rows
