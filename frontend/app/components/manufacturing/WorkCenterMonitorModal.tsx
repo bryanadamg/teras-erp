@@ -32,6 +32,7 @@ import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
 import { LotChips } from '../shared/LotChips';
 import { WorkingDaysSection, HolidayCalendarSection, useNationalHolidays } from '../shared/productionCalendar';
+import LotLabelPrintModal from './LotLabelPrintModal';
 
 // Measurement accents from the shared five-family palette — see DESIGN.md's one
 // semantic layer rule; the weaving grid resolves the same three.
@@ -88,10 +89,12 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [returnLoc, setReturnLoc] = useState('');
     // Leftover re-lot, filled in on the same strip: the warp stripped off the beam
     // is weighed, and that weight — not the system's remaining — becomes a lot.
-    const [relot, setRelot] = useState(false);
+    // Every dismount weighs and re-lots; there is no plain-dismount branch.
     const [leftoverQty, setLeftoverQty] = useState('');
     const [leftoverEnds, setLeftoverEnds] = useState('');
     const [leftoverLotNo, setLeftoverLotNo] = useState('');
+    // Newly-minted leftover lot to print right after a successful dismount.
+    const [printLot, setPrintLot] = useState<any>(null);
     // Mount picker: beams in stock that are on no loom right now, leftovers included.
     const [mountOpen, setMountOpen] = useState(false);
     const [freeBeams, setFreeBeams] = useState<any[]>([]);
@@ -171,17 +174,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         }
     }, [wcId, apiBase, authFetch]);
 
-    // Take a beam off this loom. The remnant keeps its own lot and remaining kg —
-    // nothing to re-lot, unlike the old merge-to-pool model. The remnant does have
-    // to be booked back to wherever it physically goes, though: leaving it at the
-    // loom's input location means stock claims a beam is up that is really on a rack.
-    //
-    // Optionally the remnant is stripped off the beam and weighed instead: then it
-    // is split into its own LFT- lot (mountable again anywhere), the parent beam is
-    // retired at 0, and the scale-vs-system difference is written off on the parent.
-    const dismount = async (mountId: string, toLocationId: string) => {
-        const weighed = relot ? parseFloat(leftoverQty) : null;
-        if (relot && (weighed === null || Number.isNaN(weighed) || weighed < 0)) {
+    // Take a beam off this loom. Every dismount strips and weighs the remnant:
+    // it is split into its own LFT- lot (mountable again anywhere, on this loom
+    // or any other), the parent beam is retired at 0, and the scale-vs-system
+    // difference is written off on the parent.
+    const dismount = async (mount: any, toLocationId: string) => {
+        const mountId = mount.id;
+        const weighed = parseFloat(leftoverQty);
+        if (Number.isNaN(weighed) || weighed < 0) {
             showToast(t('leftover_weighed_qty'), 'danger');
             return;
         }
@@ -191,9 +191,9 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     to_location_id: toLocationId || null,
-                    leftover_qty: relot ? weighed : null,
-                    leftover_beam_number: relot ? (leftoverLotNo.trim() || null) : null,
-                    leftover_ends: relot && leftoverEnds ? parseInt(leftoverEnds, 10) : null,
+                    leftover_qty: weighed,
+                    leftover_beam_number: leftoverLotNo.trim() || null,
+                    leftover_ends: leftoverEnds ? parseInt(leftoverEnds, 10) : null,
                 }),
             });
             if (!res.ok) {
@@ -202,14 +202,25 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 return;
             }
             const out = await res.json().catch(() => null);
-            showToast(
-                out?.leftover_beam_number
-                    ? t('leftover_created')
+            if (out?.leftover_beam_number) {
+                showToast(
+                    t('leftover_created')
                         .replace('{lot}', out.leftover_beam_number)
-                        .replace('{qty}', fmt(out.leftover_qty, 2))
-                    : t('unmount_done'),
-                'success',
-            );
+                        .replace('{qty}', fmt(out.leftover_qty, 2)),
+                    'success',
+                );
+                // Print the new lot label right away — the beam is off the loom
+                // now and the remnant needs a physical tag before it moves.
+                setPrintLot({
+                    id: out.leftover_batch_id,
+                    batch_number: out.leftover_beam_number,
+                    remaining: out.leftover_qty,
+                    item_name: mount.item_name,
+                    item_code: mount.item_code,
+                });
+            } else {
+                showToast(t('unmount_done'), 'success');
+            }
             closeUnmount();
             if (mountOpen) await loadFreeBeams();
             await load();
@@ -220,7 +231,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
     const closeUnmount = () => {
         setUnmountingId(null);
-        setRelot(false);
         setLeftoverQty('');
         setLeftoverEnds('');
         setLeftoverLotNo('');
@@ -259,6 +269,30 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         }
     };
 
+    // Enter in the picker's search — typed, or a barcode scanner firing Enter
+    // after the code — bypasses the debounce and mounts straight away on an
+    // exact lot-number match. No new endpoint: the same /available-beams search
+    // already matches batch_number, this just skips the "click Mount" step.
+    const handleBeamScan = async (code: string) => {
+        const trimmed = code.trim();
+        if (!trimmed) return;
+        setFreeLoading(true);
+        try {
+            const res = await authFetch(`${apiBase}/work-centers/${wcId}/available-beams?search=${encodeURIComponent(trimmed)}`);
+            const rows = res.ok ? await res.json() : [];
+            setFreeBeams(rows);
+            const exact = rows.find((b: any) => (b.beam_number || '').toUpperCase() === trimmed.toUpperCase());
+            if (exact) {
+                setBeamSearch('');
+                await mount(exact.batch_id);
+            } else if (rows.length === 0) {
+                showToast(t('no_free_beams'), 'danger');
+            }
+        } finally {
+            setFreeLoading(false);
+        }
+    };
+
     // Picker feed: refetch when it opens and on a paused search — same 300ms shape
     // the shared list hooks use, so typing a lot number doesn't fire per keystroke.
     useEffect(() => {
@@ -271,7 +305,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         if (isOpen && wcId) {
             setTab('performance');
             setUnmountingId(null);
-            setRelot(false);
             setMountOpen(false);
             setBeamSearch('');
             setFreeBeams([]);
@@ -807,6 +840,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     };
 
     return (
+        <>
         <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant={titleVariant} modeless bodyScroll={false} banner={tabBar}>
 
             {/* `proximity`, not `mandatory`: only the run boxes declare a snap point, so
@@ -1128,12 +1162,16 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                             <div style={{ marginBottom: 8 }}>
                                 <ExpandedRowPanel classic={cls}>
                                     <ExpandedRowPanelBody classic={cls}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                        <div
+                                            style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBeamScan(beamSearch); } }}
+                                        >
                                             <SearchField
                                                 classic={cls}
                                                 value={beamSearch}
                                                 onChange={setBeamSearch}
                                                 placeholder={t('mount_beam_search')}
+                                                icon="bi-upc-scan"
                                                 width={220}
                                             />
                                             {pcs >= slots && (
@@ -1242,7 +1280,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                 // left: on a beam that ran to plan the scale agrees and
                                                                 // the operator only confirms. Ends carry over — a
                                                                 // remnant is the same warp, just shorter.
-                                                                setRelot(false);
                                                                 setLeftoverQty(m.remaining != null ? String(Number(m.remaining).toFixed(2)) : '');
                                                                 setLeftoverEnds(m.ends != null ? String(m.ends) : '');
                                                                 setLeftoverLotNo('');
@@ -1259,7 +1296,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                 {(() => {
                                                                     const sysLeft = Number(m.remaining || 0);
                                                                     const weighed = parseFloat(leftoverQty);
-                                                                    const variance = relot && !Number.isNaN(weighed) ? weighed - sysLeft : 0;
+                                                                    const variance = !Number.isNaN(weighed) ? weighed - sysLeft : 0;
                                                                     return (
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: cls ? 11 : 12 }}>
                                                                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
@@ -1286,7 +1323,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                                 icon="bi-box-arrow-up"
                                                                                 label={dismounting === m.id ? '...' : t('unmount_confirm')}
                                                                                 disabled={dismounting === m.id}
-                                                                                onClick={() => dismount(m.id, returnLoc)}
+                                                                                onClick={() => dismount(m, returnLoc)}
                                                                             />
                                                                             <XPActionButton
                                                                                 classic={cls}
@@ -1298,69 +1335,57 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Re-lotting rides on the unmount, not a second action:
-                                                                        the remnant is stripped at the same moment the beam
-                                                                        comes off, and splitting it later would mean guessing
-                                                                        which of the loom's beams it came from. */}
-                                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={relot}
-                                                                            onChange={e => setRelot(e.target.checked)}
-                                                                            disabled={dismounting === m.id}
-                                                                        />
-                                                                        <span>{t('leftover_relot')}</span>
-                                                                    </label>
-
-                                                                    {relot && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingLeft: 18 }}>
-                                                                            <div style={{ fontSize: 10, color: '#555' }}>{t('leftover_hint')}</div>
-                                                                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                                    <span>{t('leftover_weighed_qty')}</span>
-                                                                                    <input
-                                                                                        type="number" min="0" step="any"
-                                                                                        value={leftoverQty}
-                                                                                        onChange={e => setLeftoverQty(e.target.value)}
-                                                                                        className={cls ? undefined : 'form-control form-control-sm w-auto'}
-                                                                                        style={cls ? { ...lvInput, width: 90, textAlign: 'right' } : { width: 90 }}
-                                                                                    />
-                                                                                </label>
-                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                                    <span>{t('ends')}</span>
-                                                                                    <input
-                                                                                        type="number" min="1" step="1"
-                                                                                        value={leftoverEnds}
-                                                                                        onChange={e => setLeftoverEnds(e.target.value)}
-                                                                                        className={cls ? undefined : 'form-control form-control-sm w-auto'}
-                                                                                        style={cls ? { ...lvInput, width: 70, textAlign: 'right' } : { width: 70 }}
-                                                                                    />
-                                                                                </label>
-                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                                    <span>{t('leftover_lot_no')}</span>
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        value={leftoverLotNo}
-                                                                                        onChange={e => setLeftoverLotNo(e.target.value)}
-                                                                                        placeholder={t('leftover_lot_auto')}
-                                                                                        className={cls ? undefined : 'form-control form-control-sm w-auto'}
-                                                                                        style={cls ? { ...lvInput, width: 150 } : { width: 150 }}
-                                                                                    />
-                                                                                </label>
-                                                                            </div>
-                                                                            <div style={{ fontSize: 10, color: '#666' }}>
-                                                                                {t('leftover_system_says')} <b>{fmt(sysLeft, 2)} kg</b>
-                                                                                {!Number.isNaN(weighed) && (
-                                                                                    <>
-                                                                                        {' · '}{t('leftover_variance')}{' '}
-                                                                                        <b style={{ color: Math.abs(variance) < 0.005 ? '#666' : variance < 0 ? RED : AMBER }}>
-                                                                                            {variance > 0 ? '+' : ''}{fmt(variance, 2)} kg
-                                                                                        </b>
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
+                                                                    {/* Every dismount strips and weighs the remnant — re-lot
+                                                                        rides on the unmount, not a second action, because
+                                                                        splitting it later would mean guessing which of the
+                                                                        loom's beams it came from. */}
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                                                        <div style={{ fontSize: 10, color: '#555' }}>{t('leftover_hint')}</div>
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                                                                            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                <span>{t('leftover_weighed_qty')}</span>
+                                                                                <input
+                                                                                    type="number" min="0" step="any"
+                                                                                    value={leftoverQty}
+                                                                                    onChange={e => setLeftoverQty(e.target.value)}
+                                                                                    className={cls ? undefined : 'form-control form-control-sm w-auto'}
+                                                                                    style={cls ? { ...lvInput, width: 90, textAlign: 'right' } : { width: 90 }}
+                                                                                />
+                                                                            </label>
+                                                                            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                <span>{t('ends')}</span>
+                                                                                <input
+                                                                                    type="number" min="1" step="1"
+                                                                                    value={leftoverEnds}
+                                                                                    onChange={e => setLeftoverEnds(e.target.value)}
+                                                                                    className={cls ? undefined : 'form-control form-control-sm w-auto'}
+                                                                                    style={cls ? { ...lvInput, width: 70, textAlign: 'right' } : { width: 70 }}
+                                                                                />
+                                                                            </label>
+                                                                            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                <span>{t('leftover_lot_no')}</span>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={leftoverLotNo}
+                                                                                    onChange={e => setLeftoverLotNo(e.target.value)}
+                                                                                    placeholder={t('leftover_lot_auto')}
+                                                                                    className={cls ? undefined : 'form-control form-control-sm w-auto'}
+                                                                                    style={cls ? { ...lvInput, width: 150 } : { width: 150 }}
+                                                                                />
+                                                                            </label>
                                                                         </div>
-                                                                    )}
+                                                                        <div style={{ fontSize: 10, color: '#666' }}>
+                                                                            {t('leftover_system_says')} <b>{fmt(sysLeft, 2)} kg</b>
+                                                                            {!Number.isNaN(weighed) && (
+                                                                                <>
+                                                                                    {' · '}{t('leftover_variance')}{' '}
+                                                                                    <b style={{ color: Math.abs(variance) < 0.005 ? '#666' : variance < 0 ? RED : AMBER }}>
+                                                                                        {variance > 0 ? '+' : ''}{fmt(variance, 2)} kg
+                                                                                    </b>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
                                                                     );
                                                                 })()}
@@ -1381,5 +1406,12 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
             </div>
         </ModalWrapper>
+        {printLot && (
+            <LotLabelPrintModal
+                lots={[printLot]}
+                onClose={() => setPrintLot(null)}
+            />
+        )}
+        </>
     );
 }

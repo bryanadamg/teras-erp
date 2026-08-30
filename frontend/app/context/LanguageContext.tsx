@@ -176,9 +176,8 @@ const translations = {
         'unmount_confirm': 'Unmount',
         'unmount_done': 'Beam unmounted.',
         'unmount_failed': 'Could not unmount beam.',
-        // Leftover warp: the remnant is stripped off the beam and weighed, then
-        // becomes its own lot any loom can mount later.
-        'leftover_relot': 'Strip and re-lot the remnant',
+        // Leftover warp: every dismount strips the remnant off the beam and
+        // weighs it, then it becomes its own lot any loom can mount later.
         'leftover_hint': 'Weigh the warp taken off the beam. It becomes its own leftover lot; this beam is retired at 0 and any difference against the system figure is written off on it.',
         'leftover_weighed_qty': 'Weighed leftover (kg)',
         'leftover_lot_no': 'Leftover lot no.',
@@ -471,7 +470,6 @@ const translations = {
         'unmount_confirm': 'Turunkan',
         'unmount_done': 'Beam sudah diturunkan.',
         'unmount_failed': 'Gagal menurunkan beam.',
-        'leftover_relot': 'Ambil sisa & buat lot baru',
         'leftover_hint': 'Timbang sisa benang yang diturunkan dari beam. Sisa jadi lot sendiri; beam ini ditutup di 0 dan selisih dengan angka sistem dibebankan ke beam ini.',
         'leftover_weighed_qty': 'Sisa timbang (kg)',
         'leftover_lot_no': 'No. lot sisa',

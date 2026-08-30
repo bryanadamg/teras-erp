@@ -1384,15 +1384,13 @@ async def dismount_beam_from_loom(
 ):
     """Take a beam off the loom.
 
-    Plain dismount: the remnant keeps its own lot and remaining kg — no re-lotting
-    step — and optionally goes back to a store location.
-
-    With `leftover_qty`: the floor stripped and weighed the remnant, so it becomes
-    its own leftover lot (LFT-) that any loom can mount later, the parent beam is
-    retired at 0, and scale-vs-system drift is written off on the parent."""
+    Every dismount is a weigh-and-relot: the floor strips and weighs the remnant,
+    it becomes its own leftover lot (LFT-) that any loom can mount later, the
+    parent beam is retired at 0, and scale-vs-system drift is written off on the
+    parent."""
     weighed = payload.leftover_qty
     leftover_number: str | None = None
-    if weighed is not None and float(weighed) > 0:
+    if float(weighed) > 0:
         leftover_number = (payload.leftover_beam_number or "").strip()
         if leftover_number:
             dup = await db.execute(
@@ -1406,8 +1404,8 @@ async def dismount_beam_from_loom(
             leftover_number = await generate_batch_number(db, prefix="LFT")
 
     mount, leftover, variance = await beam_service.dismount_beam(
-        db, mount_id, to_location_id=payload.to_location_id, user=current_user.username,
-        leftover_qty=weighed, leftover_number=leftover_number,
+        db, mount_id, leftover_qty=weighed, to_location_id=payload.to_location_id,
+        user=current_user.username, leftover_number=leftover_number,
         leftover_ends=payload.leftover_ends, leftover_notes=payload.leftover_notes,
     )
     leftover_id = leftover.id if leftover else None

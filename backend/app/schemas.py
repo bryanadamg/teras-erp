@@ -955,15 +955,13 @@ class BeamMountCreate(BaseModel):
 
 
 class BeamDismountPayload(BaseModel):
-    # Where the remnant goes. Null leaves it parked at the loom — the beam keeps
-    # its lot either way, so there is nothing to re-create.
+    # Where the remnant goes. Null leaves it parked at the loom.
     to_location_id: UUID | None = None
-    # Weighed remnant. Null = plain dismount (beam keeps its lot and its system
-    # remaining). A number = the floor stripped and weighed the warp: that qty
-    # becomes a NEW leftover lot, the parent beam is retired at 0, and the
-    # difference against the system remaining is written off on the parent.
+    # Weighed remnant — the floor strips and weighs the warp on every dismount.
+    # That qty becomes a NEW leftover lot, the parent beam is retired at 0, and
+    # the difference against the system remaining is written off on the parent.
     # 0 is meaningful — "nothing left", so reconcile the beam down to empty.
-    leftover_qty: float | None = None
+    leftover_qty: float
     leftover_beam_number: str | None = None   # blank → auto LFT-YYYYMMDD-NNNN
     leftover_ends: int | None = None          # blank → inherit the parent beam's ends
     leftover_notes: str | None = None
@@ -978,7 +976,7 @@ class BeamDismountResult(BeamMountResponse):
     """
     leftover_batch_id: UUID | None = None
     leftover_beam_number: str | None = None
-    leftover_qty: float | None = None
+    leftover_qty: float = 0.0
     # weighed − system remaining. Negative = warp the system thought was there
     # and the scale says is not (the usual direction).
     leftover_variance: float = 0.0
