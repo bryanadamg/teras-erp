@@ -104,7 +104,12 @@ class PackingOrder(Base):
         UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
-    # PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+    # PENDING, IN_PROGRESS, DELIVERED, COMPLETED, CANCELLED. Same delivery-vs-closure
+    # split as ManufacturingOrder: DELIVERED means `qty_packed` reached `qty_target`
+    # and the order is fulfilled but STILL OPEN — it keeps accepting completions,
+    # only an explicit close makes it COMPLETED. The distinction is load-bearing
+    # downstream: quarantine claims an order's *open* quantity, so a fulfilled
+    # order stops claiming hold stock without anyone having to close it.
     status: Mapped[str] = mapped_column(String(16), default="PENDING", index=True)
 
     target_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

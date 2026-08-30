@@ -598,6 +598,21 @@ async def update_packing_order(
     if payload.status == "COMPLETED" and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
 
+    # Editing the target moves the fulfilled line, so DELIVERED has to follow it
+    # both ways: raise the target past what is packed and the order owes work
+    # again (and quarantine's claim, which is the open quantity, comes back with
+    # it); lower it back and it is fulfilled again. Never touches COMPLETED or
+    # CANCELLED — those are the user's explicit closure, not a function of qty —
+    # and never overrides a status the caller stated itself.
+    if payload.status is None:
+        met = po.qty_packed + 1e-6 >= float(po.qty_target or 0) > 0
+        if po.status == "DELIVERED" and not met:
+            po.status = "IN_PROGRESS"
+            po.actual_end_date = None
+        elif po.status in ("PENDING", "IN_PROGRESS") and met:
+            po.status = "DELIVERED"
+            po.actual_end_date = po.actual_end_date or datetime.utcnow()
+
     if payload.attribute_value_ids is not None:
         await _set_attributes(db, po, payload.attribute_value_ids)
 
@@ -991,6 +1006,13 @@ async def add_packing_completion(
         po.actual_start_date = po.actual_start_date or datetime.utcnow()
     if po.qty_packed + 1e-6 >= float(po.qty_target or 0) and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
+    # Fulfilled but still open — the MO's DELIVERED/COMPLETED split (SAP DLV vs
+    # TECO). Logging stays allowed (only COMPLETED/CANCELLED stop it); what this
+    # buys is that the order's *open* quantity is now zero, so quarantine stops
+    # treating it as a claim on the hold bin's stock. Never auto-closes.
+    if (po.status in ("PENDING", "IN_PROGRESS")
+            and po.qty_packed + 1e-6 >= float(po.qty_target or 0)):
+        po.status = "DELIVERED"
     await db.commit()
 
     # Cartons now sit in stock against the SO line, which is what makes the order
@@ -1130,7 +1152,7 @@ async def reject_packing_completion(
     po = await _load(db, po_id)
     if po.actual_end_date and po.qty_packed + 1e-6 < float(po.qty_target or 0):
         po.actual_end_date = None
-        if po.status == "COMPLETED":
+        if po.status in ("DELIVERED", "COMPLETED"):
             po.status = "IN_PROGRESS"
     await db.commit()
 

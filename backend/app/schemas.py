@@ -3646,11 +3646,14 @@ class QuarantineLotResponse(BaseModel):
     color_name: str | None = None
     color_hex: str | None = None
     labdip_variant_code: str | None = None
-    # Set (to the claiming order's code) when this lot is released, not yet
-    # packed, and an open PackingOrder already exists for its (item, location) —
-    # locks it in the UI the same as an actually-packed lot, until that order is
-    # cancelled/deleted, so QC doesn't double-release the same physical stock
-    # onto two different packing plans.
+    # How much of this lot an open packing order has allocated to itself — the
+    # order's OPEN quantity (`qty_target - qty_packed`), spread FIFO across the
+    # lots it could draw from, never the whole pool it points at. `qty -
+    # claimed_qty` is what is still free to plan a new order against; a lot may be
+    # partly claimed, which is why this is a quantity and not a flag.
+    claimed_qty: float = 0
+    # The order that claimed it (first claimant when two orders split one lot).
+    # A label for the UI — `claimed_qty` is the figure that decides anything.
     claimed_by_order_code: str | None = None
 
 class QuarantineGroupResponse(BaseModel):
@@ -3685,6 +3688,10 @@ class QuarantineGroupResponse(BaseModel):
     # towards any of these three, however it is listed.
     qty_total: float = 0
     qty_released: float = 0
+    # Released stock already allocated to an open packing order's open quantity.
+    # `qty_released - qty_claimed` is what a new packing order can still be
+    # planned against, and is what the Pack button offers.
+    qty_claimed: float = 0
     lot_count: int = 0
     # Listed history rows (only when `include_packed`), counted apart so the
     # held columns above stay a picture of what is physically on the desk.

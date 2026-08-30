@@ -84,9 +84,12 @@ type Lot = {
     color_name: string | null;
     color_hex: string | null;
     labdip_variant_code: string | null;
-    // Set when this lot is released and an open packing order already claims
-    // its (item, location) — locked the same as a packed lot until that order
-    // is cancelled/deleted.
+    // How much of this lot an open packing order has allocated to itself — that
+    // order's OPEN quantity (target minus packed), spread FIFO across the lots it
+    // could draw from. `qty - claimed_qty` is what is still free to plan against,
+    // so a lot can be partly claimed and partly available.
+    claimed_qty: number;
+    // Who claimed it. A label — `claimed_qty` is the figure that gates anything.
     claimed_by_order_code: string | null;
 };
 
@@ -112,6 +115,9 @@ type Group = {
     uom: string | null;
     qty_total: number;
     qty_released: number;
+    // Released stock already allocated to open packing orders. `qty_released -
+    // qty_claimed` is what Pack can still offer a new order.
+    qty_claimed: number;
     lot_count: number;
     // Listed history lots — counted apart, so the held columns never inflate.
     packed_lot_count: number;
@@ -121,6 +127,13 @@ type Group = {
 };
 
 type StatusOption = { id: string; value: string; is_pass: boolean };
+
+// What is left of a lot after open packing orders have taken their allocation —
+// the figure a new packing order can be planned against. Claims are quantities,
+// not flags, so a lot can be half spoken for and half free.
+const lotFreeQty = (l: Lot) => Math.max(0, (l.qty || 0) - (l.claimed_qty || 0));
+// Fully allocated: nothing left to plan, so the row reads settled like a packed one.
+const isFullyClaimed = (l: Lot) => (l.claimed_qty || 0) > 0 && lotFreeQty(l) <= 1e-6;
 
 // Rollup filter choices that are not attribute values.
 const DERIVED_FILTERS = [
@@ -220,23 +233,26 @@ export default function QuarantinePackingView() {
         };
     }, [subscribeLiveEvents, silentRefetch]);
 
-    // "Pack" hands this group's released-not-yet-packed-or-claimed stock to the
-    // Packing page as a deep link — it opens the New Packing Order form
-    // pre-filled, not creates the order itself. Scoped to the group (this MO's
-    // lots), not the (item, location) pair: two MOs can share both, and an
-    // order already open against one must never hide the other's own released
-    // stock. `qty_released` is the group's full released total — a portion of
-    // it may already be claimed by another open order, so the default target
-    // only offers what's actually still free, rather than re-offering stock a
-    // second order would double up on.
+    // "Pack" hands this group's still-free released stock to the Packing page as a
+    // deep link — it opens the New Packing Order form pre-filled, not creates the
+    // order itself. Scoped to the group (this MO's lots), not the (item, location)
+    // pair: two MOs can share both, and an order already open against one must
+    // never hide the other's own released stock.
+    //
+    // The target is `qty - claimed_qty` summed over the released lots, NOT the
+    // group's released total: whatever open orders have already allocated is
+    // theirs, and re-offering it would plan two orders over one physical lot.
+    // Equally it is not "zero because some order exists" — that is what left a
+    // 2 kg order sitting fulfilled-but-open holding 8 kg of released stock
+    // hostage, with Pack greyed out and nothing able to release it.
     const packGroup = useCallback((g: Group) => {
-        const free = g.lots.filter(l => l.released && !l.packed && !l.claimed_by_order_code);
+        const free = g.lots.filter(l => l.released && !l.packed && lotFreeQty(l) > 0);
         const sourceLot = free.find(l => l.location_id) || g.lots.find(l => l.location_id);
         if (!sourceLot?.location_id) {
             showToast('No lot location to pack from', 'warning');
             return;
         }
-        const qtyFree = free.reduce((s, l) => s + (l.qty || 0), 0);
+        const qtyFree = free.reduce((s, l) => s + lotFreeQty(l), 0);
         const params = new URLSearchParams({
             action: 'create_packing_order',
             item_id: g.item_id,
@@ -296,12 +312,13 @@ export default function QuarantinePackingView() {
     );
 
     // ── Lot selection ─────────────────────────────────────────────────────────
-    // Packed lots are locked, a lot already claimed by an open packing order is
-    // locked the same way (until that order is cancelled/deleted), and un-lotted
-    // rows have nothing to write a status to — none of the three is ever
-    // selectable. Same filter the whole-MO apply uses.
+    // Packed lots are locked, and so is a lot every unit of which an open packing
+    // order has already allocated. A *partly* claimed lot is not locked: the claim
+    // is a quantity, so the rest of it is still free stock the desk can act on.
+    // Un-lotted rows have nothing to write a status to. Same filter the whole-MO
+    // apply uses.
     const selectableIds = (lots: Lot[]) =>
-        lots.filter(l => l.batch_id && !l.packed && !l.claimed_by_order_code).map(l => l.batch_id) as string[];
+        lots.filter(l => l.batch_id && !l.packed && !isFullyClaimed(l)).map(l => l.batch_id) as string[];
 
     const setSelection = (ids: string[], on: boolean) => setSelectedLots(prev => {
         const next = new Set(prev);
@@ -586,10 +603,11 @@ export default function QuarantinePackingView() {
                     {sec.lots.map((l, i) => {
                         // Packed lots stay in the list (they are still this MO's history)
                         // but read as settled rather than actionable — dimmed, not dropped.
-                        // A lot claimed by an open packing order reads the same way until
-                        // that order is cancelled/deleted, so nobody sets a fresh status on
-                        // stock another order already plans to draw.
-                        const locked = l.packed || !!l.claimed_by_order_code;
+                        // A lot an open order has allocated in FULL reads the same way, so
+                        // nobody re-dispositions stock another order is about to draw. A
+                        // partly claimed lot stays live: the remainder is real free stock,
+                        // and greying it out is exactly the bug this replaced.
+                        const locked = l.packed || isFullyClaimed(l);
                         const dim: React.CSSProperties = locked ? { opacity: 0.55 } : {};
                         const selectable = !!l.batch_id && !locked;
                         const isChosen = selectable && selectedLots.has(l.batch_id as string);
@@ -640,8 +658,18 @@ export default function QuarantinePackingView() {
                                         <StatusChip status="PACKED" label="Packed" tint />
                                     )}
                                     {!l.packed && l.claimed_by_order_code && (
-                                        <StatusChip status="CLAIMED" label={l.claimed_by_order_code} tint
-                                            title={`Claimed by packing order ${l.claimed_by_order_code} — cancel or delete it to free this lot`} />
+                                        <StatusChip
+                                            status="CLAIMED"
+                                            // Partial claims say so on the chip: "PCK-00003 · 2 of 8"
+                                            // is the difference between a locked lot and one with
+                                            // 6 kg still free, and the row looks identical otherwise.
+                                            label={isFullyClaimed(l)
+                                                ? l.claimed_by_order_code
+                                                : `${l.claimed_by_order_code} · ${fmtQty(l.claimed_qty)} of ${fmtQty(l.qty)}`}
+                                            tint
+                                            title={isFullyClaimed(l)
+                                                ? `Fully allocated to packing order ${l.claimed_by_order_code} — close, cancel or raise that order to free this lot`
+                                                : `${fmtQty(l.claimed_qty)} ${g.uom || ''} allocated to packing order ${l.claimed_by_order_code}; ${fmtQty(lotFreeQty(l))} ${g.uom || ''} still free to pack`} />
                                     )}
                                     <div style={{ marginLeft: 'auto' }}><LotChips batch={l} /></div>
                                 </div>
@@ -778,11 +806,11 @@ export default function QuarantinePackingView() {
                     {groups.map((g, i) => {
                         const open = expanded.has(g.key);
                         const allReleased = g.lot_count > 0 && g.qty_released >= g.qty_total - 1e-6;
-                        // What "Pack" would actually offer — released, unpacked, and not
-                        // already spoken for by another open order.
+                        // What "Pack" would actually offer — released, unpacked, less
+                        // whatever open orders have already allocated to themselves.
                         const qtyFree = g.lots
-                            .filter(l => l.released && !l.packed && !l.claimed_by_order_code)
-                            .reduce((s, l) => s + (l.qty || 0), 0);
+                            .filter(l => l.released && !l.packed)
+                            .reduce((s, l) => s + lotFreeQty(l), 0);
                         return (
                             <Fragment key={g.key}>
                                 <tr
@@ -884,7 +912,7 @@ export default function QuarantinePackingView() {
                                             title={
                                                 !canPack ? 'Needs the Manage Sales Orders permission'
                                                     : qtyFree <= 0 ? (g.qty_released > 0
-                                                        ? 'All released stock on this MO is already claimed by an open packing order'
+                                                        ? `All ${fmtQty(g.qty_released)} ${g.uom || ''} released here is already allocated to open packing orders — close, cancel or raise one to free it`
                                                         : 'No released stock on this MO yet')
                                                         : 'Open New Packing Order, pre-filled'
                                             }

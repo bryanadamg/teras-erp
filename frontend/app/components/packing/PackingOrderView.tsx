@@ -132,14 +132,17 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
         () => toMachineOptions(machinesOfCenterType(workCenters || [], 'PACKING')),
         [workCenters],
     );
+    // DELIVERED counts as OPEN, not done: the order met its target but was never
+    // closed, so it still accepts completions. Same split as MOs (DLV vs TECO).
     const loadCounts = useCallback(async () => {
-        const [pendRes, progRes, doneRes] = await Promise.all([
+        const [pendRes, progRes, delivRes, doneRes] = await Promise.all([
             authFetch(`${API_BASE}/packing?status=PENDING&page=1&size=1`),
             authFetch(`${API_BASE}/packing?status=IN_PROGRESS&page=1&size=1`),
+            authFetch(`${API_BASE}/packing?status=DELIVERED&page=1&size=1`),
             authFetch(`${API_BASE}/packing?status=COMPLETED&page=1&size=1`),
         ]);
         let open = 0;
-        for (const r of [pendRes, progRes]) { if (r.ok) { const d = await r.json(); open += d.total || 0; } }
+        for (const r of [pendRes, progRes, delivRes]) { if (r.ok) { const d = await r.json(); open += d.total || 0; } }
         setOpenCount(open);
         if (doneRes.ok) { const d = await doneRes.json(); setDoneCount(d.total || 0); }
     }, [authFetch]);
