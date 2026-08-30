@@ -513,12 +513,19 @@ async def set_quarantine_status(
 
     stamped = datetime.utcnow()
     for b in batches:
+        # Re-confirming a disposition it already has is a no-op on the *record* of
+        # it. `quarantine_status_at` is when QC decided, not when someone last
+        # clicked — rewriting it on an unchanged value both falsified the audit
+        # trail and (because the UI bands lots by decided-day) made the row the
+        # user just clicked jump out of its band into today's.
+        changed = b.quarantine_status_id != (value.id if value else None)
         b.quarantine_status_id = value.id if value else None
         # Snapshot the text: a later rename or delete of the attribute value must
         # not rewrite what QC actually decided about a physical lot.
         b.quarantine_status = value.value if value else None
-        b.quarantine_status_at = stamped if value else None
-        b.quarantine_status_by = current_user.username if value else None
+        if changed:
+            b.quarantine_status_at = stamped if value else None
+            b.quarantine_status_by = current_user.username if value else None
         if payload.notes is not None:
             b.quarantine_notes = payload.notes or None
     await db.commit()
