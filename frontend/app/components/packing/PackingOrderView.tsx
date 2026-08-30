@@ -18,7 +18,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
-import { LotChips, LotChip } from '../shared/LotChips';
+import { LotChips, LotChip, lotSizeKey, lotSizeLabel } from '../shared/LotChips';
 import VariantChips from '../shared/VariantChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 import {
@@ -1226,9 +1226,22 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                 setHeldLotCount(withStock.filter((b: any) => b.held).length);
                 const available = withStock.filter((b: any) => !b.held);
                 setLots(available);
-                // Default to every ready lot combined — the packer normally wants the
-                // whole released pool, not to hand-pick which lot each box comes from.
-                setSelectedLots(available.map((b: any) => String(b.id)));
+                // Default to the ready pool, but only as far as ONE size. The draw is
+                // FIFO (oldest first) and the server refuses a box that straddles two
+                // sizes, so pre-selecting an M lot and an L lot together hands the
+                // packer a selection their first submit 400s on — over a seam they
+                // never chose to cross. Unsized lots are unknown, not a different
+                // size, so they ride along; an unsized oldest lot keeps the old
+                // select-everything behaviour.
+                const oldest = available[available.length - 1];  // /batches is newest-first
+                const leadSize = oldest ? lotSizeKey(oldest) : null;
+                const preselect = leadSize
+                    ? available.filter((b: any) => {
+                        const k = lotSizeKey(b);
+                        return k === null || k === leadSize;
+                    })
+                    : available;
+                setSelectedLots(preselect.map((b: any) => String(b.id)));
             } finally {
                 if (alive) setLotsLoading(false);
             }
@@ -1239,6 +1252,20 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const selSet = new Set(selectedLots);
     const selAvailable = lots.filter((b: any) => selSet.has(String(b.id)))
         .reduce((s: number, b: any) => s + (b.remaining ?? 0), 0);
+
+    // Distinct sizes among the checked lots. More than one is allowed — packing
+    // an M box and an L box on one log is a real thing — but the packer has to
+    // cut their box list at the seam, so it is called out rather than left to a
+    // 400 at submit. Keyed like the server (`lotSizeKey`), labelled for the eye.
+    const selectedSizes: string[] = useMemo(() => {
+        const byKey = new Map<string, string>();
+        lots.filter((b: any) => selSet.has(String(b.id))).forEach((b: any) => {
+            const k = lotSizeKey(b);
+            if (k) byKey.set(k, lotSizeLabel(b) || 'unnamed size');
+        });
+        return Array.from(byKey.values());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lots, selectedLots]);
 
     // Spread a draw FIFO across the checked lots — oldest first, each capped at
     // what is left of it. /batches returns newest-first, hence reverse. Same rule
@@ -1979,9 +2006,18 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 );
                                             })}
                                         </div>
+                                        {selectedSizes.length > 1 && (
+                                            <div style={{ background: '#fff4e5', border: '1px solid #d9a441', color: '#7a4a00', padding: '4px 8px', fontSize: 10, marginTop: 3 }}>
+                                                Selected lots span {selectedSizes.length} sizes ({selectedSizes.join(', ')}).
+                                                A {po.package_label.toLowerCase()} holds one size, so its label can name it —
+                                                size your {po.package_label.toLowerCase()}s so none straddles the changeover, or
+                                                log each size as its own entry.
+                                            </div>
+                                        )}
                                         <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
-                                            Each lot is logged as its own pack event, so no carton ever mixes two lots.
-                                            The variant is read from the lot&apos;s own stock row.
+                                            Each lot is logged as its own pack event, and a {po.package_label.toLowerCase()} that
+                                            spans two lots of the same size is pegged to both. The variant is read from the
+                                            lot&apos;s own stock row, the size off the lot itself.
                                             {heldLotCount > 0 && (
                                                 <span style={{ color: '#7a4a00' }}>
                                                     {' '}· {heldLotCount} more lot{heldLotCount === 1 ? '' : 's'} held in quarantine, not shown.

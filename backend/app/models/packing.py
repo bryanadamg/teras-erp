@@ -43,6 +43,21 @@ class PackingOrder(Base):
 
     # What is being packed. Variant identity mirrors SO line / MO: attribute values
     # via the association table, shade via color_id — both fold into variant_key.
+    #
+    # SIZE IS DELIBERATELY NOT HERE. An order is scoped to (item, variant, source
+    # location), never to a size, so one order may pack several sizes — the floor
+    # has not committed to one-size-per-order and forcing it would mean a second
+    # order for the packer who boxes M and L on one log. Size therefore has no
+    # picker-level scope the way shade does (`/batches?variant_key=`), and the
+    # defence sits one level down instead: a single BOX may not straddle two
+    # sizes, enforced in `packing_service.allocate_boxes_to_lots` and warned about
+    # on the pack form. That is what keeps every carton's stamped size truthful
+    # while the order stays size-agnostic.
+    #
+    # If the client does settle on one size per order, the change is to add a
+    # nullable `bom_size_id` here (the quarantine Pack deep link already sends one
+    # and discards it, and SalesOrderLine.bom_size_id exists), scope the picker on
+    # it, and the box gate becomes a backstop rather than the primary guard.
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"), index=True)
     color_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True

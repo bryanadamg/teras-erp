@@ -749,12 +749,20 @@ async def add_packing_completion(
     # rejected, since the packer edited the list without regard to lot lines.
     per_lot_cartons: Optional[list[list[tuple[float, Optional[float]]]]] = None
     if payload.boxes:
+        # Per-lot sizes so the allocator can refuse a box that would straddle two
+        # of them. Packing several sizes in one event is fine; a single box that
+        # physically holds two is not — its label could not name a size.
+        lot_size_rows = await packing_service.lot_sizes(
+            db, [(l.batch_id if l else None) for l in lots]
+        )
         try:
             per_lot_cartons = packing_service.allocate_boxes_to_lots(
                 lot_qtys,
                 [float(b) for b in payload.boxes],
                 weights=list(payload.box_weights) if payload.box_weights else None,
                 alt_qtys=list(payload.box_alt_qtys) if payload.box_alt_qtys else None,
+                lot_sizes=lot_size_rows,
+                package_label=po.package_label or "Box",
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
