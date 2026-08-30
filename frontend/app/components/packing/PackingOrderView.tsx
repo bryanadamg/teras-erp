@@ -18,7 +18,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
-import { LotChips, LotChip } from '../shared/LotChips';
+import { LotChips, LotChip, lotSizeKey, lotSizeLabel } from '../shared/LotChips';
 import VariantChips from '../shared/VariantChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 import {
@@ -132,14 +132,17 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
         () => toMachineOptions(machinesOfCenterType(workCenters || [], 'PACKING')),
         [workCenters],
     );
+    // DELIVERED counts as OPEN, not done: the order met its target but was never
+    // closed, so it still accepts completions. Same split as MOs (DLV vs TECO).
     const loadCounts = useCallback(async () => {
-        const [pendRes, progRes, doneRes] = await Promise.all([
+        const [pendRes, progRes, delivRes, doneRes] = await Promise.all([
             authFetch(`${API_BASE}/packing?status=PENDING&page=1&size=1`),
             authFetch(`${API_BASE}/packing?status=IN_PROGRESS&page=1&size=1`),
+            authFetch(`${API_BASE}/packing?status=DELIVERED&page=1&size=1`),
             authFetch(`${API_BASE}/packing?status=COMPLETED&page=1&size=1`),
         ]);
         let open = 0;
-        for (const r of [pendRes, progRes]) { if (r.ok) { const d = await r.json(); open += d.total || 0; } }
+        for (const r of [pendRes, progRes, delivRes]) { if (r.ok) { const d = await r.json(); open += d.total || 0; } }
         setOpenCount(open);
         if (doneRes.ok) { const d = await doneRes.json(); setDoneCount(d.total || 0); }
     }, [authFetch]);
@@ -288,6 +291,10 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                 <span style={{ color: '#888', width: 18, flexShrink: 0 }}>#{u.package_no}</span>
                                                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                                                     <CodeChip code={u.batch_number} classic={CLASSIC} link style={{ cursor: 'default', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
+                                                    {/* A carton is a lot and labels itself like one: shade/combo
+                                                        resolved from its stock key, size stamped on it at packing.
+                                                        Renders nothing when it carries no identity. */}
+                                                    <LotChips batch={u} showOtherAttrs={false} />
                                                 </span>
                                                 {/* The count that went in the box, when the order is
                                                     counted in one. Read off the carton, not divided out
@@ -1222,9 +1229,22 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                 setHeldLotCount(withStock.filter((b: any) => b.held).length);
                 const available = withStock.filter((b: any) => !b.held);
                 setLots(available);
-                // Default to every ready lot combined — the packer normally wants the
-                // whole released pool, not to hand-pick which lot each box comes from.
-                setSelectedLots(available.map((b: any) => String(b.id)));
+                // Default to the ready pool, but only as far as ONE size. The draw is
+                // FIFO (oldest first) and the server refuses a box that straddles two
+                // sizes, so pre-selecting an M lot and an L lot together hands the
+                // packer a selection their first submit 400s on — over a seam they
+                // never chose to cross. Unsized lots are unknown, not a different
+                // size, so they ride along; an unsized oldest lot keeps the old
+                // select-everything behaviour.
+                const oldest = available[available.length - 1];  // /batches is newest-first
+                const leadSize = oldest ? lotSizeKey(oldest) : null;
+                const preselect = leadSize
+                    ? available.filter((b: any) => {
+                        const k = lotSizeKey(b);
+                        return k === null || k === leadSize;
+                    })
+                    : available;
+                setSelectedLots(preselect.map((b: any) => String(b.id)));
             } finally {
                 if (alive) setLotsLoading(false);
             }
@@ -1235,6 +1255,20 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const selSet = new Set(selectedLots);
     const selAvailable = lots.filter((b: any) => selSet.has(String(b.id)))
         .reduce((s: number, b: any) => s + (b.remaining ?? 0), 0);
+
+    // Distinct sizes among the checked lots. More than one is allowed — packing
+    // an M box and an L box on one log is a real thing — but the packer has to
+    // cut their box list at the seam, so it is called out rather than left to a
+    // 400 at submit. Keyed like the server (`lotSizeKey`), labelled for the eye.
+    const selectedSizes: string[] = useMemo(() => {
+        const byKey = new Map<string, string>();
+        lots.filter((b: any) => selSet.has(String(b.id))).forEach((b: any) => {
+            const k = lotSizeKey(b);
+            if (k) byKey.set(k, lotSizeLabel(b) || 'unnamed size');
+        });
+        return Array.from(byKey.values());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lots, selectedLots]);
 
     // Spread a draw FIFO across the checked lots — oldest first, each capped at
     // what is left of it. /batches returns newest-first, hence reverse. Same rule
@@ -1975,9 +2009,18 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 );
                                             })}
                                         </div>
+                                        {selectedSizes.length > 1 && (
+                                            <div style={{ background: '#fff4e5', border: '1px solid #d9a441', color: '#7a4a00', padding: '4px 8px', fontSize: 10, marginTop: 3 }}>
+                                                Selected lots span {selectedSizes.length} sizes ({selectedSizes.join(', ')}).
+                                                A {po.package_label.toLowerCase()} holds one size, so its label can name it —
+                                                size your {po.package_label.toLowerCase()}s so none straddles the changeover, or
+                                                log each size as its own entry.
+                                            </div>
+                                        )}
                                         <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
-                                            Each lot is logged as its own pack event, so no carton ever mixes two lots.
-                                            The variant is read from the lot&apos;s own stock row.
+                                            Each lot is logged as its own pack event, and a {po.package_label.toLowerCase()} that
+                                            spans two lots of the same size is pegged to both. The variant is read from the
+                                            lot&apos;s own stock row, the size off the lot itself.
                                             {heldLotCount > 0 && (
                                                 <span style={{ color: '#7a4a00' }}>
                                                     {' '}· {heldLotCount} more lot{heldLotCount === 1 ? '' : 's'} held in quarantine, not shown.
@@ -2066,6 +2109,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         <tr style={{ background: '#dddbd0' }}>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899', width: 34 }}>#</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Lot</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Identity</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 90 }}>In stock</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899', width: 90 }}>Status</th>
                                         </tr>
@@ -2075,6 +2119,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             <tr key={u.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
                                                 <td style={{ padding: '2px 6px' }}>{u.package_no}</td>
                                                 <td style={{ padding: '2px 6px', fontFamily: CODE_FONT, color: '#00309c' }}>{u.batch_number}</td>
+                                                {/* Size / shade / combo of THIS carton — the sized cartons of one
+                                                    order differ here even though the order states one variant. */}
+                                                <td style={{ padding: '2px 6px' }}><LotChips batch={u} /></td>
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
                                                     {num(u.qty).toLocaleString()}
                                                 </td>

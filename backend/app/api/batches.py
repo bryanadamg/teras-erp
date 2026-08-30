@@ -120,9 +120,15 @@ async def _resolve_batch_variants(db: AsyncSession, batches: list[Batch]) -> Non
     combo/colour identity lives only on the source MO's attribute values — the
     stager picking greige for a dyeing WO needs both to tell two GRG- lots apart.
     One grouped query for every lot in the page; no N+1.
+
+    Lots with no producing WO fall through to `_resolve_variants_from_stock_key`
+    — a packed carton is the case that matters: it is minted by a packing order,
+    never a WO, so this MO walk finds nothing for it and it would otherwise be
+    the one lot in the system that displays with no identity at all.
     """
     wo_ids = {b.source_wo_id for b in batches if b.source_wo_id}
     if not wo_ids:
+        await _resolve_variants_from_stock_key(db, batches)
         return
     rows = await db.execute(
         select(
@@ -148,6 +154,37 @@ async def _resolve_batch_variants(db: AsyncSession, batches: list[Batch]) -> Non
         attrs = by_wo.get(b.source_wo_id)
         if attrs:
             b.variant_attributes = attrs
+    await _resolve_variants_from_stock_key(db, batches)
+
+
+async def _resolve_variants_from_stock_key(db: AsyncSession, batches: list[Batch]) -> None:
+    """Identity for lots whose variant lives in their stock key, not on an MO.
+
+    Packed cartons are the case this exists for. A carton's shade/combo/attributes
+    are written into the `variant_key` of the StockBalance row that holds it (the
+    same row that holds its qty), deliberately not copied onto the Batch row —
+    so they are read back from the key here.
+
+    Only fills what the MO walk above left empty: a produced lot's own MO is the
+    better authority on its shade, and this must never overwrite it.
+    """
+    pending = [
+        b for b in batches
+        if not getattr(b, "variant_attributes", None) and getattr(b, "variant_key", None)
+    ]
+    if not pending:
+        return
+    described = await stock_service.describe_variant_keys(db, {b.variant_key for b in pending})
+    for b in pending:
+        info = described.get(b.variant_key)
+        if not info:
+            continue
+        if info.get("variant_attributes"):
+            b.variant_attributes = info["variant_attributes"]
+        if not getattr(b, "color_code", None) and info.get("color_code"):
+            b.color_code = info["color_code"]
+            b.color_name = info.get("color_name")
+            b.color_hex = info.get("color_hex")
 
 
 async def _resolve_source_lots(db: AsyncSession, batches: list[Batch]) -> None:

@@ -15,6 +15,17 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-30
+
+### Added
+- Packed cartons carry their size, shade, combo and attributes forward from the lot that fed them, printed on the carton label and shown wherever a carton is listed
+- Packing refuses a carton that would straddle two sizes — a box holds one size, so its label can name it — and warns before the split happens rather than minting an unlabelled carton
+- The pick readiness board names the item and variant (shade/size/combo) behind every order line, not just the order total
+
+### Fixed
+- A quarantine claim now takes only a packing order's still-open quantity (target minus packed), instead of locking a lot's whole quantity for the life of the order — a fulfilled order that never formally closes no longer keeps released stock greyed out
+- Confirming a quarantine disposition no longer re-sorts the row out from under the cursor or rewrites its decision date — a no-op re-confirm leaves `quarantine_status_at` alone, and the page holds its arrangement until the next real reload
+
 ## [0.16.0] - 2026-08-30
 
 ### Added

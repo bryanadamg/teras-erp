@@ -3138,6 +3138,27 @@ class PackedUnitResponse(BaseModel):
     packed_for_so_id: UUID | None = None
     quality_status: str = "GOOD"
     created_at: datetime | None = None
+
+    # --- Variant identity ---------------------------------------------------
+    # A carton is a lot and must label itself like one: these are the same field
+    # names `LotChips` reads on a batch, so one component labels both.
+    #
+    # Shade / combo / other attributes are NOT stored on the carton's Batch row —
+    # they live in the StockBalance row keyed by this carton (`variant_key`), the
+    # same place its qty lives, so there is no second copy to drift. They are
+    # resolved onto the response at read time (stock_service.describe_variant_keys).
+    variant_key: str | None = None
+    variant_attributes: list[dict] | None = None
+    color_id: UUID | None = None
+    color_name: str | None = None
+    color_code: str | None = None
+    color_hex: str | None = None
+    # Size is the exception: it is never folded into `variant_key`, so it is
+    # copied onto the carton off its source lot at mint time and read from the
+    # Batch row here (packing_service.lot_size_identity).
+    bom_size_id: UUID | None = None
+    bom_size_snapshot: dict | None = None
+    size_label: str | None = None
     class Config:
         from_attributes = True
 
@@ -3295,6 +3316,11 @@ class PickListLineResponse(BaseModel):
     color_name: str | None = None
     color_code: str | None = None
     attribute_value_ids: list[UUID] = []
+    # The picked CARTON's own size, off its Batch row. Colour above is what was
+    # ordered; this is what is physically in the box, and it is the one identity
+    # a picker cannot recover from the SO line when an order runs several sizes.
+    bom_size_snapshot: dict | None = None
+    size_label: str | None = None
     class Config:
         from_attributes = True
 
@@ -3431,6 +3457,35 @@ class StageablePickListResponse(BaseModel):
     picked_at: datetime | None = None
 
 
+class PickableOrderLine(BaseModel):
+    """One outstanding line of a pickable order: what is actually ordered, in the
+    same identity language a lot labels itself with (`LotChips` on the frontend
+    reads these field names).
+
+    The board row above is per ORDER, but a picker releasing it needs to know
+    which item and which shade/size it covers — two lines of the same item
+    differing only by colour or size are otherwise indistinguishable on the
+    board, and "ready 235" says nothing about which of them is ready."""
+    sales_order_line_id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    item_uom: str | None = None
+    qty_outstanding: float = 0
+    qty_ready: float = 0
+    cartons_ready: int = 0
+    # Ordered variant identity, resolved from this line's own stock variant key
+    # (attributes + Color Library shade) plus its BOM size.
+    size_label: str | None = None
+    variant_attributes: list[BatchVariantAttr] | None = None
+    color_id: UUID | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    # Ordered against a shade still in lab dip — no Color row exists yet.
+    labdip_variant_code: str | None = None
+
+
 class PickableOrderResponse(BaseModel):
     """One row of the pick readiness board: an open order, when it is due, and
     how much of what it still owes is already sitting packed in cartons."""
@@ -3451,6 +3506,9 @@ class PickableOrderResponse(BaseModel):
     qty_ready: float = 0
     cartons_ready: int = 0
     has_open_pick_list: bool = False
+    # Per-line breakdown of the same numbers, so the board can show what the
+    # order is made of. Must be declared here or response_model drops it.
+    lines: list[PickableOrderLine] = []
 
 
 class PickListSuggestedCarton(BaseModel):
@@ -3460,6 +3518,21 @@ class PickListSuggestedCarton(BaseModel):
     package_no: int | None = None
     qty: float
     source_location_id: UUID | None = None
+
+    # --- Variant identity ---------------------------------------------------
+    # Same field names as PackedUnitResponse / a lot, so `LotChips` labels a
+    # suggested carton exactly as the carton list and the Kartu Packing do.
+    # Shade/combo/attributes live in the carton's StockBalance row (`variant_key`),
+    # size on its Batch row; neither is stored twice. Resolved at read time.
+    variant_key: str | None = None
+    variant_attributes: list[BatchVariantAttr] | None = None
+    color_id: UUID | None = None
+    color_name: str | None = None
+    color_code: str | None = None
+    color_hex: str | None = None
+    bom_size_id: UUID | None = None
+    bom_size_snapshot: dict | None = None
+    size_label: str | None = None
 
 
 class PickListSuggestedLine(BaseModel):
@@ -3473,6 +3546,16 @@ class PickListSuggestedLine(BaseModel):
     item_uom: str | None = None
     ordered_qty: float = 0
     remaining_qty: float = 0
+    # What the LINE ordered (shade/combo/size), against which the cartons below
+    # carry what is physically in each box — they can differ, and the planner
+    # unchecking a carton is exactly who needs to see that.
+    size_label: str | None = None
+    variant_attributes: list[BatchVariantAttr] | None = None
+    color_id: UUID | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    color_hex: str | None = None
+    labdip_variant_code: str | None = None
     cartons: list[PickListSuggestedCarton] = []
 
 # ── Work-Center Performance Monitoring (weaving runs + production calendar) ──
@@ -3620,11 +3703,14 @@ class QuarantineLotResponse(BaseModel):
     color_name: str | None = None
     color_hex: str | None = None
     labdip_variant_code: str | None = None
-    # Set (to the claiming order's code) when this lot is released, not yet
-    # packed, and an open PackingOrder already exists for its (item, location) —
-    # locks it in the UI the same as an actually-packed lot, until that order is
-    # cancelled/deleted, so QC doesn't double-release the same physical stock
-    # onto two different packing plans.
+    # How much of this lot an open packing order has allocated to itself — the
+    # order's OPEN quantity (`qty_target - qty_packed`), spread FIFO across the
+    # lots it could draw from, never the whole pool it points at. `qty -
+    # claimed_qty` is what is still free to plan a new order against; a lot may be
+    # partly claimed, which is why this is a quantity and not a flag.
+    claimed_qty: float = 0
+    # The order that claimed it (first claimant when two orders split one lot).
+    # A label for the UI — `claimed_qty` is the figure that decides anything.
     claimed_by_order_code: str | None = None
 
 class QuarantineGroupResponse(BaseModel):
@@ -3659,6 +3745,10 @@ class QuarantineGroupResponse(BaseModel):
     # towards any of these three, however it is listed.
     qty_total: float = 0
     qty_released: float = 0
+    # Released stock already allocated to an open packing order's open quantity.
+    # `qty_released - qty_claimed` is what a new packing order can still be
+    # planned against, and is what the Pack button offers.
+    qty_claimed: float = 0
     lot_count: int = 0
     # Listed history rows (only when `include_packed`), counted apart so the
     # held columns above stay a picture of what is physically on the desk.

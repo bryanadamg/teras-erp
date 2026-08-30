@@ -20,7 +20,12 @@ export interface LotVariantAttr {
 }
 
 export interface LotLike {
+    bom_size_id?: string | null;
     bom_size_snapshot?: { size_name?: string | null; label?: string | null } | null;
+    // Already-resolved size text, for rows that never carry a snapshot: an SO
+    // line's size is a live BOMSize row, not a stamped copy, so the server sends
+    // the label alone (SalesOrderLineResponse / PickableOrderLine).
+    size_label?: string | null;
     variant_attributes?: LotVariantAttr[] | null;
     color_code?: string | null;
     color_name?: string | null;
@@ -35,8 +40,26 @@ export interface LotLike {
 
 export const lotSizeLabel = (b: LotLike): string | null => {
     const s = b?.bom_size_snapshot;
-    if (!s) return null;
+    if (!s) return (b?.size_label || '').trim() || null;
     return ((s.size_name || s.label || '') as string).trim() || null;
+};
+
+/**
+ * Comparison key for a lot's size — the frontend mirror of `_size_ident` in
+ * `services/packing_service.py`. Prefers `bom_size_id`, falls back to the
+ * snapshot (a free-mode size, or a BOMSize since deleted) with keys sorted so two
+ * equal snapshots stringify alike. Null means UNSIZED, which everywhere means
+ * *unknown* — never "a different size".
+ *
+ * Compare on this, never on `lotSizeLabel`: two BOMSize rows can print the same
+ * label, and a picker that pre-selects on the label would hand the packer a
+ * selection the server then refuses.
+ */
+export const lotSizeKey = (b: LotLike): string | null => {
+    if (b?.bom_size_id) return String(b.bom_size_id);
+    const s = b?.bom_size_snapshot as Record<string, any> | null | undefined;
+    if (!s) return null;
+    return JSON.stringify(Object.keys(s).sort().reduce((o: any, k) => (o[k] = s[k], o), {}));
 };
 
 export const lotComboLabel = (b: LotLike): string | null => {

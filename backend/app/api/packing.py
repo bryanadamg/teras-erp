@@ -63,6 +63,50 @@ async def _load(db: AsyncSession, po_id) -> Optional[PackingOrder]:
     return result.scalars().first()
 
 
+def _pu_response(b, bal, po_code=None, loc_name=None, variant=None) -> PackedUnitResponse:
+    """Build one carton's response — the ONE place a PackedUnit is serialized.
+
+    Three endpoints hand back cartons (the order detail, the carton list, the
+    scanner lookup) and a carton's identity is assembled from three sources: the
+    Batch row (number, package no, weight, size), its StockBalance row (qty,
+    location, variant_key) and the resolved display names for that key. Three
+    hand-rolled constructors is how a carton ended up labelled with its size in
+    one screen and not in the next.
+    """
+    v = variant or {}
+    return PackedUnitResponse(
+        id=b.id,
+        batch_number=b.batch_number,
+        item_id=b.item_id,
+        item_name=b.item.name if b.item else None,
+        item_code=b.item.code if b.item else None,
+        package_no=b.package_no,
+        package_label=b.package_label,
+        weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
+        alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
+        qty=float(bal.qty) if bal else 0.0,
+        location_id=bal.location_id if bal else None,
+        location_name=loc_name,
+        packing_order_id=b.packing_order_id,
+        packing_order_code=po_code,
+        packing_completion_id=b.packing_completion_id,
+        packed_for_so_id=b.packed_for_so_id,
+        quality_status=b.quality_status,
+        created_at=b.created_at,
+        # Shade/combo/attributes come from the carton's own stock key; size from
+        # the Batch row it was stamped with at mint. See PackedUnitResponse.
+        variant_key=(bal.variant_key if bal else None) or None,
+        variant_attributes=v.get("variant_attributes") or None,
+        color_id=v.get("color_id"),
+        color_name=v.get("color_name"),
+        color_code=v.get("color_code"),
+        color_hex=v.get("color_hex"),
+        bom_size_id=b.bom_size_id,
+        bom_size_snapshot=b.bom_size_snapshot,
+        size_label=stock_service._bom_size_label(b.bom_size_snapshot),
+    )
+
+
 async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
     """Cartons minted by each packing order, with live qty from StockBalance.
 
@@ -80,7 +124,7 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
         # over any zeroed leftover row from an earlier location.
         .order_by(Batch.package_no.asc(), nulls_last(StockBalance.qty.desc()))
     )
-    out: dict = {}
+    rows = []
     seen = set()
     for batch, bal in result.all():
         # One row per carton: the outerjoin can match several balance rows for a
@@ -88,25 +132,18 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
         if batch.id in seen:
             continue
         seen.add(batch.id)
+        rows.append((batch, bal))
+
+    # One resolve for the whole page — a carton's shade/combo lives in its stock
+    # key, and a per-carton lookup here would scale with page size.
+    variants = await stock_service.describe_variant_keys(
+        db, {bal.variant_key for _, bal in rows if bal and bal.variant_key}
+    )
+
+    out: dict = {}
+    for batch, bal in rows:
         out.setdefault(str(batch.packing_order_id), []).append(
-            PackedUnitResponse(
-                id=batch.id,
-                batch_number=batch.batch_number,
-                item_id=batch.item_id,
-                item_name=batch.item.name if batch.item else None,
-                item_code=batch.item.code if batch.item else None,
-                package_no=batch.package_no,
-                package_label=batch.package_label,
-                weight_kg=float(batch.weight_kg) if batch.weight_kg is not None else None,
-                alt_qty=float(batch.alt_qty) if batch.alt_qty is not None else None,
-                qty=float(bal.qty) if bal else 0.0,
-                location_id=bal.location_id if bal else None,
-                packing_order_id=batch.packing_order_id,
-                packing_completion_id=batch.packing_completion_id,
-                packed_for_so_id=batch.packed_for_so_id,
-                quality_status=batch.quality_status,
-                created_at=batch.created_at,
-            )
+            _pu_response(batch, bal, variant=variants.get(bal.variant_key if bal else None))
         )
     return out
 
@@ -327,25 +364,15 @@ async def list_packed_units(
         locs = await db.execute(select(Location.id, Location.name).filter(Location.id.in_(loc_ids)))
         loc_names = {lid: name for lid, name in locs.all()}
 
+    variants = await stock_service.describe_variant_keys(
+        db, {bal.variant_key for _, bal, _ in rows if bal and bal.variant_key}
+    )
+
     return [
-        PackedUnitResponse(
-            id=b.id,
-            batch_number=b.batch_number,
-            item_id=b.item_id,
-            item_name=b.item.name if b.item else None,
-            item_code=b.item.code if b.item else None,
-            package_no=b.package_no,
-            package_label=b.package_label,
-            weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
-            alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
-            qty=float(bal.qty) if bal else 0.0,
-            location_id=bal.location_id if bal else None,
-            location_name=loc_names.get(bal.location_id) if bal else None,
-            packing_order_id=b.packing_order_id,
-            packing_order_code=po_code,
-            packed_for_so_id=b.packed_for_so_id,
-            quality_status=b.quality_status,
-            created_at=b.created_at,
+        _pu_response(
+            b, bal, po_code=po_code,
+            loc_name=loc_names.get(bal.location_id) if bal else None,
+            variant=variants.get(bal.variant_key if bal else None),
         )
         for b, bal, po_code in rows
     ]
@@ -382,24 +409,13 @@ async def resolve_packed_unit(
             select(Location.name).filter(Location.id == bal.location_id)
         )).scalar()
 
-    return PackedUnitResponse(
-        id=b.id,
-        batch_number=b.batch_number,
-        item_id=b.item_id,
-        item_name=b.item.name if b.item else None,
-        item_code=b.item.code if b.item else None,
-        package_no=b.package_no,
-        package_label=b.package_label,
-        weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
-        alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
-        qty=float(bal.qty) if bal else 0.0,
-        location_id=bal.location_id if bal else None,
-        location_name=loc_name,
-        packing_order_id=b.packing_order_id,
-        packing_order_code=po_code,
-        packed_for_so_id=b.packed_for_so_id,
-        quality_status=b.quality_status,
-        created_at=b.created_at,
+    variants = await stock_service.describe_variant_keys(
+        db, [bal.variant_key] if bal and bal.variant_key else []
+    )
+
+    return _pu_response(
+        b, bal, po_code=po_code, loc_name=loc_name,
+        variant=variants.get(bal.variant_key if bal else None),
     )
 
 
@@ -582,6 +598,21 @@ async def update_packing_order(
     if payload.status == "COMPLETED" and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
 
+    # Editing the target moves the fulfilled line, so DELIVERED has to follow it
+    # both ways: raise the target past what is packed and the order owes work
+    # again (and quarantine's claim, which is the open quantity, comes back with
+    # it); lower it back and it is fulfilled again. Never touches COMPLETED or
+    # CANCELLED — those are the user's explicit closure, not a function of qty —
+    # and never overrides a status the caller stated itself.
+    if payload.status is None:
+        met = po.qty_packed + 1e-6 >= float(po.qty_target or 0) > 0
+        if po.status == "DELIVERED" and not met:
+            po.status = "IN_PROGRESS"
+            po.actual_end_date = None
+        elif po.status in ("PENDING", "IN_PROGRESS") and met:
+            po.status = "DELIVERED"
+            po.actual_end_date = po.actual_end_date or datetime.utcnow()
+
     if payload.attribute_value_ids is not None:
         await _set_attributes(db, po, payload.attribute_value_ids)
 
@@ -733,12 +764,20 @@ async def add_packing_completion(
     # rejected, since the packer edited the list without regard to lot lines.
     per_lot_cartons: Optional[list[list[tuple[float, Optional[float]]]]] = None
     if payload.boxes:
+        # Per-lot sizes so the allocator can refuse a box that would straddle two
+        # of them. Packing several sizes in one event is fine; a single box that
+        # physically holds two is not — its label could not name a size.
+        lot_size_rows = await packing_service.lot_sizes(
+            db, [(l.batch_id if l else None) for l in lots]
+        )
         try:
             per_lot_cartons = packing_service.allocate_boxes_to_lots(
                 lot_qtys,
                 [float(b) for b in payload.boxes],
                 weights=list(payload.box_weights) if payload.box_weights else None,
                 alt_qtys=list(payload.box_alt_qtys) if payload.box_alt_qtys else None,
+                lot_sizes=lot_size_rows,
+                package_label=po.package_label or "Box",
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -967,6 +1006,13 @@ async def add_packing_completion(
         po.actual_start_date = po.actual_start_date or datetime.utcnow()
     if po.qty_packed + 1e-6 >= float(po.qty_target or 0) and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
+    # Fulfilled but still open — the MO's DELIVERED/COMPLETED split (SAP DLV vs
+    # TECO). Logging stays allowed (only COMPLETED/CANCELLED stop it); what this
+    # buys is that the order's *open* quantity is now zero, so quarantine stops
+    # treating it as a claim on the hold bin's stock. Never auto-closes.
+    if (po.status in ("PENDING", "IN_PROGRESS")
+            and po.qty_packed + 1e-6 >= float(po.qty_target or 0)):
+        po.status = "DELIVERED"
     await db.commit()
 
     # Cartons now sit in stock against the SO line, which is what makes the order
@@ -1106,7 +1152,7 @@ async def reject_packing_completion(
     po = await _load(db, po_id)
     if po.actual_end_date and po.qty_packed + 1e-6 < float(po.qty_target or 0):
         po.actual_end_date = None
-        if po.status == "COMPLETED":
+        if po.status in ("DELIVERED", "COMPLETED"):
             po.status = "IN_PROGRESS"
     await db.commit()
 

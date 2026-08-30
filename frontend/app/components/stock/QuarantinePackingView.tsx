@@ -84,9 +84,12 @@ type Lot = {
     color_name: string | null;
     color_hex: string | null;
     labdip_variant_code: string | null;
-    // Set when this lot is released and an open packing order already claims
-    // its (item, location) — locked the same as a packed lot until that order
-    // is cancelled/deleted.
+    // How much of this lot an open packing order has allocated to itself — that
+    // order's OPEN quantity (target minus packed), spread FIFO across the lots it
+    // could draw from. `qty - claimed_qty` is what is still free to plan against,
+    // so a lot can be partly claimed and partly available.
+    claimed_qty: number;
+    // Who claimed it. A label — `claimed_qty` is the figure that gates anything.
     claimed_by_order_code: string | null;
 };
 
@@ -112,6 +115,9 @@ type Group = {
     uom: string | null;
     qty_total: number;
     qty_released: number;
+    // Released stock already allocated to open packing orders. `qty_released -
+    // qty_claimed` is what Pack can still offer a new order.
+    qty_claimed: number;
     lot_count: number;
     // Listed history lots — counted apart, so the held columns never inflate.
     packed_lot_count: number;
@@ -121,6 +127,13 @@ type Group = {
 };
 
 type StatusOption = { id: string; value: string; is_pass: boolean };
+
+// What is left of a lot after open packing orders have taken their allocation —
+// the figure a new packing order can be planned against. Claims are quantities,
+// not flags, so a lot can be half spoken for and half free.
+const lotFreeQty = (l: Lot) => Math.max(0, (l.qty || 0) - (l.claimed_qty || 0));
+// Fully allocated: nothing left to plan, so the row reads settled like a packed one.
+const isFullyClaimed = (l: Lot) => (l.claimed_qty || 0) > 0 && lotFreeQty(l) <= 1e-6;
 
 // Rollup filter choices that are not attribute values.
 const DERIVED_FILTERS = [
@@ -194,10 +207,66 @@ export default function QuarantinePackingView() {
     useEffect(() => { if (!loading) setQuiet(false); }, [loading]);
     const showSkeleton = loading && !quiet;
 
+    /**
+     * Layout freeze — the reason this page does not move under the user's cursor.
+     *
+     * Both the group order and a lot's band are functions of the disposition, so
+     * the act of setting one re-sorts the thing you just clicked out from under
+     * you: the MO row slides down (the server sorts undispositioned first, and
+     * with a 25-row window it can leave the page outright) and the lot jumps from
+     * "Awaiting decision" into today's decided band. Correct orderings, terrible
+     * to work in — QC clicks OK down a list and the list rearranges every click.
+     *
+     * So the freeze holds the on-screen *arrangement* steady while the data under
+     * it stays live. Refetches still happen and every figure still updates in
+     * place; only the position is pinned, and only until the next real reload
+     * (page, search, filter, or the packed-history toggle), when the queue
+     * re-sorts properly.
+     *
+     * `orderRef`  — group keys in the order they were first shown.
+     * `stickyRef` — last-known copy of a group, so one that re-sorted onto
+     *               another page is still rendered rather than vanishing.
+     * `touchedRef`— groups the user has actually acted on. Only those (and
+     *               expanded ones) are kept when the server stops returning them;
+     *               without that, unrelated churn would pile up stale rows.
+     * `bandRef`   — a lot's band key, captured the first time it is seen.
+     */
+    const orderRef = useRef<string[]>([]);
+    const stickyRef = useRef<Map<string, Group>>(new Map());
+    const touchedRef = useRef<Set<string>>(new Set());
+    const bandRef = useRef<Map<string, string>>(new Map());
+    const thaw = useCallback(() => {
+        orderRef.current = [];
+        stickyRef.current.clear();
+        touchedRef.current.clear();
+        bandRef.current.clear();
+    }, []);
+    // A real reload is the moment the queue is allowed to re-sort. A silent
+    // refetch after a disposition write is not one, which is the whole point.
+    useEffect(() => { thaw(); }, [page, search, statusFilter, showPacked, thaw]);
+
+    const stableGroups = useMemo(() => {
+        for (const g of groups) stickyRef.current.set(g.key, g);
+        const byKey = new Map(groups.map(g => [g.key, g]));
+        const out: Group[] = [];
+        const seen = new Set<string>();
+        for (const k of orderRef.current) {
+            if (seen.has(k)) continue;
+            // Still on the page -> the live row. Gone from it -> the retained copy,
+            // but only if the user has a stake in it (acted on it, or has it open).
+            const g = byKey.get(k)
+                ?? ((touchedRef.current.has(k) || expanded.has(k)) ? stickyRef.current.get(k) : undefined);
+            if (g) { out.push(g); seen.add(k); }
+        }
+        for (const g of groups) if (!seen.has(g.key)) { out.push(g); seen.add(g.key); }
+        orderRef.current = out.map(g => g.key);
+        return out;
+    }, [groups, expanded]);
+
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skel = useTableSkeletonMetrics(classic ? 'quarantine-classic' : 'quarantine', listBodyRef, groups.length > 0);
+    const skel = useTableSkeletonMetrics(classic ? 'quarantine-classic' : 'quarantine', listBodyRef, stableGroups.length > 0);
 
     useEffect(() => { fetchStatuses(); }, [fetchStatuses]);
 
@@ -220,23 +289,26 @@ export default function QuarantinePackingView() {
         };
     }, [subscribeLiveEvents, silentRefetch]);
 
-    // "Pack" hands this group's released-not-yet-packed-or-claimed stock to the
-    // Packing page as a deep link — it opens the New Packing Order form
-    // pre-filled, not creates the order itself. Scoped to the group (this MO's
-    // lots), not the (item, location) pair: two MOs can share both, and an
-    // order already open against one must never hide the other's own released
-    // stock. `qty_released` is the group's full released total — a portion of
-    // it may already be claimed by another open order, so the default target
-    // only offers what's actually still free, rather than re-offering stock a
-    // second order would double up on.
+    // "Pack" hands this group's still-free released stock to the Packing page as a
+    // deep link — it opens the New Packing Order form pre-filled, not creates the
+    // order itself. Scoped to the group (this MO's lots), not the (item, location)
+    // pair: two MOs can share both, and an order already open against one must
+    // never hide the other's own released stock.
+    //
+    // The target is `qty - claimed_qty` summed over the released lots, NOT the
+    // group's released total: whatever open orders have already allocated is
+    // theirs, and re-offering it would plan two orders over one physical lot.
+    // Equally it is not "zero because some order exists" — that is what left a
+    // 2 kg order sitting fulfilled-but-open holding 8 kg of released stock
+    // hostage, with Pack greyed out and nothing able to release it.
     const packGroup = useCallback((g: Group) => {
-        const free = g.lots.filter(l => l.released && !l.packed && !l.claimed_by_order_code);
+        const free = g.lots.filter(l => l.released && !l.packed && lotFreeQty(l) > 0);
         const sourceLot = free.find(l => l.location_id) || g.lots.find(l => l.location_id);
         if (!sourceLot?.location_id) {
             showToast('No lot location to pack from', 'warning');
             return;
         }
-        const qtyFree = free.reduce((s, l) => s + (l.qty || 0), 0);
+        const qtyFree = free.reduce((s, l) => s + lotFreeQty(l), 0);
         const params = new URLSearchParams({
             action: 'create_packing_order',
             item_id: g.item_id,
@@ -268,6 +340,14 @@ export default function QuarantinePackingView() {
                 throw new Error(body.detail || `HTTP ${res.status}`);
             }
             showToast(`${label} set on ${ids.length} lot${ids.length > 1 ? 's' : ''}`, 'success');
+            // The write is about to change this group's rollup, which is the
+            // server's primary sort key — it may re-sort onto another page and stop
+            // coming back. Mark it so the freeze keeps rendering the retained copy
+            // instead of letting the row the user just clicked disappear.
+            const touched = new Set(ids);
+            for (const g of stableGroups) {
+                if (g.lots.some(l => l.batch_id && touched.has(l.batch_id))) touchedRef.current.add(g.key);
+            }
             // Whatever we just wrote is done with — drop it from the checked set so
             // the selection bar reflects what is still pending, not what was applied.
             setSelectedLots(prev => {
@@ -281,7 +361,7 @@ export default function QuarantinePackingView() {
         } finally {
             setSaving(null);
         }
-    }, [authFetch, silentRefetch, showToast]);
+    }, [authFetch, silentRefetch, showToast, stableGroups]);
 
     // In-flight lot ids. `saving` is a joined key of exactly the lots being
     // written, so only their own controls grey out — disabling every bar on the
@@ -296,12 +376,13 @@ export default function QuarantinePackingView() {
     );
 
     // ── Lot selection ─────────────────────────────────────────────────────────
-    // Packed lots are locked, a lot already claimed by an open packing order is
-    // locked the same way (until that order is cancelled/deleted), and un-lotted
-    // rows have nothing to write a status to — none of the three is ever
-    // selectable. Same filter the whole-MO apply uses.
+    // Packed lots are locked, and so is a lot every unit of which an open packing
+    // order has already allocated. A *partly* claimed lot is not locked: the claim
+    // is a quantity, so the rest of it is still free stock the desk can act on.
+    // Un-lotted rows have nothing to write a status to. Same filter the whole-MO
+    // apply uses.
     const selectableIds = (lots: Lot[]) =>
-        lots.filter(l => l.batch_id && !l.packed && !l.claimed_by_order_code).map(l => l.batch_id) as string[];
+        lots.filter(l => l.batch_id && !l.packed && !isFullyClaimed(l)).map(l => l.batch_id) as string[];
 
     const setSelection = (ids: string[], on: boolean) => setSelectedLots(prev => {
         const next = new Set(prev);
@@ -428,24 +509,52 @@ export default function QuarantinePackingView() {
         const awaiting: Lot[] = [];
         const byDay = new Map<string, Lot[]>();
         for (const l of g.lots) {
-            if (!l.quarantine_status_at) { awaiting.push(l); continue; }
-            const k = dayKey(l.quarantine_status_at);
+            // Band membership is anchored to where the lot was first seen, not to
+            // its live decided-day: deciding a lot must not teleport it out of the
+            // band the user is working down. The anchor is dropped on the next real
+            // reload, when it settles into its true day. Un-lotted rows have no id
+            // to anchor with and simply band live.
+            const live = l.quarantine_status_at ? dayKey(l.quarantine_status_at) : 'AWAITING';
+            let k = live;
+            if (l.batch_id) {
+                const held = bandRef.current.get(l.batch_id);
+                if (held) k = held; else bandRef.current.set(l.batch_id, live);
+            }
+            if (k === 'AWAITING') { awaiting.push(l); continue; }
             const bucket = byDay.get(k);
             if (bucket) bucket.push(l); else byDay.set(k, [l]);
         }
         const sum = (ls: Lot[]) => ls.reduce((s, l) => s + (l.qty || 0), 0);
+        // The label comes off a lot that actually belongs to the day, not off
+        // `ls[0]` — an anchored lot decided today would otherwise rename the band
+        // it is being held in.
+        const dayOf = (k: string, ls: Lot[]) =>
+            ls.find(l => l.quarantine_status_at && dayKey(l.quarantine_status_at) === k)?.quarantine_status_at
+            ?? ls[0].quarantine_status_at;
         const decided = Array.from(byDay.entries())
             .sort((a, b) => (a[0] < b[0] ? 1 : -1))   // newest day first
             .map(([k, ls]) => ({
                 key: k,
-                label: `Decided ${dayLabel(ls[0].quarantine_status_at as string)}`,
+                label: `Decided ${dayLabel(dayOf(k, ls) as string)}`,
                 awaiting: false,
                 lots: ls,
                 qty: sum(ls),
             }));
+        // Lots decided in this sitting are still banded under "Awaiting decision"
+        // (that is the freeze doing its job), so the header says so rather than
+        // leaving a green OK chip sitting under a heading that contradicts it.
+        const justDecided = awaiting.filter(l => l.quarantine_status_at).length;
         return [
             ...(awaiting.length
-                ? [{ key: 'AWAITING', label: 'Awaiting decision', awaiting: true, lots: awaiting, qty: sum(awaiting) }]
+                ? [{
+                    key: 'AWAITING',
+                    label: justDecided
+                        ? `Awaiting decision · ${justDecided} just decided`
+                        : 'Awaiting decision',
+                    awaiting: true,
+                    lots: awaiting,
+                    qty: sum(awaiting),
+                }]
                 : []),
             ...decided,
         ];
@@ -586,10 +695,11 @@ export default function QuarantinePackingView() {
                     {sec.lots.map((l, i) => {
                         // Packed lots stay in the list (they are still this MO's history)
                         // but read as settled rather than actionable — dimmed, not dropped.
-                        // A lot claimed by an open packing order reads the same way until
-                        // that order is cancelled/deleted, so nobody sets a fresh status on
-                        // stock another order already plans to draw.
-                        const locked = l.packed || !!l.claimed_by_order_code;
+                        // A lot an open order has allocated in FULL reads the same way, so
+                        // nobody re-dispositions stock another order is about to draw. A
+                        // partly claimed lot stays live: the remainder is real free stock,
+                        // and greying it out is exactly the bug this replaced.
+                        const locked = l.packed || isFullyClaimed(l);
                         const dim: React.CSSProperties = locked ? { opacity: 0.55 } : {};
                         const selectable = !!l.batch_id && !locked;
                         const isChosen = selectable && selectedLots.has(l.batch_id as string);
@@ -640,8 +750,18 @@ export default function QuarantinePackingView() {
                                         <StatusChip status="PACKED" label="Packed" tint />
                                     )}
                                     {!l.packed && l.claimed_by_order_code && (
-                                        <StatusChip status="CLAIMED" label={l.claimed_by_order_code} tint
-                                            title={`Claimed by packing order ${l.claimed_by_order_code} — cancel or delete it to free this lot`} />
+                                        <StatusChip
+                                            status="CLAIMED"
+                                            // Partial claims say so on the chip: "PCK-00003 · 2 of 8"
+                                            // is the difference between a locked lot and one with
+                                            // 6 kg still free, and the row looks identical otherwise.
+                                            label={isFullyClaimed(l)
+                                                ? l.claimed_by_order_code
+                                                : `${l.claimed_by_order_code} · ${fmtQty(l.claimed_qty)} of ${fmtQty(l.qty)}`}
+                                            tint
+                                            title={isFullyClaimed(l)
+                                                ? `Fully allocated to packing order ${l.claimed_by_order_code} — close, cancel or raise that order to free this lot`
+                                                : `${fmtQty(l.claimed_qty)} ${g.uom || ''} allocated to packing order ${l.claimed_by_order_code}; ${fmtQty(lotFreeQty(l))} ${g.uom || ''} still free to pack`} />
                                     )}
                                     <div style={{ marginLeft: 'auto' }}><LotChips batch={l} /></div>
                                 </div>
@@ -775,14 +895,14 @@ export default function QuarantinePackingView() {
                     </tr>
                 </thead>
                 <tbody ref={listBodyRef}>
-                    {groups.map((g, i) => {
+                    {stableGroups.map((g, i) => {
                         const open = expanded.has(g.key);
                         const allReleased = g.lot_count > 0 && g.qty_released >= g.qty_total - 1e-6;
-                        // What "Pack" would actually offer — released, unpacked, and not
-                        // already spoken for by another open order.
+                        // What "Pack" would actually offer — released, unpacked, less
+                        // whatever open orders have already allocated to themselves.
                         const qtyFree = g.lots
-                            .filter(l => l.released && !l.packed && !l.claimed_by_order_code)
-                            .reduce((s, l) => s + (l.qty || 0), 0);
+                            .filter(l => l.released && !l.packed)
+                            .reduce((s, l) => s + lotFreeQty(l), 0);
                         return (
                             <Fragment key={g.key}>
                                 <tr
@@ -884,7 +1004,7 @@ export default function QuarantinePackingView() {
                                             title={
                                                 !canPack ? 'Needs the Manage Sales Orders permission'
                                                     : qtyFree <= 0 ? (g.qty_released > 0
-                                                        ? 'All released stock on this MO is already claimed by an open packing order'
+                                                        ? `All ${fmtQty(g.qty_released)} ${g.uom || ''} released here is already allocated to open packing orders — close, cancel or raise one to free it`
                                                         : 'No released stock on this MO yet')
                                                         : 'Open New Packing Order, pre-filled'
                                             }
@@ -904,7 +1024,7 @@ export default function QuarantinePackingView() {
                         );
                     })}
                     {showSkeleton && <TableSkeleton rows={7} cols={skel.cols ?? COL_COUNT} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />}
-                    {!loading && groups.length === 0 && (
+                    {!loading && stableGroups.length === 0 && (
                         <tr>
                             <td colSpan={COL_COUNT} style={{ padding: 0 }}>
                                 <XPEmptyState
@@ -923,11 +1043,11 @@ export default function QuarantinePackingView() {
         </div>
     );
 
-    const heldTotal = useMemo(() => groups.reduce((s, g) => s + g.qty_total, 0), [groups]);
+    const heldTotal = useMemo(() => stableGroups.reduce((s, g) => s + g.qty_total, 0), [stableGroups]);
     // PACKED groups have nothing left on the desk, so they are not awaiting anything.
     const awaiting = useMemo(
-        () => groups.filter(g => g.rollup_status !== 'OK' && g.rollup_status !== 'PACKED').length,
-        [groups]);
+        () => stableGroups.filter(g => g.rollup_status !== 'OK' && g.rollup_status !== 'PACKED').length,
+        [stableGroups]);
 
     return (
         <ShellWindow classic={classic} fill="page" className="fade-in">
@@ -954,7 +1074,7 @@ export default function QuarantinePackingView() {
                 </div>
             )}
             {body}
-            <XPStatusBar right={`Held ${fmtQty(heldTotal)} across ${groups.length} group${groups.length === 1 ? '' : 's'} on this page`}>
+            <XPStatusBar right={`Held ${fmtQty(heldTotal)} across ${stableGroups.length} group${stableGroups.length === 1 ? '' : 's'} on this page`}>
                 <StatusCountPill status="NONE" count={awaiting} label="awaiting decision" classic={classic} />
             </XPStatusBar>
             <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />

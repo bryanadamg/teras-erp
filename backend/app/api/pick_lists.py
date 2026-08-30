@@ -9,12 +9,13 @@ import uuid
 from app.db.session import get_async_db
 from app.schemas import (
     PickListCreate, PickListUpdate, PickListResponse, PickListListResponse,
-    PickListScanPayload, PickableOrderResponse,
+    PickListScanPayload, PickableOrderResponse, PickableOrderLine,
     PickListSuggestedLine, PickListSuggestedCarton,
 )
 from app.models.pick_list import PickList, PickListLine
 from app.models.batch import Batch
 from app.models.sales import SalesOrder, SalesOrderLine
+from app.models.bom import BOMSize
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
 from app.services import (
@@ -80,6 +81,11 @@ def _decorate(pl: PickList) -> PickList:
         # have one; ours is the fallback.
         line.color_code = (color.customer_color_code or color.code) if color else None
         line.attribute_value_ids = [v.id for v in (sol.attribute_values or [])] if sol else []
+        # Size of the carton actually picked — stamped on the carton at packing
+        # from the lot it was packed out of (packing_service.lot_size_identity).
+        if line.batch is not None:
+            line.bom_size_snapshot = line.batch.bom_size_snapshot
+            line.size_label = stock_service._bom_size_label(line.batch.bom_size_snapshot)
     return pl
 
 
@@ -152,6 +158,76 @@ async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder, exclude_pl_id=
     return remaining
 
 
+def _line_variant_key(so_line: SalesOrderLine) -> str:
+    """The stock variant key an SO line's own ordered identity folds down to.
+
+    Same generator the balance rows use, so a line and the cartons packed for it
+    resolve through one vocabulary — a second hand-rolled fold is how a colour
+    token ends up rendered as an attribute (see stock_service.describe_variant_keys).
+    """
+    return stock_service._generate_variant_key(
+        [str(v.id) for v in (so_line.attribute_values or [])], so_line.color_id
+    )
+
+
+def _ordered_identity(so_line: SalesOrderLine, variants: dict) -> dict:
+    """Display identity of what an SO LINE ordered — shade/combo/other attributes
+    off its variant key, size off its BOM size.
+
+    Field names match a lot's (`LotChips` reads them), so the readiness board and
+    the suggestion modal label an order line exactly the way every picker screen
+    labels a carton. Two lines of the same item differing only by shade are
+    otherwise indistinguishable on a board that lists orders, not lines.
+    """
+    v = variants.get(_line_variant_key(so_line)) or {}
+    size = getattr(so_line, "bom_size", None)
+    return dict(
+        size_label=(size.size_name or size.label) if size is not None else None,
+        variant_attributes=v.get("variant_attributes") or None,
+        color_id=v.get("color_id"),
+        color_code=v.get("color_code"),
+        color_name=v.get("color_name"),
+        color_hex=v.get("color_hex"),
+        labdip_variant_code=so_line.labdip_variant_code,
+    )
+
+
+async def _carton_stock_rows(db: AsyncSession, batch_ids: list) -> dict:
+    """`{batch_id: StockBalance}` for a set of cartons — where each one is and
+    what variant it holds, in ONE query.
+
+    A carton's qty, location and shade all live on its balance row, so the
+    per-carton `_unit_location` lookup that used to sit in the suggestion loop
+    was both an N+1 and only half the identity.
+    """
+    from app.models.stock_balance import StockBalance
+    if not batch_ids:
+        return {}
+    rows = (await db.execute(
+        select(StockBalance)
+        .filter(StockBalance.batch_key.in_([str(b) for b in batch_ids]), StockBalance.qty > 0)
+    )).scalars().all()
+    return {r.batch_key: r for r in rows}
+
+
+def _carton_identity(pu: Batch, bal, variants: dict) -> dict:
+    """Display identity of what is physically IN a carton — shade/combo off its
+    balance row's variant key, size off the Batch row it was stamped with at
+    mint. Mirrors `_pu_response` in api/packing.py; same names, same sources."""
+    v = variants.get(bal.variant_key if bal else None) or {}
+    return dict(
+        variant_key=(bal.variant_key if bal else None) or None,
+        variant_attributes=v.get("variant_attributes") or None,
+        color_id=v.get("color_id"),
+        color_name=v.get("color_name"),
+        color_code=v.get("color_code"),
+        color_hex=v.get("color_hex"),
+        bom_size_id=pu.bom_size_id,
+        bom_size_snapshot=pu.bom_size_snapshot,
+        size_label=stock_service._bom_size_label(pu.bom_size_snapshot),
+    )
+
+
 async def _suggest_cartons(db: AsyncSession, so: SalesOrder, source_location_id=None) -> list[PickListSuggestedLine]:
     """FIFO-suggest whole cartons covering every outstanding SO line, without
     writing anything. Shared by the `/suggest` preview (planner unchecks a
@@ -169,7 +245,8 @@ async def _suggest_cartons(db: AsyncSession, so: SalesOrder, source_location_id=
     ordered_map = await so_fulfilment_service.ordered_base_map(db, [line.id for line in so.lines])
     taken = await packing_service.allocated_unit_ids(db)
 
-    out: list[PickListSuggestedLine] = []
+    # Pass 1 — FIFO-pick the cartons for every outstanding line.
+    picked: list[tuple[SalesOrderLine, float, list]] = []
     for so_line in so.lines:
         rem = remaining.get(str(so_line.id), 0.0)
         if rem <= 0:
@@ -182,13 +259,31 @@ async def _suggest_cartons(db: AsyncSession, so: SalesOrder, source_location_id=
             color_id=so_line.color_id,
             exclude_ids=taken,
         )
+        for pu, _qty in units:
+            taken.add(pu.id)
+        picked.append((so_line, rem, units))
+
+    # Pass 2 — resolve display identity for the whole suggestion at once: the
+    # cartons' own (from their balance rows) and the lines' ordered one. Both
+    # sides get chips because they can disagree, and the planner unchecking a
+    # box is precisely who needs to see that.
+    balances = await _carton_stock_rows(
+        db, [pu.id for _l, _r, units in picked for pu, _q in units]
+    )
+    keys = {bal.variant_key for bal in balances.values() if bal.variant_key}
+    keys.update(k for k in (_line_variant_key(l) for l, _r, _u in picked) if k)
+    variants = await stock_service.describe_variant_keys(db, keys)
+
+    out: list[PickListSuggestedLine] = []
+    for so_line, rem, units in picked:
         cartons: list[PickListSuggestedCarton] = []
         for pu, qty in units:
-            taken.add(pu.id)
-            loc = await _unit_location(db, pu)
+            bal = balances.get(str(pu.id))
             cartons.append(PickListSuggestedCarton(
                 batch_id=pu.id, batch_number=pu.batch_number,
-                package_no=pu.package_no, qty=qty, source_location_id=loc,
+                package_no=pu.package_no, qty=qty,
+                source_location_id=bal.location_id if bal else None,
+                **_carton_identity(pu, bal, variants),
             ))
         it = so_line.item
         out.append(PickListSuggestedLine(
@@ -200,6 +295,7 @@ async def _suggest_cartons(db: AsyncSession, so: SalesOrder, source_location_id=
             ordered_qty=ordered_map.get(str(so_line.id), 0.0),
             remaining_qty=rem,
             cartons=cartons,
+            **_ordered_identity(so_line, variants),
         ))
     return out
 
@@ -316,7 +412,15 @@ async def list_pickable_orders(
     """
     so_rows = (await db.execute(
         select(SalesOrder)
-        .options(selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values))
+        .options(
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
+            # The board lists orders, but each row now names the items and the
+            # shade/size behind them — those hops feed _ordered_identity.
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+            # .size too: BOMSize.size_name is a property over that relationship,
+            # so stopping at bom_size only moves the lazy load one hop deeper.
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.bom_size).selectinload(BOMSize.size),
+        )
         .filter(SalesOrder.status.in_(["PENDING", "READY", "PARTIAL"]))
     )).scalars().all()
 
@@ -329,6 +433,12 @@ async def list_pickable_orders(
     index = await _ready_carton_index(db)
     today = datetime.utcnow().date()
 
+    # One resolve of every ordered variant on the board — shade/combo chips are
+    # per line, and a per-line lookup here would be an N+1 over the order book.
+    variants = await stock_service.describe_variant_keys(
+        db, {k for k in (_line_variant_key(l) for so in so_rows for l in so.lines) if k}
+    )
+
     # Urgent first, undated orders last — an order with no due date is not more
     # urgent than every dated one, which is what plain ascending sort would say.
     ordered = sorted(so_rows, key=lambda s: (_so_due_date(s) is None, _so_due_date(s) or datetime.max))
@@ -340,24 +450,36 @@ async def list_pickable_orders(
         qty_ready = 0.0
         cartons_ready = 0
         lines_outstanding = 0
+        out_lines: list[PickableOrderLine] = []
         for line in so.lines:
             rem = remaining.get(str(line.id), 0.0)
             if rem <= 0:
                 continue
             lines_outstanding += 1
             qty_outstanding += rem
-            attr_ids = [str(v.id) for v in (line.attribute_values or [])]
-            key = (str(line.item_id), stock_service._generate_variant_key(attr_ids, line.color_id))
+            key = (str(line.item_id), _line_variant_key(line))
             pool = index.get(key)
-            if not pool:
-                continue
             # Whole cartons only — the picker moves a physical box, so the last
             # one may overshoot the outstanding qty rather than be split.
             covered = 0.0
+            line_cartons = 0
             while pool and covered < rem - 1e-6:
                 covered += pool.pop(0)
-                cartons_ready += 1
+                line_cartons += 1
+            cartons_ready += line_cartons
             qty_ready += covered
+            it = line.item
+            out_lines.append(PickableOrderLine(
+                sales_order_line_id=line.id,
+                item_id=line.item_id,
+                item_code=it.code if it else None,
+                item_name=it.name if it else None,
+                item_uom=it.uom if it else None,
+                qty_outstanding=round(rem, 4),
+                qty_ready=round(covered, 4),
+                cartons_ready=line_cartons,
+                **_ordered_identity(line, variants),
+            ))
 
         if qty_outstanding <= 0:
             continue
@@ -376,6 +498,7 @@ async def list_pickable_orders(
             qty_ready=round(qty_ready, 4),
             cartons_ready=cartons_ready,
             has_open_pick_list=str(so.id) in draft_so_ids,
+            lines=out_lines,
         ))
     return out
 
@@ -399,6 +522,11 @@ async def suggest_pick_list_cartons(
         .options(
             selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
             selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+            # Ordered size — chipped next to the item so a multi-size order's
+            # lines are told apart (see _ordered_identity).
+            # .size too: BOMSize.size_name is a property over that relationship,
+            # so stopping at bom_size only moves the lazy load one hop deeper.
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.bom_size).selectinload(BOMSize.size),
         )
         .filter(SalesOrder.id == sales_order_id)
     )

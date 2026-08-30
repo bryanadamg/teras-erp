@@ -6,6 +6,7 @@ normal `StockBalance` row keyed by `batch_key = <batch id>` at the packed
 location, and there is no second qty record to drift. `Batch.packing_order_id`
 is the discriminator: non-null means "this batch is a carton".
 """
+import json
 import uuid
 from collections import Counter, deque
 from datetime import datetime
@@ -244,6 +245,8 @@ def allocate_boxes_to_lots(
     boxes: list[float],
     weights: Optional[list[Optional[float]]] = None,
     alt_qtys: Optional[list[Optional[float]]] = None,
+    lot_sizes: Optional[list] = None,
+    package_label: str = "Box",
 ) -> list[list[Carton]]:
     """Assign a user-edited, FIFO-ordered list of box quantities across lots.
 
@@ -252,6 +255,15 @@ def allocate_boxes_to_lots(
     the leftover continues into the next lot as its own carton. This is what
     lets the packer edit one flat box list without caring which lot backs each
     box; the split only becomes visible (as one extra carton) at a lot seam.
+
+    `lot_sizes` (a `LotSize | None` per lot, positional) is the one thing the
+    packer DOES have to care about. A seam split is invisible when both lots are
+    the same goods, but a box straddling an M lot and an L lot is a box with two
+    sizes physically inside it — there is no size to print on its label, and the
+    carton it mints would go out unlabelled for size. So that split is refused and
+    named, rather than silently produced. Packing several sizes in one event stays
+    fine; only a single box spanning them is not. Lots with no size stamp are
+    unknown, not a disagreement, so they never trigger this.
 
     `weights` is the packer's scale reading per box and `alt_qtys` the packed
     count in the order's alt selling unit, both positional against `boxes`. A box
@@ -290,12 +302,28 @@ def allocate_boxes_to_lots(
             continue
         queue.append((qty, qty, _at(weights, i), _at(alt_qtys, i), i))
 
+    # box index -> (lot index, LotSize) of the first sized lot that fed it, so a
+    # later lot of a different size is caught at the seam it crosses.
+    box_size_owner: dict[int, tuple[int, LotSize]] = {}
+
     out: list[list[Carton]] = []
-    for lot_qty in lot_qtys:
+    for lot_idx, lot_qty in enumerate(lot_qtys):
+        this_size = lot_sizes[lot_idx] if lot_sizes and lot_idx < len(lot_sizes) else None
         remaining = round(float(lot_qty), 4)
         cartons: list[Carton] = []
         while remaining > 1e-6 and queue:
             box, box_full, box_w, box_alt, box_idx = queue[0]
+            if this_size is not None:
+                owner = box_size_owner.get(box_idx)
+                if owner is not None and owner[1].key != this_size.key:
+                    raise ValueError(
+                        f"{package_label} {box_idx + 1} would span two sizes "
+                        f"({owner[1].label} and {this_size.label}) — a "
+                        f"{package_label.lower()} holds one size, so its label can name it. "
+                        f"Split it into one {package_label.lower()} per size, or pack the sizes "
+                        f"in separate entries."
+                    )
+                box_size_owner.setdefault(box_idx, (lot_idx, this_size))
             take = round(min(box, remaining), 4)
             share = None if box_w is None else round(box_w * take / box_full, 4)
             whole_box = take >= box - 1e-6
@@ -466,6 +494,82 @@ async def _next_package_no(db: AsyncSession, packing_order_id) -> int:
     return await numbering_service.allocate(db, f"PACKED_UNIT:{packing_order_id}", seed=_seed)
 
 
+def _size_ident(bom_size_id, snapshot) -> Optional[str]:
+    """Comparison key for one lot's size — the ONE definition of "same size".
+
+    Prefers `bom_size_id`; falls back to the snapshot when a lot has no id (a
+    free-mode size, or a BOMSize since deleted). `json.dumps(sort_keys=True)`
+    rather than `str(dict)`, because two equal snapshots can stringify differently
+    by key order. Returns None for an unsized lot — which everywhere here means
+    *unknown*, never "a different size".
+    """
+    if bom_size_id:
+        return str(bom_size_id)
+    if snapshot:
+        return json.dumps(snapshot, sort_keys=True, default=str)
+    return None
+
+
+class LotSize(NamedTuple):
+    """One lot's size: the comparison key, plus the label to say it out loud."""
+    key: str
+    label: str
+
+
+async def lot_sizes(db: AsyncSession, batch_ids) -> list:
+    """Per-lot sizes, aligned positionally to `batch_ids` (None where unsized).
+
+    Aligned rather than collapsed because the box allocator needs to know WHICH
+    lot boundary two sizes meet at, not merely that the draw spans more than one.
+    One query for the whole submission.
+    """
+    from app.services.stock_service import _bom_size_label
+
+    ids = {str(x) for x in batch_ids if x}
+    by_id: dict = {}
+    if ids:
+        rows = (await db.execute(
+            select(Batch.id, Batch.bom_size_id, Batch.bom_size_snapshot).filter(Batch.id.in_(ids))
+        )).all()
+        for bid, sid, snap in rows:
+            key = _size_ident(sid, snap)
+            if key:
+                by_id[str(bid)] = LotSize(key, _bom_size_label(snap) or "unnamed size")
+    return [by_id.get(str(x)) if x else None for x in batch_ids]
+
+
+async def lot_size_identity(db: AsyncSession, batch_ids) -> tuple:
+    """The `(bom_size_id, bom_size_snapshot)` a carton inherits from its source lot(s).
+
+    Size is the one part of a lot's identity that is NOT folded into
+    `variant_key` — it is stamped on the `Batch` row itself at WO completion — so
+    unlike shade/combo it cannot be read back off the carton's StockBalance row.
+    It has to be copied forward at mint time or it is simply lost the moment bulk
+    FG becomes a carton.
+
+    A box fed by several lots keeps the size only when every contributing lot that
+    carries one agrees; a genuinely mixed-size box has no single size and says so
+    with None rather than picking whichever lot happened to close it out. Lots with
+    no size stamp are unknown, not a disagreement, so they don't veto.
+
+    `allocate_boxes_to_lots` now refuses to build such a box in the first place, so
+    on the explicit-box path this disagreement should be unreachable; it stays as
+    the honest answer for any path that does not go through the allocator.
+    """
+    ids = [b for b in dict.fromkeys(str(x) for x in batch_ids if x)]
+    if not ids:
+        return None, None
+    rows = (await db.execute(
+        select(Batch.bom_size_id, Batch.bom_size_snapshot).filter(Batch.id.in_(ids))
+    )).all()
+    sized = [(sid, snap) for sid, snap in rows if sid or snap]
+    if not sized:
+        return None, None
+    if len({_size_ident(sid, snap) for sid, snap in sized}) > 1:
+        return None, None
+    return sized[0]
+
+
 async def mint_packed_units(
     db: AsyncSession,
     po: PackingOrder,
@@ -498,13 +602,23 @@ async def mint_packed_units(
 
     completion.package_count = len(carton_qtys)
     units: list[tuple[Batch, float]] = []
+    # Size rides forward from the source lot; shade/combo/attributes do not need
+    # to, because they travel in the stock key written below. See lot_size_identity.
+    bom_size_id, bom_size_snapshot = await lot_size_identity(db, [source_batch_id])
 
-    for carton_qty, net_weight, alt_qty in carton_qtys:
+    for carton in carton_qtys:
+        # Read by name, not by unpacking: `Carton` has already grown a field once
+        # (`box_index`) and positional unpacking turned that into a 400 on the
+        # floor — "too many values to unpack (expected 3)" — for every pack event
+        # on the box-size path.
+        carton_qty, net_weight, alt_qty = carton.qty, carton.weight_kg, carton.alt_qty
         pu = Batch(
             batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
             item_id=po.item_id,
             packing_order_id=po.id,
             packing_completion_id=completion.id,
+            bom_size_id=bom_size_id,
+            bom_size_snapshot=bom_size_snapshot,
             weight_kg=net_weight,
             alt_qty=alt_qty,
             # Allocated per carton, not as a pre-reserved block: a block computed
@@ -584,11 +698,17 @@ async def mint_merged_packed_unit(
     alts = [p["alt_qty"] for p in pieces]
     alt_qty = round(sum(float(a) for a in alts), 4) if all(a is not None for a in alts) else None
 
+    bom_size_id, bom_size_snapshot = await lot_size_identity(
+        db, [p["source_batch_id"] for p in pieces]
+    )
+
     pu = Batch(
         batch_number=await generate_batch_number(db, prefix=PACKED_UNIT_PREFIX),
         item_id=po.item_id,
         packing_order_id=po.id,
         packing_completion_id=completion.id,
+        bom_size_id=bom_size_id,
+        bom_size_snapshot=bom_size_snapshot,
         weight_kg=weight_kg,
         alt_qty=alt_qty,
         package_no=await _next_package_no(db, po.id),
