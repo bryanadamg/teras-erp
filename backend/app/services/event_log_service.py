@@ -17,7 +17,7 @@ fire-and-forget behaviour, never take the live feed down with it.
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.core.db_manager import db_manager
 from app.models.event_log import EventLogEntry
@@ -92,6 +92,20 @@ async def unpublished(limit: int = RELAY_BATCH) -> list[tuple[int, dict]]:
     except Exception:
         logger.warning("Could not read unpublished live events", exc_info=True)
         return []
+
+
+async def unpublished_count() -> int:
+    """How many events are stuck off the bus right now. Anything but 0 for more
+    than a relay interval means Redis is unreachable or the relay has died."""
+    try:
+        async with db_manager.async_session_factory() as session:
+            return (await session.execute(
+                select(func.count()).select_from(EventLogEntry)
+                .where(EventLogEntry.published_at.is_(None))
+            )).scalar() or 0
+    except Exception:
+        logger.warning("Could not count unpublished live events", exc_info=True)
+        return -1
 
 
 async def events_since(seq: int, limit: int = MAX_REPLAY) -> tuple[list[dict], bool]:

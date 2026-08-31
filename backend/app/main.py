@@ -1,5 +1,5 @@
 from pathlib import Path
-from fastapi import FastAPI, Request, APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, APIRouter, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import HTMLResponse, ORJSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 import asyncio
 import os
 import json
+import time
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -34,7 +35,8 @@ from app.services import backup_schedule_service, event_log_service
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, shipments, colors, combos, weaving, print_templates, production_reports, quarantine, work_queue
 from app.core.ws_manager import manager, WS_CLOSE_TOKEN_EXPIRED
 from app.core.ws_events import can_receive
-from app.api.auth import ws_connection_state
+from app.core.ws_metrics import metrics as ws_metrics
+from app.api.auth import ws_connection_state, get_current_admin
 
 # Keep in sync with /VERSION, frontend/package.json "version", and CHANGELOG.md on release.
 APP_VERSION = "0.17.0"
@@ -201,12 +203,14 @@ async def websocket_endpoint(websocket: WebSocket):
         state = await run_in_threadpool(ws_connection_state, token)
     except Exception:
         logger.exception("WebSocket auth lookup failed")
+        ws_metrics.connections_errored += 1
         try:
             await websocket.close(code=WS_CLOSE_INTERNAL_ERROR)
         except Exception:
             pass
         return
     if state is None:
+        ws_metrics.connections_rejected += 1
         try:
             await websocket.close(code=WS_CLOSE_UNAUTHORIZED)
         except Exception:
@@ -218,7 +222,7 @@ async def websocket_endpoint(websocket: WebSocket):
     # a second concurrent sender can interleave frames on the same connection.
     def enqueue(message: dict) -> None:
         try:
-            state.queue.put_nowait(message)
+            state.queue.put_nowait((time.monotonic(), message))
         except asyncio.QueueFull:
             pass
 
@@ -234,8 +238,11 @@ async def websocket_endpoint(websocket: WebSocket):
     # only — a one-off burst of slightly-too-much is the right trade against
     # withholding something the screen needed.
     if since is not None:
+        ws_metrics.resumes_requested += 1
         missed, truncated = await event_log_service.events_since(since)
+        ws_metrics.events_replayed += len(missed)
         if truncated:
+            ws_metrics.resync_required += 1
             # Gap too wide or too old to reconstruct. Say so plainly; the client
             # falls back to refetching its current route.
             enqueue({"type": "resync_required"})
@@ -307,7 +314,27 @@ async def health_readiness():
 
     all_ok = all(v == "ok" for v in checks.values())
     status_code = 200 if all_ok else 503
-    return ORJSONResponse({"status": "ready" if all_ok else "degraded", **checks}, status_code=status_code)
+    return ORJSONResponse({
+        "status": "ready" if all_ok else "degraded",
+        **checks,
+        # Not a health signal — zero is normal out of hours. It is here because a
+        # probe response is the one place an operator always looks.
+        "websocket_connections": len(manager.active_connections),
+    }, status_code=status_code)
+
+
+@api_router.get("/health/events")
+async def event_bus_stats(current_user=Depends(get_current_admin)):
+    """Live-event bus counters — see core/ws_metrics.py.
+
+    Authenticated, unlike its neighbours in this namespace: the other /health
+    routes are probes that must answer before anyone logs in, while this one
+    reports on internal traffic and is read by the Settings status panel.
+    """
+    return {
+        **ws_metrics.snapshot(len(manager.active_connections)),
+        "unpublished_backlog": await event_log_service.unpublished_count(),
+    }
 
 app.include_router(api_router, prefix="/api")
 # ----------------------------

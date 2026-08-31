@@ -5,10 +5,12 @@ from fastapi import WebSocket
 import asyncio
 import json
 import os
+import time
 import logging
 from redis import asyncio as aioredis
 
 from app.core.ws_events import can_receive, wants_topic
+from app.core.ws_metrics import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,11 @@ class ConnectionState:
     # one client on a stalled TCP connection can no longer hold up delivery to
     # everyone else on this worker — which is what a sequential `await send_json`
     # across all connections did.
-    queue: "asyncio.Queue[dict]" = field(default_factory=lambda: asyncio.Queue(maxsize=SEND_QUEUE_MAXSIZE))
+    # Items are (enqueued_at_monotonic, message) so the writer can measure how long
+    # delivery actually lagged behind the mutation that caused it.
+    queue: "asyncio.Queue[tuple[float, dict]]" = field(
+        default_factory=lambda: asyncio.Queue(maxsize=SEND_QUEUE_MAXSIZE)
+    )
     writer: "asyncio.Task | None" = None
 
 
@@ -78,19 +84,23 @@ class ConnectionManager:
         have to be handed either everything or nothing."""
         state.writer = asyncio.create_task(self._writer_loop(websocket, state))
         self.active_connections[websocket] = state
+        metrics.connections_opened += 1
 
     def disconnect(self, websocket: WebSocket):
         state = self.active_connections.pop(websocket, None)
         if state and state.writer:
             state.writer.cancel()
             state.writer = None
+        if state:
+            metrics.connections_closed += 1
 
     async def _writer_loop(self, websocket: WebSocket, state: ConnectionState):
         """Drain one connection's queue. Owns every send to that socket."""
         try:
             while True:
-                message = await state.queue.get()
+                enqueued_at, message = await state.queue.get()
                 await websocket.send_json(message)
+                metrics.send_lag.observe(time.monotonic() - enqueued_at)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -98,7 +108,9 @@ class ConnectionManager:
             # a half-open TCP connection reads nothing — so reap it here. Popped
             # directly rather than via disconnect(): that would cancel this very
             # task, and it is already on its way out.
-            self.active_connections.pop(websocket, None)
+            metrics.send_errors += 1
+            if self.active_connections.pop(websocket, None) is not None:
+                metrics.connections_closed += 1
 
     async def initialize(self):
         """Initializes Redis connection and PubSub listener."""
@@ -163,15 +175,19 @@ class ConnectionManager:
             # needs. Permission first — it is the security check, and it must not
             # be skippable by a client that simply declines to subscribe.
             if not can_receive(event_type, state.perms):
+                metrics.filtered_permission += 1
                 continue
             if not wants_topic(event_type, state.topics):
+                metrics.filtered_topic += 1
                 continue
             try:
                 # Enqueue, never await the socket: this loop runs inside the
                 # request that made the change, so a single unresponsive client
                 # awaiting here would stall the mutation AND every other client's
                 # event behind it.
-                state.queue.put_nowait(message)
+                state.queue.put_nowait((time.monotonic(), message))
+                metrics.deliveries += 1
+                metrics.note_queue_depth(state.queue.qsize())
             except asyncio.QueueFull:
                 logger.warning(
                     "WebSocket send queue full for user %s; dropping connection", state.username
@@ -180,6 +196,10 @@ class ConnectionManager:
 
         for connection, code in drop:
             self.disconnect(connection)
+            if code == WS_CLOSE_BACKPRESSURE:
+                metrics.closed_backpressure += 1
+            elif code == WS_CLOSE_TOKEN_EXPIRED:
+                metrics.closed_token_expired += 1
             try:
                 await connection.close(code=code)
             except Exception:
@@ -197,24 +217,31 @@ class ConnectionManager:
         """
         from app.services import event_log_service  # deferred: models import late
 
+        started = time.monotonic()
         seq = await event_log_service.record(message)
         if seq is not None:
             message = {**message, "seq": seq}
+        else:
+            metrics.events_unrecorded += 1
 
         if self.redis:
             try:
                 await self.redis.publish(self.channel_name, json.dumps(message))
             except Exception as e:
                 logger.error(f"Failed to publish to Redis: {e}")
+                metrics.publish_failures += 1
                 # Reaches only the sockets on THIS worker. The row stays
                 # unpublished so the relay re-sends it to everyone else.
                 await self._local_broadcast(message)
+                metrics.broadcast_time.observe(time.monotonic() - started)
                 return
         else:
             await self._local_broadcast(message)
 
         if seq is not None:
             await event_log_service.mark_published([seq])
+        metrics.events_published += 1
+        metrics.broadcast_time.observe(time.monotonic() - started)
 
     async def relay_unpublished(self) -> int:
         """Re-publish events that never made it onto the bus. Returns how many."""
@@ -233,6 +260,7 @@ class ConnectionManager:
                 break
         if sent:
             await event_log_service.mark_published(sent)
+            metrics.events_relayed += len(sent)
             logger.info("Relayed %d previously unpublished live events", len(sent))
         return len(sent)
 
