@@ -996,6 +996,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // down and reopen the WebSocket on unrelated renders.
     const hasPermissionRef = useRef(hasPermission);
     useEffect(() => { hasPermissionRef.current = hasPermission; }, [hasPermission]);
+    const logoutRef = useRef(logout);
+    useEffect(() => { logoutRef.current = logout; }, [logout]);
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
@@ -1098,6 +1100,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             if (!flushTimer) flushTimer = setTimeout(flushLive, 800);
         };
 
+        // Every event published while the socket was down is gone — the server
+        // keeps no backlog and replays nothing on reconnect. So a re-established
+        // connection has to assume the screen is stale and re-pull. Queueing all
+        // six kinds reuses flushLive's route-awareness, so this still only fetches
+        // what the CURRENT page reads. No codes are queued: a resync is not news
+        // about any one order and must never toast.
+        const resyncAfterReconnect = () => {
+            (['production', 'kpi', 'stock', 'weaving', 'bom', 'sales'] as LiveKind[])
+                .forEach(k => pending.kinds.add(k));
+            if (flushTimer) clearTimeout(flushTimer);
+            flushTimer = setTimeout(flushLive, 0);
+        };
+        // Set on the first successful handshake. A later auth_ok therefore means a
+        // RE-connection, which is the only case that needs the resync above.
+        let hasAuthedBefore = false;
+
         const connect = () => {
             setWsStatus('connecting');
             ws = new WebSocket(wsUrl);
@@ -1121,7 +1139,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === 'pong') return;
-                    if (data.type === 'auth_ok') { setWsStatus('open'); return; }
+                    if (data.type === 'auth_ok') {
+                        setWsStatus('open');
+                        if (hasAuthedBefore) resyncAfterReconnect();
+                        hasAuthedBefore = true;
+                        return;
+                    }
                     switch (data.type) {
                         case 'WORK_ORDER_UPDATE':
                         case 'MANUFACTURING_ORDER_UPDATE':
@@ -1169,11 +1192,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             ws.onclose = (e) => {
                 setWsStatus('closed');
                 clearInterval(pingTimer);
-                // 1008 = the server rejected our token; 4001 = it expired while
-                // the socket was open. Both are terminal for THIS token, so
-                // reconnecting would spin a hot loop against the handshake. The
-                // next login remounts this effect with a fresh one.
-                if (e.code === 1008 || e.code === 4001) return;
+                // 1008 = the server rejected our token; 4001 = it expired while the
+                // socket was open. Both are terminal for THIS token, so reconnecting
+                // would spin a hot loop against the handshake — and the token is no
+                // good for HTTP either. Sign out so MainLayout's currentUser-null
+                // guard sends the user to /login, instead of leaving an idle tab
+                // looking live until its next fetch happens to 401. (A server-side
+                // failure during the handshake closes 1011, not 1008, precisely so
+                // it doesn't end a valid session.)
+                if (e.code === 1008 || e.code === 4001) { logoutRef.current(); return; }
                 if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000);
             };
             ws.onerror = () => ws.close();

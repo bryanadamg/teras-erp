@@ -50,6 +50,12 @@ def ws_connection_state(token: str | None) -> ConnectionState | None:
 
     Sync (its own Session) and called from a threadpool: it runs once per connect,
     never on the broadcast path.
+
+    Returns None ONLY for a genuine auth failure (missing//malformed/expired token,
+    unknown or deactivated user) — the caller turns that into a 1008 close, and the
+    client signs the user out on it. A database or other infrastructure failure
+    propagates instead of being swallowed into None: booting a valid session
+    because a query blipped would be a far worse bug than a dropped socket.
     """
     if not token:
         return None
@@ -77,8 +83,6 @@ def ws_connection_state(token: str | None) -> ConnectionState | None:
             perms=expand_permissions(codes),
             expires_at=datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None,
         )
-    except Exception:
-        return None
     finally:
         db.close()
 

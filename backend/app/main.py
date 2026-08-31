@@ -24,6 +24,8 @@ class _HealthCheckFilter(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
 
+logger = logging.getLogger(__name__)
+
 from app.db.session import engine
 from app.core.db_manager import db_manager
 from app.core.scheduler import backup_scheduler
@@ -128,8 +130,11 @@ api_router.include_router(production_reports.router)
 WS_AUTH_TIMEOUT_SECONDS = 10
 # 1008 = policy violation: the token was missing, malformed, expired at connect,
 # or belongs to a deactivated user. Terminal for this token — the client must not
-# retry it in a loop (see DataContext's onclose).
+# retry it in a loop, and signs the user out on it (see DataContext's onclose).
 WS_CLOSE_UNAUTHORIZED = 1008
+# 1011 = the server failed while handling the connection. Says nothing about the
+# token, so the client retries on it rather than signing anyone out.
+WS_CLOSE_INTERNAL_ERROR = 1011
 
 @api_router.websocket("/ws/events")
 async def websocket_endpoint(websocket: WebSocket):
@@ -150,7 +155,19 @@ async def websocket_endpoint(websocket: WebSocket):
         token = None
 
     # Sync session + lazy-loaded permission relationships, so off the event loop.
-    state = await run_in_threadpool(ws_connection_state, token)
+    # A failure INSIDE the lookup (DB down, connection blip) is not an auth failure
+    # and must not close 1008 — the client signs the user out on that code, and a
+    # transient query error is no reason to end someone's session. 1011 instead,
+    # which the client treats as a normal retryable drop.
+    try:
+        state = await run_in_threadpool(ws_connection_state, token)
+    except Exception:
+        logger.exception("WebSocket auth lookup failed")
+        try:
+            await websocket.close(code=WS_CLOSE_INTERNAL_ERROR)
+        except Exception:
+            pass
+        return
     if state is None:
         try:
             await websocket.close(code=WS_CLOSE_UNAUTHORIZED)

@@ -9,6 +9,7 @@ import { routeTitle } from '../shared/navConfig';
 import { MOBILE_BG } from './mobileTheme';
 import AppLoadBar from '../shared/AppLoadBar';
 import PixelAvatar from '../shared/PixelAvatar';
+import LiveFeedIndicator from '../shared/LiveFeedIndicator';
 
 // Mobile chrome mirrors the desktop shell, one level down:
 //   blue-gradient window bar (globals.css `--win-header-grad`, the same bar
@@ -140,7 +141,7 @@ export default function MobileShell({
             </div>
 
             {/* Page-title strip — the desktop's toolbar band under the chrome */}
-            <div style={xpToolbar({ padding: '3px 8px', flexShrink: 0, flexWrap: 'nowrap' })}>
+            <div style={xpToolbar({ padding: '3px 8px', flexShrink: 0, flexWrap: 'nowrap', justifyContent: 'space-between' })}>
                 <span style={{
                     fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', color: '#333333',
                     textTransform: 'uppercase', letterSpacing: 0.5,
@@ -148,6 +149,9 @@ export default function MobileShell({
                 }}>
                     {pageTitle}
                 </span>
+                {/* Compact: this strip is the only spare chrome on a phone, and the
+                    floor is exactly who needs to know the feed died. */}
+                <LiveFeedIndicator compact />
             </div>
 
             <AppLoadBar />
