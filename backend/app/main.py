@@ -198,8 +198,19 @@ async def websocket_endpoint(websocket: WebSocket):
             if raw:
                 try:
                     msg = json.loads(raw)
-                    if isinstance(msg, dict) and msg.get("type") == "ping":
+                    if not isinstance(msg, dict):
+                        continue
+                    if msg.get("type") == "ping":
                         await websocket.send_json({"type": "pong"})
+                    elif msg.get("type") == "subscribe":
+                        # The client tells us what its current screen reads, and
+                        # re-sends on navigation. Unknown names are kept rather
+                        # than rejected: they match no event, so a newer client
+                        # naming a topic this build doesn't have degrades to
+                        # "that topic is quiet" instead of a dropped connection.
+                        topics = msg.get("topics")
+                        if isinstance(topics, list):
+                            state.topics = {t for t in topics if isinstance(t, str)}
                 except Exception:
                     pass
     except WebSocketDisconnect:

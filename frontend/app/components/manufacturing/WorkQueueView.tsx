@@ -208,8 +208,7 @@ export default function WorkQueueView() {
     // which is what the old default-argument `fetchQueue()` call did, and being stable
     // it no longer re-subscribes on every filter change.
     const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    useEffect(() => subscribeLiveEvents((kind: string) => {
-        if (kind !== 'production' && kind !== 'stock') return;
+    useEffect(() => subscribeLiveEvents(['production', 'stock'], () => {
         if (liveTimer.current) clearTimeout(liveTimer.current);
         liveTimer.current = setTimeout(() => fetchQueue(), 150);
     }), [subscribeLiveEvents, fetchQueue]);

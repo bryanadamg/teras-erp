@@ -90,6 +90,19 @@ def test_every_broadcast_payload_is_statically_readable():
     )
 
 
+def test_every_registered_event_has_a_topic():
+    """An event with no topic entry falls back to 'system', which every client
+    subscribes to — so it would be delivered to every screen regardless of what
+    that screen reads. Fine as a fallback, wrong as an accident."""
+    from app.core.ws_events import EVENT_TOPICS
+
+    missing = sorted(set(EVENT_PERMISSIONS) - set(EVENT_TOPICS))
+    assert not missing, f"Registered events with no topic: {missing}"
+
+    stray = sorted(set(EVENT_TOPICS) - set(EVENT_PERMISSIONS))
+    assert not stray, f"Topics for events that aren't registered: {stray}"
+
+
 def test_permission_unions_reference_real_codes():
     """Every code in the map must exist in the seeded permission catalog.
 

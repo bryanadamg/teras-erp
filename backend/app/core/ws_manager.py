@@ -8,7 +8,7 @@ import os
 import logging
 from redis import asyncio as aioredis
 
-from app.core.ws_events import can_receive
+from app.core.ws_events import can_receive, wants_topic
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,11 @@ class ConnectionState:
     username: str
     perms: set[str] = field(default_factory=set)
     expires_at: datetime | None = None
+    # What this connection's CURRENT screen needs, set by a client subscribe
+    # frame and re-sent on navigation. None = "hasn't told us", which delivers
+    # everything the permissions allow — never the empty set by default, or a
+    # client that connects and never subscribes would go silently deaf.
+    topics: set[str] | None = None
 
 
 class ConnectionManager:
@@ -116,7 +121,12 @@ class ConnectionManager:
             if state.expires_at and state.expires_at <= now:
                 drop.append((connection, WS_CLOSE_TOKEN_EXPIRED))
                 continue
+            # Permission decides what this user MAY see; topics what their screen
+            # needs. Permission first — it is the security check, and it must not
+            # be skippable by a client that simply declines to subscribe.
             if not can_receive(event_type, state.perms):
+                continue
+            if not wants_topic(event_type, state.topics):
                 continue
             try:
                 await connection.send_json(message)

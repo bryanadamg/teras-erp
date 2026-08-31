@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { useUser } from './UserContext';
 import { useToast } from '../components/shared/Toast';
 import { usePageState, useDebouncedSearch } from './usePaginatedList';
@@ -68,6 +69,32 @@ export type LiveEventType =
     | 'COMBO_UPDATE'
     | 'KPI_UPDATE'
     | 'PRINT_TEMPLATE_UPDATE';
+
+/**
+ * Which live kinds DataContext itself refetches for a given route.
+ *
+ * ONE table, two readers: `flushLive` guards its refetch branches on it, and the
+ * WebSocket subscribe frame is built from it. They used to be the same set of
+ * `path.startsWith(...)` conditions written out twice, which is a divergence
+ * waiting to happen — a route added to one and not the other either refetches
+ * data it never receives, or receives events it never acts on.
+ *
+ * Subscribers (`subscribeLiveEvents`) add their own kinds on top; 'weaving' is
+ * only ever reached that way, since no DataContext-owned domain reads it.
+ */
+export const routeLiveKinds = (path: string): Set<LiveKind> => {
+    const onDashboard = path === '/' || path.startsWith('/dashboard');
+    const onMO = path.startsWith('/manufacturing-orders');
+    const onPR = path.startsWith('/production-runs');
+    const kinds = new Set<LiveKind>();
+    if (onMO || onPR || onDashboard) kinds.add('production');
+    if (onDashboard) kinds.add('kpi');
+    if (path.startsWith('/stock') || path.startsWith('/booking-stock') || onMO || onPR || onDashboard) kinds.add('stock');
+    // `/manufacturing` deliberately also matches `/manufacturing-orders`.
+    if (path.startsWith('/manufacturing') || onPR || path.startsWith('/sales-orders')) kinds.add('bom');
+    if (path.startsWith('/sales-orders')) kinds.add('sales');
+    return kinds;
+};
 
 /** Rows per page of the server-paginated samples list (shared with SampleRequestView). */
 export const SAMPLE_PAGE_SIZE = 50;
@@ -205,7 +232,7 @@ interface DataContextType {
     refreshRouting: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
-    subscribeLiveEvents: (fn: (kind: LiveKind) => void) => () => void;
+    subscribeLiveEvents: (kinds: LiveKind[], fn: (kind: LiveKind) => void) => () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -1028,14 +1055,62 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => { hasPermissionRef.current = hasPermission; }, [hasPermission]);
     const logoutRef = useRef(logout);
     useEffect(() => { logoutRef.current = logout; }, [logout]);
+    // The live socket, exposed outside its effect so the subscribe frame can be
+    // re-sent on navigation without tearing the connection down and back up.
+    const wsRef = useRef<WebSocket | null>(null);
+    const sentTopicsRef = useRef<string>('');
+    const pathname = usePathname();
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
-    const liveSubsRef = useRef<Set<(kind: LiveKind) => void>>(new Set());
-    const subscribeLiveEvents = useCallback((fn: (kind: LiveKind) => void) => {
-        liveSubsRef.current.add(fn);
-        return () => { liveSubsRef.current.delete(fn); };
+    //
+    // Subscribers declare WHICH kinds they want rather than filtering inside their
+    // callback: the declared kinds are what the WebSocket subscribe frame is built
+    // from, so the server can stop sending this connection events nothing on the
+    // screen reads. A callback that filtered internally looked identical from out
+    // here — every subscriber appeared to want everything.
+    type LiveSub = { kinds: Set<LiveKind>; fn: (kind: LiveKind) => void };
+    const liveSubsRef = useRef<Set<LiveSub>>(new Set());
+    // Bumped on subscribe/unsubscribe so the topic effect below recomputes; a ref
+    // alone would change without telling React anything.
+    const [liveSubsVersion, setLiveSubsVersion] = useState(0);
+    const subscribeLiveEvents = useCallback((kinds: LiveKind[], fn: (kind: LiveKind) => void) => {
+        const sub: LiveSub = { kinds: new Set(kinds), fn };
+        liveSubsRef.current.add(sub);
+        setLiveSubsVersion(v => v + 1);
+        return () => { liveSubsRef.current.delete(sub); setLiveSubsVersion(v => v + 1); };
     }, []);
+    const notifyLiveSubs = useCallback((kind: LiveKind) => {
+        liveSubsRef.current.forEach(sub => {
+            if (!sub.kinds.has(kind)) return;
+            try { sub.fn(kind); } catch {}
+        });
+    }, []);
+    const notifyLiveSubsRef = useRef(notifyLiveSubs);
+    useEffect(() => { notifyLiveSubsRef.current = notifyLiveSubs; }, [notifyLiveSubs]);
+
+    // What this screen needs, as a topic set the server filters on: the kinds
+    // DataContext refetches for this route, plus every mounted subscriber's own,
+    // plus route-independent 'system'.
+    const sendSubscribe = useCallback((force = false) => {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const topics = new Set<string>(['system']);
+        routeLiveKinds(pathname || '/').forEach(k => topics.add(k));
+        liveSubsRef.current.forEach(sub => sub.kinds.forEach(k => topics.add(k)));
+        const payload = Array.from(topics).sort().join(',');
+        if (!force && payload === sentTopicsRef.current) return;
+        sentTopicsRef.current = payload;
+        try { ws.send(JSON.stringify({ type: 'subscribe', topics: Array.from(topics) })); } catch {}
+    }, [pathname]);
+    const sendSubscribeRef = useRef(sendSubscribe);
+    useEffect(() => { sendSubscribeRef.current = sendSubscribe; }, [sendSubscribe]);
+
+    // Re-declare on navigation and whenever a subscriber mounts/unmounts. Missing
+    // an event in the gap between arriving on a route and this frame landing is
+    // not a staleness risk: every page fetches on mount anyway, which pulls the
+    // same data the event would have prompted.
+    useEffect(() => { sendSubscribe(); }, [sendSubscribe, liveSubsVersion]);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -1061,18 +1136,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             pending.kinds.clear(); pending.codes.clear();
             const path = typeof window !== 'undefined' ? window.location.pathname : '';
             const onDashboard = path === '/' || path.startsWith('/dashboard');
+            // Route-aware refresh: only re-pull what the CURRENT page reads. Every
+            // page re-fetches on mount, so skipping unrelated routes is safe —
+            // they're fresh again the moment the user navigates there. Same table
+            // the subscribe frame is built from, so the two cannot drift.
+            const routeKinds = routeLiveKinds(path);
 
             if (kinds.has('production')) {
-                // Route-aware refresh: only re-pull what the CURRENT page reads.
-                // Every page re-fetches on mount, so skipping unrelated routes is
-                // safe — they're fresh again the moment the user navigates there.
-                if (path.startsWith('/manufacturing-orders') || path.startsWith('/production-runs')) {
+                if (routeKinds.has('production')) {
                     // Root MOs + PRs only; never all_levels → no wrong-MO flash.
-                    refreshManufacturingRef.current();
-                } else if (onDashboard) {
-                    fetchDataRef.current('dashboard');
+                    if (onDashboard) fetchDataRef.current('dashboard');
+                    else refreshManufacturingRef.current();
                 }
-                liveSubsRef.current.forEach(fn => { try { fn('production'); } catch {} });
+                notifyLiveSubsRef.current('production');
                 // The server already withholds MO events from anyone who can see
                 // none of the production pages (core/ws_events.py). This narrows
                 // the TOAST specifically: that union includes work_order.view, so
@@ -1089,39 +1165,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 }
             }
             if (kinds.has('kpi')) {
-                if (onDashboard && !kinds.has('production')) refreshDashboardKPIsRef.current();
-                liveSubsRef.current.forEach(fn => { try { fn('kpi'); } catch {} });
+                // The production branch above already pulls the dashboard whole.
+                if (routeKinds.has('kpi') && !kinds.has('production')) refreshDashboardKPIsRef.current();
+                notifyLiveSubsRef.current('kpi');
             }
             if (kinds.has('stock')) {
-                // Route-aware, same reasoning as 'production': only the routes that
-                // actually read stockBalance (per CLAUDE.md) re-pull it.
-                if (path.startsWith('/stock') || path.startsWith('/booking-stock') || path.startsWith('/manufacturing-orders') || path.startsWith('/production-runs')) {
-                    refreshStockBalanceRef.current();
-                } else if (onDashboard) {
-                    fetchDataRef.current('dashboard');
+                if (routeKinds.has('stock')) {
+                    if (onDashboard) fetchDataRef.current('dashboard');
+                    else refreshStockBalanceRef.current();
                 }
-                liveSubsRef.current.forEach(fn => { try { fn('stock'); } catch {} });
+                notifyLiveSubsRef.current('stock');
             }
             if (kinds.has('weaving')) {
-                // Pages that self-fetch (WeavingMonitorView) subscribe and reload themselves.
-                liveSubsRef.current.forEach(fn => { try { fn('weaving'); } catch {} });
+                // No DataContext-owned domain reads weaving; pages that self-fetch
+                // (WeavingMonitorView) subscribe and reload themselves.
+                notifyLiveSubsRef.current('weaving');
             }
             if (kinds.has('bom')) {
                 // A BOM was created/updated/deleted elsewhere. The /bom page owns its
                 // own paginated /boms/summary list and reloads via subscription below;
                 // DataContext.boms consumers (manufacturing/MES/sales) re-pull the full
-                // /boms on their route refetch. Route-aware: only what's on screen.
-                if (path.startsWith('/manufacturing') || path.startsWith('/production-runs') || path.startsWith('/sales-orders')) {
-                    fetchDataRef.current(path.replace(/^\//, ''));
-                }
-                liveSubsRef.current.forEach(fn => { try { fn('bom'); } catch {} });
+                // /boms on their route refetch.
+                if (routeKinds.has('bom')) fetchDataRef.current(path.replace(/^\//, ''));
+                notifyLiveSubsRef.current('bom');
             }
             if (kinds.has('sales')) {
                 // SO status is derived from packing/dispatch events that happen on
                 // other pages (and other people's devices), so an SO row can change
-                // while nobody touched this list. Route-aware like the rest.
-                if (path.startsWith('/sales-orders')) fetchDataRef.current('sales-orders');
-                liveSubsRef.current.forEach(fn => { try { fn('sales'); } catch {} });
+                // while nobody touched this list.
+                if (routeKinds.has('sales')) fetchDataRef.current('sales-orders');
+                notifyLiveSubsRef.current('sales');
             }
         };
         const queueLive = (kind: LiveKind, code?: string, status?: string) => {
@@ -1149,6 +1222,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const connect = () => {
             setWsStatus('connecting');
             ws = new WebSocket(wsUrl);
+            wsRef.current = ws;
             ws.onopen = () => {
                 lastActivity = Date.now();
                 // Authenticate first. The server accepts the socket but keeps it
@@ -1171,6 +1245,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     if (data.type === 'pong') return;
                     if (data.type === 'auth_ok') {
                         setWsStatus('open');
+                        // A fresh connection knows nothing about our topics, so this
+                        // must be forced past the "already sent that" check — the
+                        // string it compares against belongs to the dead socket.
+                        sendSubscribeRef.current(true);
                         if (hasAuthedBefore) resyncAfterReconnect();
                         hasAuthedBefore = true;
                         return;
@@ -1233,6 +1311,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             ws.onclose = (e) => {
                 setWsStatus('closed');
                 clearInterval(pingTimer);
+                // The next socket starts with no server-side topic state, so drop
+                // the "already sent" marker with the connection that held it.
+                if (wsRef.current === ws) wsRef.current = null;
+                sentTopicsRef.current = '';
                 // 1008 = the server rejected our token; 4001 = it expired while the
                 // socket was open. Both are terminal for THIS token, so reconnecting
                 // would spin a hot loop against the handshake — and the token is no

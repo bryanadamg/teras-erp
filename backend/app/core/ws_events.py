@@ -102,6 +102,49 @@ EVENT_PERMISSIONS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Event type -> topic. Topics are the axis a CLIENT filters on, and they are
+# deliberately the frontend's own `LiveKind` names plus 'system': the client
+# already routes every event into one of those buckets to decide what to refetch,
+# so a second vocabulary here would just be a mapping to get wrong. Permission
+# filtering (above) says what a user MAY see; topics say what their current
+# screen NEEDS. Both must pass.
+#
+# 'system' is for events every screen wants regardless of route (a print layout
+# changed); clients subscribe to it unconditionally.
+EVENT_TOPICS: dict[str, str] = {
+    "MANUFACTURING_ORDER_UPDATE": "production",
+    "WORK_ORDER_UPDATE": "production",
+    "PRODUCTION_RUN_UPDATE": "production",
+    "WEAVING_RUN_UPDATE": "weaving",
+    "STOCK_UPDATE": "stock",
+    "QUARANTINE_UPDATE": "stock",
+    "SALES_ORDER_UPDATE": "sales",
+    "PACKING_UPDATE": "sales",
+    "PICK_LIST_UPDATE": "sales",
+    "SHIPMENT_UPDATE": "sales",
+    "BOM_UPDATE": "bom",
+    "COLOR_UPDATE": "bom",
+    "COMBO_UPDATE": "bom",
+    "KPI_UPDATE": "kpi",
+    "PRINT_TEMPLATE_UPDATE": "system",
+}
+
+TOPICS: frozenset[str] = frozenset(EVENT_TOPICS.values())
+
+
+def wants_topic(event_type: str, topics: set[str] | None) -> bool:
+    """True if a connection subscribed to `topics` still wants `event_type`.
+
+    `topics is None` means the client has not sent a subscribe frame — deliver
+    everything. That is the fail-safe direction and the pre-subscription default:
+    a client that never learns to subscribe keeps working exactly as before, and
+    a client that subscribes late doesn't miss the window in between.
+    """
+    if topics is None:
+        return True
+    return EVENT_TOPICS.get(event_type, "system") in topics
+
+
 # The registry of every event type this backend may broadcast. Being absent from
 # EVENT_PERMISSIONS is not a "default allow" — can_receive() denies it — so this
 # set IS the list of deliverable events, and tests/test_ws_event_registry.py
