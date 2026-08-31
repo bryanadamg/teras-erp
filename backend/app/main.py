@@ -176,8 +176,18 @@ async def websocket_endpoint(websocket: WebSocket):
         return
 
     await manager.connect(websocket, state)
+
+    # Everything this endpoint sends goes through the connection's queue, not
+    # straight down the socket: the manager's writer task owns the send side, and
+    # a second concurrent sender can interleave frames on the same connection.
+    def enqueue(message: dict) -> None:
+        try:
+            state.queue.put_nowait(message)
+        except asyncio.QueueFull:
+            pass
+
     try:
-        await websocket.send_json({
+        enqueue({
             "type": "auth_ok",
             "username": state.username,
             "expires_at": state.expires_at.isoformat() if state.expires_at else None,
@@ -201,7 +211,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     if not isinstance(msg, dict):
                         continue
                     if msg.get("type") == "ping":
-                        await websocket.send_json({"type": "pong"})
+                        enqueue({"type": "pong"})
                     elif msg.get("type") == "subscribe":
                         # The client tells us what its current screen reads, and
                         # re-sends on navigation. Unknown names are kept rather

@@ -16,6 +16,16 @@ logger = logging.getLogger(__name__)
 # 1008 (token was never valid) so the client can tell "log in again" from
 # "your session just aged out" — and stop reconnecting on either.
 WS_CLOSE_TOKEN_EXPIRED = 4001
+# 1013 "try again later" — sent to a client whose send queue overflowed. It is
+# dropped rather than waited on; it reconnects and resyncs (the client refetches
+# the current route on every re-handshake), which is strictly better than holding
+# up the fan-out for everyone else on this worker.
+WS_CLOSE_BACKPRESSURE = 1013
+
+# Per-connection outbound buffer. Deep enough to absorb a burst (a production run
+# creating dozens of MOs) without dropping a healthy client; shallow enough that a
+# stalled one is detected in seconds rather than accumulating unbounded memory.
+SEND_QUEUE_MAXSIZE = 128
 
 
 @dataclass
@@ -37,6 +47,12 @@ class ConnectionState:
     # everything the permissions allow — never the empty set by default, or a
     # client that connects and never subscribes would go silently deaf.
     topics: set[str] | None = None
+    # Outbound buffer + the task draining it. The broadcast path only enqueues, so
+    # one client on a stalled TCP connection can no longer hold up delivery to
+    # everyone else on this worker — which is what a sequential `await send_json`
+    # across all connections did.
+    queue: "asyncio.Queue[dict]" = field(default_factory=lambda: asyncio.Queue(maxsize=SEND_QUEUE_MAXSIZE))
+    writer: "asyncio.Task | None" = None
 
 
 class ConnectionManager:
@@ -60,10 +76,29 @@ class ConnectionManager:
         authenticated it first (see the /ws/events endpoint) — this manager has
         no way to identify an anonymous connection, and an unidentified one would
         have to be handed either everything or nothing."""
+        state.writer = asyncio.create_task(self._writer_loop(websocket, state))
         self.active_connections[websocket] = state
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.pop(websocket, None)
+        state = self.active_connections.pop(websocket, None)
+        if state and state.writer:
+            state.writer.cancel()
+            state.writer = None
+
+    async def _writer_loop(self, websocket: WebSocket, state: ConnectionState):
+        """Drain one connection's queue. Owns every send to that socket."""
+        try:
+            while True:
+                message = await state.queue.get()
+                await websocket.send_json(message)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The socket is gone. The receive loop may never notice on its own —
+            # a half-open TCP connection reads nothing — so reap it here. Popped
+            # directly rather than via disconnect(): that would cancel this very
+            # task, and it is already on its way out.
+            self.active_connections.pop(websocket, None)
 
     async def initialize(self):
         """Initializes Redis connection and PubSub listener."""
@@ -80,6 +115,9 @@ class ConnectionManager:
         """Stops the listener and closes Redis."""
         if self._listener_task:
             self._listener_task.cancel()
+        for state in list(self.active_connections.values()):
+            if state.writer:
+                state.writer.cancel()
         if self.pubsub:
             await self.pubsub.unsubscribe(self.channel_name)
             await self.pubsub.close()
@@ -113,9 +151,9 @@ class ConnectionManager:
 
         event_type = message.get("type") or ""
         now = datetime.now(timezone.utc)
-        # (connection, close_code|None) — closed after the loop so the dict isn't
-        # mutated while iterating.
-        drop: list[tuple[WebSocket, int | None]] = []
+        # (connection, close_code) — closed after the loop so the dict isn't
+        # mutated while iterating it.
+        drop: list[tuple[WebSocket, int]] = []
 
         for connection, state in list(self.active_connections.items()):
             if state.expires_at and state.expires_at <= now:
@@ -129,20 +167,23 @@ class ConnectionManager:
             if not wants_topic(event_type, state.topics):
                 continue
             try:
-                await connection.send_json(message)
-            except Exception:
-                # A send failure means the socket is gone; the receive loop may
-                # never see it (a half-open TCP connection reads nothing), so
-                # reap it here or it leaks a ConnectionState per dead client.
-                drop.append((connection, None))
+                # Enqueue, never await the socket: this loop runs inside the
+                # request that made the change, so a single unresponsive client
+                # awaiting here would stall the mutation AND every other client's
+                # event behind it.
+                state.queue.put_nowait(message)
+            except asyncio.QueueFull:
+                logger.warning(
+                    "WebSocket send queue full for user %s; dropping connection", state.username
+                )
+                drop.append((connection, WS_CLOSE_BACKPRESSURE))
 
         for connection, code in drop:
             self.disconnect(connection)
-            if code is not None:
-                try:
-                    await connection.close(code=code)
-                except Exception:
-                    pass
+            try:
+                await connection.close(code=code)
+            except Exception:
+                pass
 
     async def broadcast(self, message: dict):
         """
