@@ -39,6 +39,36 @@ export interface ItemIndexEntry {
 // signature disagreeing — which is exactly what a bare repeated union did.
 export type LiveKind = 'production' | 'kpi' | 'stock' | 'weaving' | 'bom' | 'sales';
 
+/**
+ * Every event type the backend can broadcast. `EVENT_PERMISSIONS` in
+ * backend/app/core/ws_events.py is the source of truth — it also decides which
+ * users may RECEIVE each one, and denies any type it doesn't list, so a new
+ * event has to be registered there or it reaches nobody. A pytest
+ * (tests/test_ws_event_registry.py) asserts that map matches the broadcast call
+ * sites in both directions; this union is the client-side mirror of it.
+ *
+ * Five types are listed but deliberately not handled below yet: PACKING_UPDATE,
+ * PICK_LIST_UPDATE, SHIPMENT_UPDATE, COLOR_UPDATE and COMBO_UPDATE. Those pages
+ * own their own paginated lists and reload off their own mutations, so nothing
+ * reads them today. Wiring one up is adding a `case`, not adding a type.
+ */
+export type LiveEventType =
+    | 'MANUFACTURING_ORDER_UPDATE'
+    | 'WORK_ORDER_UPDATE'
+    | 'PRODUCTION_RUN_UPDATE'
+    | 'WEAVING_RUN_UPDATE'
+    | 'STOCK_UPDATE'
+    | 'QUARANTINE_UPDATE'
+    | 'SALES_ORDER_UPDATE'
+    | 'PACKING_UPDATE'
+    | 'PICK_LIST_UPDATE'
+    | 'SHIPMENT_UPDATE'
+    | 'BOM_UPDATE'
+    | 'COLOR_UPDATE'
+    | 'COMBO_UPDATE'
+    | 'KPI_UPDATE'
+    | 'PRINT_TEMPLATE_UPDATE';
+
 /** Rows per page of the server-paginated samples list (shared with SampleRequestView). */
 export const SAMPLE_PAGE_SIZE = 50;
 
@@ -1145,14 +1175,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                         hasAuthedBefore = true;
                         return;
                     }
-                    switch (data.type) {
-                        case 'WORK_ORDER_UPDATE':
+                    switch (data.type as LiveEventType) {
                         case 'MANUFACTURING_ORDER_UPDATE':
                             // Cheap optimistic patch stays immediate; the refetch is debounced.
-                            setManufacturingOrders((prev: any[]) => prev.map((mo: any) =>
-                                mo.id === data.mo_id ? { ...mo, status: data.status } : mo
-                            ));
+                            // Guarded on `status` because several MO broadcasts carry only an
+                            // id (mark-printed, for one) — patching `status: undefined` blanked
+                            // the row's status chip to grey until the refetch landed 800ms later.
+                            if (data.mo_id && data.status) {
+                                setManufacturingOrders((prev: any[]) => prev.map((mo: any) =>
+                                    mo.id === data.mo_id ? { ...mo, status: data.status } : mo
+                                ));
+                            }
                             queueLive('production', data.code, data.status);
+                            break;
+                        case 'WORK_ORDER_UPDATE':
+                            // No optimistic patch here: `data.status` on this event is the WORK
+                            // ORDER's status, and writing it onto the MO row was wrong whenever
+                            // the payload also carried an mo_id (bulk WO create does). The
+                            // debounced refetch below is what moves the MO board.
+                            queueLive('production');
                             break;
                         case 'PRODUCTION_RUN_UPDATE':
                             queueLive('production');
@@ -1181,7 +1222,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                         case 'SALES_ORDER_UPDATE':
                             queueLive('sales');
                             break;
-                        case 'weaving_run':
+                        case 'WEAVING_RUN_UPDATE':
                             queueLive('weaving');
                             break;
                         default:

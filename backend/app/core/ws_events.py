@@ -52,8 +52,7 @@ EVENT_PERMISSIONS: dict[str, tuple[str, ...]] = {
         "manufacturing_order.view",
         "sales_order.view",
     ),
-    # Lowercase by history, not by design (services/weaving_service.py).
-    "weaving_run": (
+    "WEAVING_RUN_UPDATE": (
         "weaving_monitor.view",
         "work_order.view",
         "beam.view",
@@ -101,6 +100,13 @@ EVENT_PERMISSIONS: dict[str, tuple[str, ...]] = {
     # the app reads templates, so this one is open to any authenticated user.
     "PRINT_TEMPLATE_UPDATE": (),
 }
+
+
+# The registry of every event type this backend may broadcast. Being absent from
+# EVENT_PERMISSIONS is not a "default allow" — can_receive() denies it — so this
+# set IS the list of deliverable events, and tests/test_ws_event_registry.py
+# asserts it matches the broadcast call sites in both directions.
+EVENT_TYPES: frozenset[str] = frozenset(EVENT_PERMISSIONS)
 
 
 # Legacy broad code -> the view codes it used to imply. Alembic 2afd23590ae8
