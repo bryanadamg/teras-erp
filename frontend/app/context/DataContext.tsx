@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { useUser } from './UserContext';
 import { useToast } from '../components/shared/Toast';
 import { usePageState, useDebouncedSearch } from './usePaginatedList';
@@ -38,6 +39,105 @@ export interface ItemIndexEntry {
 // so adding a kind can't leave the queue, the buffer, and the subscriber
 // signature disagreeing — which is exactly what a bare repeated union did.
 export type LiveKind = 'production' | 'kpi' | 'stock' | 'weaving' | 'bom' | 'sales';
+
+/**
+ * Every event type the backend can broadcast. `EVENT_PERMISSIONS` in
+ * backend/app/core/ws_events.py is the source of truth — it also decides which
+ * users may RECEIVE each one, and denies any type it doesn't list, so a new
+ * event has to be registered there or it reaches nobody. A pytest
+ * (tests/test_ws_event_registry.py) asserts that map matches the broadcast call
+ * sites in both directions; this union is the client-side mirror of it.
+ *
+ * Five types are listed but deliberately not handled below yet: PACKING_UPDATE,
+ * PICK_LIST_UPDATE, SHIPMENT_UPDATE, COLOR_UPDATE and COMBO_UPDATE. Those pages
+ * own their own paginated lists and reload off their own mutations, so nothing
+ * reads them today. Wiring one up is adding a `case`, not adding a type.
+ */
+export type LiveEventType =
+    | 'MANUFACTURING_ORDER_UPDATE'
+    | 'WORK_ORDER_UPDATE'
+    | 'PRODUCTION_RUN_UPDATE'
+    | 'WEAVING_RUN_UPDATE'
+    | 'STOCK_UPDATE'
+    | 'QUARANTINE_UPDATE'
+    | 'SALES_ORDER_UPDATE'
+    | 'PACKING_UPDATE'
+    | 'PICK_LIST_UPDATE'
+    | 'SHIPMENT_UPDATE'
+    | 'BOM_UPDATE'
+    | 'COLOR_UPDATE'
+    | 'COMBO_UPDATE'
+    | 'KPI_UPDATE'
+    | 'PRINT_TEMPLATE_UPDATE';
+
+/**
+ * Which live kinds DataContext itself refetches for a given route.
+ *
+ * ONE table, two readers: `flushLive` guards its refetch branches on it, and the
+ * WebSocket subscribe frame is built from it. They used to be the same set of
+ * `path.startsWith(...)` conditions written out twice, which is a divergence
+ * waiting to happen — a route added to one and not the other either refetches
+ * data it never receives, or receives events it never acts on.
+ *
+ * Subscribers (`subscribeLiveEvents`) add their own kinds on top; 'weaving' is
+ * only ever reached that way, since no DataContext-owned domain reads it.
+ */
+export const routeLiveKinds = (path: string): Set<LiveKind> => {
+    const onDashboard = path === '/' || path.startsWith('/dashboard');
+    const onMO = path.startsWith('/manufacturing-orders');
+    const onPR = path.startsWith('/production-runs');
+    const kinds = new Set<LiveKind>();
+    if (onMO || onPR || onDashboard) kinds.add('production');
+    if (onDashboard) kinds.add('kpi');
+    if (path.startsWith('/stock') || path.startsWith('/booking-stock') || onMO || onPR || onDashboard) kinds.add('stock');
+    // `/manufacturing` deliberately also matches `/manufacturing-orders`.
+    if (path.startsWith('/manufacturing') || onPR || path.startsWith('/sales-orders')) kinds.add('bom');
+    if (path.startsWith('/sales-orders')) kinds.add('sales');
+    return kinds;
+};
+
+/**
+ * Apply a MANUFACTURING_ORDER_UPDATE to one MO node and its subtree.
+ *
+ * Completion events carry the new totals (`qty_completed_total`,
+ * `qty_rejected_total`, and the same pair for the WO that logged), which is
+ * exactly what the board's progress bars read — so the row can move the moment
+ * the event lands instead of waiting out the 800ms debounce and a full MO-tree
+ * refetch. The refetch still follows and stays the source of truth.
+ *
+ * Returns the SAME object when nothing matched, so React skips re-rendering the
+ * branches this event didn't touch.
+ */
+const patchMoNode = (mo: any, d: any): any => {
+    let next = mo;
+
+    if (mo.id === d.mo_id) {
+        next = { ...mo };
+        if (d.status) next.status = d.status;
+        if (d.qty_completed_total != null) next.qty_completed_total = d.qty_completed_total;
+        if (d.qty_rejected_total != null) next.qty_rejected_total = d.qty_rejected_total;
+    }
+
+    if (d.wo_id && Array.isArray(next.work_orders) && next.work_orders.some((w: any) => w.id === d.wo_id)) {
+        next = {
+            ...next,
+            work_orders: next.work_orders.map((w: any) => w.id !== d.wo_id ? w : {
+                ...w,
+                status: d.wo_status ?? w.status,
+                qty_completed_total: d.wo_qty_completed_total ?? w.qty_completed_total,
+                qty_rejected_total: d.wo_qty_rejected_total ?? w.qty_rejected_total,
+            }),
+        };
+    }
+
+    const kids = next.child_mos;
+    if (Array.isArray(kids) && kids.length) {
+        const patched = kids.map((c: any) => patchMoNode(c, d));
+        if (patched.some((c: any, i: number) => c !== kids[i])) next = { ...next, child_mos: patched };
+    }
+
+    return next;
+};
 
 /** Rows per page of the server-paginated samples list (shared with SampleRequestView). */
 export const SAMPLE_PAGE_SIZE = 50;
@@ -175,7 +275,7 @@ interface DataContextType {
     refreshRouting: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
-    subscribeLiveEvents: (fn: (kind: LiveKind) => void) => () => void;
+    subscribeLiveEvents: (kinds: LiveKind[], fn: (kind: LiveKind) => void) => () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -202,7 +302,7 @@ function patchMasterCache(patch: Record<string, any>) {
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-    const { currentUser, logout } = useUser();
+    const { currentUser, logout, hasPermission } = useUser();
     const { showToast } = useToast();
 
     // Data State
@@ -991,14 +1091,73 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => { refreshDashboardKPIsRef.current = refreshDashboardKPIs; }, [refreshDashboardKPIs]);
     const refreshPrintTemplatesRef = useRef(refreshPrintTemplates);
     useEffect(() => { refreshPrintTemplatesRef.current = refreshPrintTemplates; }, [refreshPrintTemplates]);
+    // Held in a ref, not read from the closure: hasPermission is rebuilt on every
+    // UserContext render, and putting it in the socket effect's deps would tear
+    // down and reopen the WebSocket on unrelated renders.
+    const hasPermissionRef = useRef(hasPermission);
+    useEffect(() => { hasPermissionRef.current = hasPermission; }, [hasPermission]);
+    const logoutRef = useRef(logout);
+    useEffect(() => { logoutRef.current = logout; }, [logout]);
+    // The live socket, exposed outside its effect so the subscribe frame can be
+    // re-sent on navigation without tearing the connection down and back up.
+    const wsRef = useRef<WebSocket | null>(null);
+    const sentTopicsRef = useRef<string>('');
+    // Resume cursor: the highest event seq this tab has seen. Survives reconnects
+    // (it lives outside the socket effect), not page loads — a reload refetches
+    // everything on mount anyway, so it has nothing to catch up on.
+    const lastSeqRef = useRef<number>(0);
+    const pathname = usePathname();
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
-    const liveSubsRef = useRef<Set<(kind: LiveKind) => void>>(new Set());
-    const subscribeLiveEvents = useCallback((fn: (kind: LiveKind) => void) => {
-        liveSubsRef.current.add(fn);
-        return () => { liveSubsRef.current.delete(fn); };
+    //
+    // Subscribers declare WHICH kinds they want rather than filtering inside their
+    // callback: the declared kinds are what the WebSocket subscribe frame is built
+    // from, so the server can stop sending this connection events nothing on the
+    // screen reads. A callback that filtered internally looked identical from out
+    // here — every subscriber appeared to want everything.
+    type LiveSub = { kinds: Set<LiveKind>; fn: (kind: LiveKind) => void };
+    const liveSubsRef = useRef<Set<LiveSub>>(new Set());
+    // Bumped on subscribe/unsubscribe so the topic effect below recomputes; a ref
+    // alone would change without telling React anything.
+    const [liveSubsVersion, setLiveSubsVersion] = useState(0);
+    const subscribeLiveEvents = useCallback((kinds: LiveKind[], fn: (kind: LiveKind) => void) => {
+        const sub: LiveSub = { kinds: new Set(kinds), fn };
+        liveSubsRef.current.add(sub);
+        setLiveSubsVersion(v => v + 1);
+        return () => { liveSubsRef.current.delete(sub); setLiveSubsVersion(v => v + 1); };
     }, []);
+    const notifyLiveSubs = useCallback((kind: LiveKind) => {
+        liveSubsRef.current.forEach(sub => {
+            if (!sub.kinds.has(kind)) return;
+            try { sub.fn(kind); } catch {}
+        });
+    }, []);
+    const notifyLiveSubsRef = useRef(notifyLiveSubs);
+    useEffect(() => { notifyLiveSubsRef.current = notifyLiveSubs; }, [notifyLiveSubs]);
+
+    // What this screen needs, as a topic set the server filters on: the kinds
+    // DataContext refetches for this route, plus every mounted subscriber's own,
+    // plus route-independent 'system'.
+    const sendSubscribe = useCallback((force = false) => {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const topics = new Set<string>(['system']);
+        routeLiveKinds(pathname || '/').forEach(k => topics.add(k));
+        liveSubsRef.current.forEach(sub => sub.kinds.forEach(k => topics.add(k)));
+        const payload = Array.from(topics).sort().join(',');
+        if (!force && payload === sentTopicsRef.current) return;
+        sentTopicsRef.current = payload;
+        try { ws.send(JSON.stringify({ type: 'subscribe', topics: Array.from(topics) })); } catch {}
+    }, [pathname]);
+    const sendSubscribeRef = useRef(sendSubscribe);
+    useEffect(() => { sendSubscribeRef.current = sendSubscribe; }, [sendSubscribe]);
+
+    // Re-declare on navigation and whenever a subscriber mounts/unmounts. Missing
+    // an event in the gap between arriving on a route and this frame landing is
+    // not a staleness risk: every page fetches on mount anyway, which pulls the
+    // same data the event would have prompted.
+    useEffect(() => { sendSubscribe(); }, [sendSubscribe, liveSubsVersion]);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -1024,59 +1183,65 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             pending.kinds.clear(); pending.codes.clear();
             const path = typeof window !== 'undefined' ? window.location.pathname : '';
             const onDashboard = path === '/' || path.startsWith('/dashboard');
+            // Route-aware refresh: only re-pull what the CURRENT page reads. Every
+            // page re-fetches on mount, so skipping unrelated routes is safe —
+            // they're fresh again the moment the user navigates there. Same table
+            // the subscribe frame is built from, so the two cannot drift.
+            const routeKinds = routeLiveKinds(path);
 
             if (kinds.has('production')) {
-                // Route-aware refresh: only re-pull what the CURRENT page reads.
-                // Every page re-fetches on mount, so skipping unrelated routes is
-                // safe — they're fresh again the moment the user navigates there.
-                if (path.startsWith('/manufacturing-orders') || path.startsWith('/production-runs')) {
+                if (routeKinds.has('production')) {
                     // Root MOs + PRs only; never all_levels → no wrong-MO flash.
-                    refreshManufacturingRef.current();
-                } else if (onDashboard) {
-                    fetchDataRef.current('dashboard');
+                    if (onDashboard) fetchDataRef.current('dashboard');
+                    else refreshManufacturingRef.current();
                 }
-                liveSubsRef.current.forEach(fn => { try { fn('production'); } catch {} });
-                if (codes.size === 1) {
-                    const [code, status] = Array.from(codes.entries())[0];
-                    showToast(`Manufacturing Order ${code} updated: ${status}`, 'info');
-                } else if (codes.size > 1) {
-                    showToast(`${codes.size} manufacturing orders updated`, 'info');
+                notifyLiveSubsRef.current('production');
+                // The server already withholds MO events from anyone who can see
+                // none of the production pages (core/ws_events.py). This narrows
+                // the TOAST specifically: that union includes work_order.view, so
+                // a picker with WO access would otherwise be told MO codes and
+                // statuses for orders they can't open. Refetches above are
+                // unaffected — their endpoints do their own gating.
+                if (hasPermissionRef.current('manufacturing_order.view')) {
+                    if (codes.size === 1) {
+                        const [code, status] = Array.from(codes.entries())[0];
+                        showToast(`Manufacturing Order ${code} updated: ${status}`, 'info');
+                    } else if (codes.size > 1) {
+                        showToast(`${codes.size} manufacturing orders updated`, 'info');
+                    }
                 }
             }
             if (kinds.has('kpi')) {
-                if (onDashboard && !kinds.has('production')) refreshDashboardKPIsRef.current();
-                liveSubsRef.current.forEach(fn => { try { fn('kpi'); } catch {} });
+                // The production branch above already pulls the dashboard whole.
+                if (routeKinds.has('kpi') && !kinds.has('production')) refreshDashboardKPIsRef.current();
+                notifyLiveSubsRef.current('kpi');
             }
             if (kinds.has('stock')) {
-                // Route-aware, same reasoning as 'production': only the routes that
-                // actually read stockBalance (per CLAUDE.md) re-pull it.
-                if (path.startsWith('/stock') || path.startsWith('/booking-stock') || path.startsWith('/manufacturing-orders') || path.startsWith('/production-runs')) {
-                    refreshStockBalanceRef.current();
-                } else if (onDashboard) {
-                    fetchDataRef.current('dashboard');
+                if (routeKinds.has('stock')) {
+                    if (onDashboard) fetchDataRef.current('dashboard');
+                    else refreshStockBalanceRef.current();
                 }
-                liveSubsRef.current.forEach(fn => { try { fn('stock'); } catch {} });
+                notifyLiveSubsRef.current('stock');
             }
             if (kinds.has('weaving')) {
-                // Pages that self-fetch (WeavingMonitorView) subscribe and reload themselves.
-                liveSubsRef.current.forEach(fn => { try { fn('weaving'); } catch {} });
+                // No DataContext-owned domain reads weaving; pages that self-fetch
+                // (WeavingMonitorView) subscribe and reload themselves.
+                notifyLiveSubsRef.current('weaving');
             }
             if (kinds.has('bom')) {
                 // A BOM was created/updated/deleted elsewhere. The /bom page owns its
                 // own paginated /boms/summary list and reloads via subscription below;
                 // DataContext.boms consumers (manufacturing/MES/sales) re-pull the full
-                // /boms on their route refetch. Route-aware: only what's on screen.
-                if (path.startsWith('/manufacturing') || path.startsWith('/production-runs') || path.startsWith('/sales-orders')) {
-                    fetchDataRef.current(path.replace(/^\//, ''));
-                }
-                liveSubsRef.current.forEach(fn => { try { fn('bom'); } catch {} });
+                // /boms on their route refetch.
+                if (routeKinds.has('bom')) fetchDataRef.current(path.replace(/^\//, ''));
+                notifyLiveSubsRef.current('bom');
             }
             if (kinds.has('sales')) {
                 // SO status is derived from packing/dispatch events that happen on
                 // other pages (and other people's devices), so an SO row can change
-                // while nobody touched this list. Route-aware like the rest.
-                if (path.startsWith('/sales-orders')) fetchDataRef.current('sales-orders');
-                liveSubsRef.current.forEach(fn => { try { fn('sales'); } catch {} });
+                // while nobody touched this list.
+                if (routeKinds.has('sales')) fetchDataRef.current('sales-orders');
+                notifyLiveSubsRef.current('sales');
             }
         };
         const queueLive = (kind: LiveKind, code?: string, status?: string) => {
@@ -1085,12 +1250,44 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             if (!flushTimer) flushTimer = setTimeout(flushLive, 800);
         };
 
+        // Every event published while the socket was down is gone — the server
+        // keeps no backlog and replays nothing on reconnect. So a re-established
+        // connection has to assume the screen is stale and re-pull. Queueing all
+        // six kinds reuses flushLive's route-awareness, so this still only fetches
+        // what the CURRENT page reads. No codes are queued: a resync is not news
+        // about any one order and must never toast.
+        const resyncAfterReconnect = () => {
+            (['production', 'kpi', 'stock', 'weaving', 'bom', 'sales'] as LiveKind[])
+                .forEach(k => pending.kinds.add(k));
+            if (flushTimer) clearTimeout(flushTimer);
+            flushTimer = setTimeout(flushLive, 0);
+        };
+        // Set on the first successful handshake. A later auth_ok therefore means a
+        // RE-connection, which is the only case that needs the resync above.
+        let hasAuthedBefore = false;
+
         const connect = () => {
             setWsStatus('connecting');
             ws = new WebSocket(wsUrl);
+            wsRef.current = ws;
             ws.onopen = () => {
                 lastActivity = Date.now();
-                setWsStatus('open');
+                // Authenticate first. The server accepts the socket but keeps it
+                // out of the broadcast pool — and sends it nothing — until this
+                // frame lands, then closes it (1008) if the token doesn't check
+                // out. wsStatus stays 'connecting' until the auth_ok reply.
+                //
+                // `since` is the last event seq we saw: the server replays exactly
+                // what we missed while disconnected, instead of us blind-refetching
+                // the whole route. Absent on a fresh page load, which needs no
+                // catch-up — mounting already fetched everything.
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'auth',
+                        token: localStorage.getItem('access_token'),
+                        ...(lastSeqRef.current > 0 ? { since: lastSeqRef.current } : {}),
+                    }));
+                } catch {}
                 clearInterval(pingTimer);
                 // App-level heartbeat: ping every 25s; if no traffic for 60s the
                 // link is dead (server gone, proxy dropped it) — force a reconnect.
@@ -1104,14 +1301,57 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === 'pong') return;
-                    switch (data.type) {
-                        case 'WORK_ORDER_UPDATE':
+                    // High-water mark, never rewound: the relay can re-publish an
+                    // event that failed its first send, and that late arrival must
+                    // not drag the resume cursor backwards.
+                    if (typeof data.seq === 'number' && data.seq > lastSeqRef.current) {
+                        lastSeqRef.current = data.seq;
+                    }
+                    if (data.type === 'auth_ok') {
+                        setWsStatus('open');
+                        // A fresh connection knows nothing about our topics, so this
+                        // must be forced past the "already sent that" check — the
+                        // string it compares against belongs to the dead socket.
+                        sendSubscribeRef.current(true);
+                        // No blunt resync here any more: if we sent a cursor, the
+                        // server is already replaying the gap, and each replayed
+                        // event drives the same targeted refetch it would have live.
+                        // A gap too wide to replay arrives as resync_required below.
+                        if (hasAuthedBefore && lastSeqRef.current === 0) resyncAfterReconnect();
+                        hasAuthedBefore = true;
+                        return;
+                    }
+                    if (data.type === 'resync_required') {
+                        // Offline longer than the event log retains, or too far
+                        // behind to replay. Fall back to re-pulling the route.
+                        resyncAfterReconnect();
+                        return;
+                    }
+                    switch (data.type as LiveEventType) {
                         case 'MANUFACTURING_ORDER_UPDATE':
-                            // Cheap optimistic patch stays immediate; the refetch is debounced.
-                            setManufacturingOrders((prev: any[]) => prev.map((mo: any) =>
-                                mo.id === data.mo_id ? { ...mo, status: data.status } : mo
-                            ));
+                            // Immediate patch of status AND progress totals; the refetch is
+                            // still debounced behind it. Guarded on the payload actually
+                            // carrying something — several MO broadcasts are id-only
+                            // (mark-printed), and patching `status: undefined` used to blank
+                            // the row's status chip to grey until the refetch landed.
+                            //
+                            // A consolidated component MO (is_shared_component) isn't in this
+                            // list at all — it hangs off MODependency, not child_mos — so its
+                            // completions only land via the refetch. That's the same as before.
+                            if (data.mo_id && (data.status || data.qty_completed_total != null)) {
+                                setManufacturingOrders((prev: any[]) => {
+                                    const next = prev.map((mo: any) => patchMoNode(mo, data));
+                                    return next.some((mo: any, i: number) => mo !== prev[i]) ? next : prev;
+                                });
+                            }
                             queueLive('production', data.code, data.status);
+                            break;
+                        case 'WORK_ORDER_UPDATE':
+                            // No optimistic patch here: `data.status` on this event is the WORK
+                            // ORDER's status, and writing it onto the MO row was wrong whenever
+                            // the payload also carried an mo_id (bulk WO create does). The
+                            // debounced refetch below is what moves the MO board.
+                            queueLive('production');
                             break;
                         case 'PRODUCTION_RUN_UPDATE':
                             queueLive('production');
@@ -1140,7 +1380,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                         case 'SALES_ORDER_UPDATE':
                             queueLive('sales');
                             break;
-                        case 'weaving_run':
+                        case 'WEAVING_RUN_UPDATE':
                             queueLive('weaving');
                             break;
                         default:
@@ -1148,7 +1388,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     }
                 } catch (e) { console.error("WS Error", e); }
             };
-            ws.onclose = (e) => { setWsStatus('closed'); clearInterval(pingTimer); if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000); };
+            ws.onclose = (e) => {
+                setWsStatus('closed');
+                clearInterval(pingTimer);
+                // The next socket starts with no server-side topic state, so drop
+                // the "already sent" marker with the connection that held it.
+                if (wsRef.current === ws) wsRef.current = null;
+                sentTopicsRef.current = '';
+                // 1008 = the server rejected our token; 4001 = it expired while the
+                // socket was open. Both are terminal for THIS token, so reconnecting
+                // would spin a hot loop against the handshake — and the token is no
+                // good for HTTP either. Sign out so MainLayout's currentUser-null
+                // guard sends the user to /login, instead of leaving an idle tab
+                // looking live until its next fetch happens to 401. (A server-side
+                // failure during the handshake closes 1011, not 1008, precisely so
+                // it doesn't end a valid session.)
+                if (e.code === 1008 || e.code === 4001) { logoutRef.current(); return; }
+                if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000);
+            };
             ws.onerror = () => ws.close();
         };
         connect();

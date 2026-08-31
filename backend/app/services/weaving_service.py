@@ -288,7 +288,7 @@ async def audit_and_broadcast_stops(db: AsyncSession, user_id, runs: list, reaso
             details=f"Auto-stopped: {reason}",
         )
     for wc_id in {str(r.work_center_id) for r in runs}:
-        await manager.broadcast({"type": "weaving_run", "action": "stop", "work_center_id": wc_id})
+        await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "stop", "work_center_id": wc_id})
 
 
 # ── Actual output ────────────────────────────────────────────────────────────

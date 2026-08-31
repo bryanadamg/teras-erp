@@ -337,7 +337,7 @@ async def create_weaving_run(
         db, current_user.id, "CREATE", "weaving_run", str(run.id),
         details=f"Start run {wo.code if wo else mo.code} on {wc.code} ({payload.lines} lines)",
     )
-    await manager.broadcast({"type": "weaving_run", "action": "start", "work_center_id": str(wc.id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "start", "work_center_id": str(wc.id)})
     return run
 
 
@@ -373,7 +373,7 @@ async def update_weaving_run(
         db, current_user.id, "UPDATE", "weaving_run", str(run.id),
         details="Updated weaving run", changes=data,
     )
-    await manager.broadcast({"type": "weaving_run", "action": "update", "work_center_id": str(run.work_center_id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "update", "work_center_id": str(run.work_center_id)})
     return run
 
 
@@ -416,7 +416,7 @@ async def pause_weaving_run(
         details=f"Paused weaving run{f': {payload.reason}' if payload.reason else ''}",
         changes={"status": "PAUSED", "reason": payload.reason},
     )
-    await manager.broadcast({"type": "weaving_run", "action": "pause", "work_center_id": str(run.work_center_id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "pause", "work_center_id": str(run.work_center_id)})
     return run
 
 
@@ -450,7 +450,7 @@ async def resume_weaving_run(
         db, current_user.id, "UPDATE", "weaving_run", str(run.id),
         details="Resumed weaving run", changes={"status": "RUNNING"},
     )
-    await manager.broadcast({"type": "weaving_run", "action": "resume", "work_center_id": str(run.work_center_id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "resume", "work_center_id": str(run.work_center_id)})
     return run
 
 
@@ -471,7 +471,7 @@ async def stop_weaving_run(
     await audit_service.log_activity(
         db, current_user.id, "UPDATE", "weaving_run", str(run.id), details="Stopped weaving run",
     )
-    await manager.broadcast({"type": "weaving_run", "action": "stop", "work_center_id": str(run.work_center_id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "stop", "work_center_id": str(run.work_center_id)})
     return run
 
 
@@ -491,7 +491,7 @@ async def delete_weaving_run(
     await audit_service.log_activity(
         db, current_user.id, "DELETE", "weaving_run", run_id, details="Deleted weaving run",
     )
-    await manager.broadcast({"type": "weaving_run", "action": "delete", "work_center_id": wc_id})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "delete", "work_center_id": wc_id})
     return {"status": "success"}
 
 
@@ -528,7 +528,7 @@ async def set_loom_prep(
         details=f"Loom {wc.code}: {current} → {new_status}",
         changes={"prep_status": target},
     )
-    await manager.broadcast({"type": "weaving_run", "action": "prep", "work_center_id": str(wc.id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "prep", "work_center_id": str(wc.id)})
     return {
         "work_center_id": str(wc.id),
         "loom_status": new_status,
@@ -1090,7 +1090,7 @@ async def update_calendar(
         db, current_user.id, "UPDATE", "work_center_calendar", str(wc.id),
         details="Updated working weekdays", changes={"working_weekdays": wc.working_weekdays},
     )
-    await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(wc.id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "calendar", "work_center_id": str(wc.id)})
     return {"work_center_id": str(wc.id), "working_weekdays": wc.working_weekdays}
 
 
@@ -1175,7 +1175,7 @@ async def update_group_calendar(
         details=f"Batch calendar on {grp.code} → {len(machine_ids)} machines",
         changes={"working_weekdays": weekdays, "machines": len(machine_ids)},
     )
-    await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(grp.id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "calendar", "work_center_id": str(grp.id)})
     return {
         "group_id": str(grp.id),
         "working_weekdays": weekdays,
@@ -1207,7 +1207,7 @@ async def add_holiday(
         db, current_user.id, "CREATE", "work_center_holiday", str(hol.id),
         details=f"Holiday {payload.holiday_date} on {wc.code}",
     )
-    await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(wc.id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "calendar", "work_center_id": str(wc.id)})
     return hol
 
 
@@ -1236,7 +1236,7 @@ async def import_national_holidays(
         db, current_user.id, "CREATE", "work_center_holiday", str(wc.id),
         details=f"Imported {added} national holidays ({year}) for {wc.code}",
     )
-    await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(wc.id)})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "calendar", "work_center_id": str(wc.id)})
     return {"added": added}
 
 
@@ -1256,5 +1256,5 @@ async def delete_holiday(
     await audit_service.log_activity(
         db, current_user.id, "DELETE", "work_center_holiday", holiday_id, details="Deleted holiday",
     )
-    await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": wc_id})
+    await manager.broadcast({"type": "WEAVING_RUN_UPDATE", "action": "calendar", "work_center_id": wc_id})
     return {"status": "success"}

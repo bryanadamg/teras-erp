@@ -394,6 +394,13 @@ class DatabaseManager:
         return self._session_factory
 
     @property
+    def async_session_factory(self):
+        """For background work that owns its own session rather than taking one
+        from a request (the event-log relay). Request handlers keep using the
+        `get_async_db` dependency."""
+        return self._async_session_factory
+
+    @property
     def current_url(self):
         return self._current_url
 

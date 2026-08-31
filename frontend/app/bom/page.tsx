@@ -39,7 +39,7 @@ export default function BOMPage() {
     // Live refresh: a BOM created/updated/deleted elsewhere (WS BOM_UPDATE) reloads
     // the current page in place. This page owns its own list, so DataContext can't
     // refresh it for us — subscribe and re-pull the same page/search/filter.
-    useEffect(() => subscribeLiveEvents((kind) => { if (kind === 'bom') fetchBomList(); }), [subscribeLiveEvents, fetchBomList]);
+    useEffect(() => subscribeLiveEvents(['bom'], () => fetchBomList()), [subscribeLiveEvents, fetchBomList]);
 
     useEffect(() => {
         if (searchParams.get('action') === 'create_bom') {

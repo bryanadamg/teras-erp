@@ -47,6 +47,41 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 
 type PingState = { ok: boolean; latency_ms: number | null } | null;
 
+const fmtMs = (ms: number | null | undefined) => (ms == null ? '—' : `${ms} ms`);
+
+function fmtUptime(seconds: number | null | undefined): string {
+    if (seconds == null) return '—';
+    const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60);
+    if (h) return `${h}h ${m}m`;
+    if (m) return `${m}m`;
+    return `${Math.round(seconds)}s`;
+}
+
+/** One number from the live-event bus. Same card shell as StatusTile, but these
+ *  are counters rather than up/down states, so there is no status dot to show —
+ *  `warn` tints the ones where any value above zero is worth a look. */
+function EventStat({ classic, label, value, warn }: {
+    classic: boolean; label: string; value: number | string | null | undefined; warn?: boolean;
+}) {
+    return (
+        <div style={classic ? {
+            background: '#fff', border: '1px solid #b0a898', padding: '6px 8px',
+        } : {
+            background: '#f8f9fa', border: '1px solid #e2e6ea', borderRadius: 6, padding: '8px 10px',
+        }}>
+            <div style={{
+                fontFamily: classic ? xpFont : undefined, fontSize: classic ? 14 : 16,
+                fontWeight: 700, color: warn ? '#c62828' : (classic ? '#333' : '#212529'),
+            }}>
+                {value ?? '—'}
+            </div>
+            <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 10 : 11, color: '#888' }}>
+                {label}
+            </div>
+        </div>
+    );
+}
+
 function StatusTile({ classic, label, icon, ok, detail }: { classic: boolean; label: string; icon: string; ok: boolean | null; detail: string }) {
     const color = ok === null ? '#888' : ok ? '#2e7d32' : '#c62828';
     const dotBg = ok === null ? '#aaa' : ok ? '#4caf50' : '#e53935';
@@ -105,13 +140,13 @@ export default function SettingsDatabaseTab() {
     const [dbSizeBytes, setDbSizeBytes] = useState<number | null>(null);
     const [statusCheckedAt, setStatusCheckedAt] = useState<Date | null>(null);
     const [isStatusLoading, setIsStatusLoading] = useState(false);
+    const [eventStats, setEventStats] = useState<any | null>(null);
 
     const fetchSystemStatus = useCallback(async () => {
         setIsStatusLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/admin/database/status`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-            });
+            const auth = { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` };
+            const res = await fetch(`${API_BASE}/admin/database/status`, { headers: auth });
             setBeOnline(res.ok);
             if (res.ok) {
                 const data = await res.json();
@@ -119,6 +154,12 @@ export default function SettingsDatabaseTab() {
                 setRedisPing(data.redis);
                 setDbSizeBytes(data.db_size_bytes);
             }
+            // Live-event bus counters. Folded into the same refresh (and the same
+            // 30s interval) so the panel below never disagrees with the tiles above.
+            try {
+                const ev = await fetch(`${API_BASE}/health/events`, { headers: auth });
+                setEventStats(ev.ok ? await ev.json() : null);
+            } catch { setEventStats(null); }
         } catch (e) {
             setBeOnline(false);
         } finally {
@@ -399,6 +440,36 @@ export default function SettingsDatabaseTab() {
                     </div>
                 )}
             </SettingsPanel>
+
+            {eventStats && (
+                <SettingsPanel classic={classic} icon="bi-broadcast-pin" title="Live Event Feed">
+                    {/* Counters reset when the API process restarts — they answer
+                        "is the feed healthy right now", not "how much has ever
+                        happened". Backlog is the one to watch: anything above zero
+                        for more than a few seconds means events aren't reaching the
+                        bus. */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+                        <EventStat classic={classic} label="Connected clients" value={eventStats.connections?.current} />
+                        <EventStat classic={classic} label="Events published" value={eventStats.publish?.published} />
+                        <EventStat classic={classic} label="Events delivered" value={eventStats.delivery?.delivered} />
+                        <EventStat classic={classic} label="Unpublished backlog" value={eventStats.unpublished_backlog}
+                            warn={(eventStats.unpublished_backlog ?? 0) > 0} />
+                        <EventStat classic={classic} label="Publish failures" value={eventStats.publish?.failures}
+                            warn={(eventStats.publish?.failures ?? 0) > 0} />
+                        <EventStat classic={classic} label="Relayed after failure" value={eventStats.publish?.relayed} />
+                        <EventStat classic={classic} label="Dropped (slow client)" value={eventStats.connections?.closed_backpressure}
+                            warn={(eventStats.connections?.closed_backpressure ?? 0) > 0} />
+                        <EventStat classic={classic} label="Rejected handshakes" value={eventStats.connections?.rejected} />
+                        <EventStat classic={classic} label="Resumes replayed" value={eventStats.resume?.events_replayed} />
+                        <EventStat classic={classic} label="Full resyncs" value={eventStats.resume?.resync_required} />
+                        <EventStat classic={classic} label="Publish time" value={fmtMs(eventStats.publish?.time?.avg_ms)} />
+                        <EventStat classic={classic} label="Delivery lag" value={fmtMs(eventStats.delivery?.lag?.avg_ms)} />
+                    </div>
+                    <div style={{ ...settingsHint(classic), marginTop: 6 }}>
+                        Since the API last restarted ({fmtUptime(eventStats.uptime_seconds)} ago).
+                    </div>
+                </SettingsPanel>
+            )}
 
             {/* System Status above and Danger Zone below stay full-bleed — five
                 live cards genuinely use the width, and a destructive action wants

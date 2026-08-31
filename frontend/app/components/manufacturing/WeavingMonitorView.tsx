@@ -89,9 +89,7 @@ export default function WeavingMonitorView() {
     // not weaving_run, so listening for 'weaving' alone left the grid stale until a
     // manual refresh.
     useEffect(() => {
-        const unsubscribe = subscribeLiveEvents((kind) => {
-            if (kind === 'weaving' || kind === 'production') load();
-        });
+        const unsubscribe = subscribeLiveEvents(['weaving', 'production'], () => load());
         return unsubscribe;
     }, [subscribeLiveEvents, load]);
 

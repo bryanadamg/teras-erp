@@ -278,8 +278,7 @@ export default function QuarantinePackingView() {
     // already refetching — without this the page reloads three times per click.
     const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
-        const off = subscribeLiveEvents(kind => {
-            if (kind !== 'stock') return;
+        const off = subscribeLiveEvents(['stock'], () => {
             if (liveTimer.current) clearTimeout(liveTimer.current);
             liveTimer.current = setTimeout(() => silentRefetch(), 600);
         });

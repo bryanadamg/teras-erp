@@ -15,6 +15,20 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-31
+
+### Added
+- The live-event bus now logs every event it publishes, so a client that reconnects after a drop replays what it missed instead of just picking up wherever the feed resumes
+- Each screen now subscribes only to the live-event topics it actually reads, instead of receiving (and discarding) every event that fires anywhere in the app
+- A manufacturing-order completion or rejection now pushes its full progress (qty, status, percent) on the socket event, so the board updates in place instead of triggering a refetch
+- Settings > Database shows live-event bus health — connected clients, queue depth, drops, publish latency, uptime — so a degraded feed is visible instead of inferred from user reports
+- App chrome shows a "LIVE UPDATES OFF" badge once the socket has been down for a few seconds, so a stalled board reads as stale rather than quiet
+
+### Fixed
+- `/ws/events` now authenticates its handshake and filters every event by the connecting user's permissions — previously any authenticated socket received every live event regardless of what that user could view
+- Users holding a legacy broad permission (granted before the view-permission split) no longer go dark on live updates for the views that permission still covers
+- One client on a stalled connection can no longer hold up event delivery to every other client on the same worker — sends now queue per-connection, and a backed-up client is dropped and left to reconnect instead of blocking the broadcast loop
+
 ## [0.17.0] - 2026-08-30
 
 ### Added

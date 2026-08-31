@@ -74,9 +74,8 @@ export default function WorkOrdersPage() {
 
     // Live updates: refetch the list when a debounced batch of production events
     // arrives over the WebSocket (this page owns its list; context can't update it).
-    useEffect(() => subscribeLiveEvents((kind) => {
-        if (kind === 'production') fetchWOs();
-    }), [subscribeLiveEvents, fetchWOs]);
+    useEffect(() => subscribeLiveEvents(['production'], () => fetchWOs()),
+        [subscribeLiveEvents, fetchWOs]);
 
     const handleFilterStatus = (v: string) => setFilterStatus(v);
     const handleFilterWCChange = (groupId: string, wcId: string) => { setFilterGroup(groupId); setFilterWC(wcId); };

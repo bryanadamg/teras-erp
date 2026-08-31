@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, inspect
+from sqlalchemy import select, func, or_, inspect, case
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
@@ -1726,7 +1726,7 @@ async def add_mo_completion(
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, completion_log_detail)
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped_runs, "work order completed (target qty reached)")
-    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", **(await mo_progress_fields(db, mo, wo))})
 
     try:
         await kpi_service.invalidate_kpis_async(db)
@@ -1872,7 +1872,14 @@ async def reject_mo_completion(
         + (f": {comp.reject_reason}" if comp.reject_reason else "")
         + f" — good total {total_good:g}/{mo.qty}",
     )
-    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
+    # Loaded by id rather than through comp.work_order: the relationship isn't in
+    # this route's eager-load set, and a lazy hop would raise MissingGreenlet.
+    rejected_wo = None
+    if comp.work_order_id:
+        rejected_wo = (await db.execute(
+            select(WorkOrderModel).filter(WorkOrderModel.id == comp.work_order_id)
+        )).scalars().first()
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", **(await mo_progress_fields(db, mo, rejected_wo))})
     await manager.broadcast({"type": "STOCK_UPDATE"})
     try:
         await kpi_service.invalidate_kpis_async(db)
@@ -1977,6 +1984,62 @@ async def complete_manufacturing_order_with_batches(
         pass
 
     return {"status": "success", "message": "Completed with batch tracking"}
+
+
+async def mo_progress_fields(db: AsyncSession, mo, wo=None) -> dict:
+    """The PROGRESS half of a MANUFACTURING_ORDER_UPDATE payload — not just a status.
+
+    The board reads `qty_completed_total` / `qty_rejected_total` off the MO (and the
+    same pair off each WO), so a status-only event forced the client to re-pull the
+    whole MO tree just to move a progress bar — 800ms of debounce plus a heavy
+    request per logged bag. Sending the three numbers that actually changed lets the
+    row update on arrival; the debounced refetch still follows and remains the source
+    of truth for everything else.
+
+    Totals are re-summed here rather than passed in: the callers each have a
+    different subset of them in hand, and getting a progress bar subtly wrong is
+    worse than two cheap aggregates.
+
+    Returns the fields WITHOUT "type" — callers spread it into a dict literal that
+    names the event themselves. That keeps the event type greppable at the call
+    site and readable by tests/test_ws_event_registry.py, which can only audit
+    payloads it can see statically.
+    """
+    totals = (await db.execute(
+        select(
+            func.coalesce(func.sum(
+                case((MOCompletion.rejected == False, MOCompletion.qty_completed), else_=0)  # noqa: E712
+            ), 0),
+            func.coalesce(func.sum(MOCompletion.qty_rejected), 0),
+        ).filter(MOCompletion.mo_id == mo.id)
+    )).first()
+
+    payload = {
+        "mo_id": str(mo.id),
+        "status": mo.status,
+        "code": mo.code,
+        "qty": float(mo.qty or 0),
+        "qty_completed_total": float(totals[0] or 0),
+        "qty_rejected_total": float(totals[1] or 0),
+    }
+
+    if wo is not None:
+        wo_totals = (await db.execute(
+            select(
+                func.coalesce(func.sum(
+                    case((MOCompletion.rejected == False, MOCompletion.qty_completed), else_=0)  # noqa: E712
+                ), 0),
+                func.coalesce(func.sum(MOCompletion.qty_rejected), 0),
+            ).filter(MOCompletion.mo_id == mo.id, MOCompletion.work_order_id == wo.id)
+        )).first()
+        payload.update({
+            "wo_id": str(wo.id),
+            "wo_status": wo.status,
+            "wo_qty_completed_total": float(wo_totals[0] or 0),
+            "wo_qty_rejected_total": float(wo_totals[1] or 0),
+        })
+
+    return payload
 
 
 async def _collect_mo_delete_set(db: AsyncSession, root_id: uuid.UUID) -> set:

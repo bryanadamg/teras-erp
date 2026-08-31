@@ -14,6 +14,7 @@ import BootShell from './BootShell';
 import { routeTitle, PREFETCH_ROUTES, ROUTE_PERMISSIONS } from './navConfig';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import AccessDenied from './AccessDenied';
+import LiveFeedIndicator from './LiveFeedIndicator';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
     const { currentUser, logout, loading, hasPermission, hasAnyPermission } = useUser();
@@ -131,6 +132,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     </div>
                     
                     <div className="d-flex align-items-center gap-2 gap-md-3">
+                        <LiveFeedIndicator />
                         <button data-testid="scanner-btn" className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-secondary'}`} onClick={() => router.push('/scanner')} title="Scan QR Code"><i className="bi bi-qr-code-scan"></i></button>
                         <div className="d-flex align-items-center me-1">
                             <select 
