@@ -96,6 +96,49 @@ export const routeLiveKinds = (path: string): Set<LiveKind> => {
     return kinds;
 };
 
+/**
+ * Apply a MANUFACTURING_ORDER_UPDATE to one MO node and its subtree.
+ *
+ * Completion events carry the new totals (`qty_completed_total`,
+ * `qty_rejected_total`, and the same pair for the WO that logged), which is
+ * exactly what the board's progress bars read — so the row can move the moment
+ * the event lands instead of waiting out the 800ms debounce and a full MO-tree
+ * refetch. The refetch still follows and stays the source of truth.
+ *
+ * Returns the SAME object when nothing matched, so React skips re-rendering the
+ * branches this event didn't touch.
+ */
+const patchMoNode = (mo: any, d: any): any => {
+    let next = mo;
+
+    if (mo.id === d.mo_id) {
+        next = { ...mo };
+        if (d.status) next.status = d.status;
+        if (d.qty_completed_total != null) next.qty_completed_total = d.qty_completed_total;
+        if (d.qty_rejected_total != null) next.qty_rejected_total = d.qty_rejected_total;
+    }
+
+    if (d.wo_id && Array.isArray(next.work_orders) && next.work_orders.some((w: any) => w.id === d.wo_id)) {
+        next = {
+            ...next,
+            work_orders: next.work_orders.map((w: any) => w.id !== d.wo_id ? w : {
+                ...w,
+                status: d.wo_status ?? w.status,
+                qty_completed_total: d.wo_qty_completed_total ?? w.qty_completed_total,
+                qty_rejected_total: d.wo_qty_rejected_total ?? w.qty_rejected_total,
+            }),
+        };
+    }
+
+    const kids = next.child_mos;
+    if (Array.isArray(kids) && kids.length) {
+        const patched = kids.map((c: any) => patchMoNode(c, d));
+        if (patched.some((c: any, i: number) => c !== kids[i])) next = { ...next, child_mos: patched };
+    }
+
+    return next;
+};
+
 /** Rows per page of the server-paginated samples list (shared with SampleRequestView). */
 export const SAMPLE_PAGE_SIZE = 50;
 
@@ -1255,14 +1298,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     }
                     switch (data.type as LiveEventType) {
                         case 'MANUFACTURING_ORDER_UPDATE':
-                            // Cheap optimistic patch stays immediate; the refetch is debounced.
-                            // Guarded on `status` because several MO broadcasts carry only an
-                            // id (mark-printed, for one) — patching `status: undefined` blanked
-                            // the row's status chip to grey until the refetch landed 800ms later.
-                            if (data.mo_id && data.status) {
-                                setManufacturingOrders((prev: any[]) => prev.map((mo: any) =>
-                                    mo.id === data.mo_id ? { ...mo, status: data.status } : mo
-                                ));
+                            // Immediate patch of status AND progress totals; the refetch is
+                            // still debounced behind it. Guarded on the payload actually
+                            // carrying something — several MO broadcasts are id-only
+                            // (mark-printed), and patching `status: undefined` used to blank
+                            // the row's status chip to grey until the refetch landed.
+                            //
+                            // A consolidated component MO (is_shared_component) isn't in this
+                            // list at all — it hangs off MODependency, not child_mos — so its
+                            // completions only land via the refetch. That's the same as before.
+                            if (data.mo_id && (data.status || data.qty_completed_total != null)) {
+                                setManufacturingOrders((prev: any[]) => {
+                                    const next = prev.map((mo: any) => patchMoNode(mo, data));
+                                    return next.some((mo: any, i: number) => mo !== prev[i]) ? next : prev;
+                                });
                             }
                             queueLive('production', data.code, data.status);
                             break;
