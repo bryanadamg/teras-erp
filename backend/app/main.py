@@ -7,6 +7,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.concurrency import run_in_threadpool
+import asyncio
 import os
 import json
 import logging
@@ -28,7 +30,8 @@ from app.core.scheduler import backup_scheduler
 from app.db.base import Base
 from app.services import backup_schedule_service
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, shipments, colors, combos, weaving, print_templates, production_reports, quarantine, work_queue
-from app.core.ws_manager import manager
+from app.core.ws_manager import manager, WS_CLOSE_TOKEN_EXPIRED
+from app.api.auth import ws_connection_state
 
 # Keep in sync with /VERSION, frontend/package.json "version", and CHANGELOG.md on release.
 APP_VERSION = "0.17.0"
@@ -119,12 +122,59 @@ api_router.include_router(preferences.router)
 api_router.include_router(print_templates.router)
 api_router.include_router(production_reports.router)
 
+# How long a socket may sit accepted-but-unauthenticated before it is dropped.
+# Generous enough for a slow mobile link, short enough that an unauthenticated
+# client can't park connections.
+WS_AUTH_TIMEOUT_SECONDS = 10
+# 1008 = policy violation: the token was missing, malformed, expired at connect,
+# or belongs to a deactivated user. Terminal for this token — the client must not
+# retry it in a loop (see DataContext's onclose).
+WS_CLOSE_UNAUTHORIZED = 1008
+
 @api_router.websocket("/ws/events")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    await websocket.accept()
+
+    # Authenticate BEFORE the socket joins the broadcast pool. The browser
+    # WebSocket API can't set an Authorization header and a query-string token
+    # would land in proxy and access logs, so the token arrives as the first
+    # frame: {"type":"auth","token":"<jwt>"}. Until it does, this socket is in
+    # no pool and receives nothing.
+    token = None
     try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=WS_AUTH_TIMEOUT_SECONDS)
+        msg = json.loads(raw)
+        if isinstance(msg, dict) and msg.get("type") == "auth":
+            token = msg.get("token")
+    except Exception:
+        token = None
+
+    # Sync session + lazy-loaded permission relationships, so off the event loop.
+    state = await run_in_threadpool(ws_connection_state, token)
+    if state is None:
+        try:
+            await websocket.close(code=WS_CLOSE_UNAUTHORIZED)
+        except Exception:
+            pass
+        return
+
+    await manager.connect(websocket, state)
+    try:
+        await websocket.send_json({
+            "type": "auth_ok",
+            "username": state.username,
+            "expires_at": state.expires_at.isoformat() if state.expires_at else None,
+        })
         while True:
             raw = await websocket.receive_text()
+            # A live socket outlasting its token would keep receiving events the
+            # user's HTTP requests are already being 401'd for. Checked here and
+            # on the broadcast path, so an idle socket is closed by the next
+            # event and a busy one by its next ping.
+            if state.expires_at and state.expires_at <= datetime.now(timezone.utc):
+                manager.disconnect(websocket)
+                await websocket.close(code=WS_CLOSE_TOKEN_EXPIRED)
+                return
             # App-level heartbeat: reply to client pings so the browser can detect
             # a dead/idle connection (native WS ping/pong isn't exposed to JS) and
             # so proxies don't drop an otherwise-silent long-lived socket.

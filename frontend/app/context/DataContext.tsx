@@ -202,7 +202,7 @@ function patchMasterCache(patch: Record<string, any>) {
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-    const { currentUser, logout } = useUser();
+    const { currentUser, logout, hasPermission } = useUser();
     const { showToast } = useToast();
 
     // Data State
@@ -991,6 +991,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => { refreshDashboardKPIsRef.current = refreshDashboardKPIs; }, [refreshDashboardKPIs]);
     const refreshPrintTemplatesRef = useRef(refreshPrintTemplates);
     useEffect(() => { refreshPrintTemplatesRef.current = refreshPrintTemplates; }, [refreshPrintTemplates]);
+    // Held in a ref, not read from the closure: hasPermission is rebuilt on every
+    // UserContext render, and putting it in the socket effect's deps would tear
+    // down and reopen the WebSocket on unrelated renders.
+    const hasPermissionRef = useRef(hasPermission);
+    useEffect(() => { hasPermissionRef.current = hasPermission; }, [hasPermission]);
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
@@ -1036,11 +1041,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     fetchDataRef.current('dashboard');
                 }
                 liveSubsRef.current.forEach(fn => { try { fn('production'); } catch {} });
-                if (codes.size === 1) {
-                    const [code, status] = Array.from(codes.entries())[0];
-                    showToast(`Manufacturing Order ${code} updated: ${status}`, 'info');
-                } else if (codes.size > 1) {
-                    showToast(`${codes.size} manufacturing orders updated`, 'info');
+                // The server already withholds MO events from anyone who can see
+                // none of the production pages (core/ws_events.py). This narrows
+                // the TOAST specifically: that union includes work_order.view, so
+                // a picker with WO access would otherwise be told MO codes and
+                // statuses for orders they can't open. Refetches above are
+                // unaffected — their endpoints do their own gating.
+                if (hasPermissionRef.current('manufacturing_order.view')) {
+                    if (codes.size === 1) {
+                        const [code, status] = Array.from(codes.entries())[0];
+                        showToast(`Manufacturing Order ${code} updated: ${status}`, 'info');
+                    } else if (codes.size > 1) {
+                        showToast(`${codes.size} manufacturing orders updated`, 'info');
+                    }
                 }
             }
             if (kinds.has('kpi')) {
@@ -1090,7 +1103,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             ws = new WebSocket(wsUrl);
             ws.onopen = () => {
                 lastActivity = Date.now();
-                setWsStatus('open');
+                // Authenticate first. The server accepts the socket but keeps it
+                // out of the broadcast pool — and sends it nothing — until this
+                // frame lands, then closes it (1008) if the token doesn't check
+                // out. wsStatus stays 'connecting' until the auth_ok reply.
+                try { ws.send(JSON.stringify({ type: 'auth', token: localStorage.getItem('access_token') })); } catch {}
                 clearInterval(pingTimer);
                 // App-level heartbeat: ping every 25s; if no traffic for 60s the
                 // link is dead (server gone, proxy dropped it) — force a reconnect.
@@ -1104,6 +1121,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === 'pong') return;
+                    if (data.type === 'auth_ok') { setWsStatus('open'); return; }
                     switch (data.type) {
                         case 'WORK_ORDER_UPDATE':
                         case 'MANUFACTURING_ORDER_UPDATE':
@@ -1148,7 +1166,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     }
                 } catch (e) { console.error("WS Error", e); }
             };
-            ws.onclose = (e) => { setWsStatus('closed'); clearInterval(pingTimer); if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000); };
+            ws.onclose = (e) => {
+                setWsStatus('closed');
+                clearInterval(pingTimer);
+                // 1008 = the server rejected our token; 4001 = it expired while
+                // the socket was open. Both are terminal for THIS token, so
+                // reconnecting would spin a hot loop against the handshake. The
+                // next login remounts this effect with a fresh one.
+                if (e.code === 1008 || e.code === 4001) return;
+                if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000);
+            };
             ws.onerror = () => ws.close();
         };
         connect();

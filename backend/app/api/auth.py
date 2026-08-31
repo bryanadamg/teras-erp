@@ -3,7 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
+from app.core.ws_manager import ConnectionState
 from app.models.auth import User, Role
 from app.models.audit import AuditLog
 from app.schemas import UserResponse, RoleResponse, PermissionResponse, UserUpdate, UserCreate, RoleCreate, RoleUpdate
@@ -36,6 +37,49 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session 
 
 def get_current_active_user(current_user: Annotated[User, Depends(get_current_user)]):
     return current_user
+
+def ws_connection_state(token: str | None) -> ConnectionState | None:
+    """Validate a WebSocket handshake token; return the connection's identity or None.
+
+    The browser WebSocket API cannot set an Authorization header, so /ws/events
+    takes the token in its first frame instead of through `oauth2_scheme`. This
+    is the same validation `get_current_user` does — decode, load, require active
+    — plus a snapshot of the effective permission codes, which the manager uses
+    to decide which events this socket may receive (see core/ws_events.py).
+
+    Sync (its own Session) and called from a threadpool: it runs once per connect,
+    never on the broadcast path.
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        exp = payload.get("exp")
+    except JWTError:
+        return None
+    if not user_id:
+        return None
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None or not user.is_active:
+            return None
+        # Union of role grants and direct grants — the same two sources
+        # user_has_permission() reads, flattened once instead of per check.
+        codes = {p.code for p in (user.role.permissions if user.role else [])}
+        codes |= {p.code for p in (user.permissions or [])}
+        return ConnectionState(
+            user_id=str(user.id),
+            username=user.username,
+            perms=codes,
+            expires_at=datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None,
+        )
+    except Exception:
+        return None
+    finally:
+        db.close()
 
 def role_grants(role: Role | None, code: str) -> bool:
     if not role:

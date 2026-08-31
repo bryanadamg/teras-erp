@@ -24,7 +24,7 @@ export const reportsPage: DocPage = {
         },
         {
             heading: 'WebSocket Event Stream',
-            body: 'Manufacturing status changes, stock movements, and order updates are broadcast to all connected clients in real-time via a Redis pub/sub WebSocket endpoint at /api/ws/events. The frontend DataContext subscribes on load and triggers targeted data refetches when relevant events arrive, keeping all views current without polling.',
+            body: 'Manufacturing status changes, stock movements, and order updates are broadcast to connected clients in real-time via a Redis pub/sub WebSocket endpoint at /api/ws/events. The connection is authenticated with the same login token as the rest of the API, and each event is delivered only to users whose permissions cover it — a picker is not sent manufacturing events. The frontend DataContext subscribes on load and triggers targeted data refetches when relevant events arrive, keeping all views current without polling.',
         },
         {
             heading: 'Reports',
