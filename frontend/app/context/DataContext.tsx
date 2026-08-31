@@ -1102,6 +1102,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // re-sent on navigation without tearing the connection down and back up.
     const wsRef = useRef<WebSocket | null>(null);
     const sentTopicsRef = useRef<string>('');
+    // Resume cursor: the highest event seq this tab has seen. Survives reconnects
+    // (it lives outside the socket effect), not page loads — a reload refetches
+    // everything on mount anyway, so it has nothing to catch up on.
+    const lastSeqRef = useRef<number>(0);
     const pathname = usePathname();
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
@@ -1272,7 +1276,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 // out of the broadcast pool — and sends it nothing — until this
                 // frame lands, then closes it (1008) if the token doesn't check
                 // out. wsStatus stays 'connecting' until the auth_ok reply.
-                try { ws.send(JSON.stringify({ type: 'auth', token: localStorage.getItem('access_token') })); } catch {}
+                //
+                // `since` is the last event seq we saw: the server replays exactly
+                // what we missed while disconnected, instead of us blind-refetching
+                // the whole route. Absent on a fresh page load, which needs no
+                // catch-up — mounting already fetched everything.
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'auth',
+                        token: localStorage.getItem('access_token'),
+                        ...(lastSeqRef.current > 0 ? { since: lastSeqRef.current } : {}),
+                    }));
+                } catch {}
                 clearInterval(pingTimer);
                 // App-level heartbeat: ping every 25s; if no traffic for 60s the
                 // link is dead (server gone, proxy dropped it) — force a reconnect.
@@ -1286,14 +1301,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === 'pong') return;
+                    // High-water mark, never rewound: the relay can re-publish an
+                    // event that failed its first send, and that late arrival must
+                    // not drag the resume cursor backwards.
+                    if (typeof data.seq === 'number' && data.seq > lastSeqRef.current) {
+                        lastSeqRef.current = data.seq;
+                    }
                     if (data.type === 'auth_ok') {
                         setWsStatus('open');
                         // A fresh connection knows nothing about our topics, so this
                         // must be forced past the "already sent that" check — the
                         // string it compares against belongs to the dead socket.
                         sendSubscribeRef.current(true);
-                        if (hasAuthedBefore) resyncAfterReconnect();
+                        // No blunt resync here any more: if we sent a cursor, the
+                        // server is already replaying the gap, and each replayed
+                        // event drives the same targeted refetch it would have live.
+                        // A gap too wide to replay arrives as resync_required below.
+                        if (hasAuthedBefore && lastSeqRef.current === 0) resyncAfterReconnect();
                         hasAuthedBefore = true;
+                        return;
+                    }
+                    if (data.type === 'resync_required') {
+                        // Offline longer than the event log retains, or too far
+                        // behind to replay. Fall back to re-pulling the route.
+                        resyncAfterReconnect();
                         return;
                     }
                     switch (data.type as LiveEventType) {

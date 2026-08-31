@@ -30,9 +30,10 @@ from app.db.session import engine
 from app.core.db_manager import db_manager
 from app.core.scheduler import backup_scheduler
 from app.db.base import Base
-from app.services import backup_schedule_service
+from app.services import backup_schedule_service, event_log_service
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, shipments, colors, combos, weaving, print_templates, production_reports, quarantine, work_queue
 from app.core.ws_manager import manager, WS_CLOSE_TOKEN_EXPIRED
+from app.core.ws_events import can_receive
 from app.api.auth import ws_connection_state
 
 # Keep in sync with /VERSION, frontend/package.json "version", and CHANGELOG.md on release.
@@ -61,10 +62,40 @@ async def lifespan(app: FastAPI):
             session.close()
     except Exception:
         logging.exception("Failed to initialize the scheduled backup job")
+    # Drain any live events that never reached Redis — from a crash mid-publish or
+    # a bus outage — and keep the delivery buffer trimmed.
+    relay_task = asyncio.create_task(_event_relay_loop())
     yield
     # Shutdown: Close Redis connections
+    relay_task.cancel()
     await manager.stop()
     backup_scheduler.shutdown()
+
+
+# How often the relay looks for events stuck unpublished. Fast enough that a brief
+# Redis blip is invisible to users, slow enough to be free when nothing is stuck
+# (the partial index means the scan touches no rows in the normal case).
+EVENT_RELAY_INTERVAL_SECONDS = 10
+EVENT_PRUNE_INTERVAL_SECONDS = 30 * 60
+
+
+async def _event_relay_loop():
+    last_prune = 0.0
+    while True:
+        try:
+            await asyncio.sleep(EVENT_RELAY_INTERVAL_SECONDS)
+            await manager.relay_unpublished()
+            now = asyncio.get_event_loop().time()
+            if now - last_prune >= EVENT_PRUNE_INTERVAL_SECONDS:
+                last_prune = now
+                removed = await event_log_service.prune()
+                if removed:
+                    logger.info("Pruned %d expired live events", removed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # A relay that dies takes recovery with it, so it never gets to.
+            logger.exception("Live-event relay pass failed")
 
 app = FastAPI(
     title="Terras ERP",
@@ -146,11 +177,18 @@ async def websocket_endpoint(websocket: WebSocket):
     # frame: {"type":"auth","token":"<jwt>"}. Until it does, this socket is in
     # no pool and receives nothing.
     token = None
+    since = None
     try:
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=WS_AUTH_TIMEOUT_SECONDS)
         msg = json.loads(raw)
         if isinstance(msg, dict) and msg.get("type") == "auth":
             token = msg.get("token")
+            # Optional resume cursor: the seq of the last event this client saw.
+            # Carried on the auth frame rather than sent afterwards so the replay
+            # can be queued BEFORE the connection joins the broadcast pool — a
+            # separate round trip would let live events interleave with catch-up.
+            if isinstance(msg.get("since"), int):
+                since = msg["since"]
     except Exception:
         token = None
 
@@ -175,8 +213,6 @@ async def websocket_endpoint(websocket: WebSocket):
             pass
         return
 
-    await manager.connect(websocket, state)
-
     # Everything this endpoint sends goes through the connection's queue, not
     # straight down the socket: the manager's writer task owns the send side, and
     # a second concurrent sender can interleave frames on the same connection.
@@ -186,12 +222,31 @@ async def websocket_endpoint(websocket: WebSocket):
         except asyncio.QueueFull:
             pass
 
+    enqueue({
+        "type": "auth_ok",
+        "username": state.username,
+        "expires_at": state.expires_at.isoformat() if state.expires_at else None,
+    })
+
+    # Catch-up, queued before the connection joins the pool so replayed events
+    # cannot arrive after the live ones that follow them. Topics aren't known yet
+    # (the subscribe frame comes later), so the replay is filtered by permission
+    # only — a one-off burst of slightly-too-much is the right trade against
+    # withholding something the screen needed.
+    if since is not None:
+        missed, truncated = await event_log_service.events_since(since)
+        if truncated:
+            # Gap too wide or too old to reconstruct. Say so plainly; the client
+            # falls back to refetching its current route.
+            enqueue({"type": "resync_required"})
+        else:
+            for event in missed:
+                if can_receive(str(event.get("type") or ""), state.perms):
+                    enqueue(event)
+
+    await manager.connect(websocket, state)
+
     try:
-        enqueue({
-            "type": "auth_ok",
-            "username": state.username,
-            "expires_at": state.expires_at.isoformat() if state.expires_at else None,
-        })
         while True:
             raw = await websocket.receive_text()
             # A live socket outlasting its token would keep receiving events the

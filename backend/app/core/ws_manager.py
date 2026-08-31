@@ -187,17 +187,53 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         """
-        Global broadcast: Publishes to Redis.
-        The listener on each instance will pick it up and broadcast locally.
+        Global broadcast: record the event, then publish it to Redis.
+        The listener on each instance picks it up and broadcasts locally.
+
+        Recording first is what makes the feed recoverable: the row carries the
+        `seq` clients resume from, and a publish that fails leaves it unpublished
+        for the relay to retry. Recording is best-effort — if the database is
+        unavailable the event still goes out, just without a cursor.
         """
+        from app.services import event_log_service  # deferred: models import late
+
+        seq = await event_log_service.record(message)
+        if seq is not None:
+            message = {**message, "seq": seq}
+
         if self.redis:
             try:
                 await self.redis.publish(self.channel_name, json.dumps(message))
             except Exception as e:
                 logger.error(f"Failed to publish to Redis: {e}")
-                # Fallback to local broadcast if Redis is down
+                # Reaches only the sockets on THIS worker. The row stays
+                # unpublished so the relay re-sends it to everyone else.
                 await self._local_broadcast(message)
+                return
         else:
             await self._local_broadcast(message)
+
+        if seq is not None:
+            await event_log_service.mark_published([seq])
+
+    async def relay_unpublished(self) -> int:
+        """Re-publish events that never made it onto the bus. Returns how many."""
+        from app.services import event_log_service
+
+        if not self.redis:
+            return 0
+        rows = await event_log_service.unpublished()
+        sent: list[int] = []
+        for seq, payload in rows:
+            try:
+                await self.redis.publish(self.channel_name, json.dumps(payload))
+                sent.append(seq)
+            except Exception:
+                # Bus still down; leave the rest for the next pass.
+                break
+        if sent:
+            await event_log_service.mark_published(sent)
+            logger.info("Relayed %d previously unpublished live events", len(sent))
+        return len(sent)
 
 manager = ConnectionManager()
