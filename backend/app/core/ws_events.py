@@ -103,6 +103,38 @@ EVENT_PERMISSIONS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Legacy broad code -> the view codes it used to imply. Alembic 2afd23590ae8
+# granted these supersets to every ROLE holding a legacy code, but it did not
+# touch user_permissions, so a DIRECT grant of e.g. work_order.manage never got
+# its granular equivalents. Such a user is already 403'd by the granular route
+# checks, so this is belt-and-braces rather than the fix for that — but without
+# it they would ALSO go silently dark on live updates, which is the harder
+# failure to diagnose. Only the view-side codes are listed: nothing here decides
+# whether an action is allowed, only whether an event is delivered.
+LEGACY_IMPLIES: dict[str, tuple[str, ...]] = {
+    "work_order.manage": (
+        "work_order.view", "manufacturing_order.view", "production_run.view",
+        "weaving_monitor.view", "beam.view",
+    ),
+    "manufacturing.manage": ("bom.view", "routing.view"),
+    "inventory.manage": ("item.view", "combo_library.view", "lot.view", "stock_on_hand.view"),
+    "stock.entry": ("stock_on_hand.view",),
+    "locations.manage": ("location.view",),
+    "dyeing.manage": ("dye_recipe.view", "color_code.view", "lab_dip_request.view"),
+    "sales.manage": ("sales_order.view", "customer.view", "sample_request.view"),
+    "purchasing.manage": ("purchase_order.view", "supplier.view"),
+}
+
+
+def expand_permissions(codes: set[str]) -> set[str]:
+    """Add the granular view codes implied by any legacy broad code held."""
+    expanded = set(codes)
+    for legacy, implied in LEGACY_IMPLIES.items():
+        if legacy in codes:
+            expanded.update(implied)
+    return expanded
+
+
 def can_receive(event_type: str, perms: set[str]) -> bool:
     """True if a connection holding `perms` may be sent `event_type`.
 

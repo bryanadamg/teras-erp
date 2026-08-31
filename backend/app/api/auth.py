@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
 from app.core.ws_manager import ConnectionState
+from app.core.ws_events import expand_permissions
 from app.models.auth import User, Role
 from app.models.audit import AuditLog
 from app.schemas import UserResponse, RoleResponse, PermissionResponse, UserUpdate, UserCreate, RoleCreate, RoleUpdate
@@ -73,7 +74,7 @@ def ws_connection_state(token: str | None) -> ConnectionState | None:
         return ConnectionState(
             user_id=str(user.id),
             username=user.username,
-            perms=codes,
+            perms=expand_permissions(codes),
             expires_at=datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None,
         )
     except Exception:
