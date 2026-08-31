@@ -13,22 +13,27 @@ import QueryProvider from './components/shared/QueryProvider';
 import MainLayout from './components/shared/MainLayout';
 import GlobalTooltip from './components/shared/GlobalTooltip';
 import SWRegister from './components/shared/SWRegister';
-import { IBM_Plex_Sans_JP } from 'next/font/google';
+import localFont from 'next/font/local';
 
 // Brand face, used only for the "Terras" wordmark (login screen, docs header).
-// Self-hosted by next/font at build time so a floor client with no internet
-// still gets it, and `display: swap` + Next's size-adjust metrics keep the
-// wordmark from jumping. Exposed as a CSS var rather than applied to <body>:
-// the whole UI stays on the system stack.
+// Vendored as two woff2 files rather than pulled through `next/font/google`,
+// because that fetched from fonts.gstatic.com at *build* time and a single
+// ETIMEDOUT there failed the whole Docker image build. Self-hosted either way,
+// so a floor client with no internet still gets it; `display: swap` + Next's
+// size-adjust fallback metrics keep the wordmark from jumping. Exposed as a CSS
+// var rather than applied to <body>: the whole UI stays on the system stack.
 //
-// `preload: false` is load-bearing, not a tweak. The JP cut carries CJK, which
-// Google splits into ~120 unicode-range chunks per weight — preloading emitted
-// 122 <link rel=preload> tags on every page for glyphs one Latin wordmark will
-// never touch. With preload off, unicode-range gating means the browser fetches
-// only the single Latin chunk it actually renders.
-const displayFont = IBM_Plex_Sans_JP({
-  subsets: ['latin'],
-  weight: ['500', '600'],
+// Only the *latin* subset is vendored (~26 KB per weight). The JP cut carries
+// CJK, which Google splits into ~120 unicode-range chunks per weight — 246
+// files for one Latin wordmark. Slicing to latin at vendor time is what the old
+// `preload: false` + unicode-range gating bought us at runtime; keeping
+// `preload: false` on top just keeps the mark off the critical path of every
+// page, since only two screens render it.
+const displayFont = localFont({
+  src: [
+    { path: './fonts/IBMPlexSansJP-Medium-latin.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/IBMPlexSansJP-SemiBold-latin.woff2', weight: '600', style: 'normal' },
+  ],
   display: 'swap',
   preload: false,
   variable: '--font-display',
