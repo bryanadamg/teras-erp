@@ -203,6 +203,20 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
             .reduce((sum: number, b: any) => sum + (b.remaining ?? 0), 0);
     };
 
+    // Staging never clips a picked qty (the backend moves whole lots — a 12.5 kg bag
+    // against a 12.4 kg step puts 12.5 kg on the line, not 12.4 with 0.1 kg orphaned
+    // in the store). So the excess is shown here, the same warning Scan bags gives.
+    const overKg = useMemo(
+        () => rows
+            .filter(r => !r.is_beam)
+            .reduce((sum, r) => {
+                const pick = r.lot_tracked ? selectedLotQty(r.item_id) : parseFloat(qtyToStage[r.item_id] || '0');
+                if (!pick || pick <= 0) return sum;
+                return sum + Math.max(0, r.staged + pick - r.required_qty);
+            }, 0),
+        [rows, batchByItem, batchesByItem, qtyToStage],
+    );
+
     const submit = async () => {
         const lotLines = rows
             .filter(r => r.lot_tracked)
@@ -391,6 +405,17 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                 );
                             })}
                         </div>
+                    </div>
+                )}
+
+                {!loading && overKg > 1e-6 && (
+                    <div style={{
+                        background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000',
+                        padding: '4px 8px', marginBottom: 8, fontSize: 10,
+                    }}>
+                        This stage puts <b>{overKg.toFixed(2)}</b> past what the step requires.
+                        Whole lots move — nothing is clipped, and the surplus can be reassigned
+                        off the line afterwards.
                     </div>
                 )}
 

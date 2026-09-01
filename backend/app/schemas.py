@@ -915,10 +915,6 @@ class WOStageLine(BaseModel):
 
 class WOStagePayload(BaseModel):
     lines: list[WOStageLine]
-    # Scan-to-stage (greige bags → dyeing) grabs whole physical lots and may
-    # exceed the step's required qty. When true, skip the shortfall cap so every
-    # scanned lot moves in full; the UI warns the operator it's over-required.
-    allow_overstage: bool = False
 
 
 class BeamMountResponse(BaseModel):
