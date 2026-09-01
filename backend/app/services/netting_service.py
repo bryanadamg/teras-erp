@@ -152,6 +152,171 @@ def token_from_snapshot(snapshot: dict | None) -> str:
     return normalize_size_token(name)
 
 
+class SizeResolver:
+    """Turns the several places a size hides into one comparable token.
+
+    Shared by every surface that nets stock — the MRP ledger (`Availability`),
+    `/booking-stock` and the Production Run material requirements — because those
+    three already re-implement the same net_free formula and MUST agree. A size
+    bucket in one and not the others is how the PR preview ends up saying "make
+    14.77 XL" while booking stock calls the same greige covered.
+    """
+
+    def __init__(self):
+        self._size_names: dict[str, str] = {}             # Size.id -> Size.name
+        self._item_size_tokens: dict[str, set[str]] = {}  # item -> tokens its active BOMs produce
+
+    @classmethod
+    async def create(cls, db: AsyncSession) -> "SizeResolver":
+        self = cls()
+        # Size master is seeded (S..4XL) and tiny — load it once so a BOMSize row
+        # can be turned into a token without lazy-loading `BOMSize.size` inside an
+        # async walk (MissingGreenlet).
+        for sid, name in (await db.execute(select(Size.id, Size.name))).all():
+            self._size_names[str(sid)] = name or ""
+        return self
+
+    def token_for_size_id(self, size_id, label=None) -> str:
+        by_master = normalize_size_token(self._size_names.get(str(size_id))) if size_id else ""
+        return by_master or normalize_size_token(label)
+
+    def token_for_bom_size(self, bs) -> str:
+        """Token for a BOMSize row. Only `size_id`/`label` are read, so the row
+        does not need its `size` relationship loaded."""
+        if bs is None:
+            return ""
+        return self.token_for_size_id(getattr(bs, "size_id", None), getattr(bs, "label", None))
+
+    def label_for_token(self, tok: str) -> str | None:
+        """Display casing for a token — the Size master's own name when it is one
+        (so the UI reads "XL", not "xl"), else the token as stored."""
+        if not tok:
+            return None
+        for name in self._size_names.values():
+            if normalize_size_token(name) == tok:
+                return name
+        return tok
+
+    async def load_items(self, db: AsyncSession, item_ids):
+        """Which size tokens each item's active sized BOMs can actually produce.
+
+        Needed to key COMPONENT demand: a planned component inherits its parent
+        MO's size only when the component's own recipe is size-differentiated and
+        carries that size — exactly the `_resolve_sub_size` rule the create path
+        uses to decide whether to split component MOs per size. Without this the
+        colour-variant greige case (unsized sub-BOM pooled across every parent
+        size) would key demand as "XL" while its stock and its MO are unsized, and
+        that demand would stop shielding its own stock."""
+        item_ids = [i for i in item_ids if i and str(i) not in self._item_size_tokens]
+        if not item_ids:
+            return
+        for i in item_ids:
+            self._item_size_tokens[str(i)] = set()
+        rows = (await db.execute(
+            select(BOM.item_id, BOMSize.size_id, BOMSize.label)
+            .join(BOMSize, BOMSize.bom_id == BOM.id)
+            .where(BOM.active == True,  # noqa: E712
+                   BOM.size_mode == "sized",
+                   BOM.item_id.in_(item_ids))
+        )).all()
+        for item_id, sid, label in rows:
+            tok = self.token_for_size_id(sid, label)
+            if tok:
+                self._item_size_tokens[str(item_id)].add(tok)
+
+    def component_token(self, item_id, parent_token: str) -> str:
+        """Size a component will be produced/stocked at, given its parent's size."""
+        if not parent_token:
+            return ""
+        return parent_token if parent_token in self._item_size_tokens.get(str(item_id), set()) else ""
+
+
+def eligible_tokens(buckets, want: str) -> list[str]:
+    """Size buckets a demand stated at `want` may draw from, in draw order.
+
+    A sized demand takes its own size first, then the generic "" pool (stock whose
+    size was never recorded — that is not evidence of a *different* size). An
+    unsized demand is size-agnostic by definition, so after the generic pool it may
+    take any size rather than stranding stock it can legitimately use."""
+    order = [want] if want else [""]
+    if want:
+        order.append("")
+    else:
+        order += sorted(t for t in buckets if t)
+    seen, out = set(), []
+    for t in order:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+def allocate_onhand(buckets: dict[str, float], rows: list[tuple[str, float]]) -> list[float]:
+    """Split one (item, variant) pile across the size rows that want it.
+
+    The MRP ledger allocates by mutating as it explodes; the two REPORT surfaces
+    have no explosion to ride on, so they need a deterministic pass that reaches
+    the same answer — otherwise the same pile is shown in full on two size rows and
+    the page promises the same stock twice.
+
+    Draw order mirrors `eligible_tokens`: every row takes its own size first, then
+    the sized rows share the generic "" pool biggest-need-first (ties broken by
+    token so the page does not reshuffle between requests), then an unsized row
+    mops up whatever sized stock is left, which it is allowed to use.
+
+    `rows` is [(size_token, need)]; returns the qty allocated to each, in order.
+    """
+    left = {t: float(q) for t, q in buckets.items()}
+    out = [0.0] * len(rows)
+    for idx, (tok, _need) in enumerate(rows):
+        take = max(0.0, left.get(tok, 0.0))
+        out[idx] += take
+        left[tok] = left.get(tok, 0.0) - take
+    for idx in sorted((i for i, (tok, _n) in enumerate(rows) if tok),
+                      key=lambda i: (-(rows[i][1] - out[i]), rows[i][0])):
+        need = rows[idx][1] - out[idx]
+        if need <= 0:
+            continue
+        take = min(max(0.0, left.get("", 0.0)), need)
+        out[idx] += take
+        left[""] = left.get("", 0.0) - take
+    for idx, (tok, _need) in enumerate(rows):
+        if tok:
+            continue
+        for other in sorted(t for t in left if t):
+            need = rows[idx][1] - out[idx]
+            if need <= 0:
+                break
+            take = min(max(0.0, left.get(other, 0.0)), need)
+            out[idx] += take
+            left[other] = left.get(other, 0.0) - take
+    return out
+
+
+async def onhand_size_rows(db: AsyncSession, item_ids) -> dict:
+    """(item_id, variant_key, size_token) -> good on-hand, plant-wide.
+
+    The size of a physical pile is only ever recorded on its lot
+    (`Batch.bom_size_snapshot`), so balances are joined out to their batch; a row
+    with no lot lands in the generic "" bucket. QC-rejected / disposed lots are
+    excluded through the same subquery the MRP netting uses."""
+    out: dict[tuple, float] = defaultdict(float)
+    if not item_ids:
+        return out
+    rows = (await db.execute(
+        select(StockBalance.item_id, StockBalance.variant_key, StockBalance.qty,
+               Batch.bom_size_snapshot)
+        .outerjoin(Batch, cast(Batch.id, String) == StockBalance.batch_key)
+        .where(
+            StockBalance.item_id.in_(list(item_ids)),
+            StockBalance.batch_key.not_in(rejected_batch_keys()),
+        )
+    )).all()
+    for iid, vkey, qty, snapshot in rows:
+        out[(str(iid), vkey or "", token_from_snapshot(snapshot))] += float(qty or 0)
+    return out
+
+
 class Availability:
     """Mutable net-free ledger consumed during BOM explosion.
 
@@ -180,87 +345,21 @@ class Availability:
         # (item, vkey) -> {size_token: running free qty}; the ledger is per-bucket
         self._remaining: dict[tuple, dict[str, float]] = {}
         self._onhand: dict[tuple, dict[str, float]] = {}        # (item, vkey) -> {token: on-hand}
-        self._size_names: dict[str, str] = {}                   # Size.id -> Size.name
-        self._item_size_tokens: dict[str, set[str]] = {}        # item -> tokens its active BOMs produce
+        self.sizes: SizeResolver = SizeResolver()               # shared with the report surfaces
 
     @classmethod
     async def create(cls, db: AsyncSession, exclude_pr_id=None, exclude_mo_ids=None) -> "Availability":
         self = cls(db, exclude_pr_id, exclude_mo_ids)
-        await self._load_size_names()
+        self.sizes = await SizeResolver.create(db)
         await self._load_open_demand()
         await self._load_reservations()
         return self
 
-    async def _load_size_names(self):
-        """Size master is seeded (S..4XL) and tiny — load it once so a BOMSize row
-        can be turned into a token without lazy-loading `BOMSize.size` inside the
-        async explosion (MissingGreenlet)."""
-        for sid, name in (await self.db.execute(select(Size.id, Size.name))).all():
-            self._size_names[str(sid)] = name or ""
-
     def token_for_bom_size(self, bs) -> str:
-        """Token for a BOMSize row. Only `size_id`/`label` are read, so the row
-        does not need its `size` relationship loaded."""
-        if bs is None:
-            return ""
-        sid = getattr(bs, "size_id", None)
-        if sid:
-            return normalize_size_token(self._size_names.get(str(sid)) or getattr(bs, "label", None))
-        return normalize_size_token(getattr(bs, "label", None))
+        """Delegates to the shared resolver — call sites pass BOMSize rows."""
+        return self.sizes.token_for_bom_size(bs)
 
-    async def _load_item_size_tokens(self, item_ids):
-        """Which size tokens each item's active sized BOMs can actually produce.
-
-        Needed to key COMPONENT demand: a planned component inherits its parent
-        MO's size only when the component's own recipe is size-differentiated and
-        carries that size — exactly the `_resolve_sub_size` rule the create path
-        uses to decide whether to split component MOs per size. Without this the
-        colour-variant greige case (unsized sub-BOM pooled across every parent
-        size) would key demand as "XL" while its stock and its MO are unsized,
-        and that demand would stop shielding its own stock."""
-        item_ids = [i for i in item_ids if i and str(i) not in self._item_size_tokens]
-        if not item_ids:
-            return
-        for i in item_ids:
-            self._item_size_tokens[str(i)] = set()
-        rows = (await self.db.execute(
-            select(BOM.item_id, BOMSize.size_id, BOMSize.label)
-            .join(BOMSize, BOMSize.bom_id == BOM.id)
-            .where(BOM.active == True,  # noqa: E712
-                   BOM.size_mode == "sized",
-                   BOM.item_id.in_(item_ids))
-        )).all()
-        for item_id, sid, label in rows:
-            tok = normalize_size_token(self._size_names.get(str(sid)) if sid else label)
-            if tok:
-                self._item_size_tokens[str(item_id)].add(tok)
-
-    def _component_token(self, item_id, parent_token: str) -> str:
-        """Size a component will be produced/stocked at, given its parent's size."""
-        if not parent_token:
-            return ""
-        return parent_token if parent_token in self._item_size_tokens.get(str(item_id), set()) else ""
-
-    @staticmethod
-    def _eligible_tokens(buckets, want: str) -> list[str]:
-        """Buckets a demand stated at `want` may draw from, in draw order.
-
-        A sized demand takes its own size first, then the generic "" pool (stock
-        whose size was never recorded — it is not evidence of a *different* size).
-        An unsized demand is size-agnostic by definition, so after the generic
-        pool it may take any size rather than stranding stock it can legitimately
-        use."""
-        order = [want] if want else [""]
-        if want:
-            order.append("")
-        else:
-            order += sorted(t for t in buckets if t)
-        seen, out = set(), []
-        for t in order:
-            if t not in seen:
-                seen.add(t)
-                out.append(t)
-        return out
+    _eligible_tokens = staticmethod(eligible_tokens)
 
     async def _load_open_demand(self):
         """Aggregate outstanding component demand + own-output supply from every
@@ -284,7 +383,7 @@ class Availability:
         # One batched lookup for every component item on the board, so the size a
         # component will actually be produced at can be resolved without a query
         # (or a sub-BOM walk) per planned component.
-        await self._load_item_size_tokens({
+        await self.sizes.load_items(self.db, {
             comp.item_id for mo in mos for comp in mo.planned_components
         })
 
@@ -308,7 +407,7 @@ class Availability:
                     continue
                 req = (outstanding * float(comp.percentage)) / 100 if comp.percentage else outstanding * float(comp.qty)
                 vkey = _generate_variant_key([str(a) for a in (comp.attribute_value_ids or [])])
-                comp_token = self._component_token(comp.item_id, mo_token)
+                comp_token = self.sizes.component_token(comp.item_id, mo_token)
                 self._demand[(str(comp.item_id), vkey, comp_token)] += req
 
             # Supply: this MO's own outstanding output is a scheduled receipt —
@@ -356,32 +455,20 @@ class Availability:
             remaining = float(qty or 0) - float(released or 0)
             if remaining <= 0:
                 continue
-            tok = normalize_size_token(self._size_names.get(str(sid)) if sid else label)
+            tok = self.sizes.token_for_size_id(sid, label)
             self._reserved[(str(item_id), vkey or "", tok)] += remaining
 
     async def _on_hand_buckets(self, item_id: str, vkey: str) -> dict[str, float]:
-        """Physical on-hand of (item, variant) split by size token, summed across
-        ALL stock locations (single-plant scope).
-
-        The size of a physical pile is only ever recorded on its lot
-        (`Batch.bom_size_snapshot`), so the balance rows are joined out to their
-        batch; a row with no lot lands in the generic "" bucket."""
+        """On-hand of (item, variant) split by size token, summed across ALL stock
+        locations (single-plant scope). Same query the report surfaces use."""
         cache_key = (item_id, vkey)
-        if cache_key in self._onhand:
-            return self._onhand[cache_key]
-        rows = (await self.db.execute(
-            select(StockBalance.qty, Batch.bom_size_snapshot)
-            .outerjoin(Batch, cast(Batch.id, String) == StockBalance.batch_key)
-            .where(
-                StockBalance.item_id == item_id,
-                StockBalance.variant_key == vkey,
-                StockBalance.batch_key.not_in(rejected_batch_keys()),
-            )
-        )).all()
-        buckets: dict[str, float] = defaultdict(float)
-        for qty, snapshot in rows:
-            buckets[token_from_snapshot(snapshot)] += float(qty or 0.0)
-        self._onhand[cache_key] = dict(buckets)
+        if cache_key not in self._onhand:
+            rows = await onhand_size_rows(self.db, [item_id])
+            buckets: dict[str, float] = defaultdict(float)
+            for (iid, vk, tok), qty in rows.items():
+                if iid == item_id and vk == vkey:
+                    buckets[tok] += qty
+            self._onhand[cache_key] = dict(buckets)
         return self._onhand[cache_key]
 
     async def _on_hand(self, item_id: str, vkey: str, tok: str | None = None) -> float:

@@ -91,10 +91,13 @@ export default function PRMaterialPullSheetModal({
                     const attrNames: string[] = (r.attribute_value_ids || []).map(getAttributeValueName).filter(Boolean);
                     const hasShort = r.shortfall > 0;
                     return (
-                        <tr key={`${r.item_id}-${(r.attribute_value_ids || []).join(',')}`}>
+                        <tr key={`${r.item_id}-${(r.attribute_value_ids || []).join(',')}-${r.size_label || ''}`}>
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px', fontFamily: CODE_FONT, color: '#555' }}>{r.item_code}</td>
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px' }}>
                                 {r.item_name}
+                                {/* Sizes net separately, so the sheet lists one line per size —
+                                    the picker has to be told which pile to pull. */}
+                                {r.size_label && <span style={{ fontWeight: 'bold', marginLeft: '4px' }}>({r.size_label})</span>}
                                 {attrNames.length > 0 && <span style={{ color: '#666', marginLeft: '4px', fontSize: '7px' }}>[{attrNames.join(', ')}]</span>}
                             </td>
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'center', color: '#555' }}>{r.uom}</td>

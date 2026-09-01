@@ -118,3 +118,37 @@ def test_unknown_size_falls_back_to_the_unsized_pool_only(sized_lots):
     net, detail = _consume(sized_lots, 30.0, size_token="3xl")
     assert detail["on_hand"] == pytest.approx(10.0)
     assert net == pytest.approx(20.0)
+
+
+# ── shared-pool allocation (the two report surfaces) ─────────────────────────
+# /booking-stock and the PR material requirements have no explosion to ride on,
+# so they split a pile across size rows with allocate_onhand instead. It has to
+# reach the same answer as the ledger and, above all, never hand the same stock
+# to two rows — that is how a page promises material twice.
+
+def _alloc(buckets, rows):
+    from app.services.netting_service import allocate_onhand
+    return allocate_onhand(buckets, rows)
+
+
+def test_each_size_row_gets_its_own_bucket():
+    assert _alloc({"m": 100, "xl": 40}, [("m", 50), ("xl", 50)]) == [100.0, 40.0]
+
+
+def test_generic_pool_is_handed_out_once_biggest_need_first():
+    """10 unsized kg, two short rows: the bigger shortfall takes it, and the
+    total handed out never exceeds the pile."""
+    out = _alloc({"": 10}, [("m", 4), ("xl", 30)])
+    assert out == [0.0, 10.0]
+    assert sum(out) == pytest.approx(10.0)
+
+
+def test_a_pile_is_never_promised_to_two_rows():
+    out = _alloc({"m": 20, "": 5}, [("m", 100), ("xl", 100), ("l", 100)])
+    assert sum(out) == pytest.approx(25.0), "allocated more than exists"
+
+
+def test_unsized_row_mops_up_leftover_sized_stock():
+    """A size-agnostic requirement may use any pile — matching the ledger's
+    draw order — instead of reading short beside stock it can legally take."""
+    assert _alloc({"m": 30}, [("", 12)]) == [12.0]
