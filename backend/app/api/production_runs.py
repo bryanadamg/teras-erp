@@ -893,7 +893,10 @@ async def create_production_run(
                     net_qty = gross
                 else:
                     net_qty, net_detail = await availability.consume_detailed(
-                        bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id
+                        bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id,
+                        # Sized FG nets only against its own size's stock — a
+                        # 67 cm M roll is not XL inventory.
+                        size_token=availability.token_for_bom_size(bom_size),
                     )
                     _reserve(net_detail.get("covered", 0.0), bom, root_attrs, bom_entry,
                              pr_entry, bom_size_id=size_entry.bom_size_id)

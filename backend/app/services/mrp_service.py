@@ -465,6 +465,9 @@ async def create_consolidated_component_mos(
                         "total_qty": 0.0,
                         "src_loc_id": src_loc_id,
                         "bom_size_id": sub_bs.id if sub_bs is not None else None,
+                        # Size bucket for netting: stock of another size is not
+                        # substitutable, so it must not net this demand away.
+                        "bom_size_row": sub_bs,
                         "contributions": {},
                     }
 
@@ -483,7 +486,8 @@ async def create_consolidated_component_mos(
             net_qty = total
             if availability is not None:
                 net_qty = await availability.consume(
-                    data["item_id"], data["sub_attrs"], data["src_loc_id"], total
+                    data["item_id"], data["sub_attrs"], data["src_loc_id"], total,
+                    size_token=availability.token_for_bom_size(data["bom_size_row"]),
                 )
             if net_qty <= 0:
                 continue  # fully covered by stock -> no component MO, no pegging, no sub-tree
