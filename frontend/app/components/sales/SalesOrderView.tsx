@@ -435,6 +435,29 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }));
   };
 
+  // Edit an already-added line's alt unit in place. Without this the Alt Unit
+  // column could only ever be set on a brand-new line: reopening an order to
+  // change it did nothing, since the form's alt-unit inputs bind to newLine.
+  // Changing the unit clears the factor (factors belong to the UOM master), and
+  // qty/kg follow the conversion exactly as Add Line derives them.
+  const handleLineAltChange = (index: number, patch: { qty2?: string; uom2?: string; uom2_factor?: number | null }) => {
+      setNewSO(prev => ({
+          ...prev,
+          lines: prev.lines.map((l: any, i: number) => {
+              if (i !== index) return l;
+              const next: any = { ...l, ...patch };
+              if (patch.uom2 !== undefined) next.uom2_factor = null;
+              const conv = deriveFromAlt(next.uom2, parseFloat(next.qty2) || 0, next.uom2_factor ?? null);
+              if (conv) {
+                  const kg = calcKgAuto(l.item_id, conv.yd, conv.m);
+                  next.qty = conv.yd;
+                  if (kg !== null) next.qty_kg = kg;
+              }
+              return next;
+          }),
+      }));
+  };
+
   const comboAttr = (attributes || []).find((a: any) => a.system_role === 'combo');
   const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
 
@@ -646,17 +669,24 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setNewLine(prev => ({ ...prev, qty_kg: kgStr, qty: yd }));
   };
 
-  const applyFactor = (qty2Str: string, factorVal: number | null) => {
-      const qty2 = parseFloat(qty2Str as string) || 0;
-      if (!factorVal || qty2 <= 0) return;
-      const uomObj = uoms.find((u: any) => u.name === newLine.uom2);
+  // qty2 x factor -> Yd. The factor's target unit lives on the UOM master, not on
+  // the line, so it is resolved by value. Shared with the in-place line editor.
+  const deriveFromAlt = (uom2: string, qty2: number, factorVal: number | null): { yd: number; m: number } | null => {
+      if (!factorVal || qty2 <= 0) return null;
+      const uomObj = (uoms || []).find((u: any) => u.name === uom2);
       const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factorVal);
       const toUnit = (factorObj?.to_uom_name || '').toLowerCase();
       const rawQty = qty2 * factorVal;
       const yd = toUnit === 'm' || toUnit === 'meter'
           ? Math.round(rawQty / 0.9144 * 100) / 100
           : Math.round(rawQty * 100) / 100;
-      const m = Math.round(yd * 0.9144 * 100) / 100;
+      return { yd, m: Math.round(yd * 0.9144 * 100) / 100 };
+  };
+
+  const applyFactor = (qty2Str: string, factorVal: number | null) => {
+      const conv = deriveFromAlt(newLine.uom2, parseFloat(qty2Str as string) || 0, factorVal);
+      if (!conv) return;
+      const { yd, m } = conv;
       const gross = Math.round(yd / 144 * 10000) / 10000;
       setQtyMeter(m > 0 ? String(m) : '');
       setQtyGrossYd(gross > 0 ? String(gross) : '');
@@ -1838,6 +1868,54 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        title="Quantity ordered (Yd)"
                                    />
                                    <span style={{color:classic?'#777':'',fontSize:classic?'10px':'',fontWeight:'normal'}} className={classic?'':'text-muted small'}>Yd</span>
+                                   {(() => {
+                                       const lineUom = (uoms || []).find((u: any) => u.name === line.uom2);
+                                       const lineFactors = lineUom?.factors || [];
+                                       const conv = describeUom2(line);
+                                       return (
+                                           <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                                               <span style={{color:classic?'#999':'',fontSize:'9px'}} className={classic?'':'text-muted'}>
+                                                   Alt{conv?.total ? ` (= ${conv.total})` : ''}
+                                               </span>
+                                               <div style={{display:'flex',alignItems:'center',gap:2}}>
+                                                   <input type="number" min="0" step="any"
+                                                       style={classic ? xpInput({width:52, textAlign:'right'}) : {width:64,textAlign:'right'}}
+                                                       className={classic?'':'form-control form-control-sm'}
+                                                       placeholder="0"
+                                                       value={line.qty2 ?? ''}
+                                                       onChange={e => handleLineAltChange(idx, { qty2: e.target.value })}
+                                                       title="Quantity in the alternate unit the customer ordered in"
+                                                   />
+                                                   <select
+                                                       style={classic ? { fontFamily:xpFont, fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 2px', background:'#fff', outline:'none', color:'#000', width:66 } : {width:80}}
+                                                       className={classic?'':'form-select form-select-sm'}
+                                                       value={line.uom2 || ''}
+                                                       onChange={e => handleLineAltChange(idx, { uom2: e.target.value })}
+                                                       title="Alternate unit"
+                                                   >
+                                                       <option value="">Unit</option>
+                                                       {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                                   </select>
+                                                   {lineFactors.length > 0 && (
+                                                       <select
+                                                           style={classic ? { fontFamily:xpFont, fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 2px', background: line.uom2_factor ? '#fff8e8' : '#fff', outline:'none', color:'#000', width:96 } : {width:110}}
+                                                           className={classic?'':'form-select form-select-sm'}
+                                                           value={line.uom2_factor ?? ''}
+                                                           onChange={e => handleLineAltChange(idx, { uom2_factor: e.target.value ? parseFloat(e.target.value) : null })}
+                                                           title={`How much one ${line.uom2 || 'alt unit'} is`}
+                                                       >
+                                                           <option value="">factor</option>
+                                                           {lineFactors.map((f: any) => (
+                                                               <option key={f.id} value={f.value}>
+                                                                   x{parseFloat(f.value)} {(f.to_uom_name || 'Yard')}{f.label ? ` (${f.label})` : ''}
+                                                               </option>
+                                                           ))}
+                                                       </select>
+                                                   )}
+                                               </div>
+                                           </div>
+                                       );
+                                   })()}
                                    <label style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',margin:0}} title="Customer has not supplied a physical color swatch — untick once it arrives">
                                        <input type="checkbox" checked={!!line.no_color_swatch} onChange={() => handleLineSwatchToggle(idx)} className={classic?'':'form-check-input mt-0'} style={classic?{margin:0}:undefined} />
                                        <span style={{color:classic?'#777':'',fontSize:'9px'}} className={classic?'':'text-muted'}>No swatch</span>
