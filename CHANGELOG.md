@@ -15,6 +15,15 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-09-01
+
+### Fixed
+- Material availability is netted per size instead of pooling every size into one figure. Sized components are made and lotted per size — 67 cm M cloth cannot be cut for XL — but an XL requirement matched against the M rolls on hand, so a run was planned short of the fabric it actually needed. Booking Stock and the Production Run material requirements bucket the same way and list one row per size; the pull sheet and the requirement row name the size, and the lots offered against a row are only that size's lots. Stock whose size was never recorded stays substitutable, and is handed to the sizes that need it rather than shown in full on every row
+- Staging moves the whole lot that was picked instead of clipping it to the step's remaining shortfall — a 12.5 kg lot staged against a 12.4 kg step left 0.1 kg of the same lot behind in the store, which is not a state the floor can act on. A staging claim now also dies with its work order, so surplus left on the line by a finished run is the next order's material instead of stranded
+- A sales-order line's alternative unit can be changed after the line is added. The Alt Unit column could only ever be set while drafting a new line, so reopening an order to correct it did nothing
+- A sales-order line's base quantity and its alternative count stay locked to the unit factor in both directions, so a line can no longer read "600 Yd" beside "6 Gross x144 Yd = 864 Yd". Lines saved before the lock existed are flagged where they disagree rather than silently rewritten — only a human knows which figure was ordered
+- The brand wordmark font is vendored into the repo instead of pulled from Google Fonts at build time, where a single network timeout failed the whole Docker image build
+
 ## [0.18.0] - 2026-08-31
 
 ### Added

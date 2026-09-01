@@ -851,8 +851,13 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
     otherwise this screen would call reserved FG free while PR netting refuses to
     plan against it, and the two would disagree about the same pile.
 
-    Plant-level (location-agnostic) netting: rows are keyed by (item, variant);
-    on-hand is summed across ALL stock locations.
+    Plant-level (location-agnostic) but SIZE-AWARE netting: rows are keyed by
+    (item, variant, size token) and on-hand is summed across ALL stock locations.
+    A size is a physical difference — 67 cm greige is not XL stock — and the MRP
+    ledger buckets the same way, so a sized component shows one row per size here
+    too. The generic "" bucket (unsized BOM, raw material, pre-feature lot) is
+    shared: `netting_service.allocate_onhand` hands it to the sizes that need it
+    rather than showing the same pile in full on every row.
     """
     from collections import defaultdict
     from uuid import UUID
@@ -860,8 +865,10 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
     from app.models.manufacturing import ManufacturingOrder
     from app.models.reservation import StockReservation
     from app.models.sales import SalesOrder
+    from app.models.bom import BOMSize
     from app.services.netting_service import (
         _sales_order_linked_prs, _output_committed, OPEN_SO_STATUSES,
+        SizeResolver, allocate_onhand, onhand_size_rows, token_from_snapshot,
     )
 
     ONGOING = ("PENDING", "IN_PROGRESS", "DELIVERED")   # see netting_service.ONGOING
@@ -878,7 +885,12 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
 
     so_linked_prs = await _sales_order_linked_prs(db, mo_rows)
 
-    # demand + supply keyed by (item_id, attr_key) only — no location.
+    # Size identity, resolved the same way the MRP ledger resolves it (one shared
+    # helper on purpose — a private copy is exactly how these two surfaces drift).
+    sizes = await SizeResolver.create(db)
+    await sizes.load_items(db, {c.item_id for mo in mo_rows for c in mo.planned_components})
+
+    # demand + supply keyed by (item_id, attr_key, size_token) — no location.
     demand: dict[tuple, dict] = defaultdict(lambda: {"total_required": 0.0, "contributions": []})
     supply: dict[tuple, dict] = defaultdict(lambda: {"total_incoming": 0.0, "contributions": []})
 
@@ -889,6 +901,9 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             continue  # nothing left to make → no remaining demand, no incoming
 
         tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0.0
+        # Size this MO is made at; a component inherits it only when the
+        # component's own recipe is size-differentiated (SizeResolver decides).
+        mo_token = token_from_snapshot(mo.bom_size_snapshot)
 
         # ── Demand: components this MO will still consume ──
         for comp in mo.planned_components:
@@ -898,7 +913,8 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             if tol > 0:
                 req *= (1 + tol / 100)
             attr_ids = sorted(str(a) for a in (comp.attribute_value_ids or []))
-            key = (str(comp.item_id), ",".join(attr_ids))
+            comp_token = sizes.component_token(comp.item_id, mo_token)
+            key = (str(comp.item_id), ",".join(attr_ids), comp_token)
             d = demand[key]
             d["item_id"] = comp.item_id
             d["attr_ids"] = attr_ids
@@ -915,7 +931,7 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
         # on-hand variant_key rows (per-color netting).
         from app.services.stock_service import _generate_variant_key
         out_key = _generate_variant_key([str(v.id) for v in mo.attribute_values], getattr(mo, "color_id", None))
-        skey = (str(mo.item_id), out_key)
+        skey = (str(mo.item_id), out_key, mo_token)
         s = supply[skey]
         s["total_incoming"] += outstanding
         s["contributions"].append(BookingSupplyMO(
@@ -933,18 +949,20 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             StockReservation.attribute_value_ids,
             StockReservation.qty, StockReservation.qty_released,
             StockReservation.sales_order_id, SalesOrder.po_number,
+            BOMSize.size_id, BOMSize.label,
         )
         .join(SalesOrder, SalesOrder.id == StockReservation.sales_order_id)
+        .outerjoin(BOMSize, BOMSize.id == StockReservation.bom_size_id)
         .where(
             StockReservation.status == "ACTIVE",
             SalesOrder.status.in_(OPEN_SO_STATUSES),
         )
     )).all()
-    for iid, vkey, attr_ids, qty, released, so_id, po_number in res_rows:
+    for iid, vkey, attr_ids, qty, released, so_id, po_number, size_id, size_label in res_rows:
         held = float(qty or 0) - float(released or 0)
         if held <= 0:
             continue
-        key = (str(iid), vkey or "")
+        key = (str(iid), vkey or "", sizes.token_for_size_id(size_id, size_label))
         reserved[key] += held
         reserved_sos[key].append(BookingReservedSO(
             sales_order_id=so_id, so_number=po_number or "", reserved_qty=held,
@@ -966,34 +984,46 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
         select(Item).filter(Item.id.in_(item_ids))
     )).scalars().all()}
 
-    # Plant-wide on-hand: sum StockBalance across ALL locations per (item, variant_key).
+    # Plant-wide on-hand per (item, variant, size), summed across ALL locations;
     # QC-rejected lot stock is physically present but never good/available.
-    from app.services.netting_service import rejected_batch_keys
-    onhand_map: dict[tuple, float] = {}
-    for iid, vk, q in (await db.execute(
-        select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
-        .where(
-            StockBalance.item_id.in_(item_ids),
-            StockBalance.batch_key.not_in(rejected_batch_keys()),
+    onhand_map = await onhand_size_rows(db, item_ids)
+
+    # The generic "" pile is shared by every size of an (item, variant), so it is
+    # handed out once — biggest need first — instead of being shown in full on each
+    # row. Without this, two size rows each claim the same unsized stock and the
+    # page promises it twice. Unallocated surplus in "" is deliberately not shown:
+    # it belongs to no row's demand.
+    onhand_row: dict[tuple, float] = {}
+    by_variant: dict[tuple, list] = defaultdict(list)
+    for key, data in demand.items():
+        by_variant[(key[0], key[1])].append(key)
+    for (item_id_str, attr_key), keys in by_variant.items():
+        buckets = {
+            tok: q for (iid, vk, tok), q in onhand_map.items()
+            if iid == item_id_str and vk == attr_key
+        }
+        allocated = allocate_onhand(
+            buckets, [(k[2], demand[k]["total_required"] + reserved.get(k, 0.0)) for k in keys]
         )
-        .group_by(StockBalance.item_id, StockBalance.variant_key)
-    )).all():
-        onhand_map[(str(iid), vk or "")] = float(q or 0)
+        for k, qty in zip(keys, allocated):
+            onhand_row[k] = qty
 
     rows: list[BookingStockRow] = []
-    for (item_id_str, attr_key), data in demand.items():
+    for key, data in demand.items():
+        item_id_str, attr_key, size_tok = key
         item = item_map.get(data["item_id"])
-        on_hand = onhand_map.get((item_id_str, attr_key), 0.0)
-        sup = supply.get((item_id_str, attr_key))
+        on_hand = onhand_row.get(key, 0.0)
+        sup = supply.get(key)
         incoming = sup["total_incoming"] if sup else 0.0
         required = data["total_required"]
-        res_qty = reserved.get((item_id_str, attr_key), 0.0)
+        res_qty = reserved.get(key, 0.0)
         rows.append(BookingStockRow(
             item_id=data["item_id"],
             item_code=item.code if item else str(data["item_id"]),
             item_name=item.name if item else str(data["item_id"]),
             uom=item.uom if item else "",
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
+            size_label=sizes.label_for_token(size_tok),
             location_id=None,
             location_name="Plant-wide",
             qty_on_hand=on_hand,
@@ -1003,7 +1033,7 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
             qty_net_free=on_hand + incoming - required - res_qty,
             demand_mos=data["contributions"],
             supply_mos=sup["contributions"] if sup else [],
-            reserved_sos=reserved_sos.get((item_id_str, attr_key), []),
+            reserved_sos=reserved_sos.get(key, []),
         ))
 
     return rows
@@ -1038,7 +1068,7 @@ async def get_stock_availability(
         rows = list(rows)  # copy before sorting — never mutate the cached list in place
 
     # Shortfalls first (most actionable), then by item code.
-    rows.sort(key=lambda r: (r.qty_net_free >= 0, r.item_code))
+    rows.sort(key=lambda r: (r.qty_net_free >= 0, r.item_code, r.size_label or ""))
     total = len(rows)
     # The page window is applied to an in-memory list here, not a select, so this
     # slices by hand instead of window.apply(). Uncapped (size=0) pins offset to 0,

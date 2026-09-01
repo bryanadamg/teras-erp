@@ -39,9 +39,10 @@ interface Props {
  * into a bag-fed WO's input location — no manual lot typing. Greige bags into a
  * DYEING WO, dyed lots into a SETTING WO; the flow is identical because both take
  * their substrate as many weighed, labelled bags. Each bag label QR encodes the
- * lot number, resolved via GET /batches/resolve. Whole lots move (over-stage
- * allowed, with a warning past the WO's required qty). Commits through the
- * standard POST /work-orders/{id}/stage with allow_overstage=true.
+ * lot number, resolved via GET /batches/resolve. Whole lots move, with a warning
+ * past the WO's required qty. Commits through the standard
+ * POST /work-orders/{id}/stage, which never clips a picked qty — the manual modal
+ * behaves identically.
  */
 export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode }: Props) {
     const { authFetch } = useData() as any;
@@ -251,7 +252,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
             const res = await authFetch(`${API_BASE}/work-orders/${wo.id}/stage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lines, allow_overstage: true }),
+                body: JSON.stringify({ lines }),
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => null);

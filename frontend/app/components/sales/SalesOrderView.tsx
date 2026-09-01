@@ -430,7 +430,32 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
               if (i !== index) return l;
               const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
               const kg = calcKgAuto(l.item_id, yd, m);
-              return { ...l, qty: yd, qty_kg: kg !== null ? kg : l.qty_kg };
+              // Alt count follows the base qty, same lock as the draft-line form.
+              const alt = altCountForYd(l.uom2, l.uom2_factor ?? null, yd);
+              return { ...l, qty: yd, qty_kg: kg !== null ? kg : l.qty_kg, ...(alt !== undefined ? { qty2: alt } : {}) };
+          }),
+      }));
+  };
+
+  // Edit an already-added line's alt unit in place. Without this the Alt Unit
+  // column could only ever be set on a brand-new line: reopening an order to
+  // change it did nothing, since the form's alt-unit inputs bind to newLine.
+  // Changing the unit clears the factor (factors belong to the UOM master), and
+  // qty/kg follow the conversion exactly as Add Line derives them.
+  const handleLineAltChange = (index: number, patch: { qty2?: string; uom2?: string; uom2_factor?: number | null }) => {
+      setNewSO(prev => ({
+          ...prev,
+          lines: prev.lines.map((l: any, i: number) => {
+              if (i !== index) return l;
+              const next: any = { ...l, ...patch };
+              if (patch.uom2 !== undefined) next.uom2_factor = null;
+              const conv = deriveFromAlt(next.uom2, parseFloat(next.qty2) || 0, next.uom2_factor ?? null);
+              if (conv) {
+                  const kg = calcKgAuto(l.item_id, conv.yd, conv.m);
+                  next.qty = conv.yd;
+                  if (kg !== null) next.qty_kg = kg;
+              }
+              return next;
           }),
       }));
   };
@@ -593,6 +618,31 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       return { name: '', measurement: '' };
   };
 
+  // ── Dual-UoM lock ───────────────────────────────────────────────────────────
+  // Base qty (Yd) and the alt count are two views of ONE number, joined by the
+  // factor off the UOM master. Whichever side is typed, the other follows —
+  // otherwise a line reads "600 Yd" beside "6 Gross x144 Yd = 864 Yd", which is
+  // self-contradictory, and nothing downstream can tell which figure was ordered.
+  // The factor's target unit is not on the SO line, so it is resolved by value.
+  const ydPerAlt = (uom2: string, factorVal: number | null): number | null => {
+      if (!factorVal || !uom2) return null;
+      const uomObj = (uoms || []).find((u: any) => u.name === uom2);
+      const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factorVal);
+      const toUnit = (factorObj?.to_uom_name || '').toLowerCase();
+      const yd = toUnit === 'm' || toUnit === 'meter' ? factorVal / 0.9144 : factorVal;
+      return yd > 0 ? yd : null;
+  };
+
+  // The alt count a base qty works out to. `undefined` means "this line has no
+  // resolvable factor" — leave qty2 untouched rather than blanking a free-text alt
+  // (the "600 yard" lines carry a unit with no factor and must survive a qty edit).
+  const altCountForYd = (uom2: string, factorVal: number | null, yd: number): string | undefined => {
+      const per = ydPerAlt(uom2, factorVal);
+      if (!per) return undefined;
+      if (yd <= 0) return '';
+      return String(Math.round(yd / per * 10000) / 10000);
+  };
+
   const handleQtyYardChange = (ydStr: string) => {
       const yd = parseFloat(ydStr) || 0;
       const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
@@ -600,7 +650,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setQtyMeter(m > 0 ? String(m) : '');
       setQtyGrossYd(gross > 0 ? String(gross) : '');
       const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
-      setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg });
+      const alt = altCountForYd(newLine.uom2, newLine.uom2_factor, yd);
+      setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg, ...(alt !== undefined ? { qty2: alt } : {}) });
   };
 
   const handleQtyMeterChange = (mStr: string) => {
@@ -610,7 +661,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const gross = yd > 0 ? Math.round(yd / 144 * 10000) / 10000 : 0;
       setQtyGrossYd(gross > 0 ? String(gross) : '');
       const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
-      setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg });
+      const alt = altCountForYd(newLine.uom2, newLine.uom2_factor, yd);
+      setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg, ...(alt !== undefined ? { qty2: alt } : {}) });
   };
 
   const handleQtyGrossYdChange = (grossStr: string) => {
@@ -620,7 +672,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
       setQtyMeter(m > 0 ? String(m) : '');
       const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
-      setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg });
+      const alt = altCountForYd(newLine.uom2, newLine.uom2_factor, yd);
+      setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg, ...(alt !== undefined ? { qty2: alt } : {}) });
   };
 
   const toggleKgAuto = () => {
@@ -643,20 +696,25 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const gross = yd > 0 ? Math.round(yd / 144 * 10000) / 10000 : 0;
       setQtyMeter(m > 0 ? String(m) : '');
       setQtyGrossYd(gross > 0 ? String(gross) : '');
-      setNewLine(prev => ({ ...prev, qty_kg: kgStr, qty: yd }));
+      setNewLine(prev => {
+          const alt = altCountForYd(prev.uom2, prev.uom2_factor, yd);
+          return { ...prev, qty_kg: kgStr, qty: yd, ...(alt !== undefined ? { qty2: alt } : {}) };
+      });
+  };
+
+  // qty2 x factor -> Yd. The factor's target unit lives on the UOM master, not on
+  // the line, so it is resolved by value. Shared with the in-place line editor.
+  const deriveFromAlt = (uom2: string, qty2: number, factorVal: number | null): { yd: number; m: number } | null => {
+      const per = ydPerAlt(uom2, factorVal);
+      if (!per || qty2 <= 0) return null;
+      const yd = Math.round(qty2 * per * 100) / 100;
+      return { yd, m: Math.round(yd * 0.9144 * 100) / 100 };
   };
 
   const applyFactor = (qty2Str: string, factorVal: number | null) => {
-      const qty2 = parseFloat(qty2Str as string) || 0;
-      if (!factorVal || qty2 <= 0) return;
-      const uomObj = uoms.find((u: any) => u.name === newLine.uom2);
-      const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factorVal);
-      const toUnit = (factorObj?.to_uom_name || '').toLowerCase();
-      const rawQty = qty2 * factorVal;
-      const yd = toUnit === 'm' || toUnit === 'meter'
-          ? Math.round(rawQty / 0.9144 * 100) / 100
-          : Math.round(rawQty * 100) / 100;
-      const m = Math.round(yd * 0.9144 * 100) / 100;
+      const conv = deriveFromAlt(newLine.uom2, parseFloat(qty2Str as string) || 0, factorVal);
+      if (!conv) return;
+      const { yd, m } = conv;
       const gross = Math.round(yd / 144 * 10000) / 10000;
       setQtyMeter(m > 0 ? String(m) : '');
       setQtyGrossYd(gross > 0 ? String(gross) : '');
@@ -666,7 +724,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
   // Alt Unit table cell echoes the conversion the line was entered with (qty2 × factor → Yd).
   // The factor's target unit lives on the UOM master, not on the SO line, so resolve it by value.
-  const describeUom2 = (line: any): { chip: string; total: string | null } | null => {
+  const describeUom2 = (line: any): { chip: string; total: string | null; drift: number | null } | null => {
       const factor = line?.uom2_factor != null && line.uom2_factor !== '' ? parseFloat(line.uom2_factor) : null;
       if (!factor || !line?.uom2) return null;
       const qty2 = parseFloat(line.qty2) || 0;
@@ -677,7 +735,14 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const totalYd = qty2 > 0
           ? Math.round((isMeter ? qty2 * factor / 0.9144 : qty2 * factor) * 100) / 100
           : null;
-      return { chip: `×${factor} ${isMeter ? 'm' : 'Yd'}`, total: totalYd !== null ? `${totalYd} Yd` : null };
+      // Rows saved before the two sides were locked together can disagree — the cell
+      // would otherwise claim "= 864 Yd" next to a 600 Yd qty. Surface it instead of
+      // silently rewriting order history: only a human knows which figure was ordered.
+      const baseQty = parseFloat(line?.qty) || 0;
+      const drift = totalYd !== null && baseQty > 0 && Math.abs(totalYd - baseQty) > 0.05
+          ? Math.round((totalYd - baseQty) * 100) / 100
+          : null;
+      return { chip: `×${factor} ${isMeter ? 'm' : 'Yd'}`, total: totalYd !== null ? `${totalYd} Yd` : null, drift };
   };
 
   const handleQty2Change = (val: string) => {
@@ -1838,6 +1903,58 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        title="Quantity ordered (Yd)"
                                    />
                                    <span style={{color:classic?'#777':'',fontSize:classic?'10px':'',fontWeight:'normal'}} className={classic?'':'text-muted small'}>Yd</span>
+                                   {(() => {
+                                       const lineUom = (uoms || []).find((u: any) => u.name === line.uom2);
+                                       const lineFactors = lineUom?.factors || [];
+                                       const conv = describeUom2(line);
+                                       return (
+                                           <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                                               <span style={{color: conv?.drift != null ? '#c00000' : (classic?'#999':''), fontSize:'9px', fontWeight: conv?.drift != null ? 'bold' : 'normal'}}
+                                                   className={classic || conv?.drift != null ? '' : 'text-muted'}
+                                                   title={conv?.drift != null ? `Alt unit works out to ${conv.total}, but this line is ${line.qty} Yd` : undefined}
+                                               >
+                                                   {conv?.drift != null && <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 2 }}></i>}
+                                                   Alt{conv?.total ? ` (= ${conv.total})` : ''}
+                                               </span>
+                                               <div style={{display:'flex',alignItems:'center',gap:2}}>
+                                                   <input type="number" min="0" step="any"
+                                                       style={classic ? xpInput({width:52, textAlign:'right'}) : {width:64,textAlign:'right'}}
+                                                       className={classic?'':'form-control form-control-sm'}
+                                                       placeholder="0"
+                                                       value={line.qty2 ?? ''}
+                                                       onChange={e => handleLineAltChange(idx, { qty2: e.target.value })}
+                                                       title="Quantity in the alternate unit the customer ordered in"
+                                                   />
+                                                   <select
+                                                       style={classic ? { fontFamily:xpFont, fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 2px', background:'#fff', outline:'none', color:'#000', width:66 } : {width:80}}
+                                                       className={classic?'':'form-select form-select-sm'}
+                                                       value={line.uom2 || ''}
+                                                       onChange={e => handleLineAltChange(idx, { uom2: e.target.value })}
+                                                       title="Alternate unit"
+                                                   >
+                                                       <option value="">Unit</option>
+                                                       {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                                   </select>
+                                                   {lineFactors.length > 0 && (
+                                                       <select
+                                                           style={classic ? { fontFamily:xpFont, fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 2px', background: line.uom2_factor ? '#fff8e8' : '#fff', outline:'none', color:'#000', width:96 } : {width:110}}
+                                                           className={classic?'':'form-select form-select-sm'}
+                                                           value={line.uom2_factor ?? ''}
+                                                           onChange={e => handleLineAltChange(idx, { uom2_factor: e.target.value ? parseFloat(e.target.value) : null })}
+                                                           title={`How much one ${line.uom2 || 'alt unit'} is`}
+                                                       >
+                                                           <option value="">factor</option>
+                                                           {lineFactors.map((f: any) => (
+                                                               <option key={f.id} value={f.value}>
+                                                                   x{parseFloat(f.value)} {(f.to_uom_name || 'Yard')}{f.label ? ` (${f.label})` : ''}
+                                                               </option>
+                                                           ))}
+                                                       </select>
+                                                   )}
+                                               </div>
+                                           </div>
+                                       );
+                                   })()}
                                    <label style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',margin:0}} title="Customer has not supplied a physical color swatch — untick once it arrives">
                                        <input type="checkbox" checked={!!line.no_color_swatch} onChange={() => handleLineSwatchToggle(idx)} className={classic?'':'form-check-input mt-0'} style={classic?{margin:0}:undefined} />
                                        <span style={{color:classic?'#777':'',fontSize:'9px'}} className={classic?'':'text-muted'}>No swatch</span>
@@ -2109,8 +2226,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                            <>
                                                                <div style={{ fontFamily:xpFont, fontSize:'10px', color: classic?'#444':'' }}>{line.qty2} {line.uom2}</div>
                                                                {conv && (
-                                                                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: classic?'#003ea6':'#0d6efd', whiteSpace:'nowrap' }}
-                                                                       title={`1 ${line.uom2} = ${conv.chip.replace('×','')}`}>
+                                                                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: conv.drift !== null ? '#c00000' : (classic?'#003ea6':'#0d6efd'), fontWeight: conv.drift !== null ? 'bold' : 'normal', whiteSpace:'nowrap' }}
+                                                                       title={conv.drift !== null
+                                                                           ? `Does not match Qty: ${conv.total} from the alt unit vs ${line.qty} Yd ordered (${conv.drift > 0 ? '+' : ''}${conv.drift} Yd). Reopen the order and set whichever side is right.`
+                                                                           : `1 ${line.uom2} = ${conv.chip.replace('×','')}`}>
+                                                                       {conv.drift !== null && <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 3 }}></i>}
                                                                        {conv.chip}{conv.total ? ` = ${conv.total}` : ''}
                                                                    </div>
                                                                )}

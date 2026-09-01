@@ -1114,19 +1114,14 @@ async def stage_wo_materials(
     if not wo.input_location_id:
         raise HTTPException(status_code=422, detail="Work Order has no input location — assign a machine with a supply area first")
 
-    # Required map keyed by item: enforce we never stage beyond the step's need.
+    # Required map keyed by item — validates that a line belongs to this step and
+    # supplies its default source/variant. NOT a cap: see the move_qty note below.
     required_rows = await _wo_required_rows(db, wo, mo)
     req_by_item = {str(r.item_id): r for r in required_rows}
     if not req_by_item:
         raise HTTPException(status_code=422, detail="This WO has no materials to stage (no step assigned, or step has no materials)")
 
     staged_any = False
-    moved_so_far: dict[str, float] = {}  # per item, across this request's lines — multiple batches can share an item
-    # Items whose lines the shortfall cap swallowed whole. Kept so a request that
-    # moves nothing can say WHY instead of the bare "Nothing to stage": the usual
-    # cause is a WO already at its required qty (a consumed load still counts as
-    # staged), which reads as a broken lot pick from the floor.
-    capped: list[WORequiredMaterial] = []
     for line in payload.lines:
         qty = float(line.qty or 0)
         rr = req_by_item.get(str(line.item_id))
@@ -1152,20 +1147,15 @@ async def stage_wo_materials(
 
         if qty <= 0:
             continue
-        # Cap top-up at the remaining shortfall so re-staging (or multiple batch
-        # lines for the same item) can't double-count. Scan-to-stage sets
-        # allow_overstage to move whole physical lots even past the step's need.
-        already_moved = moved_so_far.get(str(line.item_id), 0.0)
-        if payload.allow_overstage:
-            move_qty = qty
-        else:
-            remaining = max(0.0, rr.required_qty - rr.staged - already_moved)
-            if remaining <= 0:
-                if all(str(c.item_id) != str(rr.item_id) for c in capped):
-                    capped.append(rr)
-                continue
-            move_qty = min(qty, remaining)
-        moved_so_far[str(line.item_id)] = already_moved + move_qty
+        # Move exactly what was picked — never clipped to the step's remaining
+        # shortfall. A lot is one physical bag: staging 12.5 kg against a 12.4 kg
+        # step used to move 12.4 and silently leave 0.1 kg of the SAME lot behind
+        # in the store, which is not a state the floor can act on. The whole lot
+        # goes on the line; the leftover is reassigned from there afterwards
+        # (staging claims are latest-row-wins, see services/staging_service.py).
+        # Over-staged qty is a readout, not an error — `_staging_status` only ever
+        # asks whether staged >= required.
+        move_qty = qty
         src = line.source_location_id or rr.source_location_id
         if not src:
             raise HTTPException(status_code=422, detail=f"No source location for {rr.item_code or line.item_id}")
@@ -1217,18 +1207,6 @@ async def stage_wo_materials(
         staged_any = True
 
     if not staged_any:
-        if capped:
-            detail = "; ".join(
-                f"{c.item_code or c.item_id} is already staged {c.staged:g} of the "
-                f"{c.required_qty:g} this step requires — nothing left to top up"
-                for c in capped
-            )
-            raise HTTPException(
-                status_code=400,
-                detail=f"{detail}. Staged qty counts every load moved in, including one "
-                       f"already consumed. Use Scan bags to move a whole lot past the "
-                       f"required qty.",
-            )
         raise HTTPException(status_code=400, detail="Nothing to stage")
 
     # Recompute and persist staging status.

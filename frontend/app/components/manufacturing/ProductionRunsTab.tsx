@@ -6,7 +6,7 @@ import { FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
-import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS } from '../shared/xpTheme';
+import { statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, SkeletonBar, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, lvThead, lvTh } from '../shared/listViewTheme';
 const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 
@@ -631,7 +631,17 @@ export default function ProductionRunsTab({
                                                                                 into Item Name (fixed layout won't grow the cell for it).
                                                                                 Full code still available via CodeChip's own title. */}
                                                                             <td style={{ ...cellStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><CodeChip code={req.item_code} classic={classic} /></td>
-                                                                            <td style={cellStyle}>{req.item_name}</td>
+                                                                            <td style={cellStyle}>
+                                                                                {req.item_name}
+                                                                                {/* Netting is size-aware, so a sized component yields one
+                                                                                    row per size — without the chip they read as duplicates. */}
+                                                                                {req.size_label && (
+                                                                                    <VariantChip kind="size" classic={classic}
+                                                                                        title={`Size: ${req.size_label} — netted separately from other sizes`}>
+                                                                                        {req.size_label}
+                                                                                    </VariantChip>
+                                                                                )}
+                                                                            </td>
                                                                             <td style={cellStyle}>{req.uom}</td>
                                                                             <td
                                                                                 style={{ ...cellStyle, textAlign: 'right', fontFamily: CODE_FONT, cursor: issued > 0.0001 ? 'help' : undefined }}

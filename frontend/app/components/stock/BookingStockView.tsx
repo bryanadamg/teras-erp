@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { usePaginatedFetch } from '../../context/usePaginatedList';
-import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN } from '../shared/xpTheme';
+import { xpFont, xpBtn, TableSkeleton, useTableSkeletonMetrics, useSortable, ExpandedRowPanel, expandedRowFrame, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, XP_BTN, VariantChip } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar, SearchField, pageFillStyle } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { lvThead, lvSubTh, lvSubTd, lvSubTable, lvSubRow, lvSubCaption, ExpanderCell, LV_EXPANDER_COL_W, SortableTh, lvThSticky, lvZebra, TableEmpty } from '../shared/listViewTheme';
@@ -26,6 +26,10 @@ type Row = {
     item_name: string;
     uom: string;
     attribute_value_ids: string[];
+    // Size bucket this row nets in (null = the unsized/generic pool). Netting is
+    // size-aware, so one item+variant can appear once per size — without this chip
+    // those rows are indistinguishable.
+    size_label?: string | null;
     location_id: string;
     location_name: string;
     qty_on_hand: number;
@@ -78,7 +82,7 @@ export default function BookingStockView() {
 
     const { sorted, sort, toggle } = useSortable<Row>(rows, {
         item: (r) => r.item_name,
-        variant: (r) => variantLabel(r.attribute_value_ids),
+        variant: (r) => `${variantLabel(r.attribute_value_ids)} ${r.size_label || ''}`,
         on_hand: (r) => r.qty_on_hand,
         incoming: (r) => r.qty_incoming,
         required: (r) => r.qty_required,
@@ -94,7 +98,7 @@ export default function BookingStockView() {
     const shortfallCount = useMemo(() => rows.filter(r => r.qty_net_free < -EPS).length, [rows]);
     const tightCount = useMemo(() => rows.filter(r => r.qty_net_free >= -EPS && r.qty_net_free <= EPS).length, [rows]);
 
-    const rowKey = (r: Row) => `${r.item_id}-${r.attribute_value_ids.join(',')}`;
+    const rowKey = (r: Row) => `${r.item_id}-${r.attribute_value_ids.join(',')}-${r.size_label || ''}`;
     const toggleRow = (k: string) => setExpanded(prev => {
         const next = new Set(prev);
         next.has(k) ? next.delete(k) : next.add(k);
@@ -290,13 +294,19 @@ export default function BookingStockView() {
                                                 )}
                                             </td>
                                             <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '10px' } : undefined} className={classic ? undefined : 'small'}>
+                                                {r.size_label && (
+                                                    <VariantChip kind="size" classic={classic}
+                                                        title={`Size: ${r.size_label} — netted separately from other sizes`}>
+                                                        {r.size_label}
+                                                    </VariantChip>
+                                                )}
                                                 {variant
                                                     ? (classic
-                                                        ? <span style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 5px', color: '#1a3d7a' }}>{variant}</span>
-                                                        : <span className="badge bg-info-subtle text-info-emphasis">{variant}</span>)
-                                                    : (classic
+                                                        ? <span style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 5px', color: '#1a3d7a', marginLeft: r.size_label ? 4 : 0 }}>{variant}</span>
+                                                        : <span className={`badge bg-info-subtle text-info-emphasis${r.size_label ? ' ms-1' : ''}`}>{variant}</span>)
+                                                    : (!r.size_label && (classic
                                                         ? <span style={{ color: '#999', fontStyle: 'italic' }}>Standard</span>
-                                                        : <span className="text-muted">Standard</span>)}
+                                                        : <span className="text-muted">Standard</span>))}
                                             </td>
                                             <td style={{ ...(classic ? numCell : numCellM), color: TERM.onHand }} className={classic ? undefined : 'text-end'}>{fmtQty(r.qty_on_hand)}</td>
                                             <td style={{ ...(classic ? numCell : numCellM), color: r.qty_incoming ? TERM.incoming : '#bbb' }} className={classic ? undefined : 'text-end'}>

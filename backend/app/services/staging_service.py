@@ -19,7 +19,10 @@ Read off the ledger rather than stored on the batch, for three reasons:
   * it is retroactive, so lots staged before this existed are protected too.
 
 Claims are exclusive by nature — a lot is one physical bag — so a second WO
-staging the same lot takes the claim over (latest row wins).
+staging the same lot takes the claim over (latest row wins). A claim also dies with
+its WO: staging moves whole lots, never a clipped qty, so a run normally ends with
+surplus of its last lot on the line, and a COMPLETED/CANCELLED holder must not
+strand it — the next WO stages it straight off that location.
 
 Warp beams are deliberately outside all of this: warp mounts on the *machine*,
 not on a WO (see services/beam_service.py), so a beam batch carries no `Staging`
@@ -114,7 +117,23 @@ async def _claims(
         .group_by(StockBalance.batch_key, StockBalance.location_id)
     )
     on_hand = {(k, str(loc)) for k, loc, qty in live.all() if float(qty or 0) > 1e-9}
-    return {key: value for key, value in best.items() if key in on_hand}
+    best = {key: value for key, value in best.items() if key in on_hand}
+    if not best:
+        return best
+
+    # A closed WO holds nothing. Staging moves whole lots (api/work_orders.py never
+    # clips a picked qty), so a run routinely ends with surplus of its last lot still
+    # on the line — that remnant is the next order's material, and a claim by a
+    # COMPLETED/CANCELLED WO would strand it there with no way to hand it over.
+    holders = {h for _at, h in best.values()}
+    closed = await db.execute(
+        select(WorkOrder.id).where(
+            WorkOrder.id.in_({_as_uuid(h) for h in holders if _as_uuid(h)}),
+            WorkOrder.status.in_(("COMPLETED", "CANCELLED")),
+        )
+    )
+    dead = {str(i) for (i,) in closed.all()}
+    return {key: value for key, value in best.items() if value[1] not in dead}
 
 
 async def batch_reservations(

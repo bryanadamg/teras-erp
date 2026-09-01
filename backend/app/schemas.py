@@ -647,6 +647,10 @@ class PRMaterialRequirementItem(BaseModel):
     item_name: str
     uom: str
     attribute_value_ids: list[UUID]
+    # Size bucket this requirement nets in — null = the unsized/generic pool. Netting
+    # is size-aware, so a sized component yields one row per size and the rows are
+    # only distinguishable by this.
+    size_label: str | None = None
     location_id: UUID | None = None        # item's default source location (pull-sheet hint only — netting itself is plant-wide/location-agnostic)
     total_required: float                  # NET requirement: scaled by each MO's OUTSTANDING output
     gross_required: float = 0.0            # requirement at full order qty (never decrements)
@@ -699,6 +703,10 @@ class BookingStockRow(BaseModel):
     item_name: str
     uom: str
     attribute_value_ids: list[UUID]
+    # Size bucket this row nets in — null = the unsized/generic pool. Netting is
+    # size-aware (an M roll is not XL stock), so one item+variant can produce
+    # several rows and they must be told apart on screen.
+    size_label: str | None = None
     location_id: UUID | None = None        # null = plant-wide (location-agnostic netting)
     location_name: str = "Plant-wide"
     qty_on_hand: float       # current physical balance
@@ -915,10 +923,6 @@ class WOStageLine(BaseModel):
 
 class WOStagePayload(BaseModel):
     lines: list[WOStageLine]
-    # Scan-to-stage (greige bags → dyeing) grabs whole physical lots and may
-    # exceed the step's required qty. When true, skip the shortfall cap so every
-    # scanned lot moves in full; the UI warns the operator it's over-required.
-    allow_overstage: bool = False
 
 
 class BeamMountResponse(BaseModel):

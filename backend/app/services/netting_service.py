@@ -130,30 +130,236 @@ def _output_committed(mo, so_linked_prs: set[str]) -> bool:
     )
 
 
+def normalize_size_token(name: str | None) -> str:
+    """Normalise a size identity to the token the netting ledger buckets on.
+
+    Sizes are compared ACROSS BOMs (a lot made under the greige BOM must meet
+    demand stated against the FG BOM's size row), so the token can't be a
+    BOMSize id — those are per-BOM. It also can't be `Size.id`, because the only
+    size identity a produced lot carries is the text in `Batch.bom_size_snapshot`.
+    So: the Size master's name when there is one, else the free-mode label,
+    case-folded. Empty string = no size identity (unsized BOM, raw material,
+    pre-feature lot) and is treated as the generic pool — see `_eligible_tokens`.
+    """
+    return (name or "").strip().lower()
+
+
+def token_from_snapshot(snapshot: dict | None) -> str:
+    """Size token of a BOMSize snapshot dict (MO.bom_size_snapshot / Batch.bom_size_snapshot)."""
+    if not snapshot:
+        return ""
+    name = snapshot.get("size_name") or (snapshot.get("size") or {}).get("name") or snapshot.get("label")
+    return normalize_size_token(name)
+
+
+class SizeResolver:
+    """Turns the several places a size hides into one comparable token.
+
+    Shared by every surface that nets stock — the MRP ledger (`Availability`),
+    `/booking-stock` and the Production Run material requirements — because those
+    three already re-implement the same net_free formula and MUST agree. A size
+    bucket in one and not the others is how the PR preview ends up saying "make
+    14.77 XL" while booking stock calls the same greige covered.
+    """
+
+    def __init__(self):
+        self._size_names: dict[str, str] = {}             # Size.id -> Size.name
+        self._item_size_tokens: dict[str, set[str]] = {}  # item -> tokens its active BOMs produce
+
+    @classmethod
+    async def create(cls, db: AsyncSession) -> "SizeResolver":
+        self = cls()
+        # Size master is seeded (S..4XL) and tiny — load it once so a BOMSize row
+        # can be turned into a token without lazy-loading `BOMSize.size` inside an
+        # async walk (MissingGreenlet).
+        for sid, name in (await db.execute(select(Size.id, Size.name))).all():
+            self._size_names[str(sid)] = name or ""
+        return self
+
+    def token_for_size_id(self, size_id, label=None) -> str:
+        by_master = normalize_size_token(self._size_names.get(str(size_id))) if size_id else ""
+        return by_master or normalize_size_token(label)
+
+    def token_for_bom_size(self, bs) -> str:
+        """Token for a BOMSize row. Only `size_id`/`label` are read, so the row
+        does not need its `size` relationship loaded."""
+        if bs is None:
+            return ""
+        return self.token_for_size_id(getattr(bs, "size_id", None), getattr(bs, "label", None))
+
+    def label_for_token(self, tok: str) -> str | None:
+        """Display casing for a token — the Size master's own name when it is one
+        (so the UI reads "XL", not "xl"), else the token as stored."""
+        if not tok:
+            return None
+        for name in self._size_names.values():
+            if normalize_size_token(name) == tok:
+                return name
+        return tok
+
+    async def load_items(self, db: AsyncSession, item_ids):
+        """Which size tokens each item's active sized BOMs can actually produce.
+
+        Needed to key COMPONENT demand: a planned component inherits its parent
+        MO's size only when the component's own recipe is size-differentiated and
+        carries that size — exactly the `_resolve_sub_size` rule the create path
+        uses to decide whether to split component MOs per size. Without this the
+        colour-variant greige case (unsized sub-BOM pooled across every parent
+        size) would key demand as "XL" while its stock and its MO are unsized, and
+        that demand would stop shielding its own stock."""
+        item_ids = [i for i in item_ids if i and str(i) not in self._item_size_tokens]
+        if not item_ids:
+            return
+        for i in item_ids:
+            self._item_size_tokens[str(i)] = set()
+        rows = (await db.execute(
+            select(BOM.item_id, BOMSize.size_id, BOMSize.label)
+            .join(BOMSize, BOMSize.bom_id == BOM.id)
+            .where(BOM.active == True,  # noqa: E712
+                   BOM.size_mode == "sized",
+                   BOM.item_id.in_(item_ids))
+        )).all()
+        for item_id, sid, label in rows:
+            tok = self.token_for_size_id(sid, label)
+            if tok:
+                self._item_size_tokens[str(item_id)].add(tok)
+
+    def component_token(self, item_id, parent_token: str) -> str:
+        """Size a component will be produced/stocked at, given its parent's size."""
+        if not parent_token:
+            return ""
+        return parent_token if parent_token in self._item_size_tokens.get(str(item_id), set()) else ""
+
+
+def eligible_tokens(buckets, want: str) -> list[str]:
+    """Size buckets a demand stated at `want` may draw from, in draw order.
+
+    A sized demand takes its own size first, then the generic "" pool (stock whose
+    size was never recorded — that is not evidence of a *different* size). An
+    unsized demand is size-agnostic by definition, so after the generic pool it may
+    take any size rather than stranding stock it can legitimately use."""
+    order = [want] if want else [""]
+    if want:
+        order.append("")
+    else:
+        order += sorted(t for t in buckets if t)
+    seen, out = set(), []
+    for t in order:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+def allocate_onhand(buckets: dict[str, float], rows: list[tuple[str, float]]) -> list[float]:
+    """Split one (item, variant) pile across the size rows that want it.
+
+    The MRP ledger allocates by mutating as it explodes; the two REPORT surfaces
+    have no explosion to ride on, so they need a deterministic pass that reaches
+    the same answer — otherwise the same pile is shown in full on two size rows and
+    the page promises the same stock twice.
+
+    Draw order mirrors `eligible_tokens`: every row takes its own size first, then
+    the sized rows share the generic "" pool biggest-need-first (ties broken by
+    token so the page does not reshuffle between requests), then an unsized row
+    mops up whatever sized stock is left, which it is allowed to use.
+
+    `rows` is [(size_token, need)]; returns the qty allocated to each, in order.
+    """
+    left = {t: float(q) for t, q in buckets.items()}
+    out = [0.0] * len(rows)
+    for idx, (tok, _need) in enumerate(rows):
+        take = max(0.0, left.get(tok, 0.0))
+        out[idx] += take
+        left[tok] = left.get(tok, 0.0) - take
+    for idx in sorted((i for i, (tok, _n) in enumerate(rows) if tok),
+                      key=lambda i: (-(rows[i][1] - out[i]), rows[i][0])):
+        need = rows[idx][1] - out[idx]
+        if need <= 0:
+            continue
+        take = min(max(0.0, left.get("", 0.0)), need)
+        out[idx] += take
+        left[""] = left.get("", 0.0) - take
+    for idx, (tok, _need) in enumerate(rows):
+        if tok:
+            continue
+        for other in sorted(t for t in left if t):
+            need = rows[idx][1] - out[idx]
+            if need <= 0:
+                break
+            take = min(max(0.0, left.get(other, 0.0)), need)
+            out[idx] += take
+            left[other] = left.get(other, 0.0) - take
+    return out
+
+
+async def onhand_size_rows(db: AsyncSession, item_ids) -> dict:
+    """(item_id, variant_key, size_token) -> good on-hand, plant-wide.
+
+    The size of a physical pile is only ever recorded on its lot
+    (`Batch.bom_size_snapshot`), so balances are joined out to their batch; a row
+    with no lot lands in the generic "" bucket. QC-rejected / disposed lots are
+    excluded through the same subquery the MRP netting uses."""
+    out: dict[tuple, float] = defaultdict(float)
+    if not item_ids:
+        return out
+    rows = (await db.execute(
+        select(StockBalance.item_id, StockBalance.variant_key, StockBalance.qty,
+               Batch.bom_size_snapshot)
+        .outerjoin(Batch, cast(Batch.id, String) == StockBalance.batch_key)
+        .where(
+            StockBalance.item_id.in_(list(item_ids)),
+            StockBalance.batch_key.not_in(rejected_batch_keys()),
+        )
+    )).all()
+    for iid, vkey, qty, snapshot in rows:
+        out[(str(iid), vkey or "", token_from_snapshot(snapshot))] += float(qty or 0)
+    return out
+
+
 class Availability:
     """Mutable net-free ledger consumed during BOM explosion.
 
     Build with the async factory ``await Availability.create(db, ...)`` BEFORE
     creating the MOs of the unit being planned, so their demand is not scanned.
-    Then call ``await avail.consume(item, attrs, loc, gross)`` per component node;
-    it returns the qty to actually MAKE (0.0 => fully covered, skip the node).
+    Then call ``await avail.consume(item, attrs, loc, gross, size_token=...)`` per
+    component node; it returns the qty to actually MAKE (0.0 => fully covered,
+    skip the node).
+
+    SIZE AWARENESS: every bucket is keyed (item, variant, size_token). A size
+    row is a physical difference — 67 cm greige cannot be cut for XL — and the
+    create path already splits component MOs and stamps lots per size, so
+    netting must not pool them back. The generic "" bucket (unsized BOM, raw
+    material, or a lot minted before sizes were snapshotted) stays substitutable
+    in both directions; see `_eligible_tokens`.
     """
 
     def __init__(self, db: AsyncSession, exclude_pr_id=None, exclude_mo_ids=None):
         self.db = db
         self.exclude_pr_id = str(exclude_pr_id) if exclude_pr_id else None
         self.exclude_mo_ids = {str(m) for m in (exclude_mo_ids or [])}
-        self._demand: dict[tuple, float] = defaultdict(float)   # (item, vkey) -> required
-        self._supply: dict[tuple, float] = defaultdict(float)   # (item, vkey) -> incoming
-        self._reserved: dict[tuple, float] = defaultdict(float) # (item, vkey) -> promised to open SOs
-        self._remaining: dict[tuple, float] = {}                # running free-stock ledger
+        # keys are (item, vkey, size_token) throughout
+        self._demand: dict[tuple, float] = defaultdict(float)   # -> required
+        self._supply: dict[tuple, float] = defaultdict(float)   # -> incoming
+        self._reserved: dict[tuple, float] = defaultdict(float) # -> promised to open SOs
+        # (item, vkey) -> {size_token: running free qty}; the ledger is per-bucket
+        self._remaining: dict[tuple, dict[str, float]] = {}
+        self._onhand: dict[tuple, dict[str, float]] = {}        # (item, vkey) -> {token: on-hand}
+        self.sizes: SizeResolver = SizeResolver()               # shared with the report surfaces
 
     @classmethod
     async def create(cls, db: AsyncSession, exclude_pr_id=None, exclude_mo_ids=None) -> "Availability":
         self = cls(db, exclude_pr_id, exclude_mo_ids)
+        self.sizes = await SizeResolver.create(db)
         await self._load_open_demand()
         await self._load_reservations()
         return self
+
+    def token_for_bom_size(self, bs) -> str:
+        """Delegates to the shared resolver — call sites pass BOMSize rows."""
+        return self.sizes.token_for_bom_size(bs)
+
+    _eligible_tokens = staticmethod(eligible_tokens)
 
     async def _load_open_demand(self):
         """Aggregate outstanding component demand + own-output supply from every
@@ -174,6 +380,13 @@ class Availability:
 
         so_linked_prs = await _sales_order_linked_prs(self.db, mos)
 
+        # One batched lookup for every component item on the board, so the size a
+        # component will actually be produced at can be resolved without a query
+        # (or a sub-BOM walk) per planned component.
+        await self.sizes.load_items(self.db, {
+            comp.item_id for mo in mos for comp in mo.planned_components
+        })
+
         for mo in mos:
             if self.exclude_pr_id and str(mo.production_run_id) == self.exclude_pr_id:
                 continue
@@ -184,13 +397,18 @@ class Availability:
             if outstanding <= 0:
                 continue
 
+            # Size this MO is being made at — inherited by the components whose own
+            # recipe is size-differentiated (mirrors the create path's size split).
+            mo_token = token_from_snapshot(mo.bom_size_snapshot)
+
             # Demand: components this MO will still consume.
             for comp in mo.planned_components:
                 if not comp.percentage and not comp.qty:
                     continue
                 req = (outstanding * float(comp.percentage)) / 100 if comp.percentage else outstanding * float(comp.qty)
                 vkey = _generate_variant_key([str(a) for a in (comp.attribute_value_ids or [])])
-                self._demand[(str(comp.item_id), vkey)] += req
+                comp_token = self.sizes.component_token(comp.item_id, mo_token)
+                self._demand[(str(comp.item_id), vkey, comp_token)] += req
 
             # Supply: this MO's own outstanding output is a scheduled receipt —
             # unless it is COMMITTED to a sales order (committed-supply rule),
@@ -198,7 +416,7 @@ class Availability:
             if _output_committed(mo, so_linked_prs):
                 continue
             out_vkey = _generate_variant_key([str(v.id) for v in mo.attribute_values], getattr(mo, "color_id", None))
-            self._supply[(str(mo.item_id), out_vkey)] += outstanding
+            self._supply[(str(mo.item_id), out_vkey, mo_token)] += outstanding
 
     async def _load_reservations(self):
         """Aggregate FG already promised to open sales orders.
@@ -218,8 +436,11 @@ class Availability:
                 StockReservation.variant_key,
                 StockReservation.qty,
                 StockReservation.qty_released,
+                BOMSize.size_id,
+                BOMSize.label,
             )
             .join(SalesOrder, SalesOrder.id == StockReservation.sales_order_id)
+            .outerjoin(BOMSize, BOMSize.id == StockReservation.bom_size_id)
             .where(
                 StockReservation.status == "ACTIVE",
                 SalesOrder.status.in_(OPEN_SO_STATUSES),
@@ -230,43 +451,90 @@ class Availability:
                 ),
             )
         )).all()
-        for item_id, vkey, qty, released in rows:
+        for item_id, vkey, qty, released, sid, label in rows:
             remaining = float(qty or 0) - float(released or 0)
             if remaining <= 0:
                 continue
-            self._reserved[(str(item_id), vkey or "")] += remaining
+            tok = self.sizes.token_for_size_id(sid, label)
+            self._reserved[(str(item_id), vkey or "", tok)] += remaining
 
-    async def _on_hand(self, item_id: str, vkey: str) -> float:
-        """Physical on-hand of (item, variant), summed across ALL stock locations
-        (single-plant scope)."""
-        total = (await self.db.execute(
-            select(func.sum(StockBalance.qty)).where(
-                StockBalance.item_id == item_id,
-                StockBalance.variant_key == vkey,
-                StockBalance.batch_key.not_in(rejected_batch_keys()),
+    async def _on_hand_buckets(self, item_id: str, vkey: str) -> dict[str, float]:
+        """On-hand of (item, variant) split by size token, summed across ALL stock
+        locations (single-plant scope). Same query the report surfaces use."""
+        cache_key = (item_id, vkey)
+        if cache_key not in self._onhand:
+            rows = await onhand_size_rows(self.db, [item_id])
+            buckets: dict[str, float] = defaultdict(float)
+            for (iid, vk, tok), qty in rows.items():
+                if iid == item_id and vk == vkey:
+                    buckets[tok] += qty
+            self._onhand[cache_key] = dict(buckets)
+        return self._onhand[cache_key]
+
+    async def _on_hand(self, item_id: str, vkey: str, tok: str | None = None) -> float:
+        """On-hand for one size bucket, or every bucket when `tok` is None."""
+        buckets = await self._on_hand_buckets(item_id, vkey)
+        if tok is None:
+            return float(sum(buckets.values()))
+        return float(buckets.get(tok, 0.0))
+
+    async def _free_buckets(self, item_id: str, vkey: str) -> dict[str, float]:
+        """net_free per size bucket = on_hand + incoming - required - reserved."""
+        buckets = dict(await self._on_hand_buckets(item_id, vkey))
+        for src in (self._supply, self._demand, self._reserved):
+            for (i, v, tok) in src:
+                if i == item_id and v == vkey:
+                    buckets.setdefault(tok, 0.0)
+        for tok in list(buckets):
+            key = (item_id, vkey, tok)
+            buckets[tok] = (
+                buckets[tok]
+                + self._supply.get(key, 0.0)
+                - self._demand.get(key, 0.0)
+                - self._reserved.get(key, 0.0)
             )
-        )).scalar()
-        return float(total or 0.0)
+        return buckets
 
-    async def _net_free(self, item_id: str, vkey: str) -> float:
-        on_hand = await self._on_hand(item_id, vkey)
-        key = (item_id, vkey)
-        return (
-            on_hand
-            + self._supply.get(key, 0.0)
-            - self._demand.get(key, 0.0)
-            - self._reserved.get(key, 0.0)
-        )
+    async def _net_free(self, item_id: str, vkey: str, size_token: str = "") -> float:
+        """net_free visible to a demand stated at `size_token` (all buckets it may
+        draw from). Unbucketed callers pass "" and, being size-agnostic, see the
+        whole pile — same number as before sizes were bucketed."""
+        buckets = await self._free_buckets(item_id, vkey)
+        return float(sum(buckets.get(t, 0.0)
+                         for t in self._eligible_tokens(buckets, normalize_size_token(size_token))))
 
-    async def consume_detailed(self, item_id, attribute_value_ids, location_id, gross_req: float, color_id=None):
+    def _draw(self, ledger: dict[str, float], want: str, gross: float) -> float:
+        """Take `gross` out of the eligible buckets in draw order; returns covered."""
+        need = gross
+        for tok in self._eligible_tokens(ledger, want):
+            free = ledger.get(tok, 0.0)
+            if free <= 0:
+                continue
+            take = min(free, need)
+            ledger[tok] = free - take
+            need -= take
+            if need <= 0:
+                break
+        return gross - need
+
+    async def _ledger(self, item_s: str, vkey: str) -> dict[str, float]:
+        key = (item_s, vkey)
+        if key not in self._remaining:
+            self._remaining[key] = await self._free_buckets(item_s, vkey)
+        return self._remaining[key]
+
+    async def consume_detailed(self, item_id, attribute_value_ids, location_id, gross_req: float,
+                               color_id=None, size_token: str = ""):
         """Dry-run variant of consume() for the creation preview. ``location_id``
         is accepted for caller compatibility / display only — it is NOT part of the
-        netting key (plant-level netting).
+        netting key (plant-level netting). ``size_token`` IS part of the key.
 
         Returns (net_qty, detail). ``detail`` carries the figures the UI shows:
         on_hand, incoming, required_other, net_free (original for the key),
-        free_before (running balance before this node), covered. Decrements the
-        ledger exactly like consume() so the preview matches what creation does.
+        free_before (running balance before this node), covered — all restricted
+        to the size buckets this node may draw from, so the preview never shows a
+        planner on-hand it is not allowed to use. Decrements the ledger exactly
+        like consume() so the preview matches what creation does.
         """
         empty = {"on_hand": 0.0, "incoming": 0.0, "required_other": 0.0,
                  "reserved_other": 0.0, "net_free": 0.0, "free_before": 0.0,
@@ -277,27 +545,29 @@ class Availability:
             return gross_req, empty
         item_s = str(item_id)
         vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])], color_id)
-        key = (item_s, vkey)
-        on_hand = await self._on_hand(item_s, vkey)
-        incoming = self._supply.get(key, 0.0)
-        required = self._demand.get(key, 0.0)
-        reserved = self._reserved.get(key, 0.0)
-        net_free = on_hand + incoming - required - reserved
-        if key not in self._remaining:
-            self._remaining[key] = net_free
-        free_before = self._remaining[key]
-        covered = min(max(0.0, free_before), gross_req)
-        self._remaining[key] = free_before - covered
+        want = normalize_size_token(size_token)
+        ledger = await self._ledger(item_s, vkey)
+        eligible = self._eligible_tokens(ledger, want)
+        buckets = await self._on_hand_buckets(item_s, vkey)
+        on_hand = sum(buckets.get(t, 0.0) for t in eligible)
+        incoming = sum(self._supply.get((item_s, vkey, t), 0.0) for t in eligible)
+        required = sum(self._demand.get((item_s, vkey, t), 0.0) for t in eligible)
+        reserved = sum(self._reserved.get((item_s, vkey, t), 0.0) for t in eligible)
+        free_before = sum(ledger.get(t, 0.0) for t in eligible)
+        covered = self._draw(ledger, want, gross_req)
         return gross_req - covered, {
             "on_hand": on_hand, "incoming": incoming, "required_other": required,
             "reserved_other": reserved,
-            "net_free": net_free, "free_before": free_before, "covered": covered,
+            "net_free": on_hand + incoming - required - reserved,
+            "free_before": free_before, "covered": covered,
         }
 
-    async def consume(self, item_id, attribute_value_ids, location_id, gross_req: float, color_id=None) -> float:
+    async def consume(self, item_id, attribute_value_ids, location_id, gross_req: float,
+                      color_id=None, size_token: str = "") -> float:
         """Net ``gross_req`` against the running free-stock balance for this node.
         ``location_id`` is accepted for caller compatibility only — plant-level
-        netting ignores it.
+        netting ignores it. ``size_token`` picks the size bucket (see the class
+        docstring): a sized node never eats another size's stock.
 
         Returns the qty to actually MAKE: 0.0 means fully covered by stock (the
         caller should skip the MO and its sub-tree); a smaller-than-gross value
@@ -310,15 +580,8 @@ class Availability:
             return gross_req  # no scoped item -> cannot net, make full
         item_s = str(item_id)
         vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])], color_id)
-        key = (item_s, vkey)
-        if key not in self._remaining:
-            self._remaining[key] = await self._net_free(item_s, vkey)
-        free = self._remaining[key]
-        if free <= 0:
-            return gross_req
-        covered = min(free, gross_req)
-        self._remaining[key] = free - covered
-        return gross_req - covered
+        ledger = await self._ledger(item_s, vkey)
+        return gross_req - self._draw(ledger, normalize_size_token(size_token), gross_req)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -375,16 +638,20 @@ def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detai
     }
 
 
-async def _info_detail(avail: "Availability", item_id, attribute_value_ids, color_id=None) -> dict:
-    """Read-only stock snapshot for a (item, variant) — used for FORCED root
+async def _info_detail(avail: "Availability", item_id, attribute_value_ids, color_id=None,
+                       size_token: str = "") -> dict:
+    """Read-only stock snapshot for a (item, variant, size) — used for FORCED root
     nodes, which bypass netting entirely and must not decrement the ledger."""
     vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])], color_id)
     item_s = str(item_id)
-    on_hand = await avail._on_hand(item_s, vkey)
-    key = (item_s, vkey)
-    incoming = avail._supply.get(key, 0.0)
-    required = avail._demand.get(key, 0.0)
-    reserved = avail._reserved.get(key, 0.0)
+    buckets = await avail._on_hand_buckets(item_s, vkey)
+    # token universe includes supply/demand-only sizes, not just those on hand
+    eligible = avail._eligible_tokens(await avail._free_buckets(item_s, vkey),
+                                      normalize_size_token(size_token))
+    on_hand = sum(buckets.get(t, 0.0) for t in eligible)
+    incoming = sum(avail._supply.get((item_s, vkey, t), 0.0) for t in eligible)
+    required = sum(avail._demand.get((item_s, vkey, t), 0.0) for t in eligible)
+    reserved = sum(avail._reserved.get((item_s, vkey, t), 0.0) for t in eligible)
     return {"on_hand": on_hand, "incoming": incoming, "required_other": required,
             "reserved_other": reserved,
             "net_free": on_hand + incoming - required - reserved}
@@ -523,6 +790,21 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
     loc_names = await _location_name_map(db)
     nodes: list[dict] = []
 
+    # Root size rows up front: their token is the netting bucket for the finished
+    # goods, and is what each branch's components inherit.
+    entry_size_ids = {
+        str(getattr(s, "bom_size_id", None))
+        for e in bom_entries for s in (getattr(e, "sizes", None) or [])
+        if getattr(s, "bom_size_id", None)
+    }
+    bom_sizes: dict = {}
+    if entry_size_ids:
+        bom_sizes = {
+            str(bs.id): bs for bs in (await db.execute(
+                select(BOMSize).filter(BOMSize.id.in_(entry_size_ids))
+            )).scalars().all()
+        }
+
     # Pass 1: root finished goods — netted against stock same as a component,
     # unless the entry's force_create bypasses it (stockpile override).
     root_loc = source_location.id if source_location else (location.id if location else None)
@@ -536,9 +818,9 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         )).unique().scalars().first()
         if not bom:
             continue
-        # (bom_size_id, qty). Netting keys on (item, variant) regardless of size,
-        # but the size identity is carried down so component *rows* split exactly
-        # where the create path splits component MOs.
+        # (bom_size_id, qty). The size identity is both a netting bucket and the
+        # split point for component *rows*, exactly where the create path splits
+        # component MOs.
         gross_specs: list[tuple] = []
         if getattr(entry, "sizes", None):
             gross_specs = [(getattr(s, "bom_size_id", None), float(s.qty))
@@ -557,11 +839,13 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         )
 
         for bom_size_id, gross in gross_specs:
+            tok = avail.token_for_bom_size(bom_sizes.get(str(bom_size_id))) if bom_size_id else ""
             if force:
-                detail = await _info_detail(avail, bom.item_id, root_attrs, entry_color_id)
+                detail = await _info_detail(avail, bom.item_id, root_attrs, entry_color_id, size_token=tok)
                 net = gross
             else:
-                net, detail = await avail.consume_detailed(bom.item_id, root_attrs, root_loc, gross, color_id=entry_color_id)
+                net, detail = await avail.consume_detailed(bom.item_id, root_attrs, root_loc, gross,
+                                                           color_id=entry_color_id, size_token=tok)
             nodes.append(_root_netted_node(
                 bom, gross, net, detail, root_loc, loc_names, force,
                 attr_ids=root_attrs, bom_size_id=bom_size_id, color_id=entry_color_id,
@@ -635,6 +919,7 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
                     demand[key] = {"sub_bom": sub_bom, "src": src, "total": 0.0,
                                    "attrs": comp_attrs,
                                    "bom_size_id": sub_bs.id if sub_bs is not None else None,
+                                   "size_token": avail.token_for_bom_size(sub_bs),
                                    "decoupled": _line_decoupled(
                                        line, item_row.is_decoupling_point if item_row else False)}
                 demand[key]["total"] += (qty * float(line.percentage)) / 100
@@ -648,13 +933,15 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
             # visibility but create no MO and don't explode the sub-tree. Read-only
             # stock snapshot (no ledger decrement) since nothing is made here.
             if data["decoupled"]:
-                detail = await _info_detail(avail, data["sub_bom"].item_id, data["attrs"])
+                detail = await _info_detail(avail, data["sub_bom"].item_id, data["attrs"],
+                                            size_token=data["size_token"])
                 node = _component_node(data["sub_bom"], level, data["src"], total, 0.0, detail, loc_names,
                                        attr_ids=data["attrs"], bom_size_id=data["bom_size_id"])
                 node["decision"] = "DECOUPLED"
                 nodes.append(node)
                 continue
-            net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total)
+            net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total,
+                                                       size_token=data["size_token"])
             nodes.append(_component_node(data["sub_bom"], level, data["src"], total, net, detail, loc_names,
                                          attr_ids=data["attrs"], bom_size_id=data["bom_size_id"]))
             if net > 0:
