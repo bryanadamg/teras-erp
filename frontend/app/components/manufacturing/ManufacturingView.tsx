@@ -79,7 +79,7 @@ export default function ManufacturingView({
   const [prModalTotalQty, setPrModalTotalQty] = useState<string | undefined>(undefined);
   const [prModalSalesOrderId, setPrModalSalesOrderId] = useState<string | undefined>(undefined);
   const [prModalSalesOrderCode, setPrModalSalesOrderCode] = useState<string | undefined>(undefined);
-  const [prModalInitialEntries, setPrModalInitialEntries] = useState<Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; locked?: boolean}> | undefined>(undefined);
+  const [prModalInitialEntries, setPrModalInitialEntries] = useState<Array<{bomId: string; itemId?: string; sizeQtys: Record<string,string>; sizeTokens?: Record<string,number>; totalQty: string; locked?: boolean}> | undefined>(undefined);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWO, setNewWO] = useState({
@@ -177,13 +177,21 @@ export default function ManufacturingView({
       if (initialPRState && boms.length > 0) {
           if (initialPRState.bom_entries) {
               // Multi-BOM entries path
+              // An entry may arrive with NO bom_id: the SO states the size and
+              // leaves the recipe to the planner, so `itemId` scopes the modal's
+              // BOM picker and `sizeTokens` (folded size names) are resolved to
+              // that BOM's own BOMSize rows once it is chosen.
               const entries = (initialPRState.bom_entries as any[]).map((e: any) => {
-                  const bom = boms.find((b: any) => b.id === e.bom_id);
-                  if (!bom) return null;
+                  if (e.bom_id && !boms.find((b: any) => b.id === e.bom_id)) return null;
                   const sizeMap: Record<string, string> = {};
-                  (e.sizes || []).forEach((s: any) => { sizeMap[s.bom_size_id] = String(s.qty); });
-                  return { bomId: e.bom_id, sizeQtys: sizeMap, totalQty: e.total_qty ? String(e.total_qty) : '', attributeValueIds: e.attribute_value_ids || [], colorId: e.color_id || undefined, colorLabel: e.color_label || undefined, labdipVariantCode: e.labdip_variant_code || undefined, locked: true };
-              }).filter(Boolean) as Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; attributeValueIds?: string[]; colorId?: string; colorLabel?: string; labdipVariantCode?: string; locked?: boolean}>;
+                  const tokenMap: Record<string, number> = {};
+                  (e.sizes || []).forEach((sz: any) => {
+                      if (sz.bom_size_id) sizeMap[sz.bom_size_id] = String(sz.qty);
+                      const tok = String(sz.size_token || '').trim().toLowerCase();
+                      if (tok) tokenMap[tok] = (tokenMap[tok] || 0) + (parseFloat(sz.qty) || 0);
+                  });
+                  return { bomId: e.bom_id || '', itemId: e.item_id || undefined, sizeQtys: sizeMap, sizeTokens: Object.keys(tokenMap).length > 0 ? tokenMap : undefined, totalQty: e.total_qty ? String(e.total_qty) : '', attributeValueIds: e.attribute_value_ids || [], colorId: e.color_id || undefined, colorLabel: e.color_label || undefined, labdipVariantCode: e.labdip_variant_code || undefined, locked: true };
+              }).filter(Boolean) as Array<{bomId: string; itemId?: string; sizeQtys: Record<string,string>; sizeTokens?: Record<string,number>; totalQty: string; attributeValueIds?: string[]; colorId?: string; colorLabel?: string; labdipVariantCode?: string; locked?: boolean}>;
 
               if (entries.length > 0) {
                   setActiveTab('production-runs');

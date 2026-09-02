@@ -78,7 +78,7 @@ export default function SalesOrdersPage() {
         // than filtered client-side out of the windowed /production-runs feed: that
         // feed only held the newest 50 PRs, so an older SO read as "not covered" and
         // the user could create a duplicate PR for work already planned.
-        let coverage: { covered_size_ids: string[]; covered_entries: any[] } = { covered_size_ids: [], covered_entries: [] };
+        let coverage: { covered_size_ids: string[]; covered_size_tokens: string[]; covered_entries: any[] } = { covered_size_ids: [], covered_size_tokens: [], covered_entries: [] };
         try {
             const covRes = await authFetch(`${API_BASE}/sales-orders/${so.id}/pr-coverage`);
             if (!covRes.ok) throw new Error(String(covRes.status));
@@ -89,11 +89,18 @@ export default function SalesOrdersPage() {
             showToast('Could not check existing Production Runs for this order. Please retry.', 'danger');
             return;
         }
-        const coveredSizeIds = new Set<string>(coverage.covered_size_ids.map(String));
+        // Coverage is compared on the folded size NAME: an SO line states a generic
+        // size (the BOM is the PR's pick), so it has no BOMSize id to match on.
+        // Measurement-only sizes have no name and are still matched by id.
+        const coveredSizes = new Set<string>((coverage.covered_size_tokens || []).map(String));
+        const coveredSizeIds = new Set<string>((coverage.covered_size_ids || []).map(String));
 
         const entries: Array<{
+            // Empty when the item's recipe is ambiguous — the planner picks it in
+            // the PR modal, which is the whole point of decoupling size from BOM.
             bom_id: string;
-            sizes?: { bom_size_id: string; qty: number }[];
+            item_id?: string;
+            sizes?: { bom_size_id?: string; size_token?: string; size_label?: string; qty: number }[];
             total_qty?: number;
             attribute_value_ids?: string[];
             color_id?: string;
@@ -127,33 +134,44 @@ export default function SalesOrdersPage() {
             const lineColorLabel: string | undefined = colorLabel(firstLine.color_code, firstLine.color_name) || undefined;
             const lineLabdip: string | undefined = firstLine.labdip_variant_code || undefined;
 
-            // The recipe the user picked on the SO line wins. Deriving it from
-            // (item, attributes) is ambiguous for color-variant items — 403 RED and
-            // 403 NAVY are both attribute-less roots over their own greige, so the
-            // derivation below matches BOTH and collapses every shade onto whichever
-            // BOM happens to come first. Retired BOMs fall through: /boms returns
-            // inactive ones too, and a months-old order must not pin a dead recipe.
+            // The recipe the user picked on the SO line wins when there is one.
+            // Retired BOMs fall through: /boms returns inactive ones too, and a
+            // months-old order must not pin a dead recipe.
             let matchingBOM = firstLine.bom_id
                 ? boms.find((b: any) => String(b.id) === String(firstLine.bom_id) && b.active !== false)
                 : undefined;
 
-            // Try exact attribute match next (legacy lines with no stored BOM)
-            if (!matchingBOM) matchingBOM = boms.find((b: any) => {
-                if (b.item_id !== firstLine.item_id) return false;
-                const bomAttrIds: string[] = b.attribute_value_ids || [];
-                if (lineAttrIds.length !== bomAttrIds.length) return false;
-                return lineAttrIds.every((id: string) => bomAttrIds.includes(id));
-            });
-
-            // Fallback: base BOM with no attributes (color applied via dyeing)
+            // Otherwise derive it — but only where the derivation is UNAMBIGUOUS.
+            // Two attribute-less roots over their own greige (403 RED, 403 NAVY)
+            // both match, and picking whichever comes first is how every shade used
+            // to collapse onto one recipe. An ambiguous item is left for the planner
+            // to resolve on the Production Run instead of being guessed here.
+            const itemBoms = boms.filter((b: any) => b.item_id === firstLine.item_id && b.active !== false);
             if (!matchingBOM) {
-                matchingBOM = boms.find((b: any) =>
-                    b.item_id === firstLine.item_id &&
-                    (b.attribute_value_ids || []).length === 0
-                );
+                // Exact attribute match (legacy lines with no stored BOM)
+                const exact = itemBoms.filter((b: any) => {
+                    const bomAttrIds: string[] = b.attribute_value_ids || [];
+                    if (lineAttrIds.length !== bomAttrIds.length) return false;
+                    return lineAttrIds.every((id: string) => bomAttrIds.includes(id));
+                });
+                // Fallback: base BOM with no attributes (color applied via dyeing)
+                const bare = itemBoms.filter((b: any) => (b.attribute_value_ids || []).length === 0);
+                const pool = exact.length > 0 ? exact : bare;
+                if (pool.length === 1) matchingBOM = pool[0];
             }
 
+            // A line pinned to a BOMSize has already named its recipe implicitly —
+            // that row belongs to exactly one BOM.
             if (!matchingBOM) {
+                const pinned = groupLines.map((l: any) => l.bom_size_id).find(Boolean);
+                if (pinned) {
+                    matchingBOM = itemBoms.find((b: any) =>
+                        (b.sizes || []).some((sz: any) => String(sz.id) === String(pinned))
+                    );
+                }
+            }
+
+            if (!matchingBOM && itemBoms.length === 0) {
                 missingBomCount++;
                 continue;
             }
@@ -165,15 +183,42 @@ export default function SalesOrdersPage() {
                 continue;
             }
 
-            const linesWithSize = groupLines.filter((l: any) => !!l.bom_size_id);
+            // A line's size is a folded size NAME, not a BOMSize id — the PR
+            // resolves it against whichever BOM ends up chosen. When the BOM is
+            // already known the id is resolved here too, so a fully-determined
+            // handoff seeds the modal exactly as it did before.
+            const lineSizeToken = (l: any): string => String(l.size_display || '').trim().toLowerCase();
+            // A line that still carries the legacy per-BOM pointer is matched by
+            // that id, mirroring the server's peg: the id names a size AND the BOM
+            // it belongs to, so two same-size lines against two recipes stay apart.
+            // It is also the only identity a measurement-only size (157 cm) has.
+            const legacySizeId = (l: any): string => (l.bom_size_id ? String(l.bom_size_id) : '');
+            const bomSizeIdFor = (token: string): string | undefined => {
+                if (!matchingBOM || !token) return undefined;
+                const bs = (matchingBOM.sizes || []).find((x: any) =>
+                    String(x.size_name || x.size?.name || x.label || '').trim().toLowerCase() === token
+                );
+                return bs?.id;
+            };
+            const linesWithSize = groupLines.filter((l: any) => !!lineSizeToken(l) || !!legacySizeId(l));
 
             if (linesWithSize.length > 0) {
                 const uncoveredSizes = linesWithSize
-                    .filter((l: any) => !coveredSizeIds.has(String(l.bom_size_id)))
-                    .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: pickQty(l)! }));
+                    .filter((l: any) => (
+                        legacySizeId(l)
+                            ? !coveredSizeIds.has(legacySizeId(l))
+                            : !coveredSizes.has(lineSizeToken(l))
+                    ))
+                    .map((l: any) => ({
+                        bom_size_id: legacySizeId(l) || bomSizeIdFor(lineSizeToken(l)),
+                        size_token: lineSizeToken(l) || undefined,
+                        size_label: l.size_display || undefined,
+                        qty: pickQty(l)!,
+                    }));
                 if (uncoveredSizes.length > 0) {
                     entries.push({
-                        bom_id: matchingBOM.id,
+                        bom_id: matchingBOM?.id || '',
+                        item_id: firstLine.item_id,
                         sizes: uncoveredSizes,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
                         color_id: lineColorId,
@@ -183,15 +228,22 @@ export default function SalesOrdersPage() {
                 }
             } else {
                 const sortedLineAttrs = [...lineAttrIds].sort().join(',');
+                // With no recipe decided yet, any candidate BOM for this item
+                // counts as coverage — the existing PR planned this same demand
+                // under whichever recipe the planner chose then.
+                const bomIds = new Set<string>(
+                    (matchingBOM ? [matchingBOM] : itemBoms).map((b: any) => String(b.id))
+                );
                 const covered = coverage.covered_entries.some((e: any) => {
-                    if (String(e.bom_id) !== String(matchingBOM!.id)) return false;
+                    if (!bomIds.has(String(e.bom_id))) return false;
                     const entryAttrs = [...(e.attribute_value_ids || [])].sort().join(',');
                     return entryAttrs === sortedLineAttrs && String(e.color_id || '') === String(lineColorId || '') && String(e.labdip_variant_code || '') === String(lineLabdip || '');
                 });
                 if (!covered) {
                     const totalQty = groupLines.reduce((acc: number, l: any) => acc + pickQty(l)!, 0);
                     entries.push({
-                        bom_id: matchingBOM.id,
+                        bom_id: matchingBOM?.id || '',
+                        item_id: firstLine.item_id,
                         total_qty: totalQty,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
                         color_id: lineColorId,

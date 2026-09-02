@@ -42,6 +42,7 @@ def _line_opts():
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.color),
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.labdip_item),
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.bom_size).selectinload(BOMSize.size),
+        selectinload(SalesOrder.lines).selectinload(SalesOrderLine.size),
     )
 
 
@@ -100,8 +101,16 @@ def _populate_line(line: SalesOrderLine) -> None:
     # IN_PROGRESS/APPROVED/REJECTED). Shown until an approved color_id backfills.
     if line.labdip_item is not None:
         line.labdip_status = line.labdip_item.status
-    if line.bom_size is not None:
-        line.size_label = line.bom_size.size_name or line.bom_size.label
+    # Display size: the generic pick first, the legacy BOMSize pointer only for
+    # rows written before the decoupling. Never written back onto the line.
+    line.size_display = (
+        (line.size.name if line.size is not None else None)
+        or line.size_label
+        or (
+            (line.bom_size.size_name or line.bom_size.label)
+            if line.bom_size is not None else None
+        )
+    )
 
 
 async def _populate_production_runs(db: AsyncSession, orders: list) -> None:
@@ -218,6 +227,8 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
                 uom2_factor=line.uom2_factor,
                 bom_id=line.bom_id,
                 bom_size_id=line.bom_size_id,
+                size_id=line.size_id,
+                size_label=line.size_label,
                 color_id=line.color_id,
                 labdip_variant_code=line.labdip_variant_code,
                 labdip_item_id=line.labdip_item_id,
@@ -475,22 +486,31 @@ async def get_so_pr_coverage(
         ).all()
     ]
     if not pr_ids:
-        return SOPRCoverageResponse(covered_size_ids=[], covered_entries=[])
+        return SOPRCoverageResponse(covered_size_ids=[], covered_size_tokens=[], covered_entries=[])
 
     # Sized coverage comes from the root MOs actually created (a PR entry can be
     # partially materialised), matching the client logic this replaces.
-    size_ids = [
-        str(r[0]) for r in (
-            await db.execute(
-                select(ManufacturingOrder.bom_size_id)
-                .filter(
-                    ManufacturingOrder.production_run_id.in_(pr_ids),
-                    ManufacturingOrder.bom_size_id.is_not(None),
-                )
-                .distinct()
+    size_rows = (
+        await db.execute(
+            select(ManufacturingOrder.bom_size_id, Size.name, BOMSize.label)
+            .join(BOMSize, BOMSize.id == ManufacturingOrder.bom_size_id)
+            .outerjoin(Size, Size.id == BOMSize.size_id)
+            .filter(
+                ManufacturingOrder.production_run_id.in_(pr_ids),
+                ManufacturingOrder.bom_size_id.is_not(None),
             )
-        ).all()
-    ]
+            .distinct()
+        )
+    ).all()
+    size_ids = [str(r[0]) for r in size_rows]
+    # An SO line no longer carries a BOMSize id, so the caller compares folded
+    # size names. Same coverage, stated in the identity both sides can see.
+    size_tokens = sorted({
+        tok for tok in (
+            netting_service.normalize_size_token(name or label)
+            for _, name, label in size_rows
+        ) if tok
+    })
 
     entries = [
         SOPRCoverageEntry(
@@ -511,7 +531,9 @@ async def get_so_pr_coverage(
         ).all()
     ]
 
-    return SOPRCoverageResponse(covered_size_ids=size_ids, covered_entries=entries)
+    return SOPRCoverageResponse(
+        covered_size_ids=size_ids, covered_size_tokens=size_tokens, covered_entries=entries
+    )
 
 
 @router.get("/{so_id}", response_model=SalesOrderResponse)
@@ -566,12 +588,13 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
     pack_refs = []
     if line_ids:
         old_identity = {
-            str(r[0]): (r[1], r[2], r[3], r[4])
+            str(r[0]): (r[1], r[2], r[3], r[4], r[5], r[6])
             for r in (
                 await db.execute(
                     select(
                         SalesOrderLine.id, SalesOrderLine.item_id, SalesOrderLine.bom_id,
-                        SalesOrderLine.bom_size_id, SalesOrderLine.color_id,
+                        SalesOrderLine.bom_size_id, SalesOrderLine.size_id,
+                        SalesOrderLine.size_label, SalesOrderLine.color_id,
                     ).where(SalesOrderLine.sales_order_id == so_id)
                 )
             ).all()
@@ -604,6 +627,8 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
             uom2_factor=line.uom2_factor,
             bom_id=line.bom_id,
             bom_size_id=line.bom_size_id,
+            size_id=line.size_id,
+            size_label=line.size_label,
             color_id=line.color_id,
             labdip_variant_code=line.labdip_variant_code,
             labdip_item_id=line.labdip_item_id,
@@ -619,7 +644,9 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
         await db.flush()  # ids are assigned on INSERT, not on construction
         new_by_identity = {}
         for l in new_lines:
-            new_by_identity.setdefault((l.item_id, l.bom_id, l.bom_size_id, l.color_id), l.id)
+            new_by_identity.setdefault(
+                (l.item_id, l.bom_id, l.bom_size_id, l.size_id, l.size_label, l.color_id), l.id
+            )
         for po_id, old_line_id in pack_refs:
             new_id = new_by_identity.get(old_identity.get(str(old_line_id)))
             if new_id:

@@ -41,14 +41,14 @@ const SO_COL_WIDTHS = [
     110, // Alt Unit
     110, // Stock Notes
     88,  // Req / Conf
-    130, // MO Progress
+    152, // Production Output
     92,  // Fulfilment
     80,  // Status
     75,  // Actions
 ];
 const SO_TABLE_MIN_WIDTH = SO_COL_WIDTHS.reduce((a, b) => a + b, 0);
 
-// The MO progress bar IS the link to the MO. A code chip above it ate the column's
+// The production-output bar IS the link to the MO. A code chip above it ate the column's
 // width and truncated the code to noise ("PR-2026-08-00010-00…"), so the code now
 // lives only in the hover tooltip and the bar itself is the click target.
 function MOProgressLink({ pct, tone, onClick }: { pct: number; tone: 'green' | 'blue'; onClick: () => void }) {
@@ -313,6 +313,14 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '',
       uom2_factor: null as number | null,
       bom_id: '',
+      // The ordered size, stated without a recipe: `size_token` is the folded
+      // size name the pickers key on, size_id/size_label are what the server
+      // stores. A BOMSize id would pin the BOM, which is now the PR's call —
+      // except for measurement-only free sizes (157 cm, no name), which have no
+      // recipe-independent identity and so still ride on `bom_size_id`.
+      size_token: '',
+      size_id: '',
+      size_label: '',
       bom_size_id: '',
       color_id: '',
       color_label: '',
@@ -380,21 +388,20 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       if (!newLine.item_id || newLine.qty <= 0) return;
       const variantErr = variantGateError(newLine);
       if (variantErr) { showToast(variantErr, 'warning'); return; }
-      // With more than one candidate recipe the BOM picker is on screen and the
-      // choice is real — an unpicked line would reach the PR pre-fill with nothing
-      // to disambiguate it and silently land on an arbitrary recipe.
-      const candidateBoms = getItemBoms(newLine.item_id, newLine.attribute_value_ids);
-      if (candidateBoms.length > 1 && !newLine.bom_id) {
-          showToast('This item has more than one BOM — select which one this line is ordered against.', 'warning');
-          return;
-      }
-      // bom_id rides along to the server: one item can own several attribute-less
-      // BOMs (a root per shade), so the pick is the only thing that says which
-      // recipe was ordered. The PR pre-fill reads it back.
-      setNewSO({ ...newSO, lines: [...newSO.lines, { ...newLine, bom_id: newLine.bom_id || null, bom_size_id: newLine.bom_size_id || null }] });
+      // The BOM is optional here. Sales orders a size, not a recipe: with several
+      // candidate BOMs the planner picks one on the Production Run, where the
+      // shop-floor context lives. When the pick IS made here it still rides along
+      // — one item can own several attribute-less BOMs (a root per shade) and
+      // nothing else tells them apart — the PR pre-fill just no longer needs it.
+      setNewSO({ ...newSO, lines: [...newSO.lines, { ...newLine,
+          bom_id: newLine.bom_id || null,
+          size_id: newLine.size_id || null,
+          size_label: newLine.size_label || null,
+          bom_size_id: newLine.bom_size_id || null,
+      }] });
       const nextDates = { due_date: newLine.due_date, internal_confirmation_date: newLine.internal_confirmation_date };
       setLastDeliveryDates(nextDates);
-      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false });
+      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', size_token: '', size_id: '', size_label: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false });
       setQtyMeter('');
       setQtyGrossYd('');
       setKgAuto(true);
@@ -486,10 +493,13 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const newAttrValues = valId ? [...otherValues, valId] : otherValues;
       // Changing Combo invalidates the current BOM selection; auto-pick if only one matches
       const comboChanged = comboAttr && comboAttr.id === attrId;
-      let bomOverride: { bom_id?: string; bom_size_id?: string } = {};
+      let bomOverride: { bom_id?: string; size_token?: string; size_id?: string; size_label?: string; bom_size_id?: string } = {};
       if (comboChanged) {
           const filteredBoms = getItemBoms(newLine.item_id, newAttrValues);
-          bomOverride = { bom_id: filteredBoms.length === 1 ? filteredBoms[0].id : '', bom_size_id: '' };
+          bomOverride = {
+              bom_id: filteredBoms.length === 1 ? filteredBoms[0].id : '',
+              size_token: '', size_id: '', size_label: '', bom_size_id: '',
+          };
       }
       setNewLine({ ...newLine, attribute_value_ids: newAttrValues, ...bomOverride });
   };
@@ -552,7 +562,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       // Item change resets attributes, so no Combo filter yet — show all BOMs for item
       const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
       const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
-      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false, qty_kg: kg !== null ? kg : newLine.qty_kg });
+      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, size_token: '', size_id: '', size_label: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false, qty_kg: kg !== null ? kg : newLine.qty_kg });
   };
 
   // Combo (system_role='combo') gates BOM selection: if a Combo value is chosen on
@@ -567,38 +577,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       return forItem.filter((b: any) => (b.attribute_value_ids || []).map(String).includes(String(comboValueId)));
   };
 
-  const getSelectedBom = (itemId: string, bomId: string, attrValueIds: string[] = []) => {
-      const itemBoms = getItemBoms(itemId, attrValueIds);
-      if (itemBoms.length === 1) return itemBoms[0];
-      return itemBoms.find((b: any) => b.id === bomId) || null;
-  };
-
-  const formatBomSizeLabel = (bs: any): string => {
-      const parts: string[] = [];
-      const sizeName = bs.size_name || bs.size?.name;
-      if (sizeName) parts.push(sizeName);
-      if (bs.label) parts.push(bs.label);
-      if (bs.target_measurement != null) {
-          let meas = `${parseFloat(bs.target_measurement)}`;
-          if (bs.measurement_min != null && bs.measurement_max != null) {
-              meas += ` (${parseFloat(bs.measurement_min)}–${parseFloat(bs.measurement_max)})`;
-          }
-          parts.push(meas + ' cm');
-      }
-      return parts.join(' — ') || `Size ${bs.id.slice(0, 6)}`;
-  };
-
-  const getBomSizeLabelById = (bomSizeId: string): string => {
-      if (!boms || !bomSizeId) return '';
-      for (const bom of boms) {
-          const bs = (bom.sizes || []).find((s: any) => s.id === bomSizeId);
-          if (bs) return formatBomSizeLabel(bs);
-      }
-      return '';
-  };
-
-  // Split of formatBomSizeLabel for the SO table: the size NAME (S/M/L/…) stays text
-  // in the cell, the measurement rides under it as a chip so the two read apart.
+  // The size NAME (S/M/L/…) stays text in the cell, the measurement rides under
+  // it as a chip so the two read apart.
   const formatBomSizeMeasurement = (bs: any): string => {
       if (bs.measurement_min != null && bs.measurement_max != null) {
           return `${parseFloat(bs.measurement_min)} cm - ${parseFloat(bs.measurement_max)} cm`;
@@ -607,15 +587,96 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       return '';
   };
 
-  const getBomSizeParts = (bomSizeId: string): { name: string; measurement: string } => {
-      if (!boms || !bomSizeId) return { name: '', measurement: '' };
-      for (const bom of boms) {
-          const bs = (bom.sizes || []).find((s: any) => s.id === bomSizeId);
-          if (!bs) continue;
-          const name = bs.size_name || bs.size?.name || bs.label || `Size ${bs.id.slice(0, 6)}`;
-          return { name, measurement: formatBomSizeMeasurement(bs) };
+  // ── Size, stated without a recipe ───────────────────────────────────────────
+  // Sizes physically live on BOMSize rows, so a size list used to require a BOM
+  // pick first — which is exactly what forced sales to choose the recipe. The
+  // options here are the UNION of every candidate BOM's sizes, folded by size
+  // name (the identity netting and lot snapshots already key on), so the list
+  // shows with no BOM chosen and the PR resolves the name against whichever BOM
+  // the planner picks. Measurement rides along only when every candidate agrees
+  // on it — two BOMs can call the same size 60 cm and 67 cm, and the honest
+  // answer before the recipe is known is to show neither.
+  const sizeToken = (bs: any): string =>
+      String(bs?.size_name || bs?.size?.name || bs?.label || '').trim().toLowerCase();
+
+  const getSizeOptions = (itemId: string, bomId: string, attrValueIds: string[] = []) => {
+      const candidates = getItemBoms(itemId, attrValueIds);
+      // A retired recipe must not contribute a phantom size to the union. An
+      // explicit pick is honoured either way — an old line may name one.
+      const scope = bomId
+          ? boms.filter((b: any) => b.id === bomId)
+          : candidates.filter((b: any) => b.active !== false);
+      const byToken = new Map<string, any>();
+      // Measurement-only free sizes (157 cm, no name) carry no identity a second
+      // BOM could share, so they cannot be offered before the recipe is known —
+      // they stay on the legacy per-BOM pointer and appear only once one BOM owns
+      // the choice.
+      const nameless: any[] = [];
+      for (const bom of scope) {
+          for (const bs of (bom.sizes || [])) {
+              const measurement = formatBomSizeMeasurement(bs);
+              const token = sizeToken(bs);
+              if (!token) {
+                  if (scope.length === 1 && measurement) {
+                      nameless.push({
+                          value: `bs:${bs.id}`,
+                          bom_size_id: bs.id,
+                          token: '',
+                          name: measurement,
+                          measurement: '',
+                          sort_order: bs.sort_order ?? 0,
+                      });
+                  }
+                  continue;
+              }
+              const existing = byToken.get(token);
+              if (!existing) {
+                  byToken.set(token, {
+                      value: token,
+                      token,
+                      name: bs.size_name || bs.size?.name || bs.label || token,
+                      size_id: bs.size_id || '',
+                      // Free-mode BOMs have no Size master row; the label IS the
+                      // identity, so it is what the line stores.
+                      size_label: bs.size_id ? '' : (bs.label || ''),
+                      measurement,
+                      sort_order: bs.sort_order ?? bs.size?.sort_order ?? 0,
+                  });
+                  continue;
+              }
+              if (existing.measurement !== measurement) existing.measurement = '';
+              if (!existing.size_id && bs.size_id) existing.size_id = bs.size_id;
+          }
       }
-      return { name: '', measurement: '' };
+      return [...byToken.values(), ...nameless]
+          .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name));
+  };
+
+  // What an already-saved line's size reads as. `size_display` is resolved
+  // server-side (generic pick first, legacy BOMSize pointer second); the
+  // measurement is only knowable once a single BOM owns the line.
+  const findBomSize = (bomSizeId: string) => {
+      for (const bom of boms) {
+          const bs = (bom.sizes || []).find((x: any) => x.id === bomSizeId);
+          if (bs) return bs;
+      }
+      return null;
+  };
+
+  const getLineSizeParts = (line: any): { name: string; measurement: string } => {
+      const name = line.size_display || '';
+      if (!name) {
+          // Nameless (measurement-only) size: the legacy pointer is the only
+          // thing that identifies it, and the measurement is its label.
+          const bs = line.bom_size_id ? findBomSize(line.bom_size_id) : null;
+          return bs ? { name: formatBomSizeMeasurement(bs), measurement: '' } : { name: '', measurement: '' };
+      }
+      const scope = line.bom_id ? boms.filter((b: any) => b.id === line.bom_id) : [];
+      for (const bom of scope) {
+          const bs = (bom.sizes || []).find((x: any) => sizeToken(x) === name.trim().toLowerCase());
+          if (bs) return { name, measurement: formatBomSizeMeasurement(bs) };
+      }
+      return { name, measurement: '' };
   };
 
   // ── Dual-UoM lock ───────────────────────────────────────────────────────────
@@ -759,7 +820,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const resetForm = () => {
       setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
-      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false });
+      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', size_token: '', size_id: '', size_label: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', no_color_swatch: false });
       setQtyMeter('');
       setQtyGrossYd('');
       setKgAuto(true);
@@ -783,6 +844,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
               uom2: l.uom2 || '',
               uom2_factor: l.uom2_factor ?? null,
               bom_id: l.bom_id || '',
+              // `size_display` is the server's resolution of either shape, so it
+              // rehydrates a legacy bom_size_id line as the same token.
+              size_token: String(l.size_display || '').trim().toLowerCase(),
+              size_id: l.size_id || '',
+              size_label: l.size_id ? '' : (l.size_label || l.size_display || ''),
               bom_size_id: l.bom_size_id || '',
               attribute_value_ids: l.attribute_value_ids || [],
               color_id: l.color_id || '',
@@ -811,13 +877,15 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
           customer_po_ref: newSO.customer_po_ref || null,
           order_date: newSO.order_date || null,
           lines: newSO.lines.map((line: any) => {
-              const { color_label, color_hex, labdip_label, ...rest } = line;
+              const { color_label, color_hex, labdip_label, size_token, size_display, ...rest } = line;
               return {
                   ...rest,
                   due_date: line.due_date || null,
                   internal_confirmation_date: line.internal_confirmation_date || null,
                   qty_kg: line.qty_kg !== '' ? parseFloat(line.qty_kg) || null : null,
                   qty2: line.qty2 !== '' ? parseFloat(line.qty2) || null : null,
+                  size_id: line.size_id || null,
+                  size_label: line.size_id ? null : (line.size_label || null),
                   bom_size_id: line.bom_size_id || null,
                   color_id: line.color_id || null,
                   labdip_variant_code: line.labdip_variant_code || null,
@@ -1070,44 +1138,86 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       );
   };
 
-  // --- Per-line MO progress (derived server-side by so_fulfilment_service) ---
-  // Work-order steps completed on the root MOs pegged to this line, so the shop
-  // floor's "where is this?" is answerable off the table instead of only from the
-  // lineage modal. Same peg as the fulfilment numbers to its right, and the same
-  // step arithmetic the lineage panel draws, so the three never disagree.
+  // --- Per-line production output (derived server-side by so_fulfilment_service) ---
+  // How much has been PRODUCED for this line — finished goods AND the components
+  // pegged behind them (greige, warp beams) — against Fulfilment's how much has
+  // been packed and shipped.
+  //
+  // The bar is `mp.pct`: one share per BOM level, so four warp beams don't outvote
+  // the greige and the finished goods simply by being four rows. Component
+  // coverage is measured against the qty THIS order needs of a shared MO, which is
+  // why a beam planned for 269 kg can read complete for an order needing 4 kg.
+  //
+  // The qty line under it stays finished-goods only, and its numerator is
+  // `qty_made` (the fulfilment peg) rather than mo_progress's own `made`: on an
+  // ambiguous peg — two lines, same item + recipe + size + shade — only
+  // `fulfilment_map` splits produced qty pro-rata, so reading the MO-side figure
+  // would promise the same output to both lines. Progress fractions are safe to
+  // share that way; quantities are not.
+  //
+  // This column used to count completed work orders. WOs are manual floor dispatch
+  // decisions, so that denominator was authored after the fact and the bar ran
+  // backwards when a step was added late; it also had no value between 0 and 100
+  // for the (common) MO carrying no WOs. Steps survive as the stage line below.
   const moProgressCell = (line: any) => {
       const mp = line.mo_progress;
       // No MO yet is not 0% done — say nothing rather than draw an empty bar.
       if (!mp || !mp.mo_count) {
           return <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }} title="No manufacturing order for this line yet">—</span>;
       }
-      const mos: any[] = mp.mos || [];
+      const f = lineFulfilment(line);
+      const u = f.uom ? ` ${f.uom}` : '';
+      // Ordered qty is the denominator the client reads for finished goods ("how
+      // much of my order exists"). It is null for a weight-stocked item with no
+      // weight-per-yard on its master, so fall back to the MOs' own planned qty.
+      const againstLine = f.ordered != null && f.ordered > 0;
+      const outQty = againstLine
+          ? `${fmtQty(f.made)} / ${fmtQty(f.ordered)}${u}`
+          : mp.mo_qty > 0 ? `${fmtQty(mp.made)} / ${fmtQty(mp.mo_qty)}${u}` : null;
+      const pct = mp.pct;
+      const shipped = f.pct(f.made) >= 100;
+      // Naming the blocking component only reads true for a single-MO line: the
+      // counts on the line below are summed across every MO answering it.
+      const comps: any[] = mp.mo_count === 1 && mp.mos && mp.mos.length ? (mp.mos[0].components || []) : [];
       const stepLine = (st: any) => `  ${st.status === 'COMPLETED' ? '✓' : st.status === 'IN_PROGRESS' ? '▶' : '·'} ${st.stage || st.name || st.code || ''}`;
+      const compLine = (c: any) => `  ${c.pct >= 100 ? '✓' : c.pct > 0 ? '▶' : '·'} ${c.mo_code} — ${fmtQty(c.made)} / ${fmtQty(c.need)} (${c.pct}%)`;
       const title = [
-          ...mos.map((m: any) => {
-              const head = `${m.mo_code} (${m.mo_status}) — ${m.steps_done}/${m.steps_total} steps`;
-              return [head, ...(m.steps || []).map(stepLine)].join('\n');
+          ...(mp.mos || []).map((m: any) => {
+              const head = `${m.mo_code} (${m.mo_status}) — ${fmtQty(m.made)} / ${fmtQty(m.mo_qty)}${u} made`;
+              return [head, ...(m.steps || []).map(stepLine), ...(m.components || []).map(compLine)].join('\n');
           }),
           `Click to open ${mp.mo_code}`,
       ].join('\n');
       return (
-          // One tooltip for the whole cell — the step list is the same answer
-          // whether the reader is over the bar, the count or the stage line.
-          <Tooltip content={title} maxWidth={340}>
+          // One tooltip for the whole cell — the breakdown is the same answer
+          // whether the reader is over the bar, the qty or the stage line.
+          <Tooltip content={title} maxWidth={380}>
           <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
-              {/* Blue while running, green at 100 — the STATUS_FAMILY reading of
-                  IN_PROGRESS vs COMPLETED, matching lineageProgressBar. */}
+              {/* Blue while producing, green only once the finished goods are made —
+                  a full bar off component progress alone would promise a shippable
+                  order that does not exist yet. */}
               <MOProgressLink
-                  pct={mp.pct}
-                  tone={mp.pct >= 100 ? 'green' : 'blue'}
+                  pct={pct}
+                  tone={shipped ? 'green' : 'blue'}
                   onClick={() => goToMO(mp.mo_code)}
               />
-              <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.pct >= 100 ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
-                  {mp.steps_total > 0 ? `${mp.steps_done}/${mp.steps_total} steps` : `${mp.pct}%`}
+              <div style={{ fontFamily:xpFont, fontSize:'9px', color: shipped ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
+                  {pct}%{outQty ? ` · ${outQty}` : ''}
                   {/* The dropped code chip carried the "+N" for extra MOs; the count
-                      rides the steps line now so a multi-MO line still reads as one. */}
+                      rides the qty line now so a multi-MO line still reads as one. */}
                   {mp.mo_count > 1 && ` · ${mp.mo_count} MOs`}
               </div>
+              {mp.components_total > 0 && (
+                  // Where a 0%-finished-goods bar's fill actually comes from. Without
+                  // this the client reads component progress as finished output.
+                  <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.components_done >= mp.components_total ? (classic ? '#1a5e1a' : '#166534') : '#8a6d00', whiteSpace:'nowrap' as const, overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {mp.components_done}/{mp.components_total} components
+                      {comps.length > 0 && mp.components_done < mp.components_total && (() => {
+                          const next = comps.find((c: any) => c.pct < 100);
+                          return next ? ` · ${next.mo_code.replace(/^MO-/, '')}` : '';
+                      })()}
+                  </div>
+              )}
               {mp.current_stage && (
                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.current_stage_running ? (classic ? '#00327d' : '#0058e6') : '#999', fontWeight: mp.current_stage_running ? 'bold' : undefined, whiteSpace:'nowrap' as const, overflow:'hidden', textOverflow:'ellipsis' }}>
                       {mp.current_stage_running ? 'now' : 'next'}: {mp.current_stage}
@@ -1778,21 +1888,31 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                        {(() => {
                            const itemBoms = getItemBoms(newLine.item_id, newLine.attribute_value_ids);
                            if (!itemBoms.length) return null;
-                           const selectedBom = getSelectedBom(newLine.item_id, newLine.bom_id, newLine.attribute_value_ids);
-                           const bomSizes = selectedBom?.sizes || [];
+                           const sizeOptions = getSizeOptions(newLine.item_id, newLine.bom_id, newLine.attribute_value_ids);
+                           const pickSize = (value: string) => {
+                               const opt = sizeOptions.find((o: any) => o.value === value);
+                               setNewLine({
+                                   ...newLine,
+                                   size_token: opt?.token || '',
+                                   size_id: opt?.size_id || '',
+                                   size_label: opt?.token && !opt?.size_id ? (opt?.size_label || opt?.name || '') : '',
+                                   bom_size_id: opt?.bom_size_id || '',
+                               });
+                           };
+                           const sizeValue = newLine.size_token || (newLine.bom_size_id ? `bs:${newLine.bom_size_id}` : '');
                            return (
                                <>
                                    {itemBoms.length > 1 && (
                                        <div className="col-12 mt-1">
                                            <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                               <div style={classic?{fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>BOM</div>
+                                               <div style={classic?{fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>BOM <span style={{fontWeight:'normal',color:'#888'}}>(optional — the Production Run picks one)</span></div>
                                                <select
                                                    className="form-select form-select-sm"
                                                    style={classic?{fontFamily:xpFont,fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
                                                    value={newLine.bom_id}
                                                    onChange={e => setNewLine({...newLine, bom_id: e.target.value, bom_size_id: ''})}
                                                >
-                                                   <option value="">Select BOM</option>
+                                                   <option value="">Decide on the Production Run</option>
                                                    {itemBoms.map((b: any) => (
                                                        <option key={b.id} value={b.id}>{b.code}{b.description ? ` — ${b.description}` : ''}</option>
                                                    ))}
@@ -1800,19 +1920,19 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            </div>
                                        </div>
                                    )}
-                                   {bomSizes.length > 0 && (
+                                   {sizeOptions.length > 0 && (
                                        <div className="col-12 mt-1">
                                            <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
                                                <div style={classic?{fontFamily:xpFont,fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>Size / Measurement</div>
                                                <select
                                                    className="form-select form-select-sm"
                                                    style={classic?{fontFamily:xpFont,fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
-                                                   value={newLine.bom_size_id}
-                                                   onChange={e => setNewLine({...newLine, bom_size_id: e.target.value})}
+                                                   value={sizeValue}
+                                                   onChange={e => pickSize(e.target.value)}
                                                >
                                                    <option value="">No specific size</option>
-                                                   {bomSizes.map((bs: any) => (
-                                                       <option key={bs.id} value={bs.id}>{formatBomSizeLabel(bs)}</option>
+                                                   {sizeOptions.map((o: any) => (
+                                                       <option key={o.value} value={o.value}>{o.measurement ? `${o.name} — ${o.measurement}` : o.name}</option>
                                                    ))}
                                                </select>
                                            </div>
@@ -1820,7 +1940,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                    )}
                                </>
                            );
-                       })()}
+                                              })()}
                    </div>
 
                    {/* Add Line button — full width, bottom of form */}
@@ -1870,7 +1990,10 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            </>
                                        );
                                    })()}
-                                   {line.bom_size_id && <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}</div>}
+                                   {(() => {
+                                       const { name, measurement } = getLineSizeParts(line);
+                                       return name ? <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{measurement ? `${name} — ${measurement}` : name}</div> : null;
+                                   })()}
                                    {line.no_color_swatch && <div style={{color:'#a33',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small fw-semibold'}><i className="bi bi-palette me-1"></i>No Color Swatch</div>}
                                </div>
                                <div style={{display:'flex',alignItems:'center',gap:classic?6:10,flexWrap:'wrap' as const}}>
@@ -2035,7 +2158,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <th style={classic ? xpThCell : undefined}>Alt Unit</th>
                                <th style={classic ? xpThCell : undefined}>Stock Notes</th>
                                <th style={classic ? xpThCell : undefined}>Req / Conf</th>
-                               <th style={classic ? xpThCell : undefined} title="Work-order steps completed on the manufacturing orders behind this line, and the step running now. Same reading as the production lineage panel.">MO Progress</th>
+                               <th style={classic ? xpThCell : undefined} title="How much of this line has been produced: its finished-goods output plus the components pegged behind it (greige, warp beams), one share per manufacturing stage. Fulfilment beside it is what has been packed and shipped.">Production Output</th>
                                <th style={classic ? xpThCell : undefined} title="Made -> packed -> shipped against the ordered qty, measured in the item's stocking unit (not the ordered yardage). READY needs packed cartons in stock.">Fulfilment</th>
                                <SortableTh sort={soSort} colKey="status" onSort={toggleSOSort} style={classic ? xpThCell : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
@@ -2191,8 +2314,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
                                            {/* Size */}
                                            <td style={lineTd(isFirst, isLast)}>
-                                               {line.bom_size_id ? (() => {
-                                                   const { name, measurement } = getBomSizeParts(line.bom_size_id);
+                                               {line.size_display ? (() => {
+                                                   const { name, measurement } = getLineSizeParts(line);
                                                    return (
                                                        <div style={{ display:'flex', flexWrap:'nowrap' as const, gap:3, alignItems:'center' }}>
                                                            <VariantChip kind="size" classic={classic} title={`Size: ${name}`}>{name}</VariantChip>

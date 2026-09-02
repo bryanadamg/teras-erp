@@ -1744,7 +1744,14 @@ class SalesOrderLineCreate(BaseModel):
     # The recipe picked on the line. Several attribute-less BOMs can exist for one
     # item (per-shade roots), so this pick is what the PR pre-fill trusts.
     bom_id: UUID | None = None
+    # Legacy per-BOM size pointer. Optional and no longer what the UI writes: a
+    # BOMSize belongs to one BOM, so it cannot be picked before the recipe is.
     bom_size_id: UUID | None = None
+    # The ordered size, recipe-independent: `size_id` for a Size master row
+    # (S/M/L/...), `size_label` for a free-mode BOM's label. The PR resolves this
+    # against whichever BOM the planner picks.
+    size_id: UUID | None = None
+    size_label: str | None = None
     color_id: UUID | None = None
     labdip_variant_code: str | None = None
     labdip_item_id: UUID | None = None
@@ -1770,10 +1777,35 @@ class SOLineMOStep(BaseModel):
     status: str
     sequence: int | None = None
 
+class SOLineMOComponent(BaseModel):
+    """One pegged component MO (greige, warp beam) behind a finished-goods order.
+
+    `need` is the qty THIS order requires of it, scaled down the peg chain, so
+    `pct` reads 100 once that share exists even when the shared MO's own plan is
+    twenty times larger. Readiness, not allocation — see `_fold_components`.
+    """
+    mo_id: str
+    mo_code: str | None = None
+    mo_status: str | None = None
+    level: int = 1
+    need: float = 0
+    made: float = 0
+    pct: int = 0
+
 class SOLineMO(BaseModel):
     mo_id: str
     mo_code: str | None = None
     mo_status: str | None = None
+    # Produced vs planned for this one order, in the item's stock UoM.
+    # `output_pct` is derived from these two, capped at 100 — `mo_qty` is a
+    # target, not a ceiling, so the uncapped truth stays readable here.
+    mo_qty: float = 0
+    made: float = 0
+    # This order's own output, before component progress is folded in.
+    output_pct: int = 0
+    components: list[SOLineMOComponent] = []
+    components_done: int = 0
+    components_total: int = 0
     steps_done: int = 0
     steps_total: int = 0
     pct: int = 0
@@ -1782,14 +1814,30 @@ class SOLineMO(BaseModel):
     steps: list[SOLineMOStep] = []
 
 class SOLineMOProgress(BaseModel):
-    """How far the production behind one SO line has got, in work-order steps.
+    """How much of the production behind one SO line has been made.
 
     Derived by so_fulfilment_service.mo_progress_map and pegged to the line the
     same way `qty_made` is. `mo_count` > 1 when several root MOs answer the same
-    line — the counts pool, since steps are counted rather than measured.
+    line — quantities pool, since they are batches of one demand.
+
+    `pct` is what the Production Output bar draws: this line's finished-goods
+    output AND the pegged component MOs behind it (greige, warp beams), weighted
+    one share per BOM level. `output_pct` is the finished goods alone.
+
+    `made`/`mo_qty` are the MO-side figures and are **not** pro-rata split on an
+    ambiguous peg; the table's qty label reads `qty_made` (which is) and uses
+    these for the per-order tooltip only. Step counts survive to *locate* the
+    work (`current_stage`), not to measure it.
     """
     mo_count: int = 0
     mo_code: str | None = None
+    mo_qty: float = 0
+    made: float = 0
+    # `output_pct` is finished-goods output alone; `pct` folds in the pegged
+    # component MOs (greige, warp beams) and is what the bar draws.
+    output_pct: int = 0
+    components_done: int = 0
+    components_total: int = 0
     steps_done: int = 0
     steps_total: int = 0
     pct: int = 0
@@ -1811,10 +1859,12 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     labdip_status: str | None = None
     item_name: str | None = None
     item_code: str | None = None
-    # This line's BOM size (label only — e.g. "M", or a free-mode label) and any
-    # other attribute values (combo, …), so a picker can tell same-item lines
-    # apart the same way it labels a lot (see BatchVariantAttr).
-    size_label: str | None = None
+    # This line's size as text — e.g. "M", or a free-mode label — resolved from
+    # `size_id`/`size_label`, falling back to the legacy `bom_size_id` pointer for
+    # rows written before the decoupling. Read-only; `size_label` above is what is
+    # stored. Paired with any other attribute values (combo, …) so a picker can
+    # tell same-item lines apart the same way it labels a lot (see BatchVariantAttr).
+    size_display: str | None = None
     variant_attributes: list[BatchVariantAttr] | None = None
     # Derived fulfilment (so_fulfilment_service) — never stored on the line.
     # `packed_available` is what decides whether the order can ship.
@@ -1828,9 +1878,10 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     # render that as unknown, never as 0%.
     qty_ordered_base: float | None = None
     base_uom: str | None = None
-    # Work-order step progress of the MOs behind this line. Populated by the list
-    # endpoint only (_populate_mo_progress); None means no MO exists for the line
-    # yet, which the table renders as an em dash rather than an empty bar.
+    # Production progress (qty made vs planned) of the MOs behind this line, plus
+    # the stage the floor is on. Populated by the list endpoint only
+    # (_populate_mo_progress); None means no MO exists for the line yet, which the
+    # table renders as an em dash rather than an empty bar.
     mo_progress: SOLineMOProgress | None = None
 
     class Config:
@@ -1892,6 +1943,10 @@ class SOPRCoverageEntry(BaseModel):
 class SOPRCoverageResponse(BaseModel):
     """Duplicate-PR guard for one SO — see GET /sales-orders/{id}/pr-coverage."""
     covered_size_ids: list[str] = []
+    # The same coverage keyed by folded size NAME. An SO line states its size
+    # generically now, so it has no BOMSize id to compare against
+    # `covered_size_ids` — the caller matches on this instead.
+    covered_size_tokens: list[str] = []
     covered_entries: list[SOPRCoverageEntry] = []
 
 class StockReservationResponse(BaseModel):
