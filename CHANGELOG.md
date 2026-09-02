@@ -15,6 +15,12 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-02
+
+### Changed
+- A sales order now states the size that was ordered without naming a recipe, and the BOM is picked on the Production Run. One item can own several BOMs and sizes live on the BOM, so the size dropdown stayed empty until a recipe was chosen — which made sales take a shop-floor decision at order entry, on an item whose recipes they cannot tell apart. The size list is now the union of every candidate recipe's sizes, and the planner resolves the chosen size against the BOM they pick. A measurement in cm only shows while a single recipe owns the line, since two recipes can call the same size 60 cm and 67 cm. A line that does name its recipe still carries it, and pre-fills the Production Run exactly as before
+- The Production Output column measures how much has been produced rather than how many work-order steps are ticked. Work orders are created by hand as dispatch decisions, so the step denominator was authored after the fact and the bar read 0% for the many orders carrying no work orders at all. The bar now folds in the pegged component orders behind the line — greige, warp beams — weighted one share per BOM level, so four warp beams don't outvote the cloth; the tooltip breaks out each component's own share, and the step list survives only to name the stage the floor is on
+
 ## [0.18.1] - 2026-09-01
 
 ### Fixed
