@@ -30,7 +30,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.batch import Batch
 from app.models.item import Item
-from app.models.manufacturing import ManufacturingOrder, MOCompletion
+from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency
 from app.models.packing import PackingCompletion, PackingOrder
 from app.models.pick_list import PickList, PickListLine
 from app.models.sales import SalesOrder, SalesOrderLine
@@ -362,7 +362,7 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
     return out
 
 
-# --- MO progress (the SO table's "where is this on the floor?" column) -----
+# --- MO progress (the SO table's "how much has been produced?" column) -----
 #
 # Deliberately NOT folded into `fulfilment_map`: that runs on every MO completion,
 # packing completion and shipment dispatch via `recompute_so_status`, and none of
@@ -394,12 +394,26 @@ def _stage_label(wo) -> str | None:
     return wo.name
 
 
-def _mo_progress_node(mo) -> dict:
-    """One root MO's step progress. Mirrors the lineage panel's reading exactly.
+def _mo_progress_node(mo, made: float = 0.0) -> dict:
+    """One root MO's own output: **quantity produced**, not steps completed.
 
-    Cancelled WOs leave the denominator (a scrapped step is not outstanding work),
-    and `current_stage` is the running step, or the next one waiting if nothing is
-    running — the answer to "where is this right now?" either way.
+    `output_pct` (and `pct`, until `_fold_components` rewrites it) is
+    `made / mo.qty` — the qty-at-completion measure Oracle/NetSuite/Epicor use as
+    the primary reading, and the only defensible one here. Counting work orders
+    was non-monotonic: WOs are manual floor dispatch decisions, so the denominator
+    is authored after the fact, and adding a third WO to an MO with two completed
+    ones dropped the bar from 100% to 67%. `WorkOrder.qty` is nullable too, so
+    weighting the count by WO qty could not rescue it either. Weighting by
+    `BOMOperation.time_minutes` (proper earned-value) is the upgrade to make once
+    routings are maintained; they are not populated today.
+
+    Capped at 100 because `mo.qty` is a target, not a ceiling (see
+    `overdelivery_tolerance_pct`) — the uncapped figure stays readable from
+    `made` / `mo_qty`, which the SO table prints beside the bar.
+
+    Steps are still counted, but only to *locate* the order: `current_stage` is the
+    running WO, or the next one waiting if nothing is running, which is the answer
+    to "where is this right now?". They no longer drive the percentage.
     """
     wos = sorted(
         (w for w in (mo.work_orders or []) if w.status != "CANCELLED"),
@@ -407,9 +421,12 @@ def _mo_progress_node(mo) -> dict:
     )
     done = sum(1 for w in wos if w.status == _WO_DONE)
     total = len(wos)
-    if total:
-        pct = round(done / total * 100)
+    planned = _f(mo.qty)
+    made = _f(made)
+    if planned > 0:
+        pct = min(100, round(made / planned * 100))
     else:
+        # No planned qty to divide by — the order's own status is all there is.
         pct = 100 if mo.status in _MO_DONE else 0
     current = next((w for w in wos if w.status == _WO_RUNNING), None) or next(
         (w for w in wos if w.status not in (_WO_DONE, _WO_RUNNING)), None
@@ -418,9 +435,15 @@ def _mo_progress_node(mo) -> dict:
         "mo_id": str(mo.id),
         "mo_code": mo.code,
         "mo_status": mo.status,
+        "mo_qty": planned,
+        "made": made,
+        "output_pct": pct,
+        "pct": pct,
         "steps_done": done,
         "steps_total": total,
-        "pct": pct,
+        "components": [],
+        "components_done": 0,
+        "components_total": 0,
         "current_stage": _stage_label(current),
         "current_stage_running": bool(current is not None and current.status == _WO_RUNNING),
         "steps": [
@@ -436,19 +459,70 @@ def _mo_progress_node(mo) -> dict:
     }
 
 
+def _fold_components(node: dict, comps: list) -> dict:
+    """Fold pegged component output into the order's headline percentage.
+
+    `comps` is every MO this root depends on at any depth (from
+    `_component_coverage`), each carrying the qty THIS order needs of it and the
+    qty produced so far. Without this the column read 0% for an order whose warp
+    beams and greige were half woven, because all of that output lands on shared
+    component MOs and only the finished-goods MO was being measured.
+
+    Weighted **per BOM level, not per order**: a fabric whose greige needs four
+    warp beams would otherwise let the beams carry 4/6 of the bar purely because
+    there are four of them. Each level contributes an equal share and the orders
+    inside a level split it, so the reading is "how far through this item's
+    manufacturing stages is it", which is what the floor means by the question.
+
+    Coverage is capped per order, which is what makes a *shared* component safe to
+    read here: a beam MO planned for 269 kg against twenty orders is fully covered
+    for an order needing 4 kg once 4 kg exist. Quantities cannot be shared without
+    double-counting (which is why the qty label still shows finished-goods output
+    only, and why `_root_mo_filter` excludes components from `made`) but progress
+    fractions can — an upstream lot being ready is genuine progress for every
+    order waiting on it. The corollary is that this is a READINESS reading, not an
+    allocation: the same 4 kg may also be counted for another order. Allocating it
+    properly needs the whole demand set (netting_service's job), which this
+    per-page query deliberately does not load.
+    """
+    node["components"] = comps
+    node["components_total"] = len(comps)
+    node["components_done"] = sum(1 for c in comps if c["pct"] >= 100)
+    if not comps:
+        return node
+    by_level: dict = {0: [node["output_pct"] / 100]}
+    for c in comps:
+        by_level.setdefault(c["level"], []).append(c["pct"] / 100)
+    levels = [sum(v) / len(v) for _, v in sorted(by_level.items())]
+    node["pct"] = min(100, round(sum(levels) / len(levels) * 100))
+    return node
+
+
 def _aggregate_mo_progress(nodes: list) -> dict:
     """Roll several MOs pegged to the same line into one cell.
 
-    Steps are counted, not summed in a unit, so pooling them across MOs is honest
-    (unlike `made`, which has to split pro-rata). An MO-less line never reaches
-    here — it gets no cell at all rather than a 0% bar.
+    Quantities pool across the MOs answering one line: several root MOs for the
+    same line are batches of the same demand, so `Σ made / Σ mo.qty` is the line's
+    finished-goods output. The headline `pct` (which includes component progress)
+    is pooled by planned qty instead, since the levels behind each root MO are not
+    commensurable — averaging the rollups is the only honest combination.
+
+    Caveat on an *ambiguous* peg (two lines matching the same item + recipe + size
+    + shade): the node is reported to every claimant unsplit, so `made` here
+    over-states that line. The SO table therefore draws its qty label from
+    `qty_made`, which `fulfilment_map` splits pro-rata; these figures are the
+    tooltip's per-order detail. Don't make that label read them.
     """
-    total = sum(n["steps_total"] for n in nodes)
-    done = sum(n["steps_done"] for n in nodes)
-    if total:
-        pct = round(done / total * 100)
+    steps_total = sum(n["steps_total"] for n in nodes)
+    steps_done = sum(n["steps_done"] for n in nodes)
+    planned = sum(n["mo_qty"] for n in nodes)
+    made = sum(n["made"] for n in nodes)
+    if planned > 0:
+        output_pct = min(100, round(made / planned * 100))
+        pct = min(100, round(sum(n["pct"] * n["mo_qty"] for n in nodes) / planned))
     else:
-        # Every pegged MO is work-orderless: average their status-derived reading.
+        # Every pegged MO is qty-less: average their status-derived reading.
+        output_pct = round(sum(n["output_pct"] for n in nodes) / len(nodes))
         pct = round(sum(n["pct"] for n in nodes) / len(nodes))
     lead = next((n for n in nodes if n["current_stage_running"]), None) or next(
         (n for n in nodes if n["current_stage"]), None
@@ -456,23 +530,102 @@ def _aggregate_mo_progress(nodes: list) -> dict:
     return {
         "mo_count": len(nodes),
         "mo_code": (lead or nodes[0])["mo_code"],
-        "steps_done": done,
-        "steps_total": total,
+        "mo_qty": planned,
+        "made": made,
+        "output_pct": output_pct,
         "pct": pct,
+        "steps_done": steps_done,
+        "steps_total": steps_total,
+        "components_done": sum(n["components_done"] for n in nodes),
+        "components_total": sum(n["components_total"] for n in nodes),
         "current_stage": lead["current_stage"] if lead else None,
         "current_stage_running": bool(lead and lead["current_stage_running"]),
         "mos": nodes,
     }
 
 
-async def mo_progress_map(db: AsyncSession, so_ids: list) -> dict:
-    """{str(so_line_id): mo progress} — omitted entirely for lines with no MO.
+_MAX_PEG_DEPTH = 8
 
-    Two queries for the whole page (lines, then root MOs with their WOs), pegged
+
+async def _dependency_edges(db: AsyncSession, root_ids: list) -> tuple[dict, set]:
+    """Walk `mo_dependencies` down from these root MOs. -> (edges, component ids)
+
+    `MODependency` is a chain, not a flat root->component list: the dependent side
+    is a root MO *or* a shared component one level up (a root needs greige, the
+    greige needs warp beams). One query per level rather than a recursive CTE —
+    the tree is 2-3 levels deep in practice and this stays portable SQLAlchemy
+    core. `_MAX_PEG_DEPTH` is a cycle guard, not a modelling limit.
+    """
+    edges: dict = {}
+    seen = set(root_ids)
+    components: set = set()
+    frontier = list(root_ids)
+    for _ in range(_MAX_PEG_DEPTH):
+        if not frontier:
+            break
+        rows = (
+            await db.execute(
+                select(
+                    MODependency.dependent_mo_id,
+                    MODependency.required_mo_id,
+                    MODependency.qty,
+                ).filter(MODependency.dependent_mo_id.in_(frontier))
+            )
+        ).all()
+        frontier = []
+        for dep_id, req_id, qty in rows:
+            edges.setdefault(dep_id, []).append((req_id, _f(qty)))
+            components.add(req_id)
+            if req_id not in seen:
+                seen.add(req_id)
+                frontier.append(req_id)
+    return edges, components
+
+
+def _component_coverage(root_id, edges: dict, info: dict, made: dict) -> list:
+    """Every component this root MO needs, with how much of ITS share exists.
+
+    `share` is the fraction of the dependent MO's plan this order accounts for, so
+    a two-level need scales correctly: the root needs `qty` of the greige, and the
+    greige's own beam requirement is scaled by the slice of that greige MO this
+    order occupies. Without the scaling a 269 kg shared beam would be measured
+    against its whole plan and read 12% for an order needing 4 kg of it.
+    """
+    out: list = []
+    stack = [(root_id, 1.0, 1)]
+    guard = {root_id}
+    while stack:
+        mo_id, share, level = stack.pop()
+        for req_id, qty in edges.get(mo_id, []):
+            row = info.get(req_id)
+            if row is None or req_id in guard:
+                continue
+            guard.add(req_id)
+            need = qty * share
+            produced = made.get(req_id, 0.0)
+            out.append({
+                "mo_id": str(req_id),
+                "mo_code": row["code"],
+                "mo_status": row["status"],
+                "level": level,
+                "need": need,
+                "made": produced,
+                "pct": 100 if need <= 0 else min(100, round(produced / need * 100)),
+            })
+            planned = row["qty"]
+            stack.append((req_id, (need / planned) if planned > 0 else 0.0, level + 1))
+    return sorted(out, key=lambda c: (c["level"], c["mo_code"]))
+
+
+async def mo_progress_map(db: AsyncSession, so_ids: list) -> dict:
+    """{str(so_line_id): production output} — omitted for lines with no MO.
+
+    Four query groups for the whole page (lines, root MOs with their WOs, the
+    dependency levels, then one completion sum over every MO involved), pegged
     with `_mo_claimants` so this and the `made` number beside it always agree on
     which line an MO belongs to. An ambiguous MO (two lines, same item + recipe +
-    size + shade) is reported against every claimant: step counts are not
-    additive, so there is nothing to split.
+    size + shade) is reported against every claimant unsplit — see
+    `_aggregate_mo_progress` on why the qty label must not read that figure.
     """
     so_ids = [i for i in so_ids if i]
     if not so_ids:
@@ -505,6 +658,42 @@ async def mo_progress_map(db: AsyncSession, so_ids: list) -> dict:
     if not mos:
         return {}
 
+    root_ids = [m.id for m in mos]
+    edges, component_ids = await _dependency_edges(db, root_ids)
+    info: dict = {}
+    if component_ids:
+        for cid, code, status, qty in (
+            await db.execute(
+                select(
+                    ManufacturingOrder.id,
+                    ManufacturingOrder.code,
+                    ManufacturingOrder.status,
+                    ManufacturingOrder.qty,
+                ).filter(ManufacturingOrder.id.in_(component_ids))
+            )
+        ).all():
+            info[cid] = {"code": code, "status": status, "qty": _f(qty)}
+
+    # Produced qty per MO — roots and components in one pass. Rejected completions
+    # are excluded (the QC reject flow returns that qty to the order), matching how
+    # `fulfilment_map` counts `made`, so the two never disagree.
+    made_by_mo = {
+        mo_id: _f(qty)
+        for mo_id, qty in (
+            await db.execute(
+                select(
+                    MOCompletion.mo_id,
+                    func.coalesce(func.sum(MOCompletion.qty_completed), 0),
+                )
+                .filter(
+                    MOCompletion.mo_id.in_(root_ids + list(component_ids)),
+                    MOCompletion.rejected == False,  # noqa: E712 - SQL boolean
+                )
+                .group_by(MOCompletion.mo_id)
+            )
+        ).all()
+    }
+
     by_line: dict = {}
     for mo in mos:
         claimants = _mo_claimants(
@@ -517,7 +706,10 @@ async def mo_progress_map(db: AsyncSession, so_ids: list) -> dict:
         )
         if not claimants:
             continue
-        node = _mo_progress_node(mo)
+        node = _fold_components(
+            _mo_progress_node(mo, made_by_mo.get(mo.id, 0.0)),
+            _component_coverage(mo.id, edges, info, made_by_mo),
+        )
         for r in claimants:
             by_line.setdefault(str(r[0]), []).append(node)
 

@@ -41,14 +41,14 @@ const SO_COL_WIDTHS = [
     110, // Alt Unit
     110, // Stock Notes
     88,  // Req / Conf
-    130, // MO Progress
+    152, // Production Output
     92,  // Fulfilment
     80,  // Status
     75,  // Actions
 ];
 const SO_TABLE_MIN_WIDTH = SO_COL_WIDTHS.reduce((a, b) => a + b, 0);
 
-// The MO progress bar IS the link to the MO. A code chip above it ate the column's
+// The production-output bar IS the link to the MO. A code chip above it ate the column's
 // width and truncated the code to noise ("PR-2026-08-00010-00…"), so the code now
 // lives only in the hover tooltip and the bar itself is the click target.
 function MOProgressLink({ pct, tone, onClick }: { pct: number; tone: 'green' | 'blue'; onClick: () => void }) {
@@ -1070,44 +1070,86 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       );
   };
 
-  // --- Per-line MO progress (derived server-side by so_fulfilment_service) ---
-  // Work-order steps completed on the root MOs pegged to this line, so the shop
-  // floor's "where is this?" is answerable off the table instead of only from the
-  // lineage modal. Same peg as the fulfilment numbers to its right, and the same
-  // step arithmetic the lineage panel draws, so the three never disagree.
+  // --- Per-line production output (derived server-side by so_fulfilment_service) ---
+  // How much has been PRODUCED for this line — finished goods AND the components
+  // pegged behind them (greige, warp beams) — against Fulfilment's how much has
+  // been packed and shipped.
+  //
+  // The bar is `mp.pct`: one share per BOM level, so four warp beams don't outvote
+  // the greige and the finished goods simply by being four rows. Component
+  // coverage is measured against the qty THIS order needs of a shared MO, which is
+  // why a beam planned for 269 kg can read complete for an order needing 4 kg.
+  //
+  // The qty line under it stays finished-goods only, and its numerator is
+  // `qty_made` (the fulfilment peg) rather than mo_progress's own `made`: on an
+  // ambiguous peg — two lines, same item + recipe + size + shade — only
+  // `fulfilment_map` splits produced qty pro-rata, so reading the MO-side figure
+  // would promise the same output to both lines. Progress fractions are safe to
+  // share that way; quantities are not.
+  //
+  // This column used to count completed work orders. WOs are manual floor dispatch
+  // decisions, so that denominator was authored after the fact and the bar ran
+  // backwards when a step was added late; it also had no value between 0 and 100
+  // for the (common) MO carrying no WOs. Steps survive as the stage line below.
   const moProgressCell = (line: any) => {
       const mp = line.mo_progress;
       // No MO yet is not 0% done — say nothing rather than draw an empty bar.
       if (!mp || !mp.mo_count) {
           return <span style={{ fontFamily:xpFont, fontSize:'9px', color:'#ccc' }} title="No manufacturing order for this line yet">—</span>;
       }
-      const mos: any[] = mp.mos || [];
+      const f = lineFulfilment(line);
+      const u = f.uom ? ` ${f.uom}` : '';
+      // Ordered qty is the denominator the client reads for finished goods ("how
+      // much of my order exists"). It is null for a weight-stocked item with no
+      // weight-per-yard on its master, so fall back to the MOs' own planned qty.
+      const againstLine = f.ordered != null && f.ordered > 0;
+      const outQty = againstLine
+          ? `${fmtQty(f.made)} / ${fmtQty(f.ordered)}${u}`
+          : mp.mo_qty > 0 ? `${fmtQty(mp.made)} / ${fmtQty(mp.mo_qty)}${u}` : null;
+      const pct = mp.pct;
+      const shipped = f.pct(f.made) >= 100;
+      // Naming the blocking component only reads true for a single-MO line: the
+      // counts on the line below are summed across every MO answering it.
+      const comps: any[] = mp.mo_count === 1 && mp.mos && mp.mos.length ? (mp.mos[0].components || []) : [];
       const stepLine = (st: any) => `  ${st.status === 'COMPLETED' ? '✓' : st.status === 'IN_PROGRESS' ? '▶' : '·'} ${st.stage || st.name || st.code || ''}`;
+      const compLine = (c: any) => `  ${c.pct >= 100 ? '✓' : c.pct > 0 ? '▶' : '·'} ${c.mo_code} — ${fmtQty(c.made)} / ${fmtQty(c.need)} (${c.pct}%)`;
       const title = [
-          ...mos.map((m: any) => {
-              const head = `${m.mo_code} (${m.mo_status}) — ${m.steps_done}/${m.steps_total} steps`;
-              return [head, ...(m.steps || []).map(stepLine)].join('\n');
+          ...(mp.mos || []).map((m: any) => {
+              const head = `${m.mo_code} (${m.mo_status}) — ${fmtQty(m.made)} / ${fmtQty(m.mo_qty)}${u} made`;
+              return [head, ...(m.steps || []).map(stepLine), ...(m.components || []).map(compLine)].join('\n');
           }),
           `Click to open ${mp.mo_code}`,
       ].join('\n');
       return (
-          // One tooltip for the whole cell — the step list is the same answer
-          // whether the reader is over the bar, the count or the stage line.
-          <Tooltip content={title} maxWidth={340}>
+          // One tooltip for the whole cell — the breakdown is the same answer
+          // whether the reader is over the bar, the qty or the stage line.
+          <Tooltip content={title} maxWidth={380}>
           <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
-              {/* Blue while running, green at 100 — the STATUS_FAMILY reading of
-                  IN_PROGRESS vs COMPLETED, matching lineageProgressBar. */}
+              {/* Blue while producing, green only once the finished goods are made —
+                  a full bar off component progress alone would promise a shippable
+                  order that does not exist yet. */}
               <MOProgressLink
-                  pct={mp.pct}
-                  tone={mp.pct >= 100 ? 'green' : 'blue'}
+                  pct={pct}
+                  tone={shipped ? 'green' : 'blue'}
                   onClick={() => goToMO(mp.mo_code)}
               />
-              <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.pct >= 100 ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
-                  {mp.steps_total > 0 ? `${mp.steps_done}/${mp.steps_total} steps` : `${mp.pct}%`}
+              <div style={{ fontFamily:xpFont, fontSize:'9px', color: shipped ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
+                  {pct}%{outQty ? ` · ${outQty}` : ''}
                   {/* The dropped code chip carried the "+N" for extra MOs; the count
-                      rides the steps line now so a multi-MO line still reads as one. */}
+                      rides the qty line now so a multi-MO line still reads as one. */}
                   {mp.mo_count > 1 && ` · ${mp.mo_count} MOs`}
               </div>
+              {mp.components_total > 0 && (
+                  // Where a 0%-finished-goods bar's fill actually comes from. Without
+                  // this the client reads component progress as finished output.
+                  <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.components_done >= mp.components_total ? (classic ? '#1a5e1a' : '#166534') : '#8a6d00', whiteSpace:'nowrap' as const, overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {mp.components_done}/{mp.components_total} components
+                      {comps.length > 0 && mp.components_done < mp.components_total && (() => {
+                          const next = comps.find((c: any) => c.pct < 100);
+                          return next ? ` · ${next.mo_code.replace(/^MO-/, '')}` : '';
+                      })()}
+                  </div>
+              )}
               {mp.current_stage && (
                   <div style={{ fontFamily:xpFont, fontSize:'9px', color: mp.current_stage_running ? (classic ? '#00327d' : '#0058e6') : '#999', fontWeight: mp.current_stage_running ? 'bold' : undefined, whiteSpace:'nowrap' as const, overflow:'hidden', textOverflow:'ellipsis' }}>
                       {mp.current_stage_running ? 'now' : 'next'}: {mp.current_stage}
@@ -2035,7 +2077,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <th style={classic ? xpThCell : undefined}>Alt Unit</th>
                                <th style={classic ? xpThCell : undefined}>Stock Notes</th>
                                <th style={classic ? xpThCell : undefined}>Req / Conf</th>
-                               <th style={classic ? xpThCell : undefined} title="Work-order steps completed on the manufacturing orders behind this line, and the step running now. Same reading as the production lineage panel.">MO Progress</th>
+                               <th style={classic ? xpThCell : undefined} title="How much of this line has been produced: its finished-goods output plus the components pegged behind it (greige, warp beams), one share per manufacturing stage. Fulfilment beside it is what has been packed and shipped.">Production Output</th>
                                <th style={classic ? xpThCell : undefined} title="Made -> packed -> shipped against the ordered qty, measured in the item's stocking unit (not the ordered yardage). READY needs packed cartons in stock.">Fulfilment</th>
                                <SortableTh sort={soSort} colKey="status" onSort={toggleSOSort} style={classic ? xpThCell : {}}>Status</SortableTh>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
