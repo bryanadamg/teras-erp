@@ -1744,7 +1744,14 @@ class SalesOrderLineCreate(BaseModel):
     # The recipe picked on the line. Several attribute-less BOMs can exist for one
     # item (per-shade roots), so this pick is what the PR pre-fill trusts.
     bom_id: UUID | None = None
+    # Legacy per-BOM size pointer. Optional and no longer what the UI writes: a
+    # BOMSize belongs to one BOM, so it cannot be picked before the recipe is.
     bom_size_id: UUID | None = None
+    # The ordered size, recipe-independent: `size_id` for a Size master row
+    # (S/M/L/...), `size_label` for a free-mode BOM's label. The PR resolves this
+    # against whichever BOM the planner picks.
+    size_id: UUID | None = None
+    size_label: str | None = None
     color_id: UUID | None = None
     labdip_variant_code: str | None = None
     labdip_item_id: UUID | None = None
@@ -1852,10 +1859,12 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     labdip_status: str | None = None
     item_name: str | None = None
     item_code: str | None = None
-    # This line's BOM size (label only — e.g. "M", or a free-mode label) and any
-    # other attribute values (combo, …), so a picker can tell same-item lines
-    # apart the same way it labels a lot (see BatchVariantAttr).
-    size_label: str | None = None
+    # This line's size as text — e.g. "M", or a free-mode label — resolved from
+    # `size_id`/`size_label`, falling back to the legacy `bom_size_id` pointer for
+    # rows written before the decoupling. Read-only; `size_label` above is what is
+    # stored. Paired with any other attribute values (combo, …) so a picker can
+    # tell same-item lines apart the same way it labels a lot (see BatchVariantAttr).
+    size_display: str | None = None
     variant_attributes: list[BatchVariantAttr] | None = None
     # Derived fulfilment (so_fulfilment_service) — never stored on the line.
     # `packed_available` is what decides whether the order can ship.
@@ -1934,6 +1943,10 @@ class SOPRCoverageEntry(BaseModel):
 class SOPRCoverageResponse(BaseModel):
     """Duplicate-PR guard for one SO — see GET /sales-orders/{id}/pr-coverage."""
     covered_size_ids: list[str] = []
+    # The same coverage keyed by folded size NAME. An SO line states its size
+    # generically now, so it has no BOMSize id to compare against
+    # `covered_size_ids` — the caller matches on this instead.
+    covered_size_tokens: list[str] = []
     covered_entries: list[SOPRCoverageEntry] = []
 
 class StockReservationResponse(BaseModel):

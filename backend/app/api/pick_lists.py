@@ -180,9 +180,16 @@ def _ordered_identity(so_line: SalesOrderLine, variants: dict) -> dict:
     otherwise indistinguishable on a board that lists orders, not lines.
     """
     v = variants.get(_line_variant_key(so_line)) or {}
+    # Size as text. The generic pick the order actually carries comes first; the
+    # legacy per-BOM pointer is the fallback for pre-decoupling lines.
     size = getattr(so_line, "bom_size", None)
+    generic = getattr(so_line, "size", None)
     return dict(
-        size_label=(size.size_name or size.label) if size is not None else None,
+        size_label=(
+            (generic.name if generic is not None else None)
+            or so_line.size_label
+            or ((size.size_name or size.label) if size is not None else None)
+        ),
         variant_attributes=v.get("variant_attributes") or None,
         color_id=v.get("color_id"),
         color_code=v.get("color_code"),
@@ -420,6 +427,7 @@ async def list_pickable_orders(
             # .size too: BOMSize.size_name is a property over that relationship,
             # so stopping at bom_size only moves the lazy load one hop deeper.
             selectinload(SalesOrder.lines).selectinload(SalesOrderLine.bom_size).selectinload(BOMSize.size),
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.size),
         )
         .filter(SalesOrder.status.in_(["PENDING", "READY", "PARTIAL"]))
     )).scalars().all()
@@ -527,6 +535,7 @@ async def suggest_pick_list_cartons(
             # .size too: BOMSize.size_name is a property over that relationship,
             # so stopping at bom_size only moves the lazy load one hop deeper.
             selectinload(SalesOrder.lines).selectinload(SalesOrderLine.bom_size).selectinload(BOMSize.size),
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.size),
         )
         .filter(SalesOrder.id == sales_order_id)
     )

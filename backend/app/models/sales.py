@@ -65,9 +65,22 @@ class SalesOrderLine(Base):
     bom_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("boms.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # LEGACY size pick, kept for rows written before the size/BOM decoupling and
+    # for the unambiguous case where the line already knows its recipe. A BOMSize
+    # id is per-BOM, so it cannot be chosen before the BOM is: the generic pick
+    # below is what a line carries when the recipe is deferred to the PR.
     bom_size_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bom_sizes.id", ondelete="SET NULL"), nullable=True
     )
+    # The ordered size, stated independently of any recipe: the Size master row
+    # (S/M/L/...) for a sized BOM, or `size_label` for a free-mode one. This is
+    # the same identity the rest of the plant uses -- netting keys on the folded
+    # size NAME, never on a BOMSize id -- so the PR can resolve it against
+    # whichever BOM the planner picks. Both null = the line has no size identity.
+    size_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sizes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    size_label: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Color-type FG variant: the ordered shade from the Color Library. Threads
     # SO -> PR -> MO so the DYEING WO auto-matches the active DyeRecipe by color_id.
     color_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -95,5 +108,6 @@ class SalesOrderLine(Base):
     attribute_values = relationship("AttributeValue", secondary=sales_order_line_values)
     bom = relationship("BOM", foreign_keys=[bom_id])
     bom_size = relationship("BOMSize", foreign_keys=[bom_size_id])
+    size = relationship("Size", foreign_keys=[size_id])
     color = relationship("Color", foreign_keys=[color_id])
     labdip_item = relationship("LabDipItem", foreign_keys=[labdip_item_id], lazy="noload")

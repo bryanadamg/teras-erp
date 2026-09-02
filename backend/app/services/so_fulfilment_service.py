@@ -18,8 +18,10 @@ whole order the moment the *first* root MO delivered, so a multi-line SO read as
 shippable while most of it was still in production.
 
 Line -> production peg: neither `ManufacturingOrder` nor `PRBomEntry` carries a
-`sales_order_line_id`, so `made` matches root MOs on (item, bom, bom_size, color)
-with nulls on the line treated as wildcards. Lines on one SO differ by item, so
+`sales_order_line_id`, so `made` matches root MOs on (item, bom, size, color) —
+size compared as the folded size NAME, because an SO line states a generic size
+while the MO carries the chosen BOM's own BOMSize row — with nulls on the line
+treated as wildcards. Lines on one SO differ by item, so
 this resolves uniquely in practice; if two lines ever claim the same MO the qty
 is split pro-rata rather than double-counted.
 """
@@ -29,11 +31,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.batch import Batch
+from app.models.bom import BOMSize
 from app.models.item import Item
 from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency
 from app.models.packing import PackingCompletion, PackingOrder
 from app.models.pick_list import PickList, PickListLine
 from app.models.sales import SalesOrder, SalesOrderLine
+from app.models.size import Size
 from app.models.stock_balance import StockBalance
 from app.models.work_order import WorkOrder
 
@@ -187,7 +191,8 @@ async def _line_rows(db: AsyncSession, so_ids: list) -> list:
     """Every line of these SOs, with the Item columns the denominator needs.
 
     Positional indices are load-bearing: 1..5 for `_mo_claimants`, 6..10 for
-    `ordered_qty_in_stock_uom`. One query for the whole page, never per order.
+    `ordered_qty_in_stock_uom`, 11..12 for the size token (`_size_tokenizer`).
+    One query for the whole page, never per order.
     """
     return (
         await db.execute(
@@ -203,6 +208,8 @@ async def _line_rows(db: AsyncSession, so_ids: list) -> list:
                 Item.uom,
                 Item.weight_per_unit,
                 Item.weight_unit,
+                SalesOrderLine.size_id,
+                SalesOrderLine.size_label,
             )
             .join(Item, Item.id == SalesOrderLine.item_id)
             .filter(SalesOrderLine.sales_order_id.in_(so_ids))
@@ -210,11 +217,77 @@ async def _line_rows(db: AsyncSession, so_ids: list) -> list:
     ).all()
 
 
-def _mo_claimants(line_rows: list, mo_so_id, mo_item, mo_bom, mo_size, mo_color) -> list:
+def _fold(name) -> str:
+    """Folded size name — the identity both an SO line and an MO can state."""
+    return (name or "").strip().lower()
+
+
+async def _size_tokenizer(db: AsyncSession, line_rows: list, mo_size_ids: list):
+    """`(line_token, bom_size_token)` resolvers for one peg pass.
+
+    A sales-order line states its size generically (Size master row, or a
+    free-mode label) because the recipe is picked later, at the Production Run; an
+    MO carries the chosen BOM's own `BOMSize` row. Neither id can be compared to
+    the other, so both sides are folded to the size NAME — the same identity
+    netting keys on. Two lookups for the whole page.
+    """
+    bs_ids = {r[4] for r in line_rows if r[4]} | {i for i in mo_size_ids if i}
+    bom_sizes: dict = {}
+    if bs_ids:
+        bom_sizes = {
+            r[0]: (r[1], r[2])
+            for r in (
+                await db.execute(
+                    select(BOMSize.id, BOMSize.size_id, BOMSize.label).filter(BOMSize.id.in_(bs_ids))
+                )
+            ).all()
+        }
+    size_ids = {r[11] for r in line_rows if r[11]} | {sid for sid, _ in bom_sizes.values() if sid}
+    names: dict = {}
+    if size_ids:
+        names = {
+            r[0]: r[1]
+            for r in (await db.execute(select(Size.id, Size.name).filter(Size.id.in_(size_ids)))).all()
+        }
+
+    def bom_size_token(bom_size_id) -> str:
+        if not bom_size_id:
+            return ""
+        size_id, label = bom_sizes.get(bom_size_id, (None, None))
+        return _fold(names.get(size_id)) or _fold(label)
+
+    def line_token(r) -> str:
+        return _fold(names.get(r[11])) or _fold(r[12]) or bom_size_token(r[4])
+
+    return line_token, bom_size_token
+
+
+def _size_matches(r, line_token, mo_size_id, mo_size_token) -> bool:
+    """Does this line's size claim the MO's?
+
+    Three cases, in order. A line still carrying the legacy per-BOM pointer
+    compares by id, exactly as before: that id names a size AND the BOM it belongs
+    to, and one order can hold the same item at the same size against two recipes
+    — folding those to "m" would make each MO claim both lines. It is also the
+    only identity a measurement-only free size (157 cm, no name) has at all.
+    A line that states its size generically compares on the folded NAME, since it
+    has no BOMSize id and the MO carries the chosen BOM's own row. Anything else
+    named no size and stays a wildcard.
+    """
+    if r[4] is not None:
+        return r[4] == mo_size_id
+    token = line_token(r)
+    if token:
+        return token == mo_size_token
+    return True
+
+
+def _mo_claimants(line_rows: list, line_token, mo_so_id, mo_item, mo_bom, mo_size_id, mo_size_token, mo_color) -> list:
     """The `_line_rows` rows a root MO could belong to.
 
     A null on the line is a wildcard: legacy rows predate bom_id/color_id on the
-    SO line. Lines on one SO differ by item, so this resolves uniquely in practice.
+    SO line, and a line that named no size claims any. Lines on one SO differ by
+    item, so this resolves uniquely in practice.
     """
     return [
         r
@@ -222,7 +295,7 @@ def _mo_claimants(line_rows: list, mo_so_id, mo_item, mo_bom, mo_size, mo_color)
         if r[1] == mo_so_id
         and r[2] == mo_item
         and (r[3] is None or r[3] == mo_bom)
-        and (r[4] is None or r[4] == mo_size)
+        and _size_matches(r, line_token, mo_size_id, mo_size_token)
         and (r[5] is None or r[5] == mo_color)
     ]
 
@@ -338,11 +411,17 @@ async def fulfilment_map(db: AsyncSession, so_ids: list) -> dict:
         )
     ).all()
 
+    line_token, bom_size_token = await _size_tokenizer(
+        db, line_rows, [r[3] for r in mo_rows]
+    )
+
     for mo_so_id, mo_item, mo_bom, mo_size, mo_color, produced in mo_rows:
         produced = _f(produced)
         if produced <= 0:
             continue
-        claimants = _mo_claimants(line_rows, mo_so_id, mo_item, mo_bom, mo_size, mo_color)
+        claimants = _mo_claimants(
+            line_rows, line_token, mo_so_id, mo_item, mo_bom, mo_size, bom_size_token(mo_size), mo_color
+        )
         if not claimants:
             continue
         if len(claimants) == 1:
@@ -694,14 +773,20 @@ async def mo_progress_map(db: AsyncSession, so_ids: list) -> dict:
         ).all()
     }
 
+    line_token, bom_size_token = await _size_tokenizer(
+        db, line_rows, [m.bom_size_id for m in mos]
+    )
+
     by_line: dict = {}
     for mo in mos:
         claimants = _mo_claimants(
             line_rows,
+            line_token,
             mo.sales_order_id,
             mo.item_id,
             mo.bom_id,
             mo.bom_size_id,
+            bom_size_token(mo.bom_size_id),
             mo.color_id,
         )
         if not claimants:

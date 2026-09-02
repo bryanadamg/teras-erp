@@ -17,7 +17,13 @@ const xpLabel = (extra: React.CSSProperties = {}): React.CSSProperties => _xpLab
 
 interface BomEntryState {
     bomId: string;
+    // Set when the entry arrives from a Sales Order that deliberately left the
+    // recipe open: it scopes the BOM picker to that item's own recipes.
+    itemId?: string;
     sizeQtys: Record<string, string>;
+    // Ordered sizes as folded size NAMES, carried until a BOM is chosen — a
+    // BOMSize id belongs to one BOM, so it cannot exist before the pick.
+    sizeTokens?: Record<string, number>;
     totalQty: string;
     attributeValueIds: string[];
     colorId?: string;
@@ -41,7 +47,9 @@ interface Props {
     initialTotalQty?: string;
     initialBomEntries?: Array<{
         bomId: string;
+        itemId?: string;
         sizeQtys: Record<string, string>;
+        sizeTokens?: Record<string, number>;
         totalQty: string;
         attributeValueIds?: string[];
         colorId?: string;
@@ -56,6 +64,12 @@ interface Props {
 
 function hasStandardSizes(bom: any): boolean {
     return (bom?.sizes || []).some((s: any) => s.size_id && !s.label);
+}
+
+// The size identity shared with the sales order and with netting: the folded
+// size NAME, never a BOMSize id (those are per-BOM).
+function sizeTokenOf(bomSize: any): string {
+    return String(bomSize?.size_name || bomSize?.size?.name || bomSize?.label || '').trim().toLowerCase();
 }
 
 function applyFormula(
@@ -106,6 +120,12 @@ function BomEntryRow({
 }) {
     const selectedBom = boms.find((b: any) => b.id === entry.bomId) || null;
     const sizes = selectedBom?.sizes || [];
+    // Scoped to the ordered item when the SO named one — the planner is choosing
+    // between that item's recipes, not the whole master list.
+    const bomChoices = entry.itemId ? boms.filter((b: any) => b.item_id === entry.itemId) : boms;
+    const unmatchedTokens = !selectedBom || !entry.sizeTokens ? [] : Object.keys(entry.sizeTokens).filter(
+        tok => !sizes.some((bs: any) => sizeTokenOf(bs) === tok)
+    );
 
     const item = selectedBom ? items.find((it: any) => it.id === selectedBom.item_id) : null;
     const itemUom: string = item?.uom || '';
@@ -140,12 +160,27 @@ function BomEntryRow({
             <div style={{ marginBottom: 6 }}>
                 <label style={xpLabel()}>Product Recipe (BOM)</label>
                 <SearchableSelect
-                    options={boms.map((b: any) => ({ value: b.id, label: b.item_name || b.item_code, subLabel: b.code }))}
+                    options={bomChoices.map((b: any) => ({ value: b.id, label: b.item_name || b.item_code, subLabel: b.code }))}
                     value={entry.bomId}
-                    onChange={val => onChange({ ...entry, bomId: val, sizeQtys: {}, totalQty: '', attributeValueIds: [] })}
-                    disabled={entry.locked}
+                    // A locked entry whose recipe the SO deliberately left open is
+                    // still pickable here — that is the whole point of choosing the
+                    // BOM on the PR. Only a decided one is frozen. The ordered size
+                    // qtys survive the pick (sizeTokens), so switching recipe keeps
+                    // the demand and just re-hangs it on the new BOM's sizes.
+                    onChange={val => onChange({ ...entry, bomId: val, sizeQtys: {}, totalQty: entry.sizeTokens ? '' : entry.totalQty, attributeValueIds: entry.locked ? entry.attributeValueIds : [] })}
+                    disabled={!!entry.locked && !!entry.bomId}
                     placeholder="-- Select a BOM --"
                 />
+                {!entry.bomId && entry.sizeTokens && (
+                    <div style={{ fontSize: 10, color: '#7a5c00', marginTop: 2 }}>
+                        Ordered: {Object.entries(entry.sizeTokens).map(([tok, q]) => `${tok.toUpperCase()} ${q}`).join(', ')} — pick the recipe to plan it.
+                    </div>
+                )}
+                {entry.bomId && unmatchedTokens.length > 0 && (
+                    <div style={{ fontSize: 10, color: '#a33', marginTop: 2 }}>
+                        This BOM has no size for {unmatchedTokens.map(t => t.toUpperCase()).join(', ')} — that qty is not planned.
+                    </div>
+                )}
             </div>
 
             {freeAttributes.map((attr: any) => {
@@ -316,6 +351,35 @@ export default function ProductionRunModal({
         }
     }, [initialBomEntries, initialBomId, initialSizes, initialTotalQty]);
 
+    // Resolve the ordered size NAMES onto whichever BOM the planner picked. The
+    // sales order states sizes generically (a BOMSize id is per-BOM, so it cannot
+    // be chosen before the recipe is), and this is where they become real rows.
+    // `rawSoQtys` is refilled at the same time so the tolerance formula still has
+    // the untouched ordered figures to scale.
+    useEffect(() => {
+        setBomEntries(prev => {
+            let changed = false;
+            const next = prev.map(entry => {
+                if (!entry.bomId || !entry.sizeTokens) return entry;
+                if (Object.keys(entry.sizeQtys).length > 0) return entry;
+                const bom = boms.find((b: any) => b.id === entry.bomId);
+                if (!bom) return entry;
+                const resolved: Record<string, string> = {};
+                const raw: Record<string, number> = {};
+                for (const bs of (bom.sizes || [])) {
+                    const qty = entry.sizeTokens[sizeTokenOf(bs)];
+                    if (qty === undefined) continue;
+                    resolved[bs.id] = String(qty);
+                    raw[bs.id] = qty;
+                }
+                if (Object.keys(resolved).length === 0) return entry;
+                changed = true;
+                return { ...entry, sizeQtys: resolved, rawSoQtys: raw };
+            });
+            return changed ? next : prev;
+        });
+    }, [bomEntries, boms]);
+
     // Auto-generate the PR code via the backend (reliable, server-side dedup),
     // even when not created from a Sales Order. Base derives from the SO code,
     // else the first BOM's item, else a plain "PR". Skipped once the user edits.
@@ -416,6 +480,13 @@ export default function ProductionRunModal({
         const validEntries = bomEntries.filter(e => e.bomId);
         if (!validEntries.length) {
             setError('At least one BOM must be selected.');
+            return;
+        }
+        // An entry seeded from a sales order carries real ordered qty. Dropping it
+        // for want of a recipe pick would plan less than was ordered, silently.
+        const undecided = bomEntries.filter(e => !e.bomId && (e.sizeTokens || e.rawTotalQty));
+        if (undecided.length) {
+            setError(`${undecided.length} ordered line(s) still have no BOM selected. Pick a recipe for each, or remove it.`);
             return;
         }
 
