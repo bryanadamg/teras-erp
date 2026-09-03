@@ -279,10 +279,15 @@ def test_component_progress_pools_across_the_mos_on_one_line():
 
 # --- the line peg, shared with `made` --------------------------------------
 #
-# _line_rows columns: (id, so_id, item_id, bom_id, bom_size_id, color_id, qty, …)
+# _line_rows columns: (id, so_id, item_id, bom_id, bom_size_id, color_id, qty,
+# …, size_id, size_label). `line_token`/`mo_size_token` only matter when
+# bom_size_id is None (the generic-size path); these rows all carry a
+# bom_size_id, so a stub that never fires covers them.
+_no_token = lambda r: ""  # noqa: E731
+
 
 def _line_row(line_id, so="so1", item="i1", bom="b1", size="s1", color="c1"):
-    return (line_id, so, item, bom, size, color, 100, None, "kg", 1, "g/y")
+    return (line_id, so, item, bom, size, color, 100, None, "kg", 1, "g/y", None, None)
 
 
 def test_mo_pegs_to_the_line_matching_item_bom_size_and_shade():
@@ -290,17 +295,17 @@ def test_mo_pegs_to_the_line_matching_item_bom_size_and_shade():
         _line_row("l1", color="red"),
         _line_row("l2", color="blue"),
     ]
-    got = sf._mo_claimants(rows, "so1", "i1", "b1", "s1", "blue")
+    got = sf._mo_claimants(rows, _no_token, "so1", "i1", "b1", "s1", "", "blue")
     assert [r[0] for r in got] == ["l2"]
 
 
 def test_nulls_on_the_line_are_wildcards():
     # Legacy rows predate bom_id/bom_size_id/color_id on the SO line.
     rows = [_line_row("l1", bom=None, size=None, color=None)]
-    assert [r[0] for r in sf._mo_claimants(rows, "so1", "i1", "b9", "s9", "c9")] == ["l1"]
+    assert [r[0] for r in sf._mo_claimants(rows, _no_token, "so1", "i1", "b9", "s9", "", "c9")] == ["l1"]
 
 
 def test_an_mo_for_another_order_or_item_pegs_to_nothing():
     rows = [_line_row("l1")]
-    assert sf._mo_claimants(rows, "so2", "i1", "b1", "s1", "c1") == []
-    assert sf._mo_claimants(rows, "so1", "i2", "b1", "s1", "c1") == []
+    assert sf._mo_claimants(rows, _no_token, "so2", "i1", "b1", "s1", "", "c1") == []
+    assert sf._mo_claimants(rows, _no_token, "so1", "i2", "b1", "s1", "", "c1") == []
