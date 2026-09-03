@@ -185,20 +185,6 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     const valueLabel = (options: Array<{value: string; label: string}>, id: string) =>
         options.find(o => o.value === id)?.label || '';
 
-    // Recipes match MOs by attribute_value_ids (Colors + Combo etc). The `Colors`
-    // (system_role='color') values among them are the color variant(s) this recipe
-    // is configured for — render them the same swatch+chip way as the Color Library.
-    const colorRoleValueById = React.useMemo(() => {
-        const map: Record<string, { value: string; hex?: string | null }> = {};
-        const attr = (attributes || []).find((a: any) => a.system_role === 'color');
-        (attr?.values || []).forEach((v: any) => { map[String(v.id)] = { value: v.value, hex: v.hex }; });
-        return map;
-    }, [attributes]);
-    const colorVariantsFor = React.useCallback((recipe: any) =>
-        (recipe.attribute_value_ids || [])
-            .map((vid: string) => colorRoleValueById[String(vid)])
-            .filter(Boolean),
-    [colorRoleValueById]);
 
     useEffect(() => {
         authFetch(`${API_BASE}/preferences/code_config_DYE`)
@@ -689,12 +675,8 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                             ) : <span style={{ color: '#aaa' }}>—</span>}
                                         </td>
                                         <td style={lvTd(classic)}>
-                                            {colorVariantsFor(recipe).length > 0 ? (
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                                                    {colorVariantsFor(recipe).map((cv: { value: string; hex?: string | null }) => (
-                                                        <ColorSwatchChip key={cv.value} label={cv.value} classic={classic} hex={cv.hex} />
-                                                    ))}
-                                                </div>
+                                            {recipe.color_variant_label ? (
+                                                <ColorSwatchChip label={recipe.color_variant_label} classic={classic} hex={recipe.color_variant_hex} />
                                             ) : <span style={{ color: '#aaa' }}>—</span>}
                                         </td>
                                         <td style={lvTd(classic)}>{recipe.name}</td>

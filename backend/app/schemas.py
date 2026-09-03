@@ -2712,6 +2712,8 @@ class DyeRecipeResponse(BaseModel):
     color_name: str | None = None
     color_code: str | None = None
     color_hex: str | None = None
+    color_variant_label: str | None = None
+    color_variant_hex: str | None = None
     substrate_type: str | None = None
     notes: str | None = None
     is_active: bool
