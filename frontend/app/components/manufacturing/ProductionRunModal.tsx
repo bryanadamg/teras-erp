@@ -13,6 +13,8 @@ import {
     applyQtyFormulaTotal,
     formulaSummary,
 } from '../shared/qtyFormula';
+import QtyFormulaModal from '../shared/QtyFormulaModal';
+import { useUser } from '../../context/UserContext';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -251,6 +253,7 @@ export default function ProductionRunModal({
 }: Props) {
     const { authFetch } = useData();
     const { uiStyle } = useTheme();
+    const { hasPermission } = useUser();
     const classic = uiStyle === 'classic';
     const [code, setCode] = useState('');
     const codeEdited = useRef(false);
@@ -265,6 +268,10 @@ export default function ProductionRunModal({
     // shipped default so an Apply pressed before the fetch lands still does
     // what it always did rather than nothing.
     const [formulaRules, setFormulaRules] = useState<QtyFormulaRule[]>(DEFAULT_QTY_FORMULA);
+    const [formulaModalOpen, setFormulaModalOpen] = useState(false);
+    // Saving the formula is admin-only server-side; a non-admin still gets the
+    // dialog read-only, which is the only place the rule is written out in full.
+    const canEditFormula = hasPermission('admin.access');
 
     // Leaf locations only (stock sits in leaves), labelled "Warehouse / Spot" —
     // matches the MO creation panel's dropdowns.
@@ -609,10 +616,23 @@ export default function ProductionRunModal({
                                 >
                                     Apply
                                 </button>
-                                {/* The active formula comes from Settings; this
-                                    line must not restate a rule this file owns. */}
+                                {/* Editing the formula from here, not only from
+                                    Settings: a planner notices the rule is wrong
+                                    while filling a run, and walking away loses it. */}
+                                <button
+                                    type="button"
+                                    onClick={() => setFormulaModalOpen(true)}
+                                    className={XP_BTN}
+                                    title={canEditFormula ? 'Edit the quantity formula' : 'View the quantity formula'}
+                                    style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 8px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', whiteSpace: 'nowrap', borderRadius: BUTTON_RADIUS }}
+                                >
+                                    <i className="bi bi-gear" style={{ marginRight: 4 }}></i>
+                                    Formula
+                                </button>
+                                {/* The active formula comes from the stored rules;
+                                    this line must not restate a rule this file owns. */}
                                 <span style={{ fontSize: 9, color: '#666', lineHeight: 1.2 }}>
-                                    {formulaSummary(formulaRules)}{'  '}|{'  '}then × (1 + %), rounded up. Editable in Settings.
+                                    {formulaSummary(formulaRules)}{'  '}|{'  '}then × (1 + %), rounded up.
                                 </span>
                             </div>
                         </div>
@@ -649,6 +669,19 @@ export default function ProductionRunModal({
                     )}
                 </div>
             </div>
+
+            {/* Level 2: opens over this window. The formula is plant-wide, so a
+                save hands the new rules straight back rather than making the
+                open run refetch them. Mounted only while open — the editor
+                loads the rule set on mount and this window already fetched it. */}
+            {formulaModalOpen && (
+                <QtyFormulaModal
+                    isOpen
+                    onClose={() => setFormulaModalOpen(false)}
+                    canEdit={canEditFormula}
+                    onSaved={rules => { if (rules?.length) setFormulaRules(rules); }}
+                />
+            )}
         </ModalWrapper>
     );
 }
