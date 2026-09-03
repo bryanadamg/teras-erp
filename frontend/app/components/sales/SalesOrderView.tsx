@@ -2398,10 +2398,10 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            </td>
 
                                            {/* MO progress */}
-                                           <td style={lineTd(isFirst, isLast)}>{moProgressCell(line)}</td>
+                                           <td style={lineTd(isFirst, isLast, { verticalAlign: 'top' })}>{moProgressCell(line)}</td>
 
                                            {/* Fulfilment */}
-                                           <td style={lineTd(isFirst, isLast)}>{fulfilmentCell(line)}</td>
+                                           <td style={lineTd(isFirst, isLast, { verticalAlign: 'top' })}>{fulfilmentCell(line)}</td>
 
                                            {isFirst && (
                                                <>
