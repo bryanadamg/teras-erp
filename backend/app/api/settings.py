@@ -1,13 +1,19 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_async_db
-from app.schemas import CompanyProfileResponse, CompanyProfileUpdate
+from app.schemas import (
+    CompanyProfileResponse,
+    CompanyProfileUpdate,
+    QtyFormulaResponse,
+    QtyFormulaRuleIO,
+    QtyFormulaUpdate,
+)
 from app.models.settings import CompanyProfile
 from app.api.auth import get_current_user, get_current_admin
 from app.models.auth import User
-from app.services import audit_service
+from app.services import audit_service, qty_formula_service
 import shutil
 import os
 from pathlib import Path
@@ -77,3 +83,88 @@ async def upload_logo(
     await audit_service.log_activity(db, current_user.id, "UPDATE", "CompanyProfile", str(profile.id), details="Uploaded company logo")
 
     return {"logo_url": profile.logo_url}
+
+
+# ── Production quantity formula ──────────────────────────────────────────────
+# The rule that turns ordered sizes into sizes to make, in the Production Run
+# modal. Readable by any authenticated user (the modal needs it); writable by
+# admins only — it changes what every planner's Apply button produces.
+
+@router.get("/qty-formula", response_model=QtyFormulaResponse)
+async def get_qty_formula(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    rules = await qty_formula_service.get_rules(db)
+    return QtyFormulaResponse(
+        rules=[QtyFormulaRuleIO(size_name=r.size_name, expression=r.expression) for r in rules],
+        defaults=[
+            QtyFormulaRuleIO(size_name=n, expression=e)
+            for n, e in qty_formula_service.DEFAULT_RULES
+        ],
+        sizes=await qty_formula_service.size_names(db),
+        functions=sorted(qty_formula_service.FUNCTIONS.keys()),
+        fallback=qty_formula_service.FALLBACK,
+        self_name=qty_formula_service.SELF_NAME,
+    )
+
+
+@router.put("/qty-formula", response_model=QtyFormulaResponse)
+async def update_qty_formula(
+    payload: QtyFormulaUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_admin),
+):
+    known = await qty_formula_service.size_names(db)
+    fallback = qty_formula_service.FALLBACK
+
+    cleaned: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for rule in payload.rules:
+        name = (rule.size_name or "").strip()
+        expr = (rule.expression or "").strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="A rule is missing its size")
+        if name != fallback and name not in known:
+            raise HTTPException(status_code=422, detail=f"'{name}' is not a known size")
+        if name in seen:
+            raise HTTPException(status_code=422, detail=f"Duplicate rule for '{name}'")
+        seen.add(name)
+        if not expr:
+            # An empty row is how a size goes back to the fallback, so drop it
+            # rather than storing a blank expression nothing can evaluate.
+            continue
+        try:
+            qty_formula_service.validate_expression(expr, known)
+        except qty_formula_service.FormulaError as exc:
+            label = "Fallback" if name == fallback else name
+            raise HTTPException(status_code=422, detail=f"{label}: {exc}")
+        cleaned.append((name, expr))
+
+    # Without a fallback, any size the planner did not write a rule for would
+    # come out blank. Fall back to the default fallback rather than 422 on a
+    # rule the user never had to think about.
+    if fallback not in dict(cleaned):
+        cleaned.append((fallback, qty_formula_service.SELF_NAME))
+
+    rules = await qty_formula_service.replace_rules(db, cleaned, current_user.id)
+    await audit_service.log_activity(
+        db,
+        current_user.id,
+        "UPDATE",
+        "QtyFormula",
+        "singleton",
+        details="Updated production quantity formula",
+        changes={"rules": {r.size_name: r.expression for r in rules}},
+    )
+    return QtyFormulaResponse(
+        rules=[QtyFormulaRuleIO(size_name=r.size_name, expression=r.expression) for r in rules],
+        defaults=[
+            QtyFormulaRuleIO(size_name=n, expression=e)
+            for n, e in qty_formula_service.DEFAULT_RULES
+        ],
+        sizes=known,
+        functions=sorted(qty_formula_service.FUNCTIONS.keys()),
+        fallback=fallback,
+        self_name=qty_formula_service.SELF_NAME,
+    )

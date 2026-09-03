@@ -9,6 +9,7 @@ import { xpBtn, xpInput, FieldLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme
 import { settingsActions, settingsCol, settingsColumns, settingsGrid, settingsHint } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import CompanyProfileView from './CompanyProfileView';
+import QtyFormulaPanel from './QtyFormulaPanel';
 
 export default function SettingsGeneralTab({
     appName, onUpdateAppName, uiStyle, onUpdateUIStyle,
@@ -117,6 +118,12 @@ export default function SettingsGeneralTab({
                         </div>
                     </form>
                 </SettingsPanel>
+            </div>
+
+            {/* Production quantity formula. Its own column: four columns of table
+                plus a tester don't fit beside a pair of selects. */}
+            <div style={settingsCol(520, 1)}>
+                <QtyFormulaPanel />
             </div>
 
             {/* Company Profile (Admin Only). Wider basis: it carries a 200px logo

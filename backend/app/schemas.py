@@ -3949,3 +3949,32 @@ class WorkQueueResponse(BaseModel):
     unreleased_count: int = 0
     sort: str = 'date'
     materials: list[WorkQueueMaterialSummary] = []
+
+
+# ── Production quantity formula (Settings) ───────────────────────────────────
+
+class QtyFormulaRuleIO(BaseModel):
+    """One size's expression. `size_name` is a standard Size name or "*" for
+    the fallback row."""
+    size_name: str
+    expression: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QtyFormulaUpdate(BaseModel):
+    # Full replace, not a patch: the rule set is read as a whole by the
+    # Production Run modal, so a partial write would leave a formula nobody
+    # authored (half old rows, half new).
+    rules: list[QtyFormulaRuleIO]
+
+
+class QtyFormulaResponse(BaseModel):
+    rules: list[QtyFormulaRuleIO]
+    # Shipped so the editor's "Reset to default" and the modal's fallback don't
+    # each hardcode their own copy of the original hardcoded formula.
+    defaults: list[QtyFormulaRuleIO]
+    sizes: list[str] = []
+    functions: list[str] = []
+    fallback: str = "*"
+    self_name: str = "qty"

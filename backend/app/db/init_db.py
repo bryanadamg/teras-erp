@@ -40,6 +40,23 @@ def seed_sizes(db):
         logger.warning(f"Size seeding skipped: {e}")
 
 
+def seed_qty_formula(db):
+    """Seed the plant-wide production-quantity formula with the rule that used
+    to be hardcoded in ProductionRunModal.tsx (S=0, M=(S+M)/2, L=(S+M)/2+L,
+    everything else as ordered), so an existing install keeps behaving exactly
+    as it did before the formula became configurable."""
+    try:
+        from app.models.qty_formula import QtyFormulaRule
+        from app.services.qty_formula_service import DEFAULT_RULES
+        if db.query(QtyFormulaRule).count() == 0:
+            for name, expr in DEFAULT_RULES:
+                db.add(QtyFormulaRule(size_name=name, expression=expr))
+            db.commit()
+            logger.info("Seeded default production quantity formula")
+    except Exception as e:
+        logger.warning(f"Quantity formula seeding skipped: {e}")
+
+
 def seed_system_attributes(db):
     try:
         from app.models.attribute import Attribute, AttributeValue
@@ -772,6 +789,7 @@ def init_db() -> None:
         backfill_item_variant_type(db)
         backfill_combo_library(db)
         seed_sizes(db)
+        seed_qty_formula(db)
         seed_system_locations(db)
         backfill_mo_planned_components(db)
         sync_stock_balances(db)
