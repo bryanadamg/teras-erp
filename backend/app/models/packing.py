@@ -135,6 +135,17 @@ class PackingOrder(Base):
     created_by = relationship("User")
     materials = relationship("PackingOrderMaterial", backref="packing_order", cascade="all, delete-orphan")
     completions = relationship("PackingCompletion", backref="packing_order", cascade="all, delete-orphan")
+    # Every carton this order ever minted — `Batch` rows discriminated by
+    # `packing_order_id`, the same way warp beams hang off `source_wo_id`. No
+    # cascade: a carton outlives its order (it is stock, and its lot genealogy is
+    # referenced by BatchConsumption), so deleting the order must not delete it.
+    # Deliberately NOT filtered on remaining stock — a dispatched carton was still
+    # packed, and dropping it would walk `qty_packed_alt` backwards on shipment.
+    cartons = relationship(
+        "Batch",
+        primaryjoin="PackingOrder.id == foreign(Batch.packing_order_id)",
+        viewonly=True,
+    )
 
     @property
     def item_name(self):
@@ -161,6 +172,30 @@ class PackingOrder(Base):
     @property
     def package_count(self) -> int:
         return int(sum(int(c.package_count or 0) for c in (self.completions or []) if not c.rejected))
+
+    @property
+    def qty_packed_alt(self) -> Optional[float]:
+        """Alt-unit count packed — SUMMED from the cartons, never divided out of kg.
+
+        `uom2_factor` is a planning estimate off the item's g/y. An elastic cloth
+        does not weigh what that predicted, and the packer reweighs every box, so
+        `qty_packed` is a sum of scale readings. Dividing it back by the factor
+        reports a piece count nobody counted, drifting as far as the fabric does.
+        `Batch.alt_qty` is what the packer actually put in each box, so summing
+        those is the only figure that means "pieces packed".
+
+        Rejected cartons are excluded, mirroring `qty_packed`. Requires `cartons`
+        to be eager-loaded — async SQLAlchemy cannot lazy-load it.
+        """
+        if not self.uom2:
+            return None
+        total = 0.0
+        for c in (self.cartons or []):
+            if c.quality_status in ("REJECTED", "REJECT_USABLE"):
+                continue
+            if c.alt_qty is not None:
+                total += float(c.alt_qty)
+        return round(total, 2)
 
     @property
     def qty_rejected(self) -> float:

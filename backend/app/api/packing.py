@@ -50,6 +50,10 @@ def _load_options():
         selectinload(PackingOrder.completions)
         .selectinload(PackingCompletion.materials)
         .selectinload(PackingCompletionMaterial.item),
+        # `qty_packed_alt` sums these, and it is the DELIVERED gate — without the
+        # eager load the property silently reads an empty list in async and every
+        # alt-unit order looks 0 packed. Never drop it from this tuple.
+        selectinload(PackingOrder.cartons),
     )
 
 
@@ -148,41 +152,6 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
     return out
 
 
-def _packed_alt_qty(po: PackingOrder, units: list) -> Optional[float]:
-    """Alt-unit count actually packed — summed from the CARTONS' own counts.
-
-    Deliberately not `qty_packed / uom2_base_factor`. That factor is a planning
-    estimate off the item's g/y, and on an elastic cloth the real weight of a
-    12-piece box is not what the estimate said it would be — the packer reweighs
-    every box, so `qty_packed` is a sum of scale readings. Dividing it back out
-    reports a piece count nobody counted, drifting exactly as far as the fabric
-    does: 216 boxes that each came in 3% light read as 84 pieces short of an
-    order that is physically complete.
-
-    Each carton stores the count the packer put in it (`Batch.alt_qty`), which is
-    a counted integer and not a derived one, so summing those is the only figure
-    that means "pieces packed". `fill_alt_qtys` populates it at mint time for
-    every carton of an order with a resolvable factor, so the derive-from-qty
-    fallback below is only for a carton minted before the order had one.
-
-    Rejected cartons are excluded, mirroring `qty_packed`. Dispatched ones are
-    NOT: `_packed_units_for` outer-joins StockBalance and keeps cartons whose
-    stock has left, so shipping an order can never walk its progress backwards.
-    """
-    if not po.uom2:
-        return None
-    factor = po.uom2_base_factor
-    total = 0.0
-    for u in units or []:
-        if u.quality_status in reject_service.REJECT_GRADES:
-            continue
-        if u.alt_qty is not None:
-            total += float(u.alt_qty)
-        elif factor:
-            total += float(u.qty or 0) / float(factor)
-    return round(total, 2)
-
-
 def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     """Attach non-column display fields the response schema expects."""
     if po.sales_order:
@@ -217,9 +186,9 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     for m in (po.materials or []):
         m.qty_consumed = consumed.get(str(m.item_id), 0.0)
     po.packed_units = units or []
-    # Counted, not derived — see _packed_alt_qty. Must be declared on
-    # PackingOrderResponse or response_model drops it silently.
-    po.qty_packed_alt = _packed_alt_qty(po, units)
+    # `qty_packed_alt` is a model property (counted off `cartons`), not assigned
+    # here — one definition, shared with the DELIVERED gate. It still has to be
+    # declared on PackingOrderResponse or response_model drops it silently.
     return po
 
 
@@ -705,7 +674,7 @@ async def update_packing_order(
     # CANCELLED — those are the user's explicit closure, not a function of qty —
     # and never overrides a status the caller stated itself.
     if payload.status is None:
-        met = po.qty_packed + 1e-6 >= float(po.qty_target or 0) > 0
+        met = packing_service.is_target_met(po)
         if po.status == "DELIVERED" and not met:
             po.status = "IN_PROGRESS"
             po.actual_end_date = None
@@ -1104,14 +1073,13 @@ async def add_packing_completion(
     if po.status == "PENDING":
         po.status = "IN_PROGRESS"
         po.actual_start_date = po.actual_start_date or datetime.utcnow()
-    if po.qty_packed + 1e-6 >= float(po.qty_target or 0) and not po.actual_end_date:
+    if packing_service.is_target_met(po) and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
     # Fulfilled but still open — the MO's DELIVERED/COMPLETED split (SAP DLV vs
     # TECO). Logging stays allowed (only COMPLETED/CANCELLED stop it); what this
     # buys is that the order's *open* quantity is now zero, so quarantine stops
     # treating it as a claim on the hold bin's stock. Never auto-closes.
-    if (po.status in ("PENDING", "IN_PROGRESS")
-            and po.qty_packed + 1e-6 >= float(po.qty_target or 0)):
+    if po.status in ("PENDING", "IN_PROGRESS") and packing_service.is_target_met(po):
         po.status = "DELIVERED"
     await db.commit()
 
@@ -1250,7 +1218,7 @@ async def reject_packing_completion(
     # Reopen: packed progress just dropped, so an order that had hit target is no
     # longer fulfilled. Never auto-closes on qty, never auto-closes off it either.
     po = await _load(db, po_id)
-    if po.actual_end_date and po.qty_packed + 1e-6 < float(po.qty_target or 0):
+    if po.actual_end_date and not packing_service.is_target_met(po):
         po.actual_end_date = None
         if po.status in ("DELIVERED", "COMPLETED"):
             po.status = "IN_PROGRESS"

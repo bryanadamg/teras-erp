@@ -207,6 +207,61 @@ def order_base_per_alt(po: PackingOrder, item=None) -> Optional[float]:
     )
 
 
+def order_alt_target(po: PackingOrder, item=None) -> Optional[float]:
+    """The alt-unit count an order is FOR — what `qty_packed_alt` is measured against.
+
+    The count stated on the order when there is one (that is the figure the customer
+    ordered, and `_assert_target_agrees_with_alt` already keeps it within 5% of the
+    base target). Otherwise the base target converted, which is all a hand-entered
+    order has to go on.
+    """
+    if not po.uom2:
+        return None
+    if po.qty2 and float(po.qty2) > 0:
+        return float(po.qty2)
+    factor = order_base_per_alt(po, item)
+    if not factor or float(factor) <= 0:
+        return None
+    return round(float(po.qty_target or 0) / float(factor), 2)
+
+
+def is_target_met(po: PackingOrder, item=None, tol: float = 1e-6) -> bool:
+    """Has this order packed what it was for?
+
+    Measured in whatever the order is COUNTED in: pieces on an alt-unit order, the
+    stock UOM otherwise. This is the DELIVERED gate, the reopen-on-reject test and
+    the input to quarantine's open-quantity claim, and all of them have to ask the
+    same question — an order for 2880 Pcs is fulfilled when 2880 pieces are boxed,
+    whatever they weighed. Judged in kg against a target derived from the item's
+    g/y, a physically complete run of elastic cloth never reached DELIVERED, because
+    the boxes are reweighed and the cloth does not hold its estimate.
+
+    Falls back to the base comparison whenever the piece count is unavailable (no alt
+    unit, or `cartons` not eager-loaded), so it is never *less* correct than the kg
+    test it replaces. Never inline either comparison again — four call sites drifting
+    apart on "is it done" is what this exists to prevent.
+    """
+    packed_alt = po.qty_packed_alt
+    ordered_alt = order_alt_target(po, item)
+    if packed_alt is not None and ordered_alt is not None and ordered_alt > 0:
+        return packed_alt + tol >= ordered_alt
+    return po.qty_packed + tol >= float(po.qty_target or 0) > 0
+
+
+def open_qty(po: PackingOrder, item=None) -> float:
+    """What this order still owes, in the item's stock UOM.
+
+    Quarantine claims this against released lots, and stock is claimed in kg however
+    the order is counted — so the figure stays in the base unit. Only the *decision*
+    that an order owes nothing moves to the counting unit: a fulfilled 2880 Pcs order
+    that came in light must stop claiming hold stock, which a raw `qty_target -
+    qty_packed` subtraction would keep it doing forever.
+    """
+    if is_target_met(po, item):
+        return 0.0
+    return max(0.0, float(po.qty_target or 0) - po.qty_packed)
+
+
 def split_qty(total: float, box_size: float) -> list[float]:
     """Fixed-size boxes plus one remainder box, not an even split.
 
