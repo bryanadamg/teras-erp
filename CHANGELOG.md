@@ -15,6 +15,18 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-03
+
+### Added
+- Production quantity formula is configurable per size (or a single `*` rule for every size) instead of hardcoded, seeded with the existing formula so nothing changes until it's edited. It can be edited from Settings > General or, without leaving the run, from the Production Run modal's own modeless dialog
+- Dye Recipe list shows a colour swatch chip for the recipe's colour code and its derived colour variant, so recipes read like the Color Library instead of a bare code
+- Color Variants and Combo Library pages gained a swatch grid view (alongside the existing list), with colour and family chips, multi-colour band swatches for compound mill codes, and slimmer list columns to make room
+
+### Fixed
+- A dye recipe's colour variant chip is derived from its linked Color record instead of matched against the MO's attribute values, so a recipe whose own attributes disagree with its Color library entry now shows the right variant instead of none or a wrong one
+- Color Variants defaults to the list view again (the swatch grid had become default) and remembers whichever view was last chosen
+- Production Output and Fulfilment bars on the Sales Order table top-align in their cell instead of centering, so they line up with neighbouring rows instead of drifting when a cell wraps
+
 ## [0.19.0] - 2026-09-02
 
 ### Changed

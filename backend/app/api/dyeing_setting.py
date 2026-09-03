@@ -12,6 +12,7 @@ from app.models.dyeing_setting import (
     DyeRecipeWashBath, DyeRecipeFinishing, dye_recipe_attribute_values,
 )
 from app.models.attribute import Attribute, AttributeValue
+from app.models.color import Color
 from app.models.work_order import WorkOrder as _WorkOrder
 from app.models.manufacturing import ManufacturingOrder as _MO, manufacturing_order_values as _mo_values
 from app.models.batch import Batch
@@ -41,7 +42,7 @@ def _recipe_opts():
         selectinload(DyeRecipe.wash_baths),
         selectinload(DyeRecipe.finishing_steps),
         selectinload(DyeRecipe.attribute_values),
-        joinedload(DyeRecipe.color),
+        joinedload(DyeRecipe.color).joinedload(Color.variant_attribute_value),
     ]
 
 
@@ -65,6 +66,9 @@ def _serialize_recipe(r: DyeRecipe) -> dict:
     rd["attribute_value_ids"] = [str(v.id) for v in r.attribute_values]
     rd["color_name"] = r.color.name if r.color else None
     rd["color_code"] = r.color.code if r.color else None
+    rd["color_hex"] = r.color.hex if r.color else None
+    rd["color_variant_label"] = r.color.variant_attribute_value.value if r.color and r.color.variant_attribute_value else None
+    rd["color_variant_hex"] = r.color.variant_attribute_value.hex if r.color and r.color.variant_attribute_value else None
     return rd
 
 

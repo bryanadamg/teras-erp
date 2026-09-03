@@ -12,7 +12,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, ColorSwatchChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
 import { lvTh, lvTd, lvSep, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, TableEmpty, lvRow, lvSubTable } from '../shared/listViewTheme';
 import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
@@ -184,6 +184,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     [stepValues]);
     const valueLabel = (options: Array<{value: string; label: string}>, id: string) =>
         options.find(o => o.value === id)?.label || '';
+
 
     useEffect(() => {
         authFetch(`${API_BASE}/preferences/code_config_DYE`)
@@ -636,6 +637,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                             <th style={{ ...lvTh(classic), width: 30 }}></th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Code</th>
                             <th style={{ ...lvTh(classic), width: 130 }}>Color Code</th>
+                            <th style={{ ...lvTh(classic), width: 150 }}>Color Variant</th>
                             <th style={lvTh(classic)}>Name</th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Color Standard</th>
                             <th style={{ ...lvTh(classic), width: 110 }}>Substrate</th>
@@ -646,9 +648,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                     </thead>
                     <tbody ref={listBodyRef}>
                         {recipes.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                            <TableSkeleton rows={8} cols={skel.cols ?? 10} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <TableEmpty colSpan={9} classic={classic} tdStyle={lvTd(classic)} message="No recipes found." />
+                            <TableEmpty colSpan={10} classic={classic} tdStyle={lvTd(classic)} message="No recipes found." />
                         ))}
                         {recipes.map((recipe: any, idx: number) => {
                             const rid = String(recipe.id);
@@ -666,11 +668,15 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                 <span
                                                     onClick={e => { e.stopPropagation(); router.push(`/colors?search=${encodeURIComponent(recipe.color_code)}`); }}
                                                     title={`Open ${recipe.color_code} in the Color Library`}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: classic ? 3 : 4, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
                                                 >
-                                                    <i className="bi bi-palette" style={{ fontSize: classic ? 9 : 11, color: '#0058e6' }} />
-                                                    <CodeChip code={recipe.color_code} classic={classic} link />
+                                                    <ColorSwatchChip label={recipe.color_code} classic={classic} hex={recipe.color_hex} title={`Open ${recipe.color_code} in the Color Library`} />
                                                 </span>
+                                            ) : <span style={{ color: '#aaa' }}>—</span>}
+                                        </td>
+                                        <td style={lvTd(classic)}>
+                                            {recipe.color_variant_label ? (
+                                                <ColorSwatchChip label={recipe.color_variant_label} classic={classic} hex={recipe.color_variant_hex} />
                                             ) : <span style={{ color: '#aaa' }}>—</span>}
                                         </td>
                                         <td style={lvTd(classic)}>{recipe.name}</td>
@@ -688,7 +694,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                     </tr>
                                     {expanded && (
                                         <tr>
-                                            <td colSpan={9} style={{ padding: 0 }}>
+                                            <td colSpan={10} style={{ padding: 0 }}>
                                                 <ExpandedRowPanel classic={classic}>
                                                     {renderDetail(recipe)}
                                                 </ExpandedRowPanel>

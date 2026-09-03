@@ -1,14 +1,12 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import { FormSection, FormError, XP_BTN, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { FormSection, FormError, XP_BTN, useFloatingMenu, MenuTriggerButton, FloatingMenu, SwatchBox, CODE_FONT } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow, lvThead, TableEmpty } from '../shared/listViewTheme';
-import { ToolbarButton } from '../shared/shellTheme';
-import Pager from '../shared/Pager';
-
-const PAGE_SIZE = 25;
+import { ToolbarButton, SearchField, ToolbarCount, FilterChipBar, FilterChipOption } from '../shared/shellTheme';
+import { ColorFamilyKey, COLOR_FAMILY_META, colorFamilyOf, colorFamilyCounts, derivedColorHex } from '../shared/colorFamilies';
 
 interface Props {
     values: any[];                 // AttributeValue rows of the Colors variant attribute
@@ -30,27 +28,27 @@ interface Props {
 // curated product-color list. This is the SAME variant attribute used for BOM gating,
 // dye-recipe matching, MO/stock variant_key; it is NOT the 30k Color Code catalog. It
 // lives here as a sibling tab purely for discoverability (single "Colors" home).
-// Swatch picker: the color input is always live — no checkbox to arm it first.
-// "No color" is the untouched default (hex === null), shown as the same dashed empty
-// box the table uses, and reachable again via Clear once a color has been picked.
+//
+// Two views, and the table is the DEFAULT on purpose. The swatch grid is the better
+// way to read ~140 short colour names — the only column carrying information is the
+// swatch — but this page shipped as a table, so opening on the grid would replace a
+// list users know with one they have to go looking for. Landing on the table inverts
+// the risk to "never finds the grid", which the labelled toggle answers: it reads
+// "List / Swatches", not two bare icons, because an icon-only toggle is exactly what
+// hides a second view. The choice then persists, so the grid becomes their default
+// once they pick it rather than one we imposed.
+// No pager on either view — the whole value set already rides in on the attributes
+// master load, so paging 140 rows at 25 only hid search hits behind Next.
+type ViewMode = 'grid' | 'table';
+const VIEW_KEY = 'color_variant_view';
+
+// Swatch picker for the create/edit form: the colour input is always live — no
+// checkbox to arm it first. "No color" is the untouched default (hex === null),
+// reachable again via Clear once a colour has been picked.
 function SwatchPicker({ hex, onChange, classic, size = 22 }: { hex: string | null; onChange: (hex: string | null) => void; classic: boolean; size?: number }) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <label
-                title={hex ? `${hex} — click to change` : 'Click to pick a color'}
-                style={{
-                    width: size, height: size, display: 'inline-block', cursor: 'pointer', position: 'relative',
-                    background: hex || (classic ? '#e8e6df' : '#f1f5f9'),
-                    border: hex ? '1px solid rgba(0,0,0,0.35)' : `1px dashed ${classic ? '#a0988c' : '#94a3b8'}`,
-                }}
-            >
-                <input
-                    type="color"
-                    value={hex || '#cccccc'}
-                    onChange={e => onChange(e.target.value)}
-                    style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-                />
-            </label>
+            <SwatchBox hex={hex} size={size} classic={classic} onPick={onChange} />
             {hex
                 ? <button type="button" onClick={() => onChange(null)} title="Remove color"
                     style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: classic ? 11 : 12, color: classic ? '#0a246a' : '#2563eb', textDecoration: 'underline' }}>Clear</button>
@@ -64,25 +62,68 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
 
+    // Lazy initialiser, not an effect: reading it after mount would render the table
+    // first and snap to the grid a frame later. Anything unreadable (SSR, private
+    // mode, a stale value) falls back to the table.
+    const [view, setViewState] = useState<ViewMode>(() => {
+        try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'table'; }
+        catch { return 'table'; }
+    });
+    const setView = (v: ViewMode) => {
+        setViewState(v);
+        try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable — session-only */ }
+    };
     const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1);
+    const [family, setFamily] = useState<ColorFamilyKey | 'ALL'>('ALL');
+    const [missingOnly, setMissingOnly] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newValue, setNewValue] = useState('');
     const [newHex, setNewHex] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
     const [editHex, setEditHex] = useState<string | null>(null);
+    const [editModal, setEditModal] = useState<any | null>(null);
     const [formError, setFormError] = useState('');
     const [saving, setSaving] = useState(false);
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(140);
 
-    const sorted = [...(values || [])].sort((a, b) => String(a.value).localeCompare(String(b.value)));
-    const filtered = search ? sorted.filter(v => String(v.value).toLowerCase().includes(search.toLowerCase())) : sorted;
-    const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const clampedPage = Math.min(page, pageCount);
-    const paged = filtered.slice((clampedPage - 1) * PAGE_SIZE, clampedPage * PAGE_SIZE);
+    const sorted = useMemo(
+        () => [...(values || [])].sort((a, b) => String(a.value).localeCompare(String(b.value))),
+        [values],
+    );
+    // Search first, then the chips: the chip tallies describe what the search left,
+    // so "BIRU (14)" never promises rows the search has already excluded.
+    const searched = useMemo(
+        () => search ? sorted.filter(v => String(v.value).toLowerCase().includes(search.toLowerCase())) : sorted,
+        [sorted, search],
+    );
+    const familyCounts = useMemo(() => colorFamilyCounts(searched), [searched]);
+    const missingCount = useMemo(() => searched.filter(v => !v.hex).length, [searched]);
+    const filtered = useMemo(() => searched.filter(v =>
+        (family === 'ALL' || colorFamilyOf(v.value) === family) && (!missingOnly || !v.hex)
+    ), [searched, family, missingOnly]);
 
-    const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
+    const familyOptions: FilterChipOption[] = [
+        { value: 'ALL', label: 'All', count: searched.length },
+        ...familyCounts.map(({ key, count }) => ({
+            value: key,
+            count,
+            title: `${COLOR_FAMILY_META[key].label} shades`,
+            label: (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {COLOR_FAMILY_META[key].hex && (
+                        <span style={{
+                            width: 8, height: 8, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+                            background: COLOR_FAMILY_META[key].hex!, border: '1px solid rgba(0,0,0,0.3)',
+                        }} />
+                    )}
+                    {COLOR_FAMILY_META[key].label}
+                </span>
+            ),
+        })),
+    ];
+
+    const handleSearchChange = (v: string) => setSearch(v);
 
     const openCreate = () => { setNewValue(''); setNewHex(null); setFormError(''); setIsModalOpen(true); };
 
@@ -114,6 +155,18 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
         setEditingId(null);
     };
 
+    // Grid cards are too narrow for the table's inline rename field, so a rename
+    // started from a card runs through the same form the create modal uses.
+    const openEdit = (v: any) => { setEditText(v.value); setEditHex(v.hex || null); setFormError(''); setEditModal(v); };
+    const commitEditModal = () => {
+        const t = editText.trim();
+        if (!t) { setFormError('Enter a color name.'); return; }
+        const clash = sorted.find(x => x.id !== editModal.id && String(x.value).trim().toLowerCase() === t.toLowerCase());
+        if (clash) { setFormError(`"${clash.value}" already exists — color names must be unique.`); return; }
+        if (t !== editModal.value || editHex !== (editModal.hex || null)) onRename(editModal.id, t, editHex);
+        setEditModal(null);
+    };
+
     const handleDelete = async (v: any) => {
         const ok = await confirm({
             title: 'Delete Color', variant: 'danger', confirmText: 'Delete',
@@ -122,20 +175,34 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
         if (ok) onDelete(v.id);
     };
 
+    const rowStripe = classic
+        ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898' }
+        : { background: '#fff', borderBottom: '1px solid #dbe1ea' };
+    const emptyMessage = search || family !== 'ALL' || missingOnly
+        ? 'No colors match these filters.'
+        : 'No color variants yet.';
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-            <div style={classic
-                ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }
-                : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                <input
-                    style={{ ...lvInput(classic), width: 220 }}
-                    placeholder="Search color…"
-                    value={search}
-                    onChange={e => handleSearchChange(e.target.value)}
+            <div style={{ ...rowStripe, padding: classic ? '4px 8px' : '8px 10px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                <SearchField classic={classic} value={search} onChange={handleSearchChange} placeholder="Search color…" width={220} />
+                <span style={lvSep(classic)} />
+                <FilterChipBar
+                    classic={classic}
+                    value={view}
+                    onChange={v => setView(v as ViewMode)}
+                    options={[
+                        // Labelled, not icon-only: this is the only affordance telling a
+                        // user the other view exists at all.
+                        { value: 'table', label: <><i className="bi bi-list-ul" style={{ marginRight: 4 }} />List</>, title: 'Table with inline rename' },
+                        { value: 'grid', label: <><i className="bi bi-grid-3x3-gap-fill" style={{ marginRight: 4 }} />Swatches</>, title: 'Swatch grid' },
+                    ]}
                 />
-                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
-                    {filtered.length} color{filtered.length !== 1 ? 's' : ''}
-                </span>
+                <ToolbarCount classic={classic} right>
+                    {filtered.length === sorted.length
+                        ? `${sorted.length} color${sorted.length !== 1 ? 's' : ''}`
+                        : `${filtered.length} of ${sorted.length} colors`}
+                </ToolbarCount>
                 {canCreate && (
                     <>
                         <span style={lvSep(classic)} />
@@ -144,91 +211,163 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                 )}
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={lvThead(classic, true)}>
-                        <tr>
-                            <th style={{ ...lvTh(classic), width: 60 }}>Swatch</th>
-                            <th style={lvTh(classic)}>Color</th>
-                            <th style={{ ...lvTh(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filtered.length === 0 && (
-                            <TableEmpty colSpan={3} classic={classic} tdStyle={lvTd(classic)}
-                                message={search ? 'No colors match your search.' : 'No color variants yet.'} />
-                        )}
-                        {paged.map((v, idx) => (
-                            <tr key={v.id} style={lvRow(classic, idx)}>
-                                <td style={lvTd(classic)}>
-                                    {editingId === v.id ? (
-                                        <SwatchPicker hex={editHex} onChange={setEditHex} classic={classic} size={18} />
-                                    ) : canEdit ? (
-                                        <label
-                                            title={v.hex ? `${v.hex} — click to change` : 'Click to set color'}
-                                            style={{
-                                                width: 18, height: 18, display: 'inline-block', cursor: 'pointer',
-                                                background: v.hex || (classic ? '#e8e6df' : '#f1f5f9'),
-                                                border: v.hex ? '1px solid rgba(0,0,0,0.35)' : `1px dashed ${classic ? '#a0988c' : '#94a3b8'}`,
-                                            }}
-                                        >
-                                            <input
-                                                type="color"
-                                                value={v.hex || '#cccccc'}
-                                                onChange={e => onRename(v.id, v.value, e.target.value)}
-                                                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-                                            />
-                                        </label>
-                                    ) : v.hex ? (
-                                        <span title={v.hex} style={{ width: 16, height: 16, background: v.hex, border: '1px solid rgba(0,0,0,0.35)', display: 'inline-block' }} />
-                                    ) : <span style={{ color: classic ? '#999' : '#94a3b8', fontSize: 11 }}>—</span>}
-                                </td>
-                                <td style={lvTd(classic)}>
-                                    {editingId === v.id ? (
-                                        <input
-                                            autoFocus
-                                            style={{ ...lvInput(classic), width: 240 }}
-                                            value={editText}
-                                            onChange={e => setEditText(e.target.value)}
-                                            onKeyDown={e => { if (e.key === 'Enter') commitEdit(v); if (e.key === 'Escape') setEditingId(null); }}
-                                        />
-                                    ) : v.value}
-                                </td>
-                                <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
-                                    {(canEdit || canDelete) && (
-                                        <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                            {editingId === v.id ? (
-                                                <>
-                                                    <button title="Save" onClick={() => commitEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#1a6e1a' : '#15803d', fontSize: 13 }}>
-                                                        <i className="bi bi-check-lg" />
-                                                    </button>
-                                                    <button title="Cancel" onClick={() => setEditingId(null)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                                        <i className="bi bi-x-lg" />
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <MenuTriggerButton classic={classic} onClick={e => menuToggle(v.id, e)} />
-                                            )}
-                                        </div>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            {sorted.length > 0 && (
+                <div style={{ ...rowStripe, padding: classic ? '4px 8px' : '6px 10px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+                    <FilterChipBar
+                        classic={classic}
+                        flat
+                        value={family}
+                        onChange={v => setFamily(v as ColorFamilyKey | 'ALL')}
+                        options={familyOptions}
+                        style={{ flexWrap: 'wrap' }}
+                    />
+                    <span style={lvSep(classic)} />
+                    {/* Turns the mostly-empty swatch column into a work queue instead of
+                        a defect: 124 of 139 values have no saved hex. */}
+                    <FilterChipBar
+                        classic={classic}
+                        flat
+                        value={missingOnly ? 'missing' : null}
+                        onChange={() => setMissingOnly(m => !m)}
+                        options={[{ value: 'missing', label: 'Missing swatch', count: missingCount, tone: 'amber', title: 'Values with no saved hex — the swatch shown is derived from the name' }]}
+                    />
+                </div>
+            )}
 
-            <Pager page={clampedPage} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
+                {filtered.length === 0 && view === 'grid' && (
+                    <div style={{ padding: 24, textAlign: 'center', fontSize: classic ? 11 : 13, color: classic ? '#666' : '#94a3b8' }}>
+                        {emptyMessage}
+                    </div>
+                )}
+
+                {view === 'grid' ? (
+                    <div style={{
+                        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                        gap: 8, padding: 10, alignContent: 'start',
+                    }}>
+                        {filtered.map(v => {
+                            const derived = v.hex ? null : derivedColorHex(v.value);
+                            return (
+                                <div key={v.id} style={classic
+                                    ? { border: '1px solid #b0a898', background: '#fff' }
+                                    : { border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', overflow: 'hidden' }}>
+                                    <SwatchBox
+                                        hex={v.hex}
+                                        derived={derived}
+                                        classic={classic}
+                                        onPick={canEdit ? h => onRename(v.id, v.value, h) : undefined}
+                                        style={{ display: 'block', width: '100%', height: 48, borderRadius: 0, borderWidth: '0 0 1px 0' }}
+                                    />
+                                    <div style={{ padding: '4px 6px 3px' }}>
+                                        <div title={v.value} style={{
+                                            fontSize: classic ? 11 : 12, fontWeight: 600,
+                                            color: classic ? '#000' : '#1e293b', lineHeight: 1.3,
+                                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                                            minHeight: classic ? 28 : 31,
+                                        }}>{v.value}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 2 }}>
+                                            <span style={{
+                                                fontFamily: CODE_FONT, fontSize: classic ? 9.5 : 10,
+                                                color: v.hex ? (classic ? '#555' : '#64748b') : (classic ? '#999' : '#a3aebd'),
+                                                fontStyle: v.hex ? 'normal' : 'italic',
+                                            }}>{v.hex || 'no swatch'}</span>
+                                            {(canEdit || canDelete) && <MenuTriggerButton classic={classic} onClick={e => menuToggle(v.id, e)} />}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
+                        <thead style={lvThead(classic, true)}>
+                            <tr>
+                                <th style={{ ...lvTh(classic), width: 130 }}>Swatch</th>
+                                <th style={{ ...lvTh(classic), width: 110 }}>Family</th>
+                                <th style={lvTh(classic)}>Color</th>
+                                <th style={{ ...lvTh(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtered.length === 0 && (
+                                <TableEmpty colSpan={4} classic={classic} tdStyle={lvTd(classic)} message={emptyMessage} />
+                            )}
+                            {filtered.map((v, idx) => {
+                                const derived = v.hex ? null : derivedColorHex(v.value);
+                                const fam = colorFamilyOf(v.value);
+                                return (
+                                    <tr key={v.id} style={lvRow(classic, idx)}>
+                                        <td style={lvTd(classic)}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                {editingId === v.id ? (
+                                                    <SwatchPicker hex={editHex} onChange={setEditHex} classic={classic} size={18} />
+                                                ) : (
+                                                    <>
+                                                        <SwatchBox
+                                                            hex={v.hex}
+                                                            derived={derived}
+                                                            classic={classic}
+                                                            onPick={canEdit ? h => onRename(v.id, v.value, h) : undefined}
+                                                        />
+                                                        <span style={{
+                                                            fontFamily: CODE_FONT, fontSize: classic ? 10 : 11,
+                                                            color: v.hex ? (classic ? '#555' : '#64748b') : (classic ? '#999' : '#a3aebd'),
+                                                            fontStyle: v.hex ? 'normal' : 'italic',
+                                                        }}>{v.hex || 'not set'}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td style={{ ...lvTd(classic), fontSize: classic ? 11 : 12, color: classic ? '#444' : '#64748b' }}>
+                                            {COLOR_FAMILY_META[fam].label}
+                                        </td>
+                                        <td style={lvTd(classic)}>
+                                            {editingId === v.id ? (
+                                                <input
+                                                    autoFocus
+                                                    style={{ ...lvInput(classic), width: 240 }}
+                                                    value={editText}
+                                                    onChange={e => setEditText(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') commitEdit(v); if (e.key === 'Escape') setEditingId(null); }}
+                                                />
+                                            ) : v.value}
+                                        </td>
+                                        <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
+                                            {(canEdit || canDelete) && (
+                                                <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                    {editingId === v.id ? (
+                                                        <>
+                                                            <button title="Save" onClick={() => commitEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#1a6e1a' : '#15803d', fontSize: 13 }}>
+                                                                <i className="bi bi-check-lg" />
+                                                            </button>
+                                                            <button title="Cancel" onClick={() => setEditingId(null)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
+                                                                <i className="bi bi-x-lg" />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <MenuTriggerButton classic={classic} onClick={e => menuToggle(v.id, e)} />
+                                                    )}
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                )}
+            </div>
 
             {/* Row ⋯ menu: Rename / Delete */}
             {menuOpenId && (() => {
-                const v = paged.find(x => String(x.id) === menuOpenId);
+                const v = filtered.find(x => String(x.id) === menuOpenId);
                 if (!v) return null;
                 return (
                     <FloatingMenu
                         pos={menuPos}
                         items={[
-                            { key: 'rename', label: 'Rename', icon: 'bi-pencil-square', hidden: !canEdit, onClick: () => { menuClose(); startEdit(v); } },
+                            { key: 'rename', label: 'Rename', icon: 'bi-pencil-square', hidden: !canEdit, onClick: () => { menuClose(); view === 'grid' ? openEdit(v) : startEdit(v); } },
                             { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !canDelete, onClick: () => { menuClose(); handleDelete(v); } },
                         ]}
                     />
@@ -264,6 +403,40 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                         <div style={{ marginTop: 10 }}>
                             <label style={lvLabel(classic)}>Swatch</label>
                             <SwatchPicker hex={newHex} onChange={setNewHex} classic={classic} />
+                        </div>
+                    </FormSection>
+                </form>
+            </ModalWrapper>
+
+            <ModalWrapper
+                isOpen={!!editModal}
+                onClose={() => setEditModal(null)}
+                title="Edit Color"
+                size="sm"
+                modeless
+                footer={
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button type="button" className={XP_BTN} style={lvBtn(classic)} onClick={() => setEditModal(null)}>Cancel</button>
+                        <button type="submit" className={XP_BTN} form="color-variant-edit-form" style={lvPrimaryBtn(classic)}>Save</button>
+                    </div>
+                }
+            >
+                <form id="color-variant-edit-form" onSubmit={e => { e.preventDefault(); commitEditModal(); }}>
+                    <FormError classic={classic}>{formError}</FormError>
+                    <FormSection title="Color" classic={classic}>
+                        <div>
+                            <label style={lvLabel(classic)}>Name *</label>
+                            <input
+                                autoFocus
+                                value={editText}
+                                onChange={e => { setEditText(e.target.value); if (formError) setFormError(''); }}
+                                style={lvInput(classic, { width: '100%', ...(formError ? { borderColor: classic ? '#8e0000' : '#dc2626' } : {}) })}
+                                required
+                            />
+                        </div>
+                        <div style={{ marginTop: 10 }}>
+                            <label style={lvLabel(classic)}>Swatch</label>
+                            <SwatchPicker hex={editHex} onChange={setEditHex} classic={classic} />
                         </div>
                     </FormSection>
                 </form>

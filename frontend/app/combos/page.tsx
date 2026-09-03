@@ -6,7 +6,12 @@ import { useData } from '../context/DataContext';
 import { usePaginatedFetch } from '../context/usePaginatedList';
 import { useToast } from '../components/shared/Toast';
 
-const PAGE_SIZE = 50;
+// Uncapped on purpose. The colour-family chips filter on words parsed out of every
+// combo name, so their tallies have to see the whole matching set — over one page
+// they would undercount and the chips would hide rows. `size=0` is the uncapped
+// contract on the endpoint (the same request `/dye-recipes`' lookup callers make),
+// and 147 rows of bounded master data is nothing to hold. If the library ever
+// reaches the thousands this needs a real server-side family filter instead.
 
 export default function CombosPage() {
     const { authFetch } = useData();
@@ -22,19 +27,18 @@ export default function CombosPage() {
     // search box itself, so `search` arrives already settled and rides in as a
     // plain param rather than through the hook's own search box.
     const {
-        rows: combos, total, loading, page, setPage, refetch: fetchCombos,
+        rows: combos, total, loading, refetch: fetchCombos,
     } = usePaginatedFetch<any>({
         endpoint: `${API_BASE}/combos`,
         authFetch,
-        pageSize: PAGE_SIZE,
+        pageSize: 0,
         params: {
             search,
             status: statusFilter === 'ALL' ? '' : statusFilter,
         },
     });
 
-    // No setPage(1) here any more — the hook restarts at page 1 whenever a param
-    // changes, which is also what keeps the two from drifting out of step.
+
     const handleSearchChange = setSearch;
     const handleStatusChange = setStatusFilter;
 
@@ -63,14 +67,11 @@ export default function CombosPage() {
         <ComboLibraryView
             combos={combos}
             total={total}
-            page={page}
-            size={PAGE_SIZE}
             search={search}
             statusFilter={statusFilter}
             loading={loading}
             onSearchChange={handleSearchChange}
             onStatusChange={handleStatusChange}
-            onPageChange={setPage}
             onCreate={handleCreate}
             onEdit={handleEdit}
             onDelete={handleDelete}

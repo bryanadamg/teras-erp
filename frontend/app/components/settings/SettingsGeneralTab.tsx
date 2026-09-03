@@ -9,6 +9,7 @@ import { xpBtn, xpInput, FieldLabel, BTN_TONES, XP_BTN } from '../shared/xpTheme
 import { settingsActions, settingsCol, settingsColumns, settingsGrid, settingsHint } from './settingsStyles';
 import SettingsPanel from './SettingsPanel';
 import CompanyProfileView from './CompanyProfileView';
+import QtyFormulaPanel from './QtyFormulaPanel';
 
 export default function SettingsGeneralTab({
     appName, onUpdateAppName, uiStyle, onUpdateUIStyle,
@@ -130,6 +131,14 @@ export default function SettingsGeneralTab({
                     />
                 </div>
             )}
+
+            {/* Full-bleed on its own row, under the two forms: it is a wide data
+                table (four columns plus a tester), and the tab's rule is that
+                those don't share a row — squeezed between two forms its
+                expressions and its Makes column both had to shrink. */}
+            <div style={{ ...settingsCol(520, 1), flexBasis: '100%' }}>
+                <QtyFormulaPanel />
+            </div>
         </div>
     );
 }
