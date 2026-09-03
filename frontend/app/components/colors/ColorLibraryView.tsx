@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, XP_BTN } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip, CodeChip, CODE_FONT, SwatchBox, TableSkeleton, useTableSkeletonMetrics, XP_BTN } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
@@ -189,15 +189,6 @@ export default function ColorLibraryView({
         if (ok) onDelete(c.id);
     };
 
-    const swatch = (hex?: string) => (
-        <span style={{
-            display: 'inline-block', width: 18, height: 18, borderRadius: classic ? 2 : 4,
-            border: '1px solid #94a3b8', background: hex || 'transparent',
-            backgroundImage: hex ? undefined : 'linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%)',
-            backgroundSize: '8px 8px', backgroundPosition: '0 0, 4px 4px', verticalAlign: 'middle',
-        }} title={hex || 'no swatch'} />
-    );
-
     return (
         <div style={embedded
             ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
@@ -277,7 +268,7 @@ export default function ColorLibraryView({
                         ))}
                         {colors.map((c, idx) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>
-                                <td style={{ ...lvTd(classic), textAlign: 'center' }}>{swatch(c.hex)}</td>
+                                <td style={{ ...lvTd(classic), textAlign: 'center' }}><SwatchBox hex={c.hex} classic={classic} /></td>
                                 <td style={lvTd(classic)}>
                                     <CodeChip code={c.code} classic={classic} tone="accent" style={{ fontWeight: 'bold' }} />
                                 </td>
@@ -451,7 +442,7 @@ export default function ColorLibraryView({
                             <div>
                                 <label style={lvLabel(classic)}>Swatch (hex)</label>
                                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <input type="color" value={form.hex || '#ffffff'} onChange={e => setForm({ ...form, hex: e.target.value })} style={{ width: 36, height: 24, padding: 0, border: '1px solid #94a3b8', cursor: 'pointer' }} />
+                                    <SwatchBox hex={form.hex || null} size={24} classic={classic} onPick={h => setForm({ ...form, hex: h })} />
                                     <input value={form.hex} onChange={e => setForm({ ...form, hex: e.target.value })} placeholder="#RRGGBB" style={lvInput(classic)} />
                                 </div>
                             </div>
