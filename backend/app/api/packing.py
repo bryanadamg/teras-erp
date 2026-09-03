@@ -148,6 +148,41 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
     return out
 
 
+def _packed_alt_qty(po: PackingOrder, units: list) -> Optional[float]:
+    """Alt-unit count actually packed — summed from the CARTONS' own counts.
+
+    Deliberately not `qty_packed / uom2_base_factor`. That factor is a planning
+    estimate off the item's g/y, and on an elastic cloth the real weight of a
+    12-piece box is not what the estimate said it would be — the packer reweighs
+    every box, so `qty_packed` is a sum of scale readings. Dividing it back out
+    reports a piece count nobody counted, drifting exactly as far as the fabric
+    does: 216 boxes that each came in 3% light read as 84 pieces short of an
+    order that is physically complete.
+
+    Each carton stores the count the packer put in it (`Batch.alt_qty`), which is
+    a counted integer and not a derived one, so summing those is the only figure
+    that means "pieces packed". `fill_alt_qtys` populates it at mint time for
+    every carton of an order with a resolvable factor, so the derive-from-qty
+    fallback below is only for a carton minted before the order had one.
+
+    Rejected cartons are excluded, mirroring `qty_packed`. Dispatched ones are
+    NOT: `_packed_units_for` outer-joins StockBalance and keeps cartons whose
+    stock has left, so shipping an order can never walk its progress backwards.
+    """
+    if not po.uom2:
+        return None
+    factor = po.uom2_base_factor
+    total = 0.0
+    for u in units or []:
+        if u.quality_status in reject_service.REJECT_GRADES:
+            continue
+        if u.alt_qty is not None:
+            total += float(u.alt_qty)
+        elif factor:
+            total += float(u.qty or 0) / float(factor)
+    return round(total, 2)
+
+
 def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     """Attach non-column display fields the response schema expects."""
     if po.sales_order:
@@ -182,6 +217,9 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     for m in (po.materials or []):
         m.qty_consumed = consumed.get(str(m.item_id), 0.0)
     po.packed_units = units or []
+    # Counted, not derived — see _packed_alt_qty. Must be declared on
+    # PackingOrderResponse or response_model drops it silently.
+    po.qty_packed_alt = _packed_alt_qty(po, units)
     return po
 
 

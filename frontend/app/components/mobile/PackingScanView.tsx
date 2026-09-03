@@ -352,8 +352,19 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <Row label="Item" value={`${po.item_name || ''} (${po.item_code || ''})`} />
                         <Row label="Colour" value={po.color_name || '—'} />
                         <Row label="Sales order" value={po.sales_order_code || 'to stock'} />
-                        <Row label="Target" value={`${num(po.qty_target).toLocaleString()} ${po.item_uom || ''}`} />
-                        <Row label="Packed" value={`${num(po.qty_packed).toLocaleString()} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`} />
+                        {/* On an alt-unit order the packer counts pieces into the box, so
+                            these lead in that unit with the stock figure in brackets —
+                            same rule as the desktop pack modal. Both are COUNTED: the
+                            target is the count stated on the order, and packed is summed
+                            from the cartons' own counts server-side. Neither divides the
+                            kilos by g/y — the boxes are reweighed and an elastic cloth
+                            does not hold its estimate. */}
+                        <Row label="Target" value={hasAlt
+                            ? `${(num(po.qty2) > 0 ? num(po.qty2) : baseToAlt(num(po.qty_target), altFactor) ?? 0).toLocaleString()} ${altUom} (${num(po.qty_target).toLocaleString()} ${po.item_uom || ''})`
+                            : `${num(po.qty_target).toLocaleString()} ${po.item_uom || ''}`} />
+                        <Row label="Packed" value={hasAlt && po.qty_packed_alt != null
+                            ? `${num(po.qty_packed_alt).toLocaleString()} ${altUom} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`
+                            : `${num(po.qty_packed).toLocaleString()} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`} />
                         <Row label="Machine" value={po.work_center_name || 'not assigned'} />
                     </MobilePanel>
 

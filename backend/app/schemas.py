@@ -3301,6 +3301,12 @@ class PackingOrderResponse(BaseModel):
     variant_key: str = ""
     qty_target: float
     qty_packed: float = 0
+    # `qty_packed` restated in the alt selling unit — SUMMED from each carton's own
+    # stated count, never divided out of the kilos. The kilos are scale readings and
+    # an elastic cloth does not weigh what its g/y predicted, so the derived figure
+    # drifts with the fabric while this one counts pieces. None when the order has no
+    # alt unit. See `api/packing._packed_alt_qty`.
+    qty_packed_alt: float | None = None
     package_count: int = 0
     # Scrap rolled up across completions (QC-rejected cartons)
     qty_rejected: float = 0
