@@ -185,6 +185,21 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     const valueLabel = (options: Array<{value: string; label: string}>, id: string) =>
         options.find(o => o.value === id)?.label || '';
 
+    // Recipes match MOs by attribute_value_ids (Colors + Combo etc). The `Colors`
+    // (system_role='color') values among them are the color variant(s) this recipe
+    // is configured for — render them the same swatch+chip way as the Color Library.
+    const colorRoleValueById = React.useMemo(() => {
+        const map: Record<string, { value: string; hex?: string | null }> = {};
+        const attr = (attributes || []).find((a: any) => a.system_role === 'color');
+        (attr?.values || []).forEach((v: any) => { map[String(v.id)] = { value: v.value, hex: v.hex }; });
+        return map;
+    }, [attributes]);
+    const colorVariantsFor = React.useCallback((recipe: any) =>
+        (recipe.attribute_value_ids || [])
+            .map((vid: string) => colorRoleValueById[String(vid)])
+            .filter(Boolean),
+    [colorRoleValueById]);
+
     useEffect(() => {
         authFetch(`${API_BASE}/preferences/code_config_DYE`)
             .then((res: Response) => res.ok ? res.json() : null)
@@ -636,6 +651,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                             <th style={{ ...lvTh(classic), width: 30 }}></th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Code</th>
                             <th style={{ ...lvTh(classic), width: 130 }}>Color Code</th>
+                            <th style={{ ...lvTh(classic), width: 150 }}>Color Variant</th>
                             <th style={lvTh(classic)}>Name</th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Color Standard</th>
                             <th style={{ ...lvTh(classic), width: 110 }}>Substrate</th>
@@ -646,9 +662,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                     </thead>
                     <tbody ref={listBodyRef}>
                         {recipes.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={skel.cols ?? 9} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                            <TableSkeleton rows={8} cols={skel.cols ?? 10} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <TableEmpty colSpan={9} classic={classic} tdStyle={lvTd(classic)} message="No recipes found." />
+                            <TableEmpty colSpan={10} classic={classic} tdStyle={lvTd(classic)} message="No recipes found." />
                         ))}
                         {recipes.map((recipe: any, idx: number) => {
                             const rid = String(recipe.id);
@@ -672,6 +688,15 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                 </span>
                                             ) : <span style={{ color: '#aaa' }}>—</span>}
                                         </td>
+                                        <td style={lvTd(classic)}>
+                                            {colorVariantsFor(recipe).length > 0 ? (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                                    {colorVariantsFor(recipe).map((cv: { value: string; hex?: string | null }) => (
+                                                        <ColorSwatchChip key={cv.value} label={cv.value} classic={classic} hex={cv.hex} />
+                                                    ))}
+                                                </div>
+                                            ) : <span style={{ color: '#aaa' }}>—</span>}
+                                        </td>
                                         <td style={lvTd(classic)}>{recipe.name}</td>
                                         <td style={lvTd(classic)}>{recipe.color_standard || <span style={{ color: '#aaa' }}>—</span>}</td>
                                         <td style={lvTd(classic)}>{recipe.substrate_type || <span style={{ color: '#aaa' }}>—</span>}</td>
@@ -687,7 +712,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                     </tr>
                                     {expanded && (
                                         <tr>
-                                            <td colSpan={9} style={{ padding: 0 }}>
+                                            <td colSpan={10} style={{ padding: 0 }}>
                                                 <ExpandedRowPanel classic={classic}>
                                                     {renderDetail(recipe)}
                                                 </ExpandedRowPanel>
