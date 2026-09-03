@@ -15,6 +15,19 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-09-03
+
+### Added
+- Packing orders now target and fulfil on pieces packed rather than kilos weighed. A carton's piece count is the planned quantity — kg is only its estimate — so `qty_target`/`qty2` and progress are driven off the alt count, cartons split by the piece count per box instead of dividing a kg figure, and completions count packed pieces straight from the cartons. A creation-time check rejects a target that contradicts the stated alt count (e.g. a target authored in kg that doesn't match the piece count beside it) instead of silently packing to the wrong figure
+- Packing order list shows a pack progress bar per order, in the same thin-bar-plus-qty-line style as the Sales Order table's MO progress cell
+- New Lot modal's item field is a searchable picker instead of a plain dropdown
+- Manual lot creation can post an opening quantity at a chosen location, instead of only creating an empty lot
+
+### Fixed
+- Sales order line quantity is read in the item's stock UOM everywhere packing touches it, instead of the line's raw yards — a line authored in yards was being packed as if it were already in the stock unit
+- Packing from a Quarantine deep link inherits the sales order line's alt selling unit again; the linked SO could be SENT (partially shipped) and fall outside the open-orders list the picker searched, so the order — and the alt unit it carries — silently went unmatched
+- Shared action buttons (modal close, print, pager) no longer submit the form they're rendered inside, now that they're explicitly typed as buttons rather than defaulting to submit
+
 ## [0.20.0] - 2026-09-03
 
 ### Added
