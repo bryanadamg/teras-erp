@@ -120,12 +120,6 @@ export default function SettingsGeneralTab({
                 </SettingsPanel>
             </div>
 
-            {/* Production quantity formula. Its own column: four columns of table
-                plus a tester don't fit beside a pair of selects. */}
-            <div style={settingsCol(520, 1)}>
-                <QtyFormulaPanel />
-            </div>
-
             {/* Company Profile (Admin Only). Wider basis: it carries a 200px logo
                 well plus the address fields beside it. */}
             {hasPermission('admin.access') && (
@@ -137,6 +131,14 @@ export default function SettingsGeneralTab({
                     />
                 </div>
             )}
+
+            {/* Full-bleed on its own row, under the two forms: it is a wide data
+                table (four columns plus a tester), and the tab's rule is that
+                those don't share a row — squeezed between two forms its
+                expressions and its Makes column both had to shrink. */}
+            <div style={{ ...settingsCol(520, 1), flexBasis: '100%' }}>
+                <QtyFormulaPanel />
+            </div>
         </div>
     );
 }

@@ -46,6 +46,10 @@ export default function QtyFormulaModal({ isOpen, onClose, canEdit, onSaved }: {
             isOpen={isOpen}
             onClose={onClose}
             level={2}
+            // Modeless like the run window under it: the formula is written
+            // against the quantities on that form, so it has to be draggable
+            // aside and leave the run readable rather than dimming it.
+            modeless
             size="lg"
             title="Production Quantity Formula"
             footer={
