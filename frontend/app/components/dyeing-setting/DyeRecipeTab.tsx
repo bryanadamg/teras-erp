@@ -12,7 +12,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, CodeChip, ColorSwatchChip, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, CHIP_RADIUS, FORM_SECTION_BLUE, xpInput as xpInputBase, xpBtn as xpBtnBase } from '../shared/xpTheme';
 import { lvTh, lvTd, lvSep, lvLabel, lvThead, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, TableEmpty, lvRow, lvSubTable } from '../shared/listViewTheme';
 import { ToolbarButton, SearchField, ToolbarCount } from '../shared/shellTheme';
 import { API_BASE } from '../shared/apiBase';
@@ -666,10 +666,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                 <span
                                                     onClick={e => { e.stopPropagation(); router.push(`/colors?search=${encodeURIComponent(recipe.color_code)}`); }}
                                                     title={`Open ${recipe.color_code} in the Color Library`}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: classic ? 3 : 4, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
                                                 >
-                                                    <i className="bi bi-palette" style={{ fontSize: classic ? 9 : 11, color: '#0058e6' }} />
-                                                    <CodeChip code={recipe.color_code} classic={classic} link />
+                                                    <ColorSwatchChip label={recipe.color_code} classic={classic} hex={recipe.color_hex} title={`Open ${recipe.color_code} in the Color Library`} />
                                                 </span>
                                             ) : <span style={{ color: '#aaa' }}>—</span>}
                                         </td>
