@@ -210,10 +210,9 @@ def order_base_per_alt(po: PackingOrder, item=None) -> Optional[float]:
 def order_alt_target(po: PackingOrder, item=None) -> Optional[float]:
     """The alt-unit count an order is FOR — what `qty_packed_alt` is measured against.
 
-    The count stated on the order when there is one (that is the figure the customer
-    ordered, and `_assert_target_agrees_with_alt` already keeps it within 5% of the
-    base target). Otherwise the base target converted, which is all a hand-entered
-    order has to go on.
+    The count stated on the order when there is one — that is the figure the customer
+    ordered, and the one `qty_target` is itself derived from (`_sync_target_to_alt`).
+    Otherwise the base target converted, which is all a hand-entered order has to go on.
     """
     if not po.uom2:
         return None

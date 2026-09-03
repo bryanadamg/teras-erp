@@ -272,9 +272,8 @@ async def _apply_alt_unit(
     payload,
     so_line: Optional[SalesOrderLine] = None,
     item: Optional[Item] = None,
-    derive_target: bool = False,
 ) -> None:
-    """Set the order's alt selling unit, and derive `qty_target` from it if needed.
+    """Set the order's alt selling unit, and restate `qty_target` from it.
 
     The alt unit follows the sales order: when the caller states none and the
     order packs against an SO line, the line's own `uom2`/`uom2_factor` are
@@ -282,10 +281,16 @@ async def _apply_alt_unit(
     not silently re-scale cartons already minted). A pack-to-stock order simply
     states its own.
 
-    `qty_target` stays canonical in the item's UOM. It is derived from `qty2` when
-    the caller left it at zero, or on an edit that restated the alt count and not
-    the base one (`derive_target`) — a planner who types a base figure keeps it
-    even if the alt count rounds differently.
+    **The alt count IS the target** on an order that carries one. The customer
+    ordered 2880 pieces and the packer boxes 2880 pieces, so that count is what
+    the order is measured against (`packing_service.is_target_met` counts them);
+    `qty_target` is only the same quantity restated in the item's stock UOM,
+    estimated through the item's g/y so stock moves have a figure to work in. The
+    weight that actually leaves stock is read off the scale at each pack event and
+    deducted from the picked lot, so a base target stated beside a count is
+    *discarded* rather than allowed to contradict it — a planner typing the piece
+    count into the kg field is the common case, and both figures then read 50.
+    Only an order with no alt count keeps a hand-entered base figure.
     """
     stated = payload.uom2 or payload.uom2_factor or payload.qty2
     if not stated and so_line is not None:
@@ -304,10 +309,12 @@ async def _apply_alt_unit(
     elif po.uom2 and po.uom2_factor:
         po.uom2_length_uom = await _resolve_length_uom(db, po.uom2, po.uom2_factor)
 
-    if (derive_target or float(po.qty_target or 0) <= 0) and float(po.qty2 or 0) > 0:
-        base_factor = packing_service.order_base_per_alt(po, item)
-        derived = packing_service.alt_to_base(float(po.qty2), base_factor)
-        if derived is None:
+    if float(po.qty2 or 0) > 0 and _sync_target_to_alt(po, item) is None:
+        # No honest conversion (a gsm weight needs the fabric width, a counted
+        # stock UOM has no length at all). A base target stated by hand is then
+        # all there is to work stock in; with neither there is no figure at all,
+        # and a 400 beats inventing one.
+        if float(po.qty_target or 0) <= 0:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -315,53 +322,23 @@ async def _apply_alt_unit(
                     "set a conversion factor on the unit, or a g/y or g/m weight on the item"
                 ),
             )
-        po.qty_target = derived
-        return
-
-    _assert_target_agrees_with_alt(po, item)
 
 
-# How far `qty_target` may sit from what the alt count works out to before the two
-# are treated as different measurements rather than a rounded one. A planner who
-# rounds 2592 kg up to 2600 is 0.3% out; the unit mismatches this catches are an
-# order of magnitude worse — yards read as the stock unit is 5.5x here, and even
-# the narrowest of them, metres read as yards, is 9.4%.
-ALT_TARGET_TOLERANCE_PCT = 5.0
+def _sync_target_to_alt(po: PackingOrder, item=None) -> Optional[float]:
+    """Restate `qty_target` from the order's own alt count, returning the figure.
 
-
-def _assert_target_agrees_with_alt(po: PackingOrder, item=None) -> None:
-    """Reject a `qty_target` that contradicts the alt count stated beside it.
-
-    The two are statements of the SAME quantity in different units, so a stated
-    target that the alt count cannot reproduce means one of them is in the wrong
-    unit. That is not hypothetical: `SalesOrderLine.qty` is authored in YARDS
-    (see so_fulfilment_service.ordered_qty_in_stock_uom), and a caller that
-    prefills the target straight off the line hands us a length while calling it
-    the stock UOM. `qty_target` is the figure every carton, stock move and
-    progress bar is measured against, so a wrong one is not recoverable later —
-    it just reads as an order 5x its real size.
-
-    Only checked when the caller stated both and the conversion resolves; a
-    target with no alt count beside it has nothing to disagree with.
+    None means there was nothing to restate from — no alt count, or a conversion
+    the item's weight spec can't resolve — and `qty_target` is left untouched.
+    The alt count always wins where it resolves; see `_apply_alt_unit`.
     """
-    if float(po.qty_target or 0) <= 0 or float(po.qty2 or 0) <= 0:
-        return
+    if float(po.qty2 or 0) <= 0:
+        return None
     base_factor = packing_service.order_base_per_alt(po, item)
-    expected = packing_service.alt_to_base(float(po.qty2), base_factor)
-    if expected is None or expected <= 0:
-        return
-    stated = float(po.qty_target)
-    if abs(stated - expected) <= expected * ALT_TARGET_TOLERANCE_PCT / 100:
-        return
-    uom = getattr(item, "uom", None) or "the stock unit"
-    raise HTTPException(
-        status_code=400,
-        detail=(
-            f"Target {stated:g} {uom} does not match {float(po.qty2):g} {po.uom2} "
-            f"(= {expected:g} {uom}). One of the two is in the wrong unit — a sales "
-            f"order line's qty is in yards, not {uom}."
-        ),
-    )
+    derived = packing_service.alt_to_base(float(po.qty2), base_factor)
+    if derived is None or derived <= 0:
+        return None
+    po.qty_target = derived
+    return derived
 
 
 async def _assert_work_center(db: AsyncSession, wc_id) -> None:
@@ -646,23 +623,19 @@ async def update_packing_order(
         if val is not None:
             setattr(po, field, val)
 
-    # Alt unit edits re-resolve the length unit (and the base target when the
-    # planner restated only the alt count). No SO line is passed: an edit states
-    # what it means rather than silently re-snapshotting a line that may have
-    # moved on since the order was created.
+    # Alt unit edits re-resolve the length unit and restate the base target off
+    # the count. No SO line is passed: an edit states what it means rather than
+    # silently re-snapshotting a line that may have moved on since the order was
+    # created.
     if any(getattr(payload, f) is not None
            for f in ("qty2", "uom2", "uom2_factor", "uom2_length_uom")):
-        await _apply_alt_unit(
-            db, po, payload, item=po.item,
-            # Restating the alt count alone means the target follows it; restating
-            # the base target means the planner's own figure wins.
-            derive_target=payload.qty_target is None and payload.qty2 is not None,
-        )
+        await _apply_alt_unit(db, po, payload, item=po.item)
     elif payload.qty_target is not None:
-        # A target restated on its own still has to agree with the alt count the
-        # order already carries — otherwise the edit path is the way around the
-        # create path's guard.
-        _assert_target_agrees_with_alt(po, po.item)
+        # A base target restated on its own is only an estimate of the count the
+        # order already carries, so it is re-derived rather than kept — otherwise
+        # the edit path is the way to leave the two contradicting each other. An
+        # order with no alt count keeps whatever was sent.
+        _sync_target_to_alt(po, po.item)
 
     if payload.status == "COMPLETED" and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()

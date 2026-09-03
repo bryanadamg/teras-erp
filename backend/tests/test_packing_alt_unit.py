@@ -32,11 +32,9 @@ def _yard_item():
     return SimpleNamespace(uom="yard", weight_per_unit=None, weight_unit=None)
 
 
-def _apply(payload, item, po=None, derive_target=False):
+def _apply(payload, item, po=None):
     po = po or PackingOrder(code="PCK-TEST", qty_target=payload.qty_target or 0)
-    asyncio.run(papi._apply_alt_unit(
-        None, po, payload, item=item, derive_target=derive_target,
-    ))
+    asyncio.run(papi._apply_alt_unit(None, po, payload, item=item))
     return po
 
 
@@ -78,14 +76,16 @@ def test_a_factor_already_in_the_stock_unit_is_taken_as_it_stands():
     assert float(po.qty_target) == 200.0
 
 
-def test_a_stated_base_target_wins_over_the_alt_count():
-    # A planner who types a base figure keeps it; the count is then only a record
-    # of how the order was taken.
+def test_the_alt_count_wins_over_a_stated_base_target():
+    # The count is what the order is FOR; the base figure is only its weight
+    # estimate, so a stated one is restated rather than kept. 2600 kg beside
+    # 2880 Pcs is a planner's rounding at best and the piece count typed into
+    # the wrong field at worst — either way the pieces decide.
     po = _apply(
         _payload(qty_target=2600, qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
         _kg_item(),
     )
-    assert float(po.qty_target) == 2600.0
+    assert float(po.qty_target) == 2592.0
     assert float(po.qty2) == 2880
 
 
@@ -95,7 +95,7 @@ def test_editing_only_the_alt_count_moves_the_target():
                       uom2_factor=5, uom2_length_uom="yard")
     _apply(
         _payload(qty2=1440, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
-        _kg_item(), po=po, derive_target=True,
+        _kg_item(), po=po,
     )
     assert float(po.qty_target) == 1296.0
 
@@ -129,62 +129,56 @@ def test_the_alt_unit_is_snapshotted_from_the_ordered_line():
     assert float(po.uom2_factor) == 50
 
 
-# --- the target must agree with the count beside it -------------------------
+# --- a base target beside a count is only its estimate ----------------------
 #
-# `qty_target` and `qty2` are the same quantity in two units, so a stated target
-# the alt count cannot reproduce means one of them is in the wrong unit. The live
-# case: the pack form prefilled the target from `SalesOrderLine.qty`, which is
-# authored in YARDS, so a 2880 Pcs order of a kg-stocked cloth became a 14400 kg
-# packing order — 5.5x, and unrecoverable once cartons were minted against it.
+# `qty_target` and `qty2` are the same quantity in two units, and the COUNT is the
+# authoritative one: the customer ordered pieces, the packer boxes pieces, and the
+# kilos are read off the scale at each pack event. So a base target stated beside a
+# count is silently restated from it rather than trusted. That also disposes of the
+# unit mix-ups this used to refuse — the pack form prefilling the target from
+# `SalesOrderLine.qty` (authored in YARDS), or a planner typing the piece count
+# into the kg field, both of which used to reach the DB as an order 5x its size.
 
-def test_a_target_in_the_wrong_unit_is_refused():
-    from fastapi import HTTPException
-
-    with pytest.raises(HTTPException) as e:
-        _apply(
-            # 14400 is the YARD total (2880 x 5), handed over as if it were kg.
-            _payload(qty_target=14400, qty2=2880, uom2="Pcs", uom2_factor=5,
-                     uom2_length_uom="yard"),
-            _kg_item(),
-        )
-    assert e.value.status_code == 400
-    # Both figures named, so the planner can see which one is wrong.
-    assert "14400" in e.value.detail and "2880" in e.value.detail
-    assert "2592" in e.value.detail
-
-
-def test_a_metre_read_as_a_yard_target_is_refused():
-    # The narrowest unit mismatch this has to catch: 9.4%, well inside the range
-    # that reads as a plausible figure and well outside planner rounding.
-    from fastapi import HTTPException
-
-    with pytest.raises(HTTPException) as e:
-        _apply(
-            _payload(qty_target=15748, qty2=100, uom2="Roll", uom2_factor=144,
-                     uom2_length_uom="yard"),
-            _yard_item(),
-        )
-    assert e.value.status_code == 400
-
-
-def test_a_rounded_target_is_not_treated_as_a_unit_mismatch():
-    # 2600 against 2592 is 0.3% — a planner rounding up, not a wrong unit.
+def test_a_target_holding_the_yard_total_is_restated_from_the_count():
     po = _apply(
-        _payload(qty_target=2600, qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
+        # 14400 is the YARD total (2880 x 5), handed over as if it were kg.
+        _payload(qty_target=14400, qty2=2880, uom2="Pcs", uom2_factor=5,
+                 uom2_length_uom="yard"),
         _kg_item(),
     )
-    assert float(po.qty_target) == 2600.0
+    assert float(po.qty_target) == 2592.0
 
 
-def test_a_target_with_no_alt_count_has_nothing_to_disagree_with():
+def test_a_metre_total_read_as_yards_is_restated_from_the_count():
+    # The narrowest of these mismatches: 9.4%, well inside the range that reads
+    # as a plausible figure.
+    po = _apply(
+        _payload(qty_target=15748, qty2=100, uom2="Roll", uom2_factor=144,
+                 uom2_length_uom="yard"),
+        _yard_item(),
+    )
+    assert float(po.qty_target) == 14400.0
+
+
+def test_the_piece_count_typed_into_the_base_field_is_corrected():
+    # The reported case: 50 Pcs of a cloth at 5 yard x 180 g/y is 45 kg, and both
+    # fields read 50 because the planner typed the count twice.
+    po = _apply(
+        _payload(qty_target=50, qty2=50, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
+        _kg_item(),
+    )
+    assert float(po.qty_target) == 45.0
+
+
+def test_a_target_with_no_alt_count_is_left_alone():
     po = _apply(_payload(qty_target=14400, uom2="Pcs", uom2_factor=5,
                          uom2_length_uom="yard"), _kg_item())
     assert float(po.qty_target) == 14400.0
 
 
 def test_an_unresolvable_conversion_leaves_a_stated_target_alone():
-    # gsm needs the fabric width, so there is no expected figure to compare
-    # against — the check stays quiet rather than refusing on a guess.
+    # gsm needs the fabric width, so there is no honest figure to restate the
+    # target as — the planner's own is kept rather than refused on a guess.
     po = _apply(
         _payload(qty_target=14400, qty2=2880, uom2="Pcs", uom2_factor=5,
                  uom2_length_uom="yard"),
