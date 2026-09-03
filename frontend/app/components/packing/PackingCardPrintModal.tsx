@@ -6,6 +6,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { PRINT_FONT, PRINT_SERIF_FONT } from '../shared/xpTheme';
 import { orderBasePerAlt, baseToAlt } from '../shared/altUnit';
+import { orderBoxSizeAlt } from '../shared/packingBoxes';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -26,6 +27,9 @@ export default function PackingCardPrintModal({ po, attributes, companyProfile, 
         const c = altBaseFactor ? baseToAlt(Number(base || 0), altBaseFactor) : null;
         return c ? c.toLocaleString() : '';
     };
+    // Pieces per carton — the stated count where there is one, the stored weight
+    // divided back out for an order made before it was stored.
+    const boxSizeAlt = po.uom2 ? orderBoxSizeAlt(po, altBaseFactor) : null;
     const { formatCustom: tzFmt } = useTimezone();
     const [qrUrl, setQrUrl] = useState('');
 
@@ -85,12 +89,14 @@ export default function PackingCardPrintModal({ po, attributes, companyProfile, 
                             `${Number(po.qty_target || 0).toLocaleString()} ${po.item_uom || ''}`,
                             altCount(po.qty_target) ? `(${altCount(po.qty_target)} ${po.uom2})` : '',
                         ].filter(Boolean).join(' ')],
-                        ['Isi per koli', po.pack_size
-                            ? [
-                                `${Number(po.pack_size).toLocaleString()} ${po.item_uom || ''}`,
-                                altCount(po.pack_size) ? `(${altCount(po.pack_size)} ${po.uom2})` : '',
-                            ].filter(Boolean).join(' ')
-                            : '—'],
+                        // The count leads here, unlike Target above: this is the
+                        // instruction the packer follows box by box, and it is a count
+                        // of pieces — the kilos are what they weigh in theory, which
+                        // the scale then contradicts on every box.
+                        ['Isi per koli', boxSizeAlt
+                            ? `${boxSizeAlt.toLocaleString()} ${po.uom2}`
+                              + (po.pack_size ? ` (± ${Number(po.pack_size).toLocaleString()} ${po.item_uom || ''})` : '')
+                            : (po.pack_size ? `${Number(po.pack_size).toLocaleString()} ${po.item_uom || ''}` : '—')],
                         ['Satuan jual', po.uom2
                             ? `1 ${po.uom2} = ${Number(po.uom2_factor || 0)} ${po.uom2_length_uom || 'Yard'}`
                               + (altBaseFactor ? ` = ${altBaseFactor} ${po.item_uom || ''}` : '')

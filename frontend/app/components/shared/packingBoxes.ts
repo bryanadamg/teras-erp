@@ -82,7 +82,60 @@ export const expandBoxGroups = (groups: BoxGroup[]): BoxRow[] =>
         })),
     );
 
+/** The same split run in the alt selling unit — cartons of 12 Pcs, not of 10.8 kg.
+ *
+ *  A carton holds a whole number of pieces, so on an alt-unit order that count is
+ *  what the box size means and the kilos are only what it works out to. Splitting
+ *  the kilos instead ends a 130.1 kg draw with a 0.5 kg thirteenth box that is not
+ *  a carton of anything. Mirrors `packing_service.cartons_from_alt_split`: the
+ *  counts are laid out first, each box's qty is its count converted, and the last
+ *  box takes the leftover base qty so the lines still total the draw.
+ *
+ *  Returns null when there is nothing to split by, which leaves the caller on the
+ *  base-qty split. */
+const splitBoxesByAlt = (
+    total: number,
+    altSize: number,
+    baseFactor: number,
+): { qty: number; alt: number }[] | null => {
+    if (!(total > 0) || !(altSize > 0) || !(baseFactor > 0)) return null;
+    const totalAlt = baseToAlt(total, baseFactor);
+    if (totalAlt === null || totalAlt <= 0) return null;
+    const counts = splitBoxQtys(totalAlt, altSize);
+    const out: { qty: number; alt: number }[] = [];
+    let running = 0;
+    counts.forEach((count, i) => {
+        const qty = i === counts.length - 1
+            ? Number((total - running).toFixed(4))
+            : Number((count * baseFactor).toFixed(4));
+        if (i < counts.length - 1) running = Number((running + qty).toFixed(4));
+        // A remainder box that came out empty (the draw divides exactly) is not a
+        // box — dropped rather than shown as a zero-qty line the packer must delete.
+        if (qty > 1e-6) out.push({ qty, alt: count });
+    });
+    return out.length ? out : null;
+};
+
+/** The box size an order splits by, in the alt selling unit — null when it has no
+ *  alt unit to count in.
+ *
+ *  The stated count wins; `pack_size` is divided back out only for an order made
+ *  before the count was stored (`baseToAlt` snaps to a whole box, which it was
+ *  derived from in the first place). Shared so the desktop pack modal and the
+ *  mobile scanner can't seed different splits for the same order. */
+export const orderBoxSizeAlt = (po: any, baseFactor?: number | null): number | null => {
+    if (!baseFactor || baseFactor <= 0) return null;
+    const stated = Number(po?.pack_size_alt) || 0;
+    if (stated > 0) return stated;
+    const derived = baseToAlt(Number(po?.pack_size) || 0, baseFactor);
+    return derived && derived > 0 ? derived : null;
+};
+
 /** Seed groups for a qty/size, carrying over weights already keyed in.
+ *
+ *  `altSize` (with `baseFactor`) splits in the counting unit instead and wins when
+ *  both are given — see `splitBoxesByAlt`. `size` stays the base-qty fallback for
+ *  an order with no alt unit.
  *
  *  Weights are carried positionally across the *flattened* carton list rather
  *  than per group: re-splitting 17 kg from 5 kg boxes into 4 kg boxes changes
@@ -93,8 +146,28 @@ export const seedBoxGroups = (
     size: number,
     prev: BoxGroup[] = [],
     baseFactor?: number | null,
+    altSize?: number | null,
 ): BoxGroup[] => {
     const prevWeights = expandBoxGroups(prev).map(r => r.kg);
+    const byAlt = baseFactor ? splitBoxesByAlt(total, Number(altSize) || 0, baseFactor) : null;
+    if (byAlt) {
+        const groups: BoxGroup[] = [];
+        for (const box of byAlt) {
+            const last = groups[groups.length - 1];
+            if (last && n(last.qty) === box.qty && n(last.alt) === box.alt) {
+                last.count = String(groupCount(last) + 1);
+            } else {
+                groups.push({ count: '1', qty: String(box.qty), alt: String(box.alt), kg: [] });
+            }
+        }
+        let takenAlt = 0;
+        for (const g of groups) {
+            const size_ = groupCount(g);
+            g.kg = prevWeights.slice(takenAlt, takenAlt + size_);
+            takenAlt += size_;
+        }
+        return groups;
+    }
     const qtys = splitBoxQtys(total, size);
     // splitBoxQtys emits `full` boxes of `size` then at most one remainder, so
     // the run-length grouping below is at most two lines by construction.

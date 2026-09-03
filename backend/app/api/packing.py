@@ -50,6 +50,10 @@ def _load_options():
         selectinload(PackingOrder.completions)
         .selectinload(PackingCompletion.materials)
         .selectinload(PackingCompletionMaterial.item),
+        # `qty_packed_alt` sums these, and it is the DELIVERED gate — without the
+        # eager load the property silently reads an empty list in async and every
+        # alt-unit order looks 0 packed. Never drop it from this tuple.
+        selectinload(PackingOrder.cartons),
     )
 
 
@@ -182,6 +186,9 @@ def _decorate(po: PackingOrder, units: list = None) -> PackingOrder:
     for m in (po.materials or []):
         m.qty_consumed = consumed.get(str(m.item_id), 0.0)
     po.packed_units = units or []
+    # `qty_packed_alt` is a model property (counted off `cartons`), not assigned
+    # here — one definition, shared with the DELIVERED gate. It still has to be
+    # declared on PackingOrderResponse or response_model drops it silently.
     return po
 
 
@@ -265,9 +272,8 @@ async def _apply_alt_unit(
     payload,
     so_line: Optional[SalesOrderLine] = None,
     item: Optional[Item] = None,
-    derive_target: bool = False,
 ) -> None:
-    """Set the order's alt selling unit, and derive `qty_target` from it if needed.
+    """Set the order's alt selling unit, and restate `qty_target` from it.
 
     The alt unit follows the sales order: when the caller states none and the
     order packs against an SO line, the line's own `uom2`/`uom2_factor` are
@@ -275,10 +281,16 @@ async def _apply_alt_unit(
     not silently re-scale cartons already minted). A pack-to-stock order simply
     states its own.
 
-    `qty_target` stays canonical in the item's UOM. It is derived from `qty2` when
-    the caller left it at zero, or on an edit that restated the alt count and not
-    the base one (`derive_target`) — a planner who types a base figure keeps it
-    even if the alt count rounds differently.
+    **The alt count IS the target** on an order that carries one. The customer
+    ordered 2880 pieces and the packer boxes 2880 pieces, so that count is what
+    the order is measured against (`packing_service.is_target_met` counts them);
+    `qty_target` is only the same quantity restated in the item's stock UOM,
+    estimated through the item's g/y so stock moves have a figure to work in. The
+    weight that actually leaves stock is read off the scale at each pack event and
+    deducted from the picked lot, so a base target stated beside a count is
+    *discarded* rather than allowed to contradict it — a planner typing the piece
+    count into the kg field is the common case, and both figures then read 50.
+    Only an order with no alt count keeps a hand-entered base figure.
     """
     stated = payload.uom2 or payload.uom2_factor or payload.qty2
     if not stated and so_line is not None:
@@ -297,10 +309,16 @@ async def _apply_alt_unit(
     elif po.uom2 and po.uom2_factor:
         po.uom2_length_uom = await _resolve_length_uom(db, po.uom2, po.uom2_factor)
 
-    if (derive_target or float(po.qty_target or 0) <= 0) and float(po.qty2 or 0) > 0:
-        base_factor = packing_service.order_base_per_alt(po, item)
-        derived = packing_service.alt_to_base(float(po.qty2), base_factor)
-        if derived is None:
+    # The box size follows the same rule as the target: a stated count of pieces
+    # per carton is what the floor packs to, `pack_size` its weight estimate.
+    _sync_pack_size_to_alt(po, item)
+
+    if float(po.qty2 or 0) > 0 and _sync_target_to_alt(po, item) is None:
+        # No honest conversion (a gsm weight needs the fabric width, a counted
+        # stock UOM has no length at all). A base target stated by hand is then
+        # all there is to work stock in; with neither there is no figure at all,
+        # and a 400 beats inventing one.
+        if float(po.qty_target or 0) <= 0:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -308,7 +326,42 @@ async def _apply_alt_unit(
                     "set a conversion factor on the unit, or a g/y or g/m weight on the item"
                 ),
             )
-        po.qty_target = derived
+
+
+def _sync_pack_size_to_alt(po: PackingOrder, item=None) -> Optional[float]:
+    """`pack_size` restated from `pack_size_alt` — the box size in pieces.
+
+    Same relationship as `qty_target` to `qty2`, one level down: the carton holds
+    a stated number of pieces and `pack_size` is only what those weigh in theory.
+    Kept in sync so every screen that still reads the base figure (the Kartu
+    Packing's "Isi per koli", the legacy mobile seed) shows the right estimate
+    instead of a stale one.
+    """
+    if float(po.pack_size_alt or 0) <= 0:
+        return None
+    derived = packing_service.alt_to_base(
+        float(po.pack_size_alt), packing_service.order_base_per_alt(po, item))
+    if derived is None or derived <= 0:
+        return None
+    po.pack_size = derived
+    return derived
+
+
+def _sync_target_to_alt(po: PackingOrder, item=None) -> Optional[float]:
+    """Restate `qty_target` from the order's own alt count, returning the figure.
+
+    None means there was nothing to restate from — no alt count, or a conversion
+    the item's weight spec can't resolve — and `qty_target` is left untouched.
+    The alt count always wins where it resolves; see `_apply_alt_unit`.
+    """
+    if float(po.qty2 or 0) <= 0:
+        return None
+    base_factor = packing_service.order_base_per_alt(po, item)
+    derived = packing_service.alt_to_base(float(po.qty2), base_factor)
+    if derived is None or derived <= 0:
+        return None
+    po.qty_target = derived
+    return derived
 
 
 async def _assert_work_center(db: AsyncSession, wc_id) -> None:
@@ -479,12 +532,11 @@ async def create_packing_order(
         )).scalars().first()
         if not so:
             raise HTTPException(status_code=404, detail="Sales order not found")
-    if float(payload.qty_target or 0) <= 0 and float(payload.qty2 or 0) <= 0:
-        raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
     await _assert_work_center(db, payload.work_center_id)
 
-    # Loaded once: the line supplies both the variant identity and the alt selling
-    # unit this order counts in.
+    # Loaded once: the line supplies the variant identity, the alt selling unit
+    # this order counts in, and — when the caller states no quantity at all — the
+    # ordered qty itself. Loaded BEFORE the zero-qty gate for that last reason.
     so_line = None
     if payload.sales_order_line_id:
         so_line = (await db.execute(
@@ -492,6 +544,9 @@ async def create_packing_order(
             .options(selectinload(SalesOrderLine.attribute_values))
             .filter(SalesOrderLine.id == payload.sales_order_line_id)
         )).scalars().first()
+    if (float(payload.qty_target or 0) <= 0 and float(payload.qty2 or 0) <= 0
+            and so_line is None):
+        raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
 
     code = await _next_code(db)
     po = PackingOrder(
@@ -502,6 +557,7 @@ async def create_packing_order(
         color_id=payload.color_id,
         qty_target=payload.qty_target,
         pack_size=payload.pack_size,
+        pack_size_alt=payload.pack_size_alt,
         package_label=payload.package_label or "Carton",
         source_location_id=payload.source_location_id,
         output_location_id=payload.output_location_id,
@@ -515,6 +571,15 @@ async def create_packing_order(
     # Alt selling unit + (when the caller sent only an alt count) the base target.
     # Before the flush so `qty_target` is never written as 0 and then corrected.
     await _apply_alt_unit(db, po, payload, so_line=so_line, item=item)
+    # Last resort: the ordered qty of the line being packed. Restated into the
+    # item's stock UOM rather than taken raw — `SalesOrderLine.qty` is in yards.
+    if float(po.qty_target or 0) <= 0 and so_line is not None:
+        po.qty_target = so_fulfilment_service.ordered_qty_in_stock_uom(
+            so_line.qty, item.uom,
+            qty_kg=so_line.qty_kg,
+            weight_per_unit=item.weight_per_unit,
+            weight_unit=item.weight_unit,
+        )
     if float(po.qty_target or 0) <= 0:
         raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
 
@@ -576,24 +641,30 @@ async def update_packing_order(
     await _assert_work_center(db, payload.work_center_id)
 
     for field in ("qty_target", "sales_order_id", "sales_order_line_id", "color_id",
-                  "pack_size", "package_label", "source_location_id", "output_location_id",
+                  "pack_size", "pack_size_alt", "package_label",
+                  "source_location_id", "output_location_id",
                   "work_center_id", "status", "target_start_date", "target_end_date", "notes"):
         val = getattr(payload, field)
         if val is not None:
             setattr(po, field, val)
 
-    # Alt unit edits re-resolve the length unit (and the base target when the
-    # planner restated only the alt count). No SO line is passed: an edit states
-    # what it means rather than silently re-snapshotting a line that may have
-    # moved on since the order was created.
+    # Alt unit edits re-resolve the length unit and restate the base target off
+    # the count. No SO line is passed: an edit states what it means rather than
+    # silently re-snapshotting a line that may have moved on since the order was
+    # created.
     if any(getattr(payload, f) is not None
            for f in ("qty2", "uom2", "uom2_factor", "uom2_length_uom")):
-        await _apply_alt_unit(
-            db, po, payload, item=po.item,
-            # Restating the alt count alone means the target follows it; restating
-            # the base target means the planner's own figure wins.
-            derive_target=payload.qty_target is None and payload.qty2 is not None,
-        )
+        await _apply_alt_unit(db, po, payload, item=po.item)
+    elif payload.qty_target is not None or payload.pack_size_alt is not None:
+        # A base target restated on its own is only an estimate of the count the
+        # order already carries, so it is re-derived rather than kept — otherwise
+        # the edit path is the way to leave the two contradicting each other. An
+        # order with no alt count keeps whatever was sent. Same for the box size:
+        # a new count of pieces per carton restates its weight.
+        if payload.qty_target is not None:
+            _sync_target_to_alt(po, po.item)
+        if payload.pack_size_alt is not None:
+            _sync_pack_size_to_alt(po, po.item)
 
     if payload.status == "COMPLETED" and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
@@ -605,7 +676,7 @@ async def update_packing_order(
     # CANCELLED — those are the user's explicit closure, not a function of qty —
     # and never overrides a status the caller stated itself.
     if payload.status is None:
-        met = po.qty_packed + 1e-6 >= float(po.qty_target or 0) > 0
+        met = packing_service.is_target_met(po)
         if po.status == "DELIVERED" and not met:
             po.status = "IN_PROGRESS"
             po.actual_end_date = None
@@ -745,6 +816,21 @@ async def add_packing_completion(
             return qty / max(1, int(stated_count))
         return float(po.pack_size or 0)
 
+    def _box_size_alt(stated_count: Optional[int]) -> float:
+        """The box size in PIECES, when this event has one to split by.
+
+        Same precedence as `_box_size` one level up: what the caller stated for
+        this event beats the order's stored default. A caller that stated a base
+        `box_size` or an explicit carton count for this event means it, so the
+        order's stored count does not then override them — but nothing else does,
+        which makes the count the default split on an alt-unit order.
+        """
+        if payload.box_size_alt:
+            return float(payload.box_size_alt)
+        if payload.box_size or stated_count:
+            return 0.0
+        return float(po.pack_size_alt or 0)
+
     lot_qtys = [float(lot.qty) if lot else float(payload.qty) for lot in lots]
     # Loose scrap per lot: material that left the source location but never
     # became a carton. Deliberately kept out of `lot_qtys` — those feed
@@ -808,9 +894,15 @@ async def add_packing_completion(
             # No explicit box list — the split is derived from the box size, and
             # no scale reading came with it, so `assert_all_weighed` below turns
             # this into a 400. Kept as a path only so the error names the cartons.
-            box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
-            carton_qtys = [
-                packing_service.Carton(q) for q in packing_service.split_qty(lot_qty, box_size)
+            stated_count = lot.package_count if lot else payload.package_count
+            # Pieces first on an alt-unit order: the carton is counted, and the
+            # kilos it works out to are what the scale then argues with. Falls
+            # through to the base split when there is no count to split by.
+            carton_qtys = packing_service.cartons_from_alt_split(
+                lot_qty, _box_size_alt(stated_count), alt_base_factor,
+            ) or [
+                packing_service.Carton(q)
+                for q in packing_service.split_qty(lot_qty, _box_size(stated_count, lot_qty))
             ]
 
         # A kg-based item measures its cartons once: the qty in the box is its net
@@ -1004,14 +1096,13 @@ async def add_packing_completion(
     if po.status == "PENDING":
         po.status = "IN_PROGRESS"
         po.actual_start_date = po.actual_start_date or datetime.utcnow()
-    if po.qty_packed + 1e-6 >= float(po.qty_target or 0) and not po.actual_end_date:
+    if packing_service.is_target_met(po) and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
     # Fulfilled but still open — the MO's DELIVERED/COMPLETED split (SAP DLV vs
     # TECO). Logging stays allowed (only COMPLETED/CANCELLED stop it); what this
     # buys is that the order's *open* quantity is now zero, so quarantine stops
     # treating it as a claim on the hold bin's stock. Never auto-closes.
-    if (po.status in ("PENDING", "IN_PROGRESS")
-            and po.qty_packed + 1e-6 >= float(po.qty_target or 0)):
+    if po.status in ("PENDING", "IN_PROGRESS") and packing_service.is_target_met(po):
         po.status = "DELIVERED"
     await db.commit()
 
@@ -1150,7 +1241,7 @@ async def reject_packing_completion(
     # Reopen: packed progress just dropped, so an order that had hit target is no
     # longer fulfilled. Never auto-closes on qty, never auto-closes off it either.
     po = await _load(db, po_id)
-    if po.actual_end_date and po.qty_packed + 1e-6 < float(po.qty_target or 0):
+    if po.actual_end_date and not packing_service.is_target_met(po):
         po.actual_end_date = None
         if po.status in ("DELIVERED", "COMPLETED"):
             po.status = "IN_PROGRESS"

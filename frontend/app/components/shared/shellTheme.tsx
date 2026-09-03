@@ -200,6 +200,7 @@ export function ToolbarButton({
     if (classic) {
         return (
             <button
+                type="button"
                 data-testid={testId}
                 className={XP_BTN}
                 onClick={onClick}
@@ -220,6 +221,7 @@ export function ToolbarButton({
     }
     return (
         <button
+            type="button"
             data-testid={testId}
             className={`btn btn-sm ${TOOLBAR_BTN_MODERN[tone]}${printable ? ' btn-print' : ''}`}
             onClick={onClick}

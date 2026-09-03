@@ -66,6 +66,14 @@ class PackingOrder(Base):
     qty_target: Mapped[float] = mapped_column(Numeric(14, 4), default=0)
     # Default FG qty per carton; the completion form pre-fills from it.
     pack_size: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    # The same box size in the alt selling unit — "12 Pcs per carton". This is the
+    # AUTHORITATIVE one whenever it is set, exactly as `qty2` is authoritative over
+    # `qty_target`: a carton holds a whole number of pieces, and `pack_size` is only
+    # that count run through the item's g/y, which the scale then contradicts by a
+    # couple of hundred grams on every box. Splitting by the kilos instead produced
+    # a phantom last carton (12 boxes of 10.8 kg from a 130 kg draw leaves 0.4 kg,
+    # which is not a box of anything) and printed labels reading 11.8 Pcs.
+    pack_size_alt: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     package_label: Mapped[str] = mapped_column(String(32), default="Carton")
 
     # --- Alt (selling) unit -------------------------------------------------
@@ -135,6 +143,17 @@ class PackingOrder(Base):
     created_by = relationship("User")
     materials = relationship("PackingOrderMaterial", backref="packing_order", cascade="all, delete-orphan")
     completions = relationship("PackingCompletion", backref="packing_order", cascade="all, delete-orphan")
+    # Every carton this order ever minted — `Batch` rows discriminated by
+    # `packing_order_id`, the same way warp beams hang off `source_wo_id`. No
+    # cascade: a carton outlives its order (it is stock, and its lot genealogy is
+    # referenced by BatchConsumption), so deleting the order must not delete it.
+    # Deliberately NOT filtered on remaining stock — a dispatched carton was still
+    # packed, and dropping it would walk `qty_packed_alt` backwards on shipment.
+    cartons = relationship(
+        "Batch",
+        primaryjoin="PackingOrder.id == foreign(Batch.packing_order_id)",
+        viewonly=True,
+    )
 
     @property
     def item_name(self):
@@ -161,6 +180,30 @@ class PackingOrder(Base):
     @property
     def package_count(self) -> int:
         return int(sum(int(c.package_count or 0) for c in (self.completions or []) if not c.rejected))
+
+    @property
+    def qty_packed_alt(self) -> Optional[float]:
+        """Alt-unit count packed — SUMMED from the cartons, never divided out of kg.
+
+        `uom2_factor` is a planning estimate off the item's g/y. An elastic cloth
+        does not weigh what that predicted, and the packer reweighs every box, so
+        `qty_packed` is a sum of scale readings. Dividing it back by the factor
+        reports a piece count nobody counted, drifting as far as the fabric does.
+        `Batch.alt_qty` is what the packer actually put in each box, so summing
+        those is the only figure that means "pieces packed".
+
+        Rejected cartons are excluded, mirroring `qty_packed`. Requires `cartons`
+        to be eager-loaded — async SQLAlchemy cannot lazy-load it.
+        """
+        if not self.uom2:
+            return None
+        total = 0.0
+        for c in (self.cartons or []):
+            if c.quality_status in ("REJECTED", "REJECT_USABLE"):
+                continue
+            if c.alt_qty is not None:
+                total += float(c.alt_qty)
+        return round(total, 2)
 
     @property
     def qty_rejected(self) -> float:

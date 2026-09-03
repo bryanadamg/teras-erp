@@ -20,6 +20,7 @@ const LOT_STATUS_FILTERS = [
 ];
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue, buildCategoryTree } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
+import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
 import { ExpanderCell, SortableTh, lvZebra, lvThead, lvTh, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
@@ -86,6 +87,7 @@ interface Item {
   id: string;
   code: string;
   name: string;
+  default_putaway_location_id?: string | null;
 }
 
 interface ForwardNode {
@@ -223,6 +225,16 @@ export default function BatchesView({ items, locations, categories, workCenters,
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createItemId, setCreateItemId] = useState('');
   const [createNotes, setCreateNotes] = useState('');
+  const [createQty, setCreateQty] = useState('');
+  const [createLocId, setCreateLocId] = useState('');
+  // Server typeahead: `items` is only DataContext's current page, so an item off
+  // that page is unreachable by typing in a client-filtered list.
+  const { results: createItemResults, onSearch: onSearchCreateItem, resolve: resolveCreateItem } =
+    useItemSearch({ seed: items, enabled: isCreateOpen });
+  const createItemOptions = React.useMemo(
+    () => (createItemResults || []).map(itemToOption),
+    [createItemResults],
+  );
   const [creating, setCreating] = useState(false);
 
   // Expandable row trace state
@@ -331,20 +343,39 @@ export default function BatchesView({ items, locations, categories, workCenters,
     setLotLabels([b]);
   };
 
+  // Picking the item preselects its default putaway bin, same priority the
+  // production putaway suggestion starts from.
+  const onCreateItemChange = (id: string) => {
+    setCreateItemId(id);
+    const it = resolveCreateItem(id);
+    setCreateLocId(it?.default_putaway_location_id ? String(it.default_putaway_location_id) : '');
+  };
+
   const handleCreate = async () => {
     if (!createItemId) { showToast('Select an item', 'warning'); return; }
+    const qty = parseFloat(createQty);
+    if (createQty !== '' && (isNaN(qty) || qty < 0)) { showToast('Quantity must be a positive number', 'warning'); return; }
+    const hasQty = createQty !== '' && !isNaN(qty) && qty > 0;
+    if (hasQty && !createLocId) { showToast('Select a location for the opening quantity', 'warning'); return; }
     setCreating(true);
     try {
       const res = await authFetch(`${apiBase}/batches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: createItemId, notes: createNotes || null }),
+        body: JSON.stringify({
+          item_id: createItemId,
+          notes: createNotes || null,
+          qty: hasQty ? qty : null,
+          location_id: hasQty ? createLocId : null,
+        }),
       });
       if (res.ok) {
         showToast('Lot created', 'success');
         setIsCreateOpen(false);
         setCreateItemId('');
         setCreateNotes('');
+        setCreateQty('');
+        setCreateLocId('');
         fetchBatches();
       } else {
         const err = await res.json();
@@ -1133,15 +1164,46 @@ export default function BatchesView({ items, locations, categories, workCenters,
         >
           <div className="mb-3">
             <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Item</label>
-            <select
-              className={classic ? '' : 'form-select form-select-sm mt-1'}
+            <div className="mt-1">
+              <SearchableSelect
+                options={createItemOptions}
+                value={createItemId}
+                onChange={onCreateItemChange}
+                onSearch={onSearchCreateItem}
+                placeholder="Search item..."
+                size="sm"
+              />
+            </div>
+          </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Quantity (optional)</label>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              className={classic ? '' : 'form-control form-control-sm mt-1'}
               style={classic ? { ...xpInput, width: '100%', height: 22 } : {}}
-              value={createItemId}
-              onChange={e => setCreateItemId(e.target.value)}
-            >
-              <option value="">-- Select Item --</option>
-              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-            </select>
+              value={createQty}
+              onChange={e => setCreateQty(e.target.value)}
+              placeholder="0"
+            />
+            <div style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+              Books the lot into stock at the location below. Leave blank to create an empty lot.
+            </div>
+          </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Location{createQty && parseFloat(createQty) > 0 ? '' : ' (optional)'}</label>
+            <div className="mt-1">
+              <TreeSelect
+                options={locationPickerTree}
+                value={createLocId}
+                onChange={setCreateLocId}
+                allowEmpty
+                emptyLabel="-- Select Location --"
+                size="sm"
+                style={classic ? { width: '100%' } : undefined}
+              />
+            </div>
           </div>
           <div className="mb-3">
             <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Notes (optional)</label>

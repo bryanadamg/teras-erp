@@ -159,15 +159,15 @@ export function PrintModalFooter({ note, onClose, onPrint, printDisabled = false
             <div style={{ display: 'flex', gap: 6 }}>
                 {classic ? (
                     <>
-                        <button className={XP_BTN} style={grey} onClick={onClose}>{closeLabel}</button>
-                        <button className={XP_BTN} style={green} disabled={printDisabled} onClick={onPrint}>
+                        <button type="button" className={XP_BTN} style={grey} onClick={onClose}>{closeLabel}</button>
+                        <button type="button" className={XP_BTN} style={green} disabled={printDisabled} onClick={onPrint}>
                             <i className="bi bi-printer" style={{ marginRight: 4 }} />{printLabel}
                         </button>
                     </>
                 ) : (
                     <>
-                        <button className="btn btn-sm btn-secondary" onClick={onClose}>{closeLabel}</button>
-                        <button className="btn btn-sm btn-success" disabled={printDisabled} onClick={onPrint}>
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={onClose}>{closeLabel}</button>
+                        <button type="button" className="btn btn-sm btn-success" disabled={printDisabled} onClick={onPrint}>
                             <i className="bi bi-printer me-1" />{printLabel}
                         </button>
                     </>

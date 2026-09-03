@@ -207,6 +207,60 @@ def order_base_per_alt(po: PackingOrder, item=None) -> Optional[float]:
     )
 
 
+def order_alt_target(po: PackingOrder, item=None) -> Optional[float]:
+    """The alt-unit count an order is FOR — what `qty_packed_alt` is measured against.
+
+    The count stated on the order when there is one — that is the figure the customer
+    ordered, and the one `qty_target` is itself derived from (`_sync_target_to_alt`).
+    Otherwise the base target converted, which is all a hand-entered order has to go on.
+    """
+    if not po.uom2:
+        return None
+    if po.qty2 and float(po.qty2) > 0:
+        return float(po.qty2)
+    factor = order_base_per_alt(po, item)
+    if not factor or float(factor) <= 0:
+        return None
+    return round(float(po.qty_target or 0) / float(factor), 2)
+
+
+def is_target_met(po: PackingOrder, item=None, tol: float = 1e-6) -> bool:
+    """Has this order packed what it was for?
+
+    Measured in whatever the order is COUNTED in: pieces on an alt-unit order, the
+    stock UOM otherwise. This is the DELIVERED gate, the reopen-on-reject test and
+    the input to quarantine's open-quantity claim, and all of them have to ask the
+    same question — an order for 2880 Pcs is fulfilled when 2880 pieces are boxed,
+    whatever they weighed. Judged in kg against a target derived from the item's
+    g/y, a physically complete run of elastic cloth never reached DELIVERED, because
+    the boxes are reweighed and the cloth does not hold its estimate.
+
+    Falls back to the base comparison whenever the piece count is unavailable (no alt
+    unit, or `cartons` not eager-loaded), so it is never *less* correct than the kg
+    test it replaces. Never inline either comparison again — four call sites drifting
+    apart on "is it done" is what this exists to prevent.
+    """
+    packed_alt = po.qty_packed_alt
+    ordered_alt = order_alt_target(po, item)
+    if packed_alt is not None and ordered_alt is not None and ordered_alt > 0:
+        return packed_alt + tol >= ordered_alt
+    return po.qty_packed + tol >= float(po.qty_target or 0) > 0
+
+
+def open_qty(po: PackingOrder, item=None) -> float:
+    """What this order still owes, in the item's stock UOM.
+
+    Quarantine claims this against released lots, and stock is claimed in kg however
+    the order is counted — so the figure stays in the base unit. Only the *decision*
+    that an order owes nothing moves to the counting unit: a fulfilled 2880 Pcs order
+    that came in light must stop claiming hold stock, which a raw `qty_target -
+    qty_packed` subtraction would keep it doing forever.
+    """
+    if is_target_met(po, item):
+        return 0.0
+    return max(0.0, float(po.qty_target or 0) - po.qty_packed)
+
+
 def split_qty(total: float, box_size: float) -> list[float]:
     """Fixed-size boxes plus one remainder box, not an even split.
 
@@ -226,6 +280,54 @@ def split_qty(total: float, box_size: float) -> list[float]:
     if remainder > 1e-6:
         parts.append(remainder)
     return parts or [round(total, 4)]
+
+
+def cartons_from_alt_split(
+    lot_qty: float,
+    per_carton_alt: float,
+    base_factor: Optional[float],
+) -> Optional[list[Carton]]:
+    """Split a draw into cartons of a fixed PIECE count, not a fixed weight.
+
+    The counting unit runs the split on an alt-unit order, for the same reason it
+    runs `is_target_met`: a carton holds 12 pieces, and the 10.8 kg those work out
+    to is an estimate the scale contradicts on every box. Splitting the kilos
+    instead produced boxes nobody packed — a 130.1 kg draw against a 10.8 kg box
+    is 12 boxes plus a 0.5 kg thirteenth, which is not a carton of anything, and
+    each label printed 11.8 Pcs once the real weight went in.
+
+    So the counts are laid out first (`split_qty` in the alt unit, off the count
+    the draw implies), then each carton's base qty is that count converted —
+    except the LAST, which takes whatever base qty is left over. The cartons must
+    sum to exactly what left the source location: this figure is the stock move,
+    and 12 rounded 10.8s against a 130.1 kg draw would post a ledger that doesn't
+    balance its own line.
+
+    None when the conversion can't be resolved or no count size was given, which
+    leaves the caller on the base-qty split.
+    """
+    factor = float(base_factor or 0)
+    per = float(per_carton_alt or 0)
+    if factor <= 0 or per <= 0 or float(lot_qty) <= 0:
+        return None
+    total_alt = base_to_alt(float(lot_qty), factor)
+    if total_alt is None or total_alt <= 0:
+        return None
+    counts = split_qty(total_alt, per)
+    out: list[Carton] = []
+    running = 0.0
+    for i, count in enumerate(counts):
+        if i == len(counts) - 1:
+            qty = round(float(lot_qty) - running, 4)
+        else:
+            qty = round(count * factor, 4)
+            running = round(running + qty, 4)
+        if qty <= 0:
+            # The remainder box came out empty (the draw divides exactly into the
+            # counts above): drop it rather than mint a zero-qty label.
+            continue
+        out.append(Carton(qty, None, round(count, 4)))
+    return out or None
 
 
 def describe_box_breakdown(qtys: list[float]) -> str:

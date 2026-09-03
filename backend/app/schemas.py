@@ -2898,6 +2898,10 @@ class BackupScheduleResponse(BaseModel):
 class BatchCreate(BaseModel):
     item_id: UUID
     notes: Optional[str] = None
+    # Optional opening stock for the new lot. qty > 0 requires a location — a lot
+    # with a quantity but nowhere to sit would write a balance row nothing reads.
+    qty: Optional[float] = None
+    location_id: Optional[UUID] = None
 
 class BatchResponse(BaseModel):
     id: UUID
@@ -3032,7 +3036,12 @@ class PackingOrderCreate(BaseModel):
     sales_order_line_id: UUID | None = None
     color_id: UUID | None = None
     attribute_value_ids: list[UUID] = []
+    # Box size, in the item's UOM. Derived from `pack_size_alt` when that is sent
+    # with a resolvable alt unit — the count is what the floor packs to.
     pack_size: float | None = None
+    # Box size in the alt selling unit ("12 Pcs per carton"). Wins over
+    # `pack_size` whenever the conversion resolves; see PackingOrder.pack_size_alt.
+    pack_size_alt: float | None = None
     package_label: str = "Carton"
     # Alt (selling) unit. Omit all three when packing against an SO line and the
     # server snapshots the line's own — that is the normal path, so the packing
@@ -3061,6 +3070,7 @@ class PackingOrderUpdate(BaseModel):
     color_id: UUID | None = None
     attribute_value_ids: list[UUID] | None = None
     pack_size: float | None = None
+    pack_size_alt: float | None = None
     package_label: str | None = None
     qty2: float | None = None
     uom2: str | None = None
@@ -3108,6 +3118,12 @@ class PackingCompletionCreate(BaseModel):
     # omit to fall back to pack_size, or to the legacy package_count if neither
     # is set. Applies across every lot in `lots`. Ignored when `boxes` is given.
     box_size: float | None = None
+    # The same per-event box size stated in the alt selling unit — "break this draw
+    # into 12 Pcs cartons". Wins over `box_size` and over the order's own sizes,
+    # and is how an alt-unit order splits: a carton holds a whole number of pieces,
+    # while the kilos it works out to are an estimate the scale then contradicts.
+    # Ignored when `boxes` is given (the packer stated the boxes themselves).
+    box_size_alt: float | None = None
     # Explicit, user-edited box quantities for the whole event (spanning every
     # lot in `lots` combined) — must sum to the total qty being packed. Wins
     # over `box_size`; a box that doesn't fit within one lot's draw is split
@@ -3297,11 +3313,20 @@ class PackingOrderResponse(BaseModel):
     variant_key: str = ""
     qty_target: float
     qty_packed: float = 0
+    # `qty_packed` restated in the alt selling unit — SUMMED from each carton's own
+    # stated count, never divided out of the kilos. The kilos are scale readings and
+    # an elastic cloth does not weigh what its g/y predicted, so the derived figure
+    # drifts with the fabric while this one counts pieces. None when the order has no
+    # alt unit. See `api/packing._packed_alt_qty`.
+    qty_packed_alt: float | None = None
     package_count: int = 0
     # Scrap rolled up across completions (QC-rejected cartons)
     qty_rejected: float = 0
     package_count_rejected: int = 0
     pack_size: float | None = None
+    # Box size in the alt selling unit, and the one the pack screens split by when
+    # it is set — `pack_size` is its weight estimate. See PackingOrder.pack_size_alt.
+    pack_size_alt: float | None = None
     package_label: str
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None

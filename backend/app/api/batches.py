@@ -285,6 +285,19 @@ async def create_batch(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    qty = float(payload.qty or 0)
+    if qty < 0:
+        raise HTTPException(status_code=400, detail="Opening qty cannot be negative")
+    location = None
+    if qty > 0:
+        if not payload.location_id:
+            raise HTTPException(status_code=400, detail="Select a location for the opening quantity")
+        location = (await db.execute(
+            select(Location).filter(Location.id == payload.location_id)
+        )).scalars().first()
+        if not location:
+            raise HTTPException(status_code=404, detail="Location not found")
+
     batch_number = await generate_batch_number(db)
 
     batch = Batch(
@@ -294,16 +307,32 @@ async def create_batch(
         created_by=current_user.username,
     )
     db.add(batch)
+    await db.flush()
+
+    # Opening balance: one lotted stock entry at the chosen location, in the
+    # no-variant bucket (a manual lot carries no variant identity of its own).
+    if qty > 0:
+        await stock_service.add_stock_entry(
+            db, item_id=payload.item_id, location_id=payload.location_id, qty_change=qty,
+            reference_type="Lot Opening", reference_id=batch_number, batch_id=batch.id,
+        )
+
     await db.commit()
-    await db.refresh(batch)
-    batch.item_code = item.code
-    batch.item_name = item.name
+    # Reload with the item joined — _enrich_batches touches batch.item, which
+    # would lazy-load (MissingGreenlet) on the freshly created instance.
+    batch = (await db.execute(
+        select(Batch).options(joinedload(Batch.item))
+        .filter(Batch.id == batch.id).execution_options(populate_existing=True)
+    )).scalars().first()
 
     await audit_service.log_activity(
         db, current_user.id, "CREATE", "Batch", str(batch.id),
         details=f"Created batch {batch_number} for item {payload.item_id}"
+        + (f" with {qty:g} at {location.name}" if qty > 0 else "")
     )
-    return batch
+    if qty > 0:
+        await manager.broadcast({"type": "STOCK_UPDATE"})
+    return (await _enrich_batches(db, [batch]))[0]
 
 
 async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: uuid.UUID | None = None, with_source_lots: bool = False) -> list[Batch]:

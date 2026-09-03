@@ -32,11 +32,17 @@ def _yard_item():
     return SimpleNamespace(uom="yard", weight_per_unit=None, weight_unit=None)
 
 
-def _apply(payload, item, po=None, derive_target=False):
-    po = po or PackingOrder(code="PCK-TEST", qty_target=payload.qty_target or 0)
-    asyncio.run(papi._apply_alt_unit(
-        None, po, payload, item=item, derive_target=derive_target,
-    ))
+def _apply(payload, item, po=None):
+    # Mirrors the create path: the endpoint constructs the row from the payload's
+    # own figures and `_apply_alt_unit` then restates the derived ones off the
+    # counts, so the box size has to be seeded here the same way the target is.
+    po = po or PackingOrder(
+        code="PCK-TEST",
+        qty_target=payload.qty_target or 0,
+        pack_size=payload.pack_size,
+        pack_size_alt=payload.pack_size_alt,
+    )
+    asyncio.run(papi._apply_alt_unit(None, po, payload, item=item))
     return po
 
 
@@ -78,14 +84,16 @@ def test_a_factor_already_in_the_stock_unit_is_taken_as_it_stands():
     assert float(po.qty_target) == 200.0
 
 
-def test_a_stated_base_target_wins_over_the_alt_count():
-    # A planner who types a base figure keeps it; the count is then only a record
-    # of how the order was taken.
+def test_the_alt_count_wins_over_a_stated_base_target():
+    # The count is what the order is FOR; the base figure is only its weight
+    # estimate, so a stated one is restated rather than kept. 2600 kg beside
+    # 2880 Pcs is a planner's rounding at best and the piece count typed into
+    # the wrong field at worst — either way the pieces decide.
     po = _apply(
         _payload(qty_target=2600, qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
         _kg_item(),
     )
-    assert float(po.qty_target) == 2600.0
+    assert float(po.qty_target) == 2592.0
     assert float(po.qty2) == 2880
 
 
@@ -95,7 +103,7 @@ def test_editing_only_the_alt_count_moves_the_target():
                       uom2_factor=5, uom2_length_uom="yard")
     _apply(
         _payload(qty2=1440, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
-        _kg_item(), po=po, derive_target=True,
+        _kg_item(), po=po,
     )
     assert float(po.qty_target) == 1296.0
 
@@ -127,6 +135,99 @@ def test_the_alt_unit_is_snapshotted_from_the_ordered_line():
     ))
     assert po.uom2 == "Pic"
     assert float(po.uom2_factor) == 50
+
+
+# --- a base target beside a count is only its estimate ----------------------
+#
+# `qty_target` and `qty2` are the same quantity in two units, and the COUNT is the
+# authoritative one: the customer ordered pieces, the packer boxes pieces, and the
+# kilos are read off the scale at each pack event. So a base target stated beside a
+# count is silently restated from it rather than trusted. That also disposes of the
+# unit mix-ups this used to refuse — the pack form prefilling the target from
+# `SalesOrderLine.qty` (authored in YARDS), or a planner typing the piece count
+# into the kg field, both of which used to reach the DB as an order 5x its size.
+
+def test_a_target_holding_the_yard_total_is_restated_from_the_count():
+    po = _apply(
+        # 14400 is the YARD total (2880 x 5), handed over as if it were kg.
+        _payload(qty_target=14400, qty2=2880, uom2="Pcs", uom2_factor=5,
+                 uom2_length_uom="yard"),
+        _kg_item(),
+    )
+    assert float(po.qty_target) == 2592.0
+
+
+def test_a_metre_total_read_as_yards_is_restated_from_the_count():
+    # The narrowest of these mismatches: 9.4%, well inside the range that reads
+    # as a plausible figure.
+    po = _apply(
+        _payload(qty_target=15748, qty2=100, uom2="Roll", uom2_factor=144,
+                 uom2_length_uom="yard"),
+        _yard_item(),
+    )
+    assert float(po.qty_target) == 14400.0
+
+
+def test_the_piece_count_typed_into_the_base_field_is_corrected():
+    # The reported case: 50 Pcs of a cloth at 5 yard x 180 g/y is 45 kg, and both
+    # fields read 50 because the planner typed the count twice.
+    po = _apply(
+        _payload(qty_target=50, qty2=50, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
+        _kg_item(),
+    )
+    assert float(po.qty_target) == 45.0
+
+
+def test_the_box_size_in_pieces_derives_its_weight_estimate():
+    # "12 Pcs per carton" of a cloth at 5 yard x 180 g/y is ~10.8 kg a box. The
+    # count is what the floor packs to; `pack_size` only has to be its estimate.
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                 pack_size=99, pack_size_alt=12),
+        _kg_item(),
+    )
+    assert float(po.pack_size_alt) == 12
+    assert float(po.pack_size) == 10.8
+
+
+def test_a_box_size_with_no_count_is_left_alone():
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard", pack_size=5),
+        _kg_item(),
+    )
+    assert float(po.pack_size) == 5.0
+    assert po.pack_size_alt in (None, 0)
+
+
+def test_a_target_with_no_alt_count_is_left_alone():
+    po = _apply(_payload(qty_target=14400, uom2="Pcs", uom2_factor=5,
+                         uom2_length_uom="yard"), _kg_item())
+    assert float(po.qty_target) == 14400.0
+
+
+def test_an_unresolvable_conversion_leaves_a_stated_target_alone():
+    # gsm needs the fabric width, so there is no honest figure to restate the
+    # target as — the planner's own is kept rather than refused on a guess.
+    po = _apply(
+        _payload(qty_target=14400, qty2=2880, uom2="Pcs", uom2_factor=5,
+                 uom2_length_uom="yard"),
+        _kg_item(unit="gsm"),
+    )
+    assert float(po.qty_target) == 14400.0
+
+
+def test_the_ordered_qty_a_packing_order_falls_back_to_is_in_the_stock_uom():
+    # What the create path uses when the caller states no quantity at all. The
+    # line's own qty_kg wins over re-deriving from the yards.
+    from app.services import so_fulfilment_service as sofs
+
+    assert sofs.ordered_qty_in_stock_uom(
+        14400, "kg", qty_kg=2592, weight_per_unit=180, weight_unit="g/y",
+    ) == 2592.0
+    # No qty_kg on the row: re-derived through the item's g/y, never left as yards.
+    assert sofs.ordered_qty_in_stock_uom(
+        14400, "kg", qty_kg=None, weight_per_unit=180, weight_unit="g/y",
+    ) == 2592.0
 
 
 def test_a_stated_alt_unit_beats_the_line_it_packs():

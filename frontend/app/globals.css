@@ -96,6 +96,23 @@ body {
   }
 }
 
+/* Number input with the native spinner suppressed.
+   The spinner is ~16px of chrome inside the field, which on the dense grid rows
+   (the pack screen's cartons/qty lines) is a third of the box: a 46px CARTONS
+   input had 16px left for digits and clipped "216" into "21". These fields are
+   typed, not stepped, and the arrow keys still increment — so the width is worth
+   more than the buttons. Opt-in per input; never a blanket rule on number inputs,
+   because a standalone form field has the room and the affordance is real there. */
+.xp-nospin {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.xp-nospin::-webkit-outer-spin-button,
+.xp-nospin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* ============================================================
    UI Style: Modern — "Blueprint" engineering-drafting design system
    Cool drafting paper, faint grid, drafting-blue accent, mono display

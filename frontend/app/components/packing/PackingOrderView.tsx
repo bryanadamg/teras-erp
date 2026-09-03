@@ -23,7 +23,7 @@ import VariantChips from '../shared/VariantChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 import {
     BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
-    filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload,
+    filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload, orderBoxSizeAlt,
 } from '../shared/packingBoxes';
 import { basePerAlt, altToBase, baseToAlt, orderBasePerAlt, formatAlt, lengthPerAlt } from '../shared/altUnit';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
@@ -67,6 +67,48 @@ const miniBtn: React.CSSProperties = {
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
+// Width of the carton-count column on the pack form — the input and the header
+// above it, which drift apart the moment either is typed as a literal. Sized for
+// four digits with the native spinner suppressed (`.xp-nospin`): a whole pack run
+// is hundreds of cartons, and the old 46px clipped a three-digit count.
+const CARTON_COUNT_W = 56;
+
+// Pack progress, measured in whatever the order is COUNTED in. Read by both the
+// list row's bar and the pack modal's header panel, so the two can never quote
+// different percentages — keep any change to the basis here, in the one place.
+//
+// On an alt-unit order the basis is pieces: an order for 2880 Pcs is done when
+// 2880 pieces are in boxes, whatever they weighed. Measuring it in kg against a
+// target derived from g/y meant a run of elastic cloth that came in light could
+// box every ordered piece and still show 97%. Falls back to the base pair when
+// there is no alt unit. Both alt figures are COUNTED, never kilos divided back
+// out by the factor (see api/packing._packed_alt_qty).
+function packProgress(po: any, it?: any) {
+    const target = num(po.qty_target);
+    const packed = num(po.qty_packed);
+    const altUom = po.uom2 || '';
+    const altFactor = orderBasePerAlt(po, it);
+    const hasAlt = !!(altUom && altFactor);
+    const tAlt = hasAlt
+        ? (num(po.qty2) > 0 ? num(po.qty2) : baseToAlt(target, altFactor))
+        : null;
+    const pAlt = hasAlt && po.qty_packed_alt != null ? num(po.qty_packed_alt) : null;
+    const basis = tAlt !== null && pAlt !== null ? { done: pAlt, goal: tAlt } : { done: packed, goal: target };
+    return {
+        target,
+        packed,
+        remaining: Math.max(0, target - packed),
+        hasAlt,
+        altUom,
+        altFactor,
+        targetAlt: tAlt,
+        packedAlt: pAlt,
+        remainingAlt: tAlt !== null && pAlt !== null
+            ? Math.max(0, Math.round((tAlt - pAlt) * 100) / 100)
+            : null,
+        pct: basis.goal > 0 ? Math.min(100, Math.round((basis.done / basis.goal) * 100)) : 0,
+    };
+}
 
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
     const { locations, attributes, companyProfile, itemIndex, workCenters, authFetch } = useData();
@@ -191,7 +233,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     const pages = Math.max(1, Math.ceil(total / PO_PAGE_SIZE));
     const clampedPage = Math.min(page, pages);
 
-    const PO_COLS = 10; // chevron + 8 data cols + actions
+    const PO_COLS = 11; // chevron + 9 data cols + actions
 
     // Expanded row — same three-pane shape as the WO list detail panel (info,
     // outputs, log), so a supervisor reads a packing order the way they read a WO.
@@ -238,7 +280,16 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                 {infoRow('Item', po.item_code || it?.code || '—')}
                                 {infoRow('Sales Order', po.sales_order_code || 'to stock')}
                                 {po.color_name && infoRow('Colour', po.color_name)}
-                                {infoRow(`${po.package_label} size`, num(po.pack_size) > 0 ? `${num(po.pack_size)} ${uom}` : 'per event')}
+                                {/* Counted unit first, same as Target below: the box holds a
+                                    stated number of pieces and the kilos are its estimate. */}
+                                {infoRow(`${po.package_label} size`, (() => {
+                                    const altSize = orderBoxSizeAlt(po, orderBasePerAlt(po, it));
+                                    if (po.uom2 && altSize) {
+                                        return `${formatAlt(altSize, po.uom2)}`
+                                            + (num(po.pack_size) > 0 ? ` (${num(po.pack_size)} ${uom} est.)` : '');
+                                    }
+                                    return num(po.pack_size) > 0 ? `${num(po.pack_size)} ${uom}` : 'per event';
+                                })())}
                                 {infoRow('Machine', po.work_center_name || 'not assigned')}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 3, margin: '2px 0' }}>
                                     <span style={{ color: '#888', fontSize: 9, minWidth: 60 }}>Route</span>
@@ -249,16 +300,33 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     </span>
                                 </div>
                                 <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
-                                {infoRow('Target', `${num(po.qty_target).toLocaleString()} ${uom}`)}
+                                {/* "est." because on an alt-unit order the base target is derived
+                                    from the count, not promised: the packed figure beside it is a
+                                    scale reading and will not match it exactly. */}
+                                {infoRow('Target', `${num(po.qty_target).toLocaleString()} ${uom}`
+                                    + (po.uom2 && orderBasePerAlt(po, it) ? ' est.' : ''))}
                                 {infoRow('Packed', `${num(po.qty_packed).toLocaleString()} ${uom}`)}
                                 {/* Same two figures in what the customer counts in. The base
                                     figures above stay first: they are what stock moves in. */}
                                 {po.uom2 && orderBasePerAlt(po, it) && (() => {
                                     const f = orderBasePerAlt(po, it);
+                                    // The ordered count as STATED — that is what the order is FOR,
+                                    // and the base target above is only that count restated through
+                                    // the item's g/y (api/packing._sync_target_to_alt), so deriving
+                                    // it back would just round-trip. Packed has no stated count, so
+                                    // it stays derived.
+                                    const stated = num(po.qty2) > 0 ? num(po.qty2) : null;
+                                    const derived = baseToAlt(num(po.qty_target), f);
                                     return (
                                         <>
-                                            {infoRow('Target', formatAlt(baseToAlt(num(po.qty_target), f), po.uom2))}
-                                            {infoRow('Packed', formatAlt(baseToAlt(num(po.qty_packed), f), po.uom2))}
+                                            {infoRow('Target', formatAlt(stated ?? derived, po.uom2))}
+                                            {/* Counted, never divided out of the kilos — the kilos
+                                                are scale readings and an elastic cloth does not
+                                                weigh what its g/y predicted. See
+                                                api/packing._packed_alt_qty. */}
+                                            {infoRow('Packed', po.qty_packed_alt != null
+                                                ? formatAlt(num(po.qty_packed_alt), po.uom2)
+                                                : '—')}
                                             {infoRow(`1 ${po.uom2}`, `${num(po.uom2_factor)} ${po.uom2_length_uom || 'Yard'} = ${f} ${uom}`)}
                                         </>
                                     );
@@ -431,6 +499,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                             <th style={xpTableHeader}>Status</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Target</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Packed</th>
+                            <th style={{ ...xpTableHeader, width: 130 }}>Progress</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
                             <th style={xpTableHeader}>Created</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Actions</th>
@@ -447,6 +516,9 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                         {orders.map((po: any, idx: number) => {
                             const it = itemById[String(po.item_id)];
                             const shortfall = num(po.qty_packed) < num(po.qty_target);
+                            // Same helper the pack modal's header bar reads, so the row
+                            // and the modal always show the same percentage.
+                            const prog = packProgress(po, it);
                             const closed = po.status === 'COMPLETED' || po.status === 'CANCELLED';
                             const isExpanded = expandedId === String(po.id);
                             return (
@@ -485,6 +557,32 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <td style={td}><StatusChip status={po.status} /></td>
                                     <td style={{ ...td, textAlign: 'right' }}>{num(po.qty_target).toLocaleString()} {po.item_uom || it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
+                                    {/* Progress in the order's COUNTED unit — pieces on an
+                                        alt-unit order, kilos otherwise. The hover states the
+                                        pair the bar is drawn from, since the Target/Packed
+                                        cells beside it are always in the stock UOM. Thin bar +
+                                        qty line below, matching the SO table's MO progress cell
+                                        (MOProgressLink/moProgressCell in SalesOrderView) instead
+                                        of a hatched pill — one progress look across the app. */}
+                                    <td style={td}>
+                                        <div
+                                            title={prog.hasAlt
+                                                ? `${(prog.packedAlt ?? 0).toLocaleString()} / ${(prog.targetAlt ?? 0).toLocaleString()} ${prog.altUom} packed (${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''})`
+                                                : `${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''} packed`}
+                                            style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
+                                        >
+                                            <ProgressBar
+                                                pct={prog.pct}
+                                                tone={prog.pct >= 100 ? 'green' : prog.pct > 0 ? 'blue' : 'gray'}
+                                                height={6}
+                                            />
+                                            <div style={{ fontFamily: xpFont, fontSize: '9px', color: prog.pct >= 100 ? (CLASSIC ? '#1a5e1a' : '#166534') : '#777' }}>
+                                                {prog.pct}%{prog.hasAlt
+                                                    ? ` · ${(prog.packedAlt ?? 0).toLocaleString()} / ${(prog.targetAlt ?? 0).toLocaleString()} ${prog.altUom}`
+                                                    : ` · ${prog.packed.toFixed(2)} / ${prog.target}`}
+                                            </div>
+                                        </div>
+                                    </td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
                                     <td style={td}>{po.created_at ? tzDate(po.created_at) : '—'}</td>
                                     <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
@@ -638,9 +736,27 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
     useEffect(() => {
         (async () => {
             const res = await authFetch(`${API_BASE}/sales-orders?status=PENDING,READY,PARTIAL&limit=0`);
-            if (res.ok) { const d = await res.json(); setSos(Array.isArray(d) ? d : (d.items || [])); }
+            const list = res.ok ? (await res.json()) : null;
+            const rows = Array.isArray(list) ? list : (list?.items || []);
+            // A Quarantine Packing deep link names the SO its lots were made for, and
+            // that order is not necessarily still open — a partially shipped one sits
+            // at SENT, and the list above only carries PENDING/READY/PARTIAL. Without
+            // this the named SO is simply absent from the dropdown, so the <select>
+            // falls back to showing "pack to stock", `selectedSO` is undefined, no
+            // line can be matched, and the alt unit never arrives — all silently, and
+            // all looking exactly like a lot that had no order in the first place.
+            const wanted = initialValues?.sales_order_id;
+            if (wanted && !rows.some((s: any) => String(s.id) === String(wanted))) {
+                const one = await authFetch(`${API_BASE}/sales-orders/${wanted}`);
+                if (one.ok) {
+                    const so = await one.json();
+                    if (so?.id) rows.unshift(so);
+                }
+            }
+            setSos(rows);
         })();
-    }, [authFetch]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authFetch, initialValues?.sales_order_id]);
 
     // Locations come from DataContext, which may still be loading when this modal
     // opens — backfill the defaults once they arrive, without clobbering a pick.
@@ -683,6 +799,31 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         weightUnit: selectedItem?.weight_unit,
     }), [uom2Factor, uom2LengthUom, selectedItem]);
 
+    // Is the base target being computed for the planner rather than typed by them?
+    const altDrivesTarget = !!altBaseFactor && num(qty2) > 0;
+    const altDrivesPackSize = !!altBaseFactor && num(altPerCarton) > 0;
+
+    // Same for the box size: the count per carton is what the floor packs to, so
+    // the base figure beside it is kept in step rather than typed.
+    useEffect(() => {
+        if (!altBaseFactor || num(altPerCarton) <= 0) return;
+        const per = altToBase(num(altPerCarton), altBaseFactor);
+        if (per !== null) setPackSize(String(per));
+    }, [altBaseFactor, altPerCarton]);
+
+    // The alt count IS the target when the order carries one — the base figure is
+    // only that count restated through the item's g/y, and the weight that really
+    // leaves stock is read off the scale at each pack event. Kept in an effect
+    // rather than only in the change handlers because the item (and so its weight
+    // spec) can land after the SO line was picked, and because a count copied off
+    // that line has to move the target too — the server derives the same figure
+    // from `qty2` regardless of what is posted (`api/packing._sync_target_to_alt`).
+    useEffect(() => {
+        if (!altBaseFactor || num(qty2) <= 0) return;
+        const target = altToBase(num(qty2), altBaseFactor);
+        if (target !== null) setQtyTarget(String(target));
+    }, [altBaseFactor, qty2]);
+
     // One place that pushes the alt figures down onto the canonical ones, so the
     // target and the carton size can never be derived two different ways.
     const applyAlt = (qty2Str: string, factorVal: number | null, lengthUom: string, perCartonStr: string) => {
@@ -714,24 +855,49 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         applyAlt(qty2, uom2Factor, uom2LengthUom, val);
     };
 
+    // The selling unit an SO line is counted in, copied onto the form. Split out of
+    // `applySoLine` because the alt unit is NOT specific to one line: a style ordered
+    // in four colours is four lines that all sell in Pcs of the same cut length. So
+    // when the line pick is ambiguous and left to the planner, the unit can still be
+    // filled in — which is the whole point of arriving here from a Quarantine Packing
+    // deep link, where the lots are already made and only the counting is in question.
+    // `copyQty2` is off for that case: the ordered count belongs to a specific line,
+    // while the unit and factor do not.
+    const applyLineAltUnit = (line: any, copyQty2: boolean) => {
+        if (!line?.uom2) return;
+        setUom2(line.uom2);
+        const factor = line.uom2_factor != null ? parseFloat(String(line.uom2_factor)) : null;
+        setUom2Factor(factor);
+        // The factor's target unit lives on the UOM master, not on the SO line, so it
+        // is resolved here rather than guessed downstream. `uoms` may still be loading
+        // — the effect below re-runs once it lands, so a miss here is not permanent.
+        const uomObj = (uoms || []).find((u: any) => u.name === line.uom2);
+        const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factor);
+        setUom2LengthUom(factorObj?.to_uom_name || '');
+        if (copyQty2 && line.qty2 != null && line.qty2 !== '') setQty2(String(line.qty2));
+    };
+
     const applySoLine = (lineId: string) => {
         setSoLineId(lineId);
         const line = soLines.find((l: any) => String(l.id) === lineId);
         if (line) {
             setItemId(String(line.item_id));
-            if (!qtyTarget) setQtyTarget(String(line.qty));
-            // Follow the order's own selling unit: the packer counts cartons in
-            // whatever the customer ordered in. The factor's length unit lives on
-            // the UOM master, so resolve it here rather than guessing later.
-            if (line.uom2) {
-                setUom2(line.uom2);
-                const factor = line.uom2_factor != null ? parseFloat(String(line.uom2_factor)) : null;
-                setUom2Factor(factor);
-                const uomObj = (uoms || []).find((u: any) => u.name === line.uom2);
-                const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factor);
-                setUom2LengthUom(factorObj?.to_uom_name || '');
-                if (line.qty2 != null && line.qty2 !== '') setQty2(String(line.qty2));
+            // `qty_target` is in the ITEM's stock UOM, and `line.qty` is not: the SO
+            // form's only quantity field is labelled Yard and its Meter/Gross-Yd/Kg
+            // satellites all write back into it as yards (see
+            // so_fulfilment_service.ordered_qty_in_stock_uom). Copying it straight
+            // across made a 2880 Pcs order of a kg-stocked cloth a 14400 kg packing
+            // order — the yard total, wearing a kg label, 5.5x the real one.
+            // `qty_ordered_base` is that same figure restated by the server, which
+            // prefers the line's own `qty_kg` over re-deriving it. Null means the
+            // item is stocked by weight with no g/y/g/m on its master: unknowable,
+            // so the field is left for the planner rather than filled with yards.
+            if (!qtyTarget && line.qty_ordered_base != null) {
+                setQtyTarget(String(line.qty_ordered_base));
             }
+            // Follow the order's own selling unit: the packer counts cartons in
+            // whatever the customer ordered in.
+            applyLineAltUnit(line, true);
         }
     };
 
@@ -761,9 +927,36 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         if (colorHint) narrow((l: any) => l.color_id && String(l.color_id) === String(colorHint));
         if (comboHint) narrow((l: any) => (l.attribute_value_ids || []).some((id: any) => String(id) === String(comboHint)));
 
-        if (candidates.length === 1) applySoLine(String(candidates[0].id));
+        if (candidates.length === 1) {
+            applySoLine(String(candidates[0].id));
+            return;
+        }
+        // Ambiguous line, but the selling unit may still be unambiguous: same style,
+        // several colours, all sold as Pcs of the same cut. Fill the unit when every
+        // candidate agrees on it and leave the line for the planner. Not the ordered
+        // count — that belongs to whichever line they end up picking.
+        const first = candidates[0];
+        const sameUnit = first?.uom2 && candidates.every((l: any) =>
+            l.uom2 === first.uom2
+            && String(l.uom2_factor ?? '') === String(first.uom2_factor ?? ''));
+        if (sameUnit && !uom2) applyLineAltUnit(first, false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [soId, itemId, soLines, soLineId]);
+
+    // Backfill the factor's length unit once the UOM master lands.
+    //
+    // The prefill above can run before `uoms` has loaded, and then the lookup that
+    // turns "1 Pic = 50" into "50 m" finds nothing. It cannot be left blank: with no
+    // unit, `basePerAlt` falls back to yard (the unit every legacy factor was entered
+    // against), so a metre-based recipe silently computes the target and the carton
+    // size 9.4% light. Re-running it here rather than widening the effect above,
+    // which sets `soLineId` on a single match and would early-return.
+    useEffect(() => {
+        if (!uom2 || uom2Factor == null || uom2LengthUom) return;
+        const uomObj = (uoms || []).find((u: any) => u.name === uom2);
+        const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === uom2Factor);
+        if (factorObj?.to_uom_name) setUom2LengthUom(factorObj.to_uom_name);
+    }, [uoms, uom2, uom2Factor, uom2LengthUom]);
 
     // A native <select> can't render swatch chips, so this is the same identity
     // (item, size, combo, colour/labdip) as LotChips, flattened to plain text —
@@ -776,7 +969,15 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         if (combo) parts.push(combo.value);
         if (l.color_code || l.color_name) parts.push([l.color_code, l.color_name].filter(Boolean).join(' '));
         else if (l.labdip_variant_code) parts.push(`${l.labdip_variant_code} (pending)`);
-        parts.push(num(l.qty).toLocaleString());
+        // Both quantities, each with its unit. The ordered figure is authored in
+        // yards and the target field below is in the item's stock UOM, so showing
+        // the bare number here left the planner reading "… 2880" above a target of
+        // 2592 and no way to tell which was wrong — the sort of mismatch that
+        // invites a manual "correction" back into the wrong unit.
+        parts.push(`${num(l.qty).toLocaleString()} Yd`);
+        if (l.qty_ordered_base != null && l.base_uom && l.base_uom.toLowerCase() !== 'yard') {
+            parts.push(`${num(l.qty_ordered_base).toLocaleString()} ${l.base_uom}`);
+        }
         return parts.join(' · ');
     };
 
@@ -805,6 +1006,11 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                 item_id: itemId,
                 qty_target: num(qtyTarget),
                 pack_size: packSize === '' ? null : num(packSize),
+                // The box size the floor packs to, in the counting unit. Stored
+                // rather than left as the derived kilos: a carton holds 12 pieces,
+                // and the pack screens split by that count (the kilos it works out
+                // to are what the scale then contradicts).
+                pack_size_alt: altPerCarton === '' ? null : num(altPerCarton),
                 package_label: packageLabel || 'Carton',
                 // Alt unit as stated here (already inherited from the SO line when
                 // one was picked). Sent explicitly rather than left for the server
@@ -888,12 +1094,39 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                             <SearchableSelect options={fgOptions} value={itemId} onChange={setItemId} onSearch={fgSearch} placeholder="Search item..." size="sm" />
                         </div>
                         <div>
-                            <FieldLabel classic={CLASSIC}>Target qty</FieldLabel>
-                            <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qtyTarget} onChange={e => setQtyTarget(e.target.value)} />
+                            <FieldLabel classic={CLASSIC}>
+                                {altDrivesTarget ? `Target ${selectedItem?.uom || 'qty'} (est.)` : 'Target qty'}
+                            </FieldLabel>
+                            {/* Read-only once an alt count drives it: the count below is what
+                                the order is for, this is only its weight estimate, and typing
+                                the piece count in here is exactly the mix-up that made a 50 Pcs
+                                order a 50 kg one. */}
+                            <input type="number" min={0} readOnly={altDrivesTarget}
+                                title={altDrivesTarget
+                                    ? `Derived from ${num(qty2).toLocaleString()} ${uom2} — the real weight is taken from the scale at pack time`
+                                    : undefined}
+                                style={{
+                                    ...xpInput, width: '100%', textAlign: 'right',
+                                    ...(altDrivesTarget ? { background: '#efeee9', color: '#555' } : null),
+                                }}
+                                value={qtyTarget} onChange={e => setQtyTarget(e.target.value)} />
                         </div>
                         <div>
-                            <FieldLabel classic={CLASSIC}>Qty per carton</FieldLabel>
-                            <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packSize} onChange={e => setPackSize(e.target.value)} />
+                            <FieldLabel classic={CLASSIC}>
+                                {altDrivesPackSize ? `${selectedItem?.uom || 'Qty'}/carton (est.)` : 'Qty per carton'}
+                            </FieldLabel>
+                            {/* Same rule as the target one field over: the carton holds a
+                                stated number of pieces, and this is what they weigh in
+                                theory — the pack screens split by the count. */}
+                            <input type="number" min={0} readOnly={altDrivesPackSize}
+                                title={altDrivesPackSize
+                                    ? `Derived from ${num(altPerCarton).toLocaleString()} ${uom2} per carton — the boxes are split by that count`
+                                    : undefined}
+                                style={{
+                                    ...xpInput, width: '100%', textAlign: 'right',
+                                    ...(altDrivesPackSize ? { background: '#efeee9', color: '#555' } : null),
+                                }}
+                                value={packSize} onChange={e => setPackSize(e.target.value)} />
                         </div>
                         <div>
                             <FieldLabel classic={CLASSIC}>Package type</FieldLabel>
@@ -965,7 +1198,11 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                     {altBaseFactor && (
                         <div style={hintText}>
                             1 {uom2} = {uom2Factor} {uom2LengthUom || 'Yard'} = {altBaseFactor} {selectedItem?.uom || ''}
-                            {num(qty2) > 0 ? ` — target ${num(qtyTarget).toLocaleString()} ${selectedItem?.uom || ''}` : ''}
+                            {num(qty2) > 0
+                                ? ` — this order is for ${num(qty2).toLocaleString()} ${uom2}; `
+                                  + `${num(qtyTarget).toLocaleString()} ${selectedItem?.uom || ''} is the estimate, `
+                                  + 'the scale decides at pack time'
+                                : ''}
                         </div>
                     )}
                 </FormSection>
@@ -1096,7 +1333,6 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const target = num(po.qty_target);
     const packed = num(po.qty_packed);
     const remaining = Math.max(0, target - packed);
-    const pct = target > 0 ? Math.min(100, Math.round((packed / target) * 100)) : 0;
 
     // There is deliberately no "Qty to Pack" field: the carton list below IS the
     // statement of what was packed, and a second figure the packer had to keep
@@ -1106,14 +1342,48 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // Alt selling unit of this order (Pic = a roll, Pcs = a cut piece). When set,
     // the packer counts in it and every base figure is derived from it — the box
     // qtys and the label's CONTENT line all follow the same factor.
-    const altUom = po.uom2 || '';
-    const altFactor = useMemo(() => orderBasePerAlt(po, it), [po, it]);
+    const prog = useMemo(() => packProgress(po, it), [po, it]);
+    const altUom = prog.altUom;
+    const altFactor = prog.altFactor;
     const altLength = useMemo(
         () => lengthPerAlt({ factor: po.uom2_factor, lengthUom: po.uom2_length_uom }),
         [po.uom2_factor, po.uom2_length_uom],
     );
-    const hasAlt = !!(altUom && altFactor);
-    const [boxSize, setBoxSize] = useState<string>(() => (num(po.pack_size) > 0 ? String(num(po.pack_size)) : ''));
+    const hasAlt = prog.hasAlt;
+
+    // The same three figures in what the customer counts in — DISPLAY ONLY. The
+    // packer thinks in pieces ("2880 Pcs ordered, 1200 boxed"), so on an alt-unit
+    // order these lead and the base figures follow in brackets. `target`/`packed`/
+    // `remaining` above stay in the stock UOM and must: they seed the carton split,
+    // gate the submit, and are what every stock move posts in. Two names for two
+    // jobs, never one field doing both.
+    //
+    // Both are COUNTED figures, not converted ones. Target is the count stated on
+    // the order; packed is `qty_packed_alt`, summed server-side from each carton's
+    // own stated count (see api/packing._packed_alt_qty). Neither divides kilos by
+    // the g/y factor: that factor is a planning estimate, an elastic cloth does not
+    // weigh what it predicted, and the packer reweighs every box — so the kilos are
+    // scale readings that drift with the fabric. Dividing them back out reports a
+    // piece count nobody counted and leaves a physically complete order short.
+    const targetAlt = prog.targetAlt;
+    const packedAlt = prog.packedAlt;
+    const remainingAlt = prog.remainingAlt;
+
+    // Progress basis lives in packProgress — the list row's bar reads the same
+    // helper, so this panel and that row can't disagree.
+    const pct = prog.pct;
+
+    // Box size, in whatever unit the order is COUNTED in — pieces on an alt-unit
+    // order, the stock UOM otherwise. A carton holds a whole number of pieces and
+    // `pack_size` is only what they weigh in theory, so splitting by the kilos left
+    // a 0.5 kg thirteenth box on a 130 kg draw and labels reading 11.8 Pcs. The
+    // order's own stated count is preferred; `pack_size` is divided back only for a
+    // pre-feature order that has no count stored.
+    const [boxSize, setBoxSize] = useState<string>(() => {
+        const alt = hasAlt ? orderBoxSizeAlt(po, altFactor) : null;
+        if (alt) return String(alt);
+        return !hasAlt && num(po.pack_size) > 0 ? String(num(po.pack_size)) : '';
+    });
     // Loose scrap found during this pack event — offcuts, stained ends, material
     // that came out of the source bin and never made it into a box. It has to be
     // stated because it physically LEFT the bin: omitting it would leave the
@@ -1316,22 +1586,32 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // packer opens onto a plausible list and edits it down to what they actually
     // boxed. Runs on a fresh form and again after each log (a successful log
     // clears the groups and `remaining` drops), never over the packer's edits.
+    // `boxSize` is in the counting unit, so it goes in as the alt size on an
+    // alt-unit order and as the base size otherwise — one field, never both.
+    const seedFrom = (total: number, prev: BoxGroup[] = []) => seedBoxGroups(
+        total,
+        hasAlt ? 0 : num(boxSize),
+        prev,
+        hasAlt ? altFactor : null,
+        hasAlt ? num(boxSize) : null,
+    );
+
     useEffect(() => {
         if (boxGroups.length === 0 && remaining > 0) {
-            setBoxGroups(seedBoxGroups(remaining, num(boxSize), [], hasAlt ? altFactor : null));
+            setBoxGroups(seedFrom(remaining));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [remaining]);
 
     // Regenerate re-splits what is currently listed at the stated box size —
-    // "I have 24 kg down, break it into 4 kg boxes". Falls back to the order's
-    // remaining when the list is empty, which is the only figure left to split.
-    // Weights already keyed in are kept positionally: re-splitting after a typo
-    // shouldn't wipe the scale readings.
+    // "I have 24 kg down, break it into 4 kg boxes", or "144 Pcs down, break it
+    // into 12s". Falls back to the order's remaining when the list is empty, which
+    // is the only figure left to split. Weights already keyed in are kept
+    // positionally: re-splitting after a typo shouldn't wipe the scale readings.
     const regenerateBoxes = () =>
         setBoxGroups(prev => {
             const listed = expandBoxGroups(prev).reduce((t, b) => t + num(b.qty), 0);
-            return seedBoxGroups(listed > 0 ? listed : remaining, num(boxSize), prev, hasAlt ? altFactor : null);
+            return seedFrom(listed > 0 ? listed : remaining, prev);
         });
     const updateGroup = (i: number, patch: Partial<BoxGroup>) =>
         setBoxGroups(prev => prev.map((g, idx) => (idx === i ? { ...g, ...patch } : g)));
@@ -1563,7 +1843,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                     {/* Visible, not a tooltip: a disabled button dispatches no mouse
                         events in Chrome, so a `title` on it would never be read. */}
                     {!readOnly && logBlockedBy && (
-                        <span style={{ fontFamily: xpFont, fontSize: 10, color: '#7a4a00', fontStyle: 'italic', marginLeft: 'auto', paddingRight: 6 }}>
+                        // The one flexible thing in the footer: it takes the leftover
+                        // width and wraps its own text, so the buttons either side keep
+                        // their natural size. `minWidth: 0` is what actually lets it
+                        // shrink — without it a flex item floors at its longest word.
+                        <span style={{
+                            fontFamily: xpFont, fontSize: 10, color: '#7a4a00', fontStyle: 'italic',
+                            marginLeft: 'auto', paddingRight: 6, flex: '1 1 auto', minWidth: 0,
+                            textAlign: 'right',
+                        }}>
                             {logBlockedBy}
                         </span>
                     )}
@@ -1590,12 +1878,20 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>PCK</span>
                             <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} hatched height={14} label="inside" />
-                            <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 90, flexShrink: 0, textAlign: 'right' }}>
-                                {packed.toFixed(2)} / {target}
+                            <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 110, flexShrink: 0, textAlign: 'right' }}
+                                title={hasAlt ? `${packed.toFixed(2)} / ${target} ${uom}` : undefined}>
+                                {hasAlt
+                                    ? `${(packedAlt ?? 0).toLocaleString()} / ${(targetAlt ?? 0).toLocaleString()} ${altUom}`
+                                    : `${packed.toFixed(2)} / ${target}`}
                             </span>
                         </div>
                         <div style={{ fontSize: 10, color: '#555', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <span>Remaining: <strong style={{ color: '#b46a00' }}>{remaining.toFixed(2)}</strong></span>
+                            <span>
+                                Remaining: <strong style={{ color: '#b46a00' }}>
+                                    {hasAlt ? `${(remainingAlt ?? 0).toLocaleString()} ${altUom}` : remaining.toFixed(2)}
+                                </strong>
+                                {hasAlt && <span style={{ color: '#888' }}> ({remaining.toFixed(2)} {uom})</span>}
+                            </span>
                             <span>{po.package_label}s: <strong>{po.package_count || 0}</strong></span>
                             {num(po.qty_rejected) > 0 && (
                                 <span title="QC-rejected cartons — quarantined in the defect store, not part of packed qty">
@@ -1634,8 +1930,21 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 background: '#f5f4ee', border: '1px solid #d8d5cc', padding: '3px 6px',
                             }}>
                                 <span>Still to pack on this order:</span>
-                                <strong style={{ color: '#2e7d32' }}>{remaining.toFixed(2)}</strong>
-                                {uom && <span style={uomChip}>{uom}</span>}
+                                {/* Leads in the selling unit on an alt-unit order — that is
+                                    what the packer counts into the boxes below — with the
+                                    stock figure kept beside it, because that is what the
+                                    carton lines are typed in and what stock moves in. */}
+                                <strong style={{ color: '#2e7d32' }}>
+                                    {hasAlt ? (remainingAlt ?? 0).toLocaleString() : remaining.toFixed(2)}
+                                </strong>
+                                {hasAlt
+                                    ? <span style={uomChip}>{altUom}</span>
+                                    : (uom && <span style={uomChip}>{uom}</span>)}
+                                {hasAlt && (
+                                    <span style={{ color: '#888' }}>
+                                        = <strong>{remaining.toFixed(2)}</strong> {uom}
+                                    </span>
+                                )}
                                 {hasAlt && (
                                     <span style={{ color: '#888', fontSize: 9 }}>
                                         1 {altUom} = {po.uom2_factor} {altLength?.uom || 'Yd'} = {altFactor} {uom}
@@ -1645,18 +1954,21 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={{ ...xpFormLabel, fontWeight: 'bold' }}>
-                                        Box size
+                                        Box size{hasAlt ? ` (${altUom} per ${po.package_label.toLowerCase()})` : ''}
                                         <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
                                             — a shortcut for filling the lines below
                                         </span>
                                     </label>
+                                    {/* Stated in the counting unit: a carton holds 12 pieces, and
+                                        the kilos that comes to are what the scale then argues with.
+                                        Splitting by the kilos left a remainder box of 0.5 kg. */}
                                     <input
                                         type="number"
                                         style={{ ...xpInput, width: '100%' }}
                                         value={boxSize}
                                         onChange={e => setBoxSize(e.target.value)}
                                         min="0" step="any"
-                                        placeholder="whole qty in one box"
+                                        placeholder={hasAlt ? `${altUom} in one box` : 'whole qty in one box'}
                                     />
                                 </div>
                                 <button
@@ -1710,7 +2022,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             background: '#f7f6f0', borderBottom: '1px solid #d8d5cc',
                                             position: 'sticky', top: 0, zIndex: 1,
                                         }}>
-                                            <span style={{ width: 46, flexShrink: 0, textAlign: 'right' }}>{po.package_label}s</span>
+                                            <span style={{ width: CARTON_COUNT_W, flexShrink: 0, textAlign: 'right' }}>{po.package_label}s</span>
                                             <span style={{ width: 12, flexShrink: 0 }} />
                                             {hasAlt && <span style={{ width: 56 + 24 + 5, flexShrink: 0 }}>{altUom} each</span>}
                                             <span style={{ flex: 1, minWidth: 0 }}>{uom || 'Qty'} each</span>
@@ -1736,7 +2048,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                         multiplier the packer actually counts on the floor. */}
                                                     <input
                                                         type="number"
-                                                        style={{ ...xpInput, width: 46, textAlign: 'right', flexShrink: 0, fontWeight: 'bold' }}
+                                                        className="xp-nospin"
+                                                        style={{ ...xpInput, width: CARTON_COUNT_W, textAlign: 'right', flexShrink: 0, fontWeight: 'bold' }}
                                                         value={g.count}
                                                         onChange={e => updateGroup(i, { count: e.target.value })}
                                                         min="0" step="1"
@@ -1750,6 +2063,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                         <>
                                                             <input
                                                                 type="number"
+                                                                className="xp-nospin"
                                                                 style={{ ...xpInput, width: 56, textAlign: 'right' }}
                                                                 value={g.alt}
                                                                 onChange={e => setGroupAlt(i, e.target.value)}
@@ -1761,6 +2075,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                     )}
                                                     <input
                                                         type="number"
+                                                        className="xp-nospin"
                                                         style={{ ...xpInput, flex: 1, minWidth: 0 }}
                                                         value={g.qty}
                                                         onChange={e => setGroupQty(i, e.target.value)}
@@ -1846,9 +2161,18 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         background: weightsMissing ? '#d9a441' : '#4caf50',
                                     }} />
                                     <span style={{ color: '#555' }}>Boxed:</span>
+                                    {/* Same unit order as the target above it — the packer reads
+                                        these two against each other, and leading one with pieces
+                                        and the other with kilos is the conversion this is meant
+                                        to spare them. */}
                                     <span style={{ fontWeight: 'bold', color: '#2e7d32' }}>
-                                        {boxTotal.toFixed(2)} {uom}
+                                        {hasAlt
+                                            ? `${altTotal.toLocaleString()} ${altUom}`
+                                            : `${boxTotal.toFixed(2)} ${uom}`}
                                     </span>
+                                    {hasAlt && (
+                                        <span style={{ color: '#888' }}>({boxTotal.toFixed(2)} {uom})</span>
+                                    )}
                                     {scrap > 0 && (
                                         <>
                                             <span style={{ color: '#c0bdb5' }}>|</span>
@@ -1859,13 +2183,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             <span style={{ fontWeight: 'bold' }}>{drawTotal.toFixed(2)}</span>
                                         </>
                                     )}
-                                    {hasAlt && (
-                                        <>
-                                            <span style={{ color: '#c0bdb5' }}>|</span>
-                                            <span style={{ color: '#555' }}>{altUom}:</span>
-                                            <span style={{ fontWeight: 'bold' }}>{altTotal.toLocaleString()}</span>
-                                        </>
-                                    )}
+                                    {/* No separate "<altUom>: n" segment — Boxed now leads with it. */}
                                     <span style={{ color: '#c0bdb5' }}>|</span>
                                     <span style={{ color: '#555' }}>{po.package_label}s:</span>
                                     <span style={{ fontWeight: 'bold' }}>{boxValues.length}</span>

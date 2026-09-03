@@ -29,6 +29,44 @@ def test_split_qty_no_box_size_falls_back_to_single_box():
     assert split_qty(12.5, 0) == [12.5]
 
 
+# --- splitting by the piece count, not the kilos ----------------------------
+#
+# On an alt-unit order the carton size is a COUNT ("12 Pcs per carton"), so the
+# split runs in that unit. Splitting the derived kilos instead produced boxes
+# nobody packed and labels reading a fractional piece count.
+
+def test_alt_split_lays_out_cartons_by_piece_count():
+    # 130 kg of a cloth at 0.9 kg/Pcs is ~144 Pcs; in 12s that is 12 full cartons.
+    cartons = packing_service.cartons_from_alt_split(130.0, 12, 0.9)
+    assert [c.alt_qty for c in cartons] == [12] * 12
+    # The kilos still total the draw exactly — this figure IS the stock move, so a
+    # rounded 12 x 10.8 would post a ledger line that doesn't balance.
+    assert round(sum(c.qty for c in cartons), 4) == 130.0
+
+
+def test_alt_split_puts_the_leftover_kilos_on_the_last_carton():
+    # 145 Pcs in 12s is 12 full cartons plus one holding a single piece.
+    cartons = packing_service.cartons_from_alt_split(130.5, 12, 0.9)
+    assert [c.alt_qty for c in cartons] == [12] * 12 + [1]
+    assert round(sum(c.qty for c in cartons), 4) == 130.5
+    # Only the last carton absorbs the drift; the full ones stay at their count.
+    assert all(c.qty == 10.8 for c in cartons[:-1])
+
+
+def test_alt_split_needs_both_a_count_and_a_conversion():
+    # No count size, no factor, nothing drawn: the caller stays on the base split.
+    assert packing_service.cartons_from_alt_split(130.0, 0, 0.9) is None
+    assert packing_service.cartons_from_alt_split(130.0, 12, None) is None
+    assert packing_service.cartons_from_alt_split(0, 12, 0.9) is None
+
+
+def test_alt_split_never_mints_an_empty_remainder_carton():
+    # An exact division must not leave a zero-qty box with a label to print.
+    cartons = packing_service.cartons_from_alt_split(10.8 * 5, 12, 0.9)
+    assert len(cartons) == 5
+    assert all(c.qty > 0 for c in cartons)
+
+
 def test_describe_box_breakdown_groups_by_size_largest_first():
     assert describe_box_breakdown([5, 5, 5, 5, 5, 3]) == "5 × 5 + 1 × 3"
 

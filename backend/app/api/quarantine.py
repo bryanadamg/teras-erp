@@ -38,7 +38,7 @@ from app.schemas import (
     QuarantineGroupResponse, QuarantineListResponse, QuarantineLotResponse,
     QuarantineStatusOption, QuarantineStatusUpdate,
 )
-from app.services import audit_service, quarantine_service, stock_service
+from app.services import audit_service, quarantine_service, stock_service, packing_service
 from app.core.pagination import PageParams, PageWindow
 from app.core.ws_manager import manager
 
@@ -268,6 +268,10 @@ async def list_quarantine_stock(
                 # `qty_packed` rolls up the completions, so they have to be eager
                 # loaded: a lazy load here would raise MissingGreenlet.
                 selectinload(PackingOrder.completions),
+                # Same for `cartons`, which `packing_service.open_qty` counts to
+                # decide whether an alt-unit order still owes anything.
+                selectinload(PackingOrder.cartons),
+                selectinload(PackingOrder.item),
             )
             .filter(
                 # DELIVERED is listed even though its open qty is zero by
@@ -279,7 +283,12 @@ async def list_quarantine_stock(
             )
             .order_by(PackingOrder.created_at)
         )).scalars().all():
-            open_qty = float(po.qty_target or 0) - po.qty_packed
+            # Still in kg — stock is claimed by weight however the order is counted.
+            # Only the "owes nothing" decision moves to the counting unit: an order
+            # for 2880 Pcs that boxed all of them off lighter-than-estimated cloth is
+            # done, and a raw qty_target - qty_packed subtraction would leave it
+            # claiming the hold bin forever. See packing_service.is_target_met.
+            open_qty = packing_service.open_qty(po)
             if open_qty <= 1e-6:
                 continue
             open_orders.append((
