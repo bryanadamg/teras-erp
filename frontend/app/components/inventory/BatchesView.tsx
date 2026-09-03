@@ -20,6 +20,7 @@ const LOT_STATUS_FILTERS = [
 ];
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue, buildCategoryTree } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
+import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 import { isRejectGrade } from '../shared/rejectDisplay';
 import { ExpanderCell, SortableTh, lvZebra, lvThead, lvTh, TableEmpty, EMPTY_DASH } from '../shared/listViewTheme';
@@ -226,6 +227,14 @@ export default function BatchesView({ items, locations, categories, workCenters,
   const [createNotes, setCreateNotes] = useState('');
   const [createQty, setCreateQty] = useState('');
   const [createLocId, setCreateLocId] = useState('');
+  // Server typeahead: `items` is only DataContext's current page, so an item off
+  // that page is unreachable by typing in a client-filtered list.
+  const { results: createItemResults, onSearch: onSearchCreateItem, resolve: resolveCreateItem } =
+    useItemSearch({ seed: items, enabled: isCreateOpen });
+  const createItemOptions = React.useMemo(
+    () => (createItemResults || []).map(itemToOption),
+    [createItemResults],
+  );
   const [creating, setCreating] = useState(false);
 
   // Expandable row trace state
@@ -338,7 +347,7 @@ export default function BatchesView({ items, locations, categories, workCenters,
   // production putaway suggestion starts from.
   const onCreateItemChange = (id: string) => {
     setCreateItemId(id);
-    const it = (items || []).find((i: any) => String(i.id) === String(id));
+    const it = resolveCreateItem(id);
     setCreateLocId(it?.default_putaway_location_id ? String(it.default_putaway_location_id) : '');
   };
 
@@ -1155,15 +1164,16 @@ export default function BatchesView({ items, locations, categories, workCenters,
         >
           <div className="mb-3">
             <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Item</label>
-            <select
-              className={classic ? '' : 'form-select form-select-sm mt-1'}
-              style={classic ? { ...xpInput, width: '100%', height: 22 } : {}}
-              value={createItemId}
-              onChange={e => onCreateItemChange(e.target.value)}
-            >
-              <option value="">-- Select Item --</option>
-              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-            </select>
+            <div className="mt-1">
+              <SearchableSelect
+                options={createItemOptions}
+                value={createItemId}
+                onChange={onCreateItemChange}
+                onSearch={onSearchCreateItem}
+                placeholder="Search item..."
+                size="sm"
+              />
+            </div>
           </div>
           <div className="mb-3">
             <label style={classic ? { fontFamily: xpFont, fontSize: 11 } : {}}>Quantity (optional)</label>
