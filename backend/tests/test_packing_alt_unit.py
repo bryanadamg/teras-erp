@@ -33,7 +33,15 @@ def _yard_item():
 
 
 def _apply(payload, item, po=None):
-    po = po or PackingOrder(code="PCK-TEST", qty_target=payload.qty_target or 0)
+    # Mirrors the create path: the endpoint constructs the row from the payload's
+    # own figures and `_apply_alt_unit` then restates the derived ones off the
+    # counts, so the box size has to be seeded here the same way the target is.
+    po = po or PackingOrder(
+        code="PCK-TEST",
+        qty_target=payload.qty_target or 0,
+        pack_size=payload.pack_size,
+        pack_size_alt=payload.pack_size_alt,
+    )
     asyncio.run(papi._apply_alt_unit(None, po, payload, item=item))
     return po
 
@@ -168,6 +176,27 @@ def test_the_piece_count_typed_into_the_base_field_is_corrected():
         _kg_item(),
     )
     assert float(po.qty_target) == 45.0
+
+
+def test_the_box_size_in_pieces_derives_its_weight_estimate():
+    # "12 Pcs per carton" of a cloth at 5 yard x 180 g/y is ~10.8 kg a box. The
+    # count is what the floor packs to; `pack_size` only has to be its estimate.
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                 pack_size=99, pack_size_alt=12),
+        _kg_item(),
+    )
+    assert float(po.pack_size_alt) == 12
+    assert float(po.pack_size) == 10.8
+
+
+def test_a_box_size_with_no_count_is_left_alone():
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard", pack_size=5),
+        _kg_item(),
+    )
+    assert float(po.pack_size) == 5.0
+    assert po.pack_size_alt in (None, 0)
 
 
 def test_a_target_with_no_alt_count_is_left_alone():

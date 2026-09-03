@@ -309,6 +309,10 @@ async def _apply_alt_unit(
     elif po.uom2 and po.uom2_factor:
         po.uom2_length_uom = await _resolve_length_uom(db, po.uom2, po.uom2_factor)
 
+    # The box size follows the same rule as the target: a stated count of pieces
+    # per carton is what the floor packs to, `pack_size` its weight estimate.
+    _sync_pack_size_to_alt(po, item)
+
     if float(po.qty2 or 0) > 0 and _sync_target_to_alt(po, item) is None:
         # No honest conversion (a gsm weight needs the fabric width, a counted
         # stock UOM has no length at all). A base target stated by hand is then
@@ -322,6 +326,25 @@ async def _apply_alt_unit(
                     "set a conversion factor on the unit, or a g/y or g/m weight on the item"
                 ),
             )
+
+
+def _sync_pack_size_to_alt(po: PackingOrder, item=None) -> Optional[float]:
+    """`pack_size` restated from `pack_size_alt` — the box size in pieces.
+
+    Same relationship as `qty_target` to `qty2`, one level down: the carton holds
+    a stated number of pieces and `pack_size` is only what those weigh in theory.
+    Kept in sync so every screen that still reads the base figure (the Kartu
+    Packing's "Isi per koli", the legacy mobile seed) shows the right estimate
+    instead of a stale one.
+    """
+    if float(po.pack_size_alt or 0) <= 0:
+        return None
+    derived = packing_service.alt_to_base(
+        float(po.pack_size_alt), packing_service.order_base_per_alt(po, item))
+    if derived is None or derived <= 0:
+        return None
+    po.pack_size = derived
+    return derived
 
 
 def _sync_target_to_alt(po: PackingOrder, item=None) -> Optional[float]:
@@ -534,6 +557,7 @@ async def create_packing_order(
         color_id=payload.color_id,
         qty_target=payload.qty_target,
         pack_size=payload.pack_size,
+        pack_size_alt=payload.pack_size_alt,
         package_label=payload.package_label or "Carton",
         source_location_id=payload.source_location_id,
         output_location_id=payload.output_location_id,
@@ -617,7 +641,8 @@ async def update_packing_order(
     await _assert_work_center(db, payload.work_center_id)
 
     for field in ("qty_target", "sales_order_id", "sales_order_line_id", "color_id",
-                  "pack_size", "package_label", "source_location_id", "output_location_id",
+                  "pack_size", "pack_size_alt", "package_label",
+                  "source_location_id", "output_location_id",
                   "work_center_id", "status", "target_start_date", "target_end_date", "notes"):
         val = getattr(payload, field)
         if val is not None:
@@ -630,12 +655,16 @@ async def update_packing_order(
     if any(getattr(payload, f) is not None
            for f in ("qty2", "uom2", "uom2_factor", "uom2_length_uom")):
         await _apply_alt_unit(db, po, payload, item=po.item)
-    elif payload.qty_target is not None:
+    elif payload.qty_target is not None or payload.pack_size_alt is not None:
         # A base target restated on its own is only an estimate of the count the
         # order already carries, so it is re-derived rather than kept — otherwise
         # the edit path is the way to leave the two contradicting each other. An
-        # order with no alt count keeps whatever was sent.
-        _sync_target_to_alt(po, po.item)
+        # order with no alt count keeps whatever was sent. Same for the box size:
+        # a new count of pieces per carton restates its weight.
+        if payload.qty_target is not None:
+            _sync_target_to_alt(po, po.item)
+        if payload.pack_size_alt is not None:
+            _sync_pack_size_to_alt(po, po.item)
 
     if payload.status == "COMPLETED" and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
@@ -787,6 +816,21 @@ async def add_packing_completion(
             return qty / max(1, int(stated_count))
         return float(po.pack_size or 0)
 
+    def _box_size_alt(stated_count: Optional[int]) -> float:
+        """The box size in PIECES, when this event has one to split by.
+
+        Same precedence as `_box_size` one level up: what the caller stated for
+        this event beats the order's stored default. A caller that stated a base
+        `box_size` or an explicit carton count for this event means it, so the
+        order's stored count does not then override them — but nothing else does,
+        which makes the count the default split on an alt-unit order.
+        """
+        if payload.box_size_alt:
+            return float(payload.box_size_alt)
+        if payload.box_size or stated_count:
+            return 0.0
+        return float(po.pack_size_alt or 0)
+
     lot_qtys = [float(lot.qty) if lot else float(payload.qty) for lot in lots]
     # Loose scrap per lot: material that left the source location but never
     # became a carton. Deliberately kept out of `lot_qtys` — those feed
@@ -850,9 +894,15 @@ async def add_packing_completion(
             # No explicit box list — the split is derived from the box size, and
             # no scale reading came with it, so `assert_all_weighed` below turns
             # this into a 400. Kept as a path only so the error names the cartons.
-            box_size = _box_size(lot.package_count if lot else payload.package_count, lot_qty)
-            carton_qtys = [
-                packing_service.Carton(q) for q in packing_service.split_qty(lot_qty, box_size)
+            stated_count = lot.package_count if lot else payload.package_count
+            # Pieces first on an alt-unit order: the carton is counted, and the
+            # kilos it works out to are what the scale then argues with. Falls
+            # through to the base split when there is no count to split by.
+            carton_qtys = packing_service.cartons_from_alt_split(
+                lot_qty, _box_size_alt(stated_count), alt_base_factor,
+            ) or [
+                packing_service.Carton(q)
+                for q in packing_service.split_qty(lot_qty, _box_size(stated_count, lot_qty))
             ]
 
         # A kg-based item measures its cartons once: the qty in the box is its net

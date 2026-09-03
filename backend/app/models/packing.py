@@ -66,6 +66,14 @@ class PackingOrder(Base):
     qty_target: Mapped[float] = mapped_column(Numeric(14, 4), default=0)
     # Default FG qty per carton; the completion form pre-fills from it.
     pack_size: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    # The same box size in the alt selling unit — "12 Pcs per carton". This is the
+    # AUTHORITATIVE one whenever it is set, exactly as `qty2` is authoritative over
+    # `qty_target`: a carton holds a whole number of pieces, and `pack_size` is only
+    # that count run through the item's g/y, which the scale then contradicts by a
+    # couple of hundred grams on every box. Splitting by the kilos instead produced
+    # a phantom last carton (12 boxes of 10.8 kg from a 130 kg draw leaves 0.4 kg,
+    # which is not a box of anything) and printed labels reading 11.8 Pcs.
+    pack_size_alt: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     package_label: Mapped[str] = mapped_column(String(32), default="Carton")
 
     # --- Alt (selling) unit -------------------------------------------------

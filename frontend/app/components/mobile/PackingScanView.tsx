@@ -9,7 +9,7 @@ import { LotChips } from '../shared/LotChips';
 import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree';
 import {
     BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
-    filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload,
+    filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload, orderBoxSizeAlt,
 } from '../shared/packingBoxes';
 import { orderBasePerAlt, altToBase, baseToAlt } from '../shared/altUnit';
 
@@ -100,9 +100,15 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
             setUnit(null);
             const rem = Math.max(0, num(found.qty_target) - num(found.qty_packed));
             setQty(rem ? String(rem) : '');
-            // Seed the lines the remaining qty implies (n x pack_size, plus the
+            // Seed the lines the remaining qty implies (n full boxes plus the
             // remainder); the packer corrects the split and fills in each reading.
-            setBoxGroups(seedBoxGroups(rem, num(found.pack_size)));
+            // Split in the unit the order is COUNTED in — 12 Pcs a box, not the
+            // 10.8 kg those weigh in theory (see packingBoxes.seedBoxGroups).
+            const factor = orderBasePerAlt(found);
+            const altSize = orderBoxSizeAlt(found, factor);
+            setBoxGroups(seedBoxGroups(
+                rem, altSize ? 0 : num(found.pack_size), [], factor, altSize,
+            ));
             setOpenGroups(new Set());
             return;
         }
@@ -195,9 +201,15 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const altFactor = orderBasePerAlt(po);
     const hasAlt = !!(altUom && altFactor);
 
+    // Box size in the counting unit; see the seed in `resolveCode`.
+    const boxSizeAlt = hasAlt ? orderBoxSizeAlt(po, altFactor) : null;
+
     const onQtyChange = (v: string) => {
         setQty(v);
-        setBoxGroups(prev => seedBoxGroups(num(v), num(po?.pack_size), prev, hasAlt ? altFactor : null));
+        setBoxGroups(prev => seedBoxGroups(
+            num(v), boxSizeAlt ? 0 : num(po?.pack_size), prev,
+            hasAlt ? altFactor : null, boxSizeAlt,
+        ));
     };
     // Counting in the alt unit: the base qty follows the count, not the reverse.
     const onQtyAltChange = (v: string) => {

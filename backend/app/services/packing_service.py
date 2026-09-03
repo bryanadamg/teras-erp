@@ -282,6 +282,54 @@ def split_qty(total: float, box_size: float) -> list[float]:
     return parts or [round(total, 4)]
 
 
+def cartons_from_alt_split(
+    lot_qty: float,
+    per_carton_alt: float,
+    base_factor: Optional[float],
+) -> Optional[list[Carton]]:
+    """Split a draw into cartons of a fixed PIECE count, not a fixed weight.
+
+    The counting unit runs the split on an alt-unit order, for the same reason it
+    runs `is_target_met`: a carton holds 12 pieces, and the 10.8 kg those work out
+    to is an estimate the scale contradicts on every box. Splitting the kilos
+    instead produced boxes nobody packed — a 130.1 kg draw against a 10.8 kg box
+    is 12 boxes plus a 0.5 kg thirteenth, which is not a carton of anything, and
+    each label printed 11.8 Pcs once the real weight went in.
+
+    So the counts are laid out first (`split_qty` in the alt unit, off the count
+    the draw implies), then each carton's base qty is that count converted —
+    except the LAST, which takes whatever base qty is left over. The cartons must
+    sum to exactly what left the source location: this figure is the stock move,
+    and 12 rounded 10.8s against a 130.1 kg draw would post a ledger that doesn't
+    balance its own line.
+
+    None when the conversion can't be resolved or no count size was given, which
+    leaves the caller on the base-qty split.
+    """
+    factor = float(base_factor or 0)
+    per = float(per_carton_alt or 0)
+    if factor <= 0 or per <= 0 or float(lot_qty) <= 0:
+        return None
+    total_alt = base_to_alt(float(lot_qty), factor)
+    if total_alt is None or total_alt <= 0:
+        return None
+    counts = split_qty(total_alt, per)
+    out: list[Carton] = []
+    running = 0.0
+    for i, count in enumerate(counts):
+        if i == len(counts) - 1:
+            qty = round(float(lot_qty) - running, 4)
+        else:
+            qty = round(count * factor, 4)
+            running = round(running + qty, 4)
+        if qty <= 0:
+            # The remainder box came out empty (the draw divides exactly into the
+            # counts above): drop it rather than mint a zero-qty label.
+            continue
+        out.append(Carton(qty, None, round(count, 4)))
+    return out or None
+
+
 def describe_box_breakdown(qtys: list[float]) -> str:
     """Human-readable box breakdown for an audit log entry, e.g. "5 × 5 + 1 × 3".
 
