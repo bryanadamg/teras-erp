@@ -29,13 +29,18 @@ interface Props {
 // dye-recipe matching, MO/stock variant_key; it is NOT the 30k Color Code catalog. It
 // lives here as a sibling tab purely for discoverability (single "Colors" home).
 //
-// Grid is the default view, not the table: this list is ~140 short names where the
-// only column that carries information is the swatch, so a full-width text column
-// with a mostly-empty swatch beside it was a colour list you could not see colours
-// in. The table stays for edit-heavy passes (inline rename, tighter scanning).
+// Two views, and the table is the DEFAULT on purpose. The swatch grid is the better
+// way to read ~140 short colour names — the only column carrying information is the
+// swatch — but this page shipped as a table, so opening on the grid would replace a
+// list users know with one they have to go looking for. Landing on the table inverts
+// the risk to "never finds the grid", which the labelled toggle answers: it reads
+// "List / Swatches", not two bare icons, because an icon-only toggle is exactly what
+// hides a second view. The choice then persists, so the grid becomes their default
+// once they pick it rather than one we imposed.
 // No pager on either view — the whole value set already rides in on the attributes
 // master load, so paging 140 rows at 25 only hid search hits behind Next.
 type ViewMode = 'grid' | 'table';
+const VIEW_KEY = 'color_variant_view';
 
 // Swatch picker for the create/edit form: the colour input is always live — no
 // checkbox to arm it first. "No color" is the untouched default (hex === null),
@@ -57,7 +62,17 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
 
-    const [view, setView] = useState<ViewMode>('grid');
+    // Lazy initialiser, not an effect: reading it after mount would render the table
+    // first and snap to the grid a frame later. Anything unreadable (SSR, private
+    // mode, a stale value) falls back to the table.
+    const [view, setViewState] = useState<ViewMode>(() => {
+        try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'table'; }
+        catch { return 'table'; }
+    });
+    const setView = (v: ViewMode) => {
+        setViewState(v);
+        try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable — session-only */ }
+    };
     const [search, setSearch] = useState('');
     const [family, setFamily] = useState<ColorFamilyKey | 'ALL'>('ALL');
     const [missingOnly, setMissingOnly] = useState(false);
@@ -177,8 +192,10 @@ export default function ColorsVariantView({ values, canCreate, canEdit, canDelet
                     value={view}
                     onChange={v => setView(v as ViewMode)}
                     options={[
-                        { value: 'grid', label: <i className="bi bi-grid-3x3-gap-fill" />, title: 'Swatch grid' },
-                        { value: 'table', label: <i className="bi bi-list-ul" />, title: 'Table' },
+                        // Labelled, not icon-only: this is the only affordance telling a
+                        // user the other view exists at all.
+                        { value: 'table', label: <><i className="bi bi-list-ul" style={{ marginRight: 4 }} />List</>, title: 'Table with inline rename' },
+                        { value: 'grid', label: <><i className="bi bi-grid-3x3-gap-fill" style={{ marginRight: 4 }} />Swatches</>, title: 'Swatch grid' },
                     ]}
                 />
                 <ToolbarCount classic={classic} right>
