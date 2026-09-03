@@ -700,6 +700,54 @@ export const resolveColorHex = (
     attrs?: { system_role?: string | null; hex?: string | null }[] | null,
 ): string | null => primaryHex || (attrs || []).find(a => a.system_role === 'color')?.hex || null;
 
+// THE colour swatch box — the square (not chip) form, for a swatch column or a
+// colour card. Three faces, and the difference between them is load-bearing:
+//   saved hex   → solid fill, solid border
+//   derived hex → same fill, DASHED border ("this is what the name implies, but
+//                 nobody has saved a swatch") — the honest middle state, since
+//                 `colorHexFor` already colours these values on the BOM list and
+//                 lab-dip chips, so hiding it here is the drift, not the fix
+//   neither     → checkerboard, i.e. genuinely no colour
+// Pass `onPick` for an editable swatch: it renders the hidden `<input type=color>`
+// itself, which three call sites used to each hand-roll.
+export function SwatchBox({ hex, derived, size = 18, classic, title, onPick, style }: {
+    hex?: string | null;
+    /** Fallback shade implied by the name; rendered dashed to stay distinguishable. */
+    derived?: string | null;
+    size?: number;
+    classic?: boolean;
+    title?: string;
+    onPick?: (hex: string) => void;
+    style?: React.CSSProperties;
+}) {
+    const shown = hex || derived || null;
+    const face: React.CSSProperties = {
+        display: 'inline-block', width: size, height: size, boxSizing: 'border-box',
+        borderRadius: classic ? 2 : 4, verticalAlign: 'middle', position: 'relative',
+        background: shown || 'transparent',
+        border: hex ? '1px solid rgba(0,0,0,0.35)' : `1px dashed ${classic ? '#a0988c' : '#94a3b8'}`,
+        ...(shown ? null : {
+            border: `1px solid ${classic ? '#a0988c' : '#94a3b8'}`,
+            backgroundImage: 'linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%)',
+            backgroundSize: '8px 8px', backgroundPosition: '0 0, 4px 4px',
+        }),
+        ...(onPick ? { cursor: 'pointer' } : null),
+        ...style,
+    };
+    const tip = title ?? (hex ? hex : derived ? `${derived} — derived from the name, no swatch saved` : 'No swatch');
+    if (!onPick) return <span title={tip} style={face} />;
+    return (
+        <label title={onPick ? `${tip}${hex ? ' — click to change' : ' — click to set'}` : tip} style={face}>
+            <input
+                type="color"
+                value={shown || '#cccccc'}
+                onChange={e => onPick(e.target.value)}
+                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+            />
+        </label>
+    );
+}
+
 // Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
 // `hex` overrides the derived lookup with a stored AttributeValue.hex, when known.
 // `onRemove` renders a small "x" for removable pick-lists (e.g. lab dip request colors).
