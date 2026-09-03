@@ -664,9 +664,27 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
     useEffect(() => {
         (async () => {
             const res = await authFetch(`${API_BASE}/sales-orders?status=PENDING,READY,PARTIAL&limit=0`);
-            if (res.ok) { const d = await res.json(); setSos(Array.isArray(d) ? d : (d.items || [])); }
+            const list = res.ok ? (await res.json()) : null;
+            const rows = Array.isArray(list) ? list : (list?.items || []);
+            // A Quarantine Packing deep link names the SO its lots were made for, and
+            // that order is not necessarily still open — a partially shipped one sits
+            // at SENT, and the list above only carries PENDING/READY/PARTIAL. Without
+            // this the named SO is simply absent from the dropdown, so the <select>
+            // falls back to showing "pack to stock", `selectedSO` is undefined, no
+            // line can be matched, and the alt unit never arrives — all silently, and
+            // all looking exactly like a lot that had no order in the first place.
+            const wanted = initialValues?.sales_order_id;
+            if (wanted && !rows.some((s: any) => String(s.id) === String(wanted))) {
+                const one = await authFetch(`${API_BASE}/sales-orders/${wanted}`);
+                if (one.ok) {
+                    const so = await one.json();
+                    if (so?.id) rows.unshift(so);
+                }
+            }
+            setSos(rows);
         })();
-    }, [authFetch]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authFetch, initialValues?.sales_order_id]);
 
     // Locations come from DataContext, which may still be loading when this modal
     // opens — backfill the defaults once they arrive, without clobbering a pick.
@@ -740,6 +758,28 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         applyAlt(qty2, uom2Factor, uom2LengthUom, val);
     };
 
+    // The selling unit an SO line is counted in, copied onto the form. Split out of
+    // `applySoLine` because the alt unit is NOT specific to one line: a style ordered
+    // in four colours is four lines that all sell in Pcs of the same cut length. So
+    // when the line pick is ambiguous and left to the planner, the unit can still be
+    // filled in — which is the whole point of arriving here from a Quarantine Packing
+    // deep link, where the lots are already made and only the counting is in question.
+    // `copyQty2` is off for that case: the ordered count belongs to a specific line,
+    // while the unit and factor do not.
+    const applyLineAltUnit = (line: any, copyQty2: boolean) => {
+        if (!line?.uom2) return;
+        setUom2(line.uom2);
+        const factor = line.uom2_factor != null ? parseFloat(String(line.uom2_factor)) : null;
+        setUom2Factor(factor);
+        // The factor's target unit lives on the UOM master, not on the SO line, so it
+        // is resolved here rather than guessed downstream. `uoms` may still be loading
+        // — the effect below re-runs once it lands, so a miss here is not permanent.
+        const uomObj = (uoms || []).find((u: any) => u.name === line.uom2);
+        const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factor);
+        setUom2LengthUom(factorObj?.to_uom_name || '');
+        if (copyQty2 && line.qty2 != null && line.qty2 !== '') setQty2(String(line.qty2));
+    };
+
     const applySoLine = (lineId: string) => {
         setSoLineId(lineId);
         const line = soLines.find((l: any) => String(l.id) === lineId);
@@ -759,17 +799,8 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                 setQtyTarget(String(line.qty_ordered_base));
             }
             // Follow the order's own selling unit: the packer counts cartons in
-            // whatever the customer ordered in. The factor's length unit lives on
-            // the UOM master, so resolve it here rather than guessing later.
-            if (line.uom2) {
-                setUom2(line.uom2);
-                const factor = line.uom2_factor != null ? parseFloat(String(line.uom2_factor)) : null;
-                setUom2Factor(factor);
-                const uomObj = (uoms || []).find((u: any) => u.name === line.uom2);
-                const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factor);
-                setUom2LengthUom(factorObj?.to_uom_name || '');
-                if (line.qty2 != null && line.qty2 !== '') setQty2(String(line.qty2));
-            }
+            // whatever the customer ordered in.
+            applyLineAltUnit(line, true);
         }
     };
 
@@ -799,9 +830,36 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         if (colorHint) narrow((l: any) => l.color_id && String(l.color_id) === String(colorHint));
         if (comboHint) narrow((l: any) => (l.attribute_value_ids || []).some((id: any) => String(id) === String(comboHint)));
 
-        if (candidates.length === 1) applySoLine(String(candidates[0].id));
+        if (candidates.length === 1) {
+            applySoLine(String(candidates[0].id));
+            return;
+        }
+        // Ambiguous line, but the selling unit may still be unambiguous: same style,
+        // several colours, all sold as Pcs of the same cut. Fill the unit when every
+        // candidate agrees on it and leave the line for the planner. Not the ordered
+        // count — that belongs to whichever line they end up picking.
+        const first = candidates[0];
+        const sameUnit = first?.uom2 && candidates.every((l: any) =>
+            l.uom2 === first.uom2
+            && String(l.uom2_factor ?? '') === String(first.uom2_factor ?? ''));
+        if (sameUnit && !uom2) applyLineAltUnit(first, false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [soId, itemId, soLines, soLineId]);
+
+    // Backfill the factor's length unit once the UOM master lands.
+    //
+    // The prefill above can run before `uoms` has loaded, and then the lookup that
+    // turns "1 Pic = 50" into "50 m" finds nothing. It cannot be left blank: with no
+    // unit, `basePerAlt` falls back to yard (the unit every legacy factor was entered
+    // against), so a metre-based recipe silently computes the target and the carton
+    // size 9.4% light. Re-running it here rather than widening the effect above,
+    // which sets `soLineId` on a single match and would early-return.
+    useEffect(() => {
+        if (!uom2 || uom2Factor == null || uom2LengthUom) return;
+        const uomObj = (uoms || []).find((u: any) => u.name === uom2);
+        const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === uom2Factor);
+        if (factorObj?.to_uom_name) setUom2LengthUom(factorObj.to_uom_name);
+    }, [uoms, uom2, uom2Factor, uom2LengthUom]);
 
     // A native <select> can't render swatch chips, so this is the same identity
     // (item, size, combo, colour/labdip) as LotChips, flattened to plain text —
