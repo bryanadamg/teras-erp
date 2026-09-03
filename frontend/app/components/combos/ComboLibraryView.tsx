@@ -1,29 +1,39 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import Pager from '../shared/Pager';
-import { StatusChip, CodeChip, TableSkeleton, useTableSkeletonMetrics, XP_BTN, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { StatusChip, CodeChip, SwatchBox, CODE_FONT, TableSkeleton, useTableSkeletonMetrics, XP_BTN, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { SearchField, FilterChipBar, ToolbarCount, ToolbarButton, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow, lvThead, TableEmpty,
 } from '../shared/listViewTheme';
+import { ColorFamilyKey, COLOR_FAMILY_META, colorBandsFor, colorFamiliesIn, colorFamilyMembershipCounts } from '../shared/colorFamilies';
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
+
+// A combo IS several colours — `BLACK WHITE`, `NVYRED`, `DSR ABU TUL NAVY LIST NAVY`
+// — so 85 of the 147 live rows name two or more. Both views lead with a band strip
+// parsed out of the name, which is the only depiction of the entity this table has
+// ever had; the alternative was three columns of text, two of which say nothing
+// (`name` repeats `code` in 146 of 147 rows and every `description` is empty, so
+// both are now tooltips on the code rather than columns).
+//
+// The table is the default for the same reason as the Colors tab: this page shipped
+// as a list, and opening on the grid would replace one users know with one they have
+// to go find. The toggle is labelled, and the choice sticks.
+type ViewMode = 'grid' | 'table';
+const VIEW_KEY = 'combo_library_view';
 
 interface Props {
     combos: any[];
     total: number;
-    page: number;
-    size: number;
     search: string;
     statusFilter: string;
     loading?: boolean;
     onSearchChange: (s: string) => void;
     onStatusChange: (s: string) => void;
-    onPageChange: (p: number) => void;
     onCreate: (payload: any) => void;
     onEdit: (id: string, payload: any) => void;
     onDelete: (id: string) => void;
@@ -33,8 +43,8 @@ interface Props {
 const emptyForm = () => ({ code: '', name: '', description: '', status: 'active' });
 
 export default function ComboLibraryView({
-    combos, total, page, size, search, statusFilter, loading,
-    onSearchChange, onStatusChange, onPageChange, onCreate, onEdit, onDelete, embedded,
+    combos, total, search, statusFilter, loading,
+    onSearchChange, onStatusChange, onCreate, onEdit, onDelete, embedded,
 }: Props) {
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
@@ -42,6 +52,17 @@ export default function ComboLibraryView({
     const { hasPermission, hasAnyPermission } = useUser();
     const canManage = hasAnyPermission('combo_library.create', 'combo_library.edit', 'combo_library.delete');
 
+    // Lazy initialiser, not an effect: reading it after mount would render the
+    // table first and snap to the grid a frame later.
+    const [view, setViewState] = useState<ViewMode>(() => {
+        try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'table'; }
+        catch { return 'table'; }
+    });
+    const setView = (v: ViewMode) => {
+        setViewState(v);
+        try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable — session-only */ }
+    };
+    const [family, setFamily] = useState<ColorFamilyKey | 'ALL'>('ALL');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState(emptyForm());
@@ -58,6 +79,65 @@ export default function ComboLibraryView({
         const t = setTimeout(() => onSearchChange(searchInput.trim()), 350);
         return () => clearTimeout(t);
     }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Colour families for a combo are MULTI-MEMBERSHIP: a chip means "contains this
+    // colour", so the tallies overlap and deliberately do not sum to the row count —
+    // "every combo with NAVY in it" is the question worth asking of this library.
+    // `search` and `statusFilter` are still served server-side; `combos` arrives
+    // uncapped (see combos/page.tsx), so these counts describe the whole matching set.
+    const familyCounts = useMemo(
+        () => colorFamilyMembershipCounts(combos.map((c: any) => ({ value: c.code }))),
+        [combos],
+    );
+    const filtered = useMemo(() => family === 'ALL' ? combos : combos.filter((c: any) => {
+        const fams = colorFamiliesIn(c.code);
+        // The OTHER chip is the inverse: names with no colour word at all (BEBAS,
+        // WARNA WARNI, the bare Pantone codes) — 9 of the 147.
+        return family === 'OTHER' ? fams.length === 0 : fams.includes(family);
+    }), [combos, family]);
+
+    const familyOptions = [
+        { value: 'ALL', label: 'All', count: combos.length },
+        ...familyCounts.map(({ key, count }) => ({
+            value: key,
+            count,
+            title: `Combos containing ${COLOR_FAMILY_META[key].label.toLowerCase()}`,
+            label: (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {COLOR_FAMILY_META[key].hex && (
+                        <span style={{
+                            width: 8, height: 8, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+                            background: COLOR_FAMILY_META[key].hex!, border: '1px solid rgba(0,0,0,0.3)',
+                        }} />
+                    )}
+                    {COLOR_FAMILY_META[key].label}
+                </span>
+            ),
+        })),
+    ];
+
+    // `name` repeats `code` in all but one live row and no row has a description, so
+    // neither earns a column — they surface here only when they say something the
+    // code does not (the rule `colorTitle` already applies in the Color Library).
+    const codeTitle = (c: any) => {
+        const extra = [
+            c.name && String(c.name).trim().toLowerCase() !== String(c.code).trim().toLowerCase() ? c.name : null,
+            c.description || null,
+        ].filter(Boolean);
+        return extra.length ? `${c.code} — ${extra.join(' · ')}` : undefined;
+    };
+
+    // Names the strip instead of leaving the reader to guess the band order.
+    const bandTitle = (code: string) => {
+        const fams = colorFamiliesIn(code);
+        return fams.length
+            ? `${code} — ${fams.map(f => COLOR_FAMILY_META[f].label.toLowerCase()).join(' + ')}`
+            : `${code} — no colour named`;
+    };
+
+    const emptyMessage = family !== 'ALL'
+        ? `No combos contain ${COLOR_FAMILY_META[family].label.toLowerCase()}.`
+        : 'No combos found.';
 
     const openCreate = () => { setEditing(null); setForm(emptyForm()); setIsModalOpen(true); };
     const openEdit = (c: any) => {
@@ -111,8 +191,22 @@ export default function ComboLibraryView({
                     value={statusFilter}
                     onChange={onStatusChange}
                 />
+                <span style={lvSep(classic)} />
+                <FilterChipBar
+                    classic={classic}
+                    value={view}
+                    onChange={v => setView(v as ViewMode)}
+                    options={[
+                        // Labelled, not icon-only: this is the only affordance telling a
+                        // user the other view exists at all.
+                        { value: 'table', label: <><i className="bi bi-list-ul" style={{ marginRight: 4 }} />List</>, title: 'Table' },
+                        { value: 'grid', label: <><i className="bi bi-grid-3x3-gap-fill" style={{ marginRight: 4 }} />Swatches</>, title: 'Swatch grid' },
+                    ]}
+                />
                 <ToolbarCount classic={classic} right>
-                    {total.toLocaleString()} combo{total !== 1 ? 's' : ''}
+                    {filtered.length === total
+                        ? `${total.toLocaleString()} combo${total !== 1 ? 's' : ''}`
+                        : `${filtered.length.toLocaleString()} of ${total.toLocaleString()} combos`}
                 </ToolbarCount>
                 {canManage && (
                     <>
@@ -122,32 +216,92 @@ export default function ComboLibraryView({
                 )}
             </div>
 
-            {/* Table */}
+            {/* Colour-family chips, parsed from the combo names */}
+            {familyCounts.length > 0 && (
+                <div style={classic
+                    ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
+                    : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+                    <FilterChipBar
+                        classic={classic}
+                        flat
+                        value={family}
+                        onChange={v => setFamily(v as ColorFamilyKey | 'ALL')}
+                        options={familyOptions}
+                        style={{ flexWrap: 'wrap' }}
+                    />
+                </div>
+            )}
+
+            {/* List / swatch grid */}
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
+                {view === 'grid' ? (
+                    filtered.length === 0 ? (
+                        <div style={{ padding: 24, textAlign: 'center', fontSize: classic ? 11 : 13, color: classic ? '#666' : '#94a3b8' }}>
+                            {loading ? 'Loading…' : emptyMessage}
+                        </div>
+                    ) : (
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                            gap: 8, padding: 10, alignContent: 'start',
+                        }}>
+                            {filtered.map((c: any) => (
+                                <div key={c.id} style={classic
+                                    ? { border: '1px solid #b0a898', background: '#fff' }
+                                    : { border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', overflow: 'hidden' }}>
+                                    <SwatchBox
+                                        bands={colorBandsFor(c.code)}
+                                        classic={classic}
+                                        title={bandTitle(c.code)}
+                                        style={{ display: 'block', width: '100%', height: 48, borderRadius: 0, borderWidth: '0 0 1px 0' }}
+                                    />
+                                    <div style={{ padding: '4px 6px 3px' }}>
+                                        <div title={codeTitle(c) ?? c.code} style={{
+                                            fontFamily: CODE_FONT, fontSize: classic ? 10.5 : 11.5, fontWeight: 600,
+                                            color: classic ? '#000' : '#1e293b', lineHeight: 1.3,
+                                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                                            minHeight: classic ? 27 : 30,
+                                        }}>{c.code}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 2 }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                <StatusChip status={c.status} tint />
+                                                {c.usage_count > 0 && (
+                                                    <span title={`Used by ${c.usage_count} record(s)`} style={{ fontSize: classic ? 9.5 : 10, color: classic ? '#555' : '#64748b' }}>
+                                                        &times;{c.usage_count}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            {canManage && <MenuTriggerButton classic={classic} onClick={e => menuToggle(c.id, e)} />}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )
+                ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                     <thead style={lvThead(classic, true)}>
                         <tr>
-                            <th style={{ ...lvTh(classic), width: 160 }}>Code</th>
-                            <th style={lvTh(classic)}>Name</th>
-                            <th style={lvTh(classic)}>Description</th>
+                            <th style={{ ...lvTh(classic), width: 70 }}>Colors</th>
+                            <th style={lvTh(classic)}>Code</th>
                             <th style={{ ...lvTh(classic), width: 60, textAlign: 'center' }}>Usage</th>
                             <th style={{ ...lvTh(classic), width: 80 }}>Status</th>
                             <th style={{ ...lvTh(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody ref={listBodyRef}>
-                        {combos.length === 0 && (loading ? (
-                            <TableSkeleton rows={8} cols={skel.cols ?? 6} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                        {filtered.length === 0 && (loading ? (
+                            <TableSkeleton rows={8} cols={skel.cols ?? 5} classic={classic} tdStyle={lvTd(classic)} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                         ) : (
-                            <TableEmpty colSpan={6} classic={classic} tdStyle={lvTd(classic)} message="No combos found." />
+                            <TableEmpty colSpan={5} classic={classic} tdStyle={lvTd(classic)} message={emptyMessage} />
                         ))}
-                        {combos.map((c, idx) => (
+                        {filtered.map((c: any, idx: number) => (
                             <tr key={c.id} style={lvRow(classic, idx)}>
                                 <td style={lvTd(classic)}>
-                                    <CodeChip code={c.code} classic={classic} tone="accent" />
+                                    <SwatchBox bands={colorBandsFor(c.code)} classic={classic} title={bandTitle(c.code)} style={{ width: 44 }} />
                                 </td>
-                                <td style={lvTd(classic)}>{c.name}</td>
-                                <td style={lvTd(classic)}>{c.description || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>
+                                    <CodeChip code={c.code} classic={classic} tone="accent" title={codeTitle(c)} />
+                                </td>
                                 <td style={{ ...lvTd(classic), textAlign: 'center' }}>{c.usage_count || 0}</td>
                                 <td style={lvTd(classic)}><StatusChip status={c.status} /></td>
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
@@ -157,13 +311,12 @@ export default function ComboLibraryView({
                         ))}
                     </tbody>
                 </table>
+                )}
             </div>
-
-            <Pager page={page} total={total} pageSize={size} onPageChange={onPageChange} />
 
             {/* Row ⋯ menu: Edit / Delete (Archive when in use) */}
             {menuOpenId && (() => {
-                const c = combos.find((x: any) => String(x.id) === menuOpenId);
+                const c = filtered.find((x: any) => String(x.id) === menuOpenId);
                 if (!c || !canManage) return null;
                 return (
                     <FloatingMenu
