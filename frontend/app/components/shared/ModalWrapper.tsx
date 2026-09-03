@@ -90,6 +90,7 @@ export function WindowCloseButton({ onClose, white = false }: { onClose: () => v
 
     return (
         <button
+            type="button"
             className={XP_BTN}
             onClick={onClose}
             onMouseEnter={() => setHov(true)}

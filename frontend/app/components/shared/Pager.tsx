@@ -38,6 +38,7 @@ export default function Pager({ page, total, pageSize, onPageChange, hideWhenEmp
     // toolbar) so the pager reads as part of the same button system, not a one-off.
     const navBtn = (label: React.ReactNode, target: number, disabled: boolean) => (
         <button
+            type="button"
             className={XP_BTN}
             disabled={disabled}
             onClick={() => onPageChange(target)}

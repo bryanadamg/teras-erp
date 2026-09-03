@@ -1965,6 +1965,7 @@ export function MenuTriggerButton({ classic, onClick, title = 'More actions' }: 
     if (classic) {
         return (
             <Tooltip content={title}><button
+                type="button"
                 className={`xp-menu-trigger ${XP_BTN}`}
                 onClick={onClick}
                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: BUTTON_RADIUS, cursor: 'pointer', color: '#555', fontSize: '12px' }}
@@ -1976,7 +1977,7 @@ export function MenuTriggerButton({ classic, onClick, title = 'More actions' }: 
         );
     }
     return (
-        <Tooltip content={title}><button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center xp-menu-trigger" style={{ width: 26, height: 26 }} onClick={onClick}>
+        <Tooltip content={title}><button type="button" className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center xp-menu-trigger" style={{ width: 26, height: 26 }} onClick={onClick}>
             <i className="bi bi-three-dots fs-6"></i>
         </button></Tooltip>
     );
@@ -2027,6 +2028,7 @@ export function XPActionButton({
         const t = XP_ACTION_TONES[tone];
         return tip(
             <button
+                type="button"
                 onClick={onClick}
                 disabled={disabled}
                 className={[XP_BTN, className].filter(Boolean).join(' ')}
@@ -2043,6 +2045,7 @@ export function XPActionButton({
     }
     return tip(
         <button
+            type="button"
             className={`btn ${XP_ACTION_MODERN[tone]} d-inline-flex align-items-center py-0 px-1`}
             style={{ fontSize: 11, gap: 4 }}
             onClick={onClick}
@@ -2074,6 +2077,7 @@ export function FloatingMenu({ pos, items, minWidth = 175 }: { pos: { top: numbe
         >
             {visible.map(item => (
                 <button
+                    type="button"
                     key={item.key}
                     title={item.title}
                     onClick={item.onClick}
