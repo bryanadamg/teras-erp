@@ -255,9 +255,30 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     figures above stay first: they are what stock moves in. */}
                                 {po.uom2 && orderBasePerAlt(po, it) && (() => {
                                     const f = orderBasePerAlt(po, it);
+                                    // The ordered count as STATED, not re-derived from the base
+                                    // target. The two are the same quantity in two units, so a
+                                    // derived one can only ever hide a disagreement between them
+                                    // — which is exactly how a target wrongly filled with the SO
+                                    // line's yards showed a plausible-looking 16,000 Pcs instead
+                                    // of the 2,880 sitting in the row. Packed has no stated
+                                    // count, so it stays derived.
+                                    const stated = num(po.qty2) > 0 ? num(po.qty2) : null;
+                                    const derived = baseToAlt(num(po.qty_target), f);
+                                    const drift = stated !== null && derived !== null && derived > 0
+                                        && Math.abs(stated - derived) > 0.05 * derived;
                                     return (
                                         <>
-                                            {infoRow('Target', formatAlt(baseToAlt(num(po.qty_target), f), po.uom2))}
+                                            {infoRow('Target', (
+                                                <>
+                                                    {formatAlt(stated ?? derived, po.uom2)}
+                                                    {drift && (
+                                                        <span style={{ color: '#a00000', marginLeft: 6 }}
+                                                            title={`The base target works out to ${formatAlt(derived, po.uom2)} — one of the two figures is in the wrong unit`}>
+                                                            (base says {formatAlt(derived, po.uom2)})
+                                                        </span>
+                                                    )}
+                                                </>
+                                            ))}
                                             {infoRow('Packed', formatAlt(baseToAlt(num(po.qty_packed), f), po.uom2))}
                                             {infoRow(`1 ${po.uom2}`, `${num(po.uom2_factor)} ${po.uom2_length_uom || 'Yard'} = ${f} ${uom}`)}
                                         </>
@@ -719,7 +740,19 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         const line = soLines.find((l: any) => String(l.id) === lineId);
         if (line) {
             setItemId(String(line.item_id));
-            if (!qtyTarget) setQtyTarget(String(line.qty));
+            // `qty_target` is in the ITEM's stock UOM, and `line.qty` is not: the SO
+            // form's only quantity field is labelled Yard and its Meter/Gross-Yd/Kg
+            // satellites all write back into it as yards (see
+            // so_fulfilment_service.ordered_qty_in_stock_uom). Copying it straight
+            // across made a 2880 Pcs order of a kg-stocked cloth a 14400 kg packing
+            // order — the yard total, wearing a kg label, 5.5x the real one.
+            // `qty_ordered_base` is that same figure restated by the server, which
+            // prefers the line's own `qty_kg` over re-deriving it. Null means the
+            // item is stocked by weight with no g/y/g/m on its master: unknowable,
+            // so the field is left for the planner rather than filled with yards.
+            if (!qtyTarget && line.qty_ordered_base != null) {
+                setQtyTarget(String(line.qty_ordered_base));
+            }
             // Follow the order's own selling unit: the packer counts cartons in
             // whatever the customer ordered in. The factor's length unit lives on
             // the UOM master, so resolve it here rather than guessing later.
@@ -776,7 +809,15 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         if (combo) parts.push(combo.value);
         if (l.color_code || l.color_name) parts.push([l.color_code, l.color_name].filter(Boolean).join(' '));
         else if (l.labdip_variant_code) parts.push(`${l.labdip_variant_code} (pending)`);
-        parts.push(num(l.qty).toLocaleString());
+        // Both quantities, each with its unit. The ordered figure is authored in
+        // yards and the target field below is in the item's stock UOM, so showing
+        // the bare number here left the planner reading "… 2880" above a target of
+        // 2592 and no way to tell which was wrong — the sort of mismatch that
+        // invites a manual "correction" back into the wrong unit.
+        parts.push(`${num(l.qty).toLocaleString()} Yd`);
+        if (l.qty_ordered_base != null && l.base_uom && l.base_uom.toLowerCase() !== 'yard') {
+            parts.push(`${num(l.qty_ordered_base).toLocaleString()} ${l.base_uom}`);
+        }
         return parts.join(' · ');
     };
 

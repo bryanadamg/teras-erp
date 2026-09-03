@@ -58,6 +58,14 @@ export default function ManufacturingOrdersPage() {
             setInitialCreateState({
                 sales_order_id: soId,
                 item_id: searchParams.get('item_id'),
+                // `qty` seeds ManufacturingOrder.qty and must already be in the
+                // ITEM'S STOCK UOM. A producer building this link off a sales order
+                // line must send `qty_ordered_base`, never `line.qty` — the latter is
+                // authored in yards (so_fulfilment_service.ordered_qty_in_stock_uom)
+                // and would plan a kg-stocked BOM against a length. Nothing in the
+                // repo builds this link today: the SO page routes to /production-runs
+                // with bom_entries instead, and that path converts correctly
+                // (sales-orders/page.tsx `pickQty`).
                 qty: parseFloat(searchParams.get('qty') || '0'),
                 bom_id: searchParams.get('bom_id'),
                 bom_size_id: searchParams.get('bom_size_id') || null,

@@ -309,6 +309,52 @@ async def _apply_alt_unit(
                 ),
             )
         po.qty_target = derived
+        return
+
+    _assert_target_agrees_with_alt(po, item)
+
+
+# How far `qty_target` may sit from what the alt count works out to before the two
+# are treated as different measurements rather than a rounded one. A planner who
+# rounds 2592 kg up to 2600 is 0.3% out; the unit mismatches this catches are an
+# order of magnitude worse — yards read as the stock unit is 5.5x here, and even
+# the narrowest of them, metres read as yards, is 9.4%.
+ALT_TARGET_TOLERANCE_PCT = 5.0
+
+
+def _assert_target_agrees_with_alt(po: PackingOrder, item=None) -> None:
+    """Reject a `qty_target` that contradicts the alt count stated beside it.
+
+    The two are statements of the SAME quantity in different units, so a stated
+    target that the alt count cannot reproduce means one of them is in the wrong
+    unit. That is not hypothetical: `SalesOrderLine.qty` is authored in YARDS
+    (see so_fulfilment_service.ordered_qty_in_stock_uom), and a caller that
+    prefills the target straight off the line hands us a length while calling it
+    the stock UOM. `qty_target` is the figure every carton, stock move and
+    progress bar is measured against, so a wrong one is not recoverable later —
+    it just reads as an order 5x its real size.
+
+    Only checked when the caller stated both and the conversion resolves; a
+    target with no alt count beside it has nothing to disagree with.
+    """
+    if float(po.qty_target or 0) <= 0 or float(po.qty2 or 0) <= 0:
+        return
+    base_factor = packing_service.order_base_per_alt(po, item)
+    expected = packing_service.alt_to_base(float(po.qty2), base_factor)
+    if expected is None or expected <= 0:
+        return
+    stated = float(po.qty_target)
+    if abs(stated - expected) <= expected * ALT_TARGET_TOLERANCE_PCT / 100:
+        return
+    uom = getattr(item, "uom", None) or "the stock unit"
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"Target {stated:g} {uom} does not match {float(po.qty2):g} {po.uom2} "
+            f"(= {expected:g} {uom}). One of the two is in the wrong unit — a sales "
+            f"order line's qty is in yards, not {uom}."
+        ),
+    )
 
 
 async def _assert_work_center(db: AsyncSession, wc_id) -> None:
@@ -479,12 +525,11 @@ async def create_packing_order(
         )).scalars().first()
         if not so:
             raise HTTPException(status_code=404, detail="Sales order not found")
-    if float(payload.qty_target or 0) <= 0 and float(payload.qty2 or 0) <= 0:
-        raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
     await _assert_work_center(db, payload.work_center_id)
 
-    # Loaded once: the line supplies both the variant identity and the alt selling
-    # unit this order counts in.
+    # Loaded once: the line supplies the variant identity, the alt selling unit
+    # this order counts in, and — when the caller states no quantity at all — the
+    # ordered qty itself. Loaded BEFORE the zero-qty gate for that last reason.
     so_line = None
     if payload.sales_order_line_id:
         so_line = (await db.execute(
@@ -492,6 +537,9 @@ async def create_packing_order(
             .options(selectinload(SalesOrderLine.attribute_values))
             .filter(SalesOrderLine.id == payload.sales_order_line_id)
         )).scalars().first()
+    if (float(payload.qty_target or 0) <= 0 and float(payload.qty2 or 0) <= 0
+            and so_line is None):
+        raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
 
     code = await _next_code(db)
     po = PackingOrder(
@@ -515,6 +563,15 @@ async def create_packing_order(
     # Alt selling unit + (when the caller sent only an alt count) the base target.
     # Before the flush so `qty_target` is never written as 0 and then corrected.
     await _apply_alt_unit(db, po, payload, so_line=so_line, item=item)
+    # Last resort: the ordered qty of the line being packed. Restated into the
+    # item's stock UOM rather than taken raw — `SalesOrderLine.qty` is in yards.
+    if float(po.qty_target or 0) <= 0 and so_line is not None:
+        po.qty_target = so_fulfilment_service.ordered_qty_in_stock_uom(
+            so_line.qty, item.uom,
+            qty_kg=so_line.qty_kg,
+            weight_per_unit=item.weight_per_unit,
+            weight_unit=item.weight_unit,
+        )
     if float(po.qty_target or 0) <= 0:
         raise HTTPException(status_code=400, detail="Target quantity must be greater than zero")
 
@@ -594,6 +651,11 @@ async def update_packing_order(
             # the base target means the planner's own figure wins.
             derive_target=payload.qty_target is None and payload.qty2 is not None,
         )
+    elif payload.qty_target is not None:
+        # A target restated on its own still has to agree with the alt count the
+        # order already carries — otherwise the edit path is the way around the
+        # create path's guard.
+        _assert_target_agrees_with_alt(po, po.item)
 
     if payload.status == "COMPLETED" and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()

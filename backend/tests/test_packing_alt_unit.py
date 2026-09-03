@@ -129,6 +129,84 @@ def test_the_alt_unit_is_snapshotted_from_the_ordered_line():
     assert float(po.uom2_factor) == 50
 
 
+# --- the target must agree with the count beside it -------------------------
+#
+# `qty_target` and `qty2` are the same quantity in two units, so a stated target
+# the alt count cannot reproduce means one of them is in the wrong unit. The live
+# case: the pack form prefilled the target from `SalesOrderLine.qty`, which is
+# authored in YARDS, so a 2880 Pcs order of a kg-stocked cloth became a 14400 kg
+# packing order — 5.5x, and unrecoverable once cartons were minted against it.
+
+def test_a_target_in_the_wrong_unit_is_refused():
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as e:
+        _apply(
+            # 14400 is the YARD total (2880 x 5), handed over as if it were kg.
+            _payload(qty_target=14400, qty2=2880, uom2="Pcs", uom2_factor=5,
+                     uom2_length_uom="yard"),
+            _kg_item(),
+        )
+    assert e.value.status_code == 400
+    # Both figures named, so the planner can see which one is wrong.
+    assert "14400" in e.value.detail and "2880" in e.value.detail
+    assert "2592" in e.value.detail
+
+
+def test_a_metre_read_as_a_yard_target_is_refused():
+    # The narrowest unit mismatch this has to catch: 9.4%, well inside the range
+    # that reads as a plausible figure and well outside planner rounding.
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as e:
+        _apply(
+            _payload(qty_target=15748, qty2=100, uom2="Roll", uom2_factor=144,
+                     uom2_length_uom="yard"),
+            _yard_item(),
+        )
+    assert e.value.status_code == 400
+
+
+def test_a_rounded_target_is_not_treated_as_a_unit_mismatch():
+    # 2600 against 2592 is 0.3% — a planner rounding up, not a wrong unit.
+    po = _apply(
+        _payload(qty_target=2600, qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
+        _kg_item(),
+    )
+    assert float(po.qty_target) == 2600.0
+
+
+def test_a_target_with_no_alt_count_has_nothing_to_disagree_with():
+    po = _apply(_payload(qty_target=14400, uom2="Pcs", uom2_factor=5,
+                         uom2_length_uom="yard"), _kg_item())
+    assert float(po.qty_target) == 14400.0
+
+
+def test_an_unresolvable_conversion_leaves_a_stated_target_alone():
+    # gsm needs the fabric width, so there is no expected figure to compare
+    # against — the check stays quiet rather than refusing on a guess.
+    po = _apply(
+        _payload(qty_target=14400, qty2=2880, uom2="Pcs", uom2_factor=5,
+                 uom2_length_uom="yard"),
+        _kg_item(unit="gsm"),
+    )
+    assert float(po.qty_target) == 14400.0
+
+
+def test_the_ordered_qty_a_packing_order_falls_back_to_is_in_the_stock_uom():
+    # What the create path uses when the caller states no quantity at all. The
+    # line's own qty_kg wins over re-deriving from the yards.
+    from app.services import so_fulfilment_service as sofs
+
+    assert sofs.ordered_qty_in_stock_uom(
+        14400, "kg", qty_kg=2592, weight_per_unit=180, weight_unit="g/y",
+    ) == 2592.0
+    # No qty_kg on the row: re-derived through the item's g/y, never left as yards.
+    assert sofs.ordered_qty_in_stock_uom(
+        14400, "kg", qty_kg=None, weight_per_unit=180, weight_unit="g/y",
+    ) == 2592.0
+
+
 def test_a_stated_alt_unit_beats_the_line_it_packs():
     # An explicit pick is the planner's decision and must not be overwritten by
     # the line — this is also what keeps an SO edited mid-run from re-scaling an

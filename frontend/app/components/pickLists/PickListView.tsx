@@ -1038,7 +1038,22 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                         {soLines.map((sl: any) => {
                             const it = itemById[String(sl.item_id)];
                             const rows = linesBySoLine[String(sl.id)] || [];
-                            const rem = remainingMap[String(sl.id)] ?? num(sl.qty);
+                            // Ordered qty in the item's STOCK UOM. `sl.qty` is not it —
+                            // the SO form authors every quantity as yards (see
+                            // so_fulfilment_service.ordered_qty_in_stock_uom), while
+                            // `rem` and `totalPicked` below are in kg/pcs, so showing
+                            // the raw figure put three units in one row: "10,000 kg
+                            // ordered / 10 remaining / 11 picked". Null = the item is
+                            // stocked by weight with no g/y on its master, which is
+                            // unknowable rather than zero — an em dash, never yards.
+                            const ordered = sl.qty_ordered_base != null ? num(sl.qty_ordered_base) : null;
+                            // Server returns 0.0 for an underivable line on purpose
+                            // ("seed nothing rather than guess"), so a missing entry
+                            // means the fetch has not landed — not that everything is
+                            // outstanding. Falling back to `sl.qty` here reintroduced
+                            // exactly the yard figure that rule exists to keep out.
+                            const remRaw = remainingMap[String(sl.id)];
+                            const rem = remRaw != null ? num(remRaw) : ordered;
                             const totalPicked = rows.reduce((s: number, r: any) => s + num(r.qty_picked), 0);
                             return (
                                 <React.Fragment key={sl.id}>
@@ -1049,8 +1064,14 @@ function PickListEditor({ pl: initialPl, itemById, locPickerTreeOptions, authFet
                                             <span style={{ fontSize: 9, color: '#888', marginLeft: 6 }}>{it?.code || sl.item_code}</span>
                                         </td>
                                         <td style={td} />
-                                        <td style={{ ...td, textAlign: 'right' }}>{num(sl.qty).toLocaleString()} {it?.uom}</td>
-                                        <td style={{ ...td, textAlign: 'right', color: rem > 0 ? '#0a3e0a' : '#999' }}>{rem.toLocaleString()}</td>
+                                        <td style={{ ...td, textAlign: 'right' }}>
+                                            {ordered !== null
+                                                ? `${ordered.toLocaleString()} ${sl.base_uom || it?.uom || ''}`
+                                                : <span style={{ color: '#999' }} title="This item is stocked by weight but carries no g/y or g/m on its master, so the ordered yards cannot be restated in it">&mdash;</span>}
+                                        </td>
+                                        <td style={{ ...td, textAlign: 'right', color: rem !== null && rem > 0 ? '#0a3e0a' : '#999' }}>
+                                            {rem !== null ? rem.toLocaleString() : <span>&mdash;</span>}
+                                        </td>
                                         <td style={{ ...td, textAlign: 'right', fontWeight: 'bold' }}>{totalPicked.toLocaleString()}</td>
                                         <td style={td} colSpan={3}>
                                             {rows.length === 0 && <span style={{ fontSize: 10, color: '#c00' }}>No packed cartons available</span>}
