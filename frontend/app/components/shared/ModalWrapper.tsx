@@ -348,7 +348,12 @@ export default function ModalWrapper({
                         borderTop: '1px solid #b0a898',
                         borderRadius: `0 0 ${WINDOW_RADIUS_INNER}px ${WINDOW_RADIUS_INNER}px`,
                         padding: '6px 10px',
-                        display: 'flex', justifyContent: 'flex-end', gap: 4,
+                        // Buttons no longer shrink (see lvBtn/xpBtn), so a footer too
+                        // narrow for them wraps to a second row instead of overflowing
+                        // the window. `alignItems: center` keeps a one-line button
+                        // aligned with a hint that has wrapped to two or three.
+                        display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+                        flexWrap: 'wrap', gap: 4, rowGap: 6,
                         flexShrink: 0,
                     }}>
                         {footer}

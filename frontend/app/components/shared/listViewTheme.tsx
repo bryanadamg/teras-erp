@@ -44,15 +44,19 @@ const LV_MODERN_TONES: Record<BtnTone, React.CSSProperties> = {
 
 // THE button face, both themes, all four intents. `extra` still spreads last so a
 // caller can size or disable it; it is not the place to repaint the face.
+// `flexShrink: 0` on both branches for the reason spelled out on `xpTheme.xpBtn`:
+// a button is sized by its label, and a long flexible sibling must not squeeze it
+// until that label wraps. `extra` spreads last, so a deliberately flexible button
+// still overrides it.
 export const lvBtn = (classic: boolean, tone: BtnTone = 'default', extra: React.CSSProperties = {}): React.CSSProperties => (classic ? {
     fontFamily: LV_XP_FONT, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000',
-    borderRadius: BUTTON_RADIUS, ...LV_CLASSIC_TONES[tone], ...extra,
+    borderRadius: BUTTON_RADIUS, flexShrink: 0, ...LV_CLASSIC_TONES[tone], ...extra,
 } : {
     fontFamily: LV_MODERN_FONT, fontSize: 12.5, fontWeight: 500, padding: '5px 12px', cursor: 'pointer',
     background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7,
-    ...LV_MODERN_TONES[tone], ...extra,
+    flexShrink: 0, ...LV_MODERN_TONES[tone], ...extra,
 });
 
 // Emphasised primary button (blue), dual-theme. Kept as the name most call sites

@@ -423,15 +423,19 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                             return (
                                 <Fragment key={i}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                        <input type="number" min={0} step={1} style={{ ...xpInput, width: 52, textAlign: 'right', fontWeight: 'bold' }}
+                                        {/* Spinner suppressed and the box widened for the same reason as
+                                            the desktop row: a pack run is hundreds of cartons, and the
+                                            native chrome was eating the digits rather than the padding. */}
+                                        <input type="number" min={0} step={1} className="xp-nospin"
+                                            style={{ ...xpInput, width: 60, textAlign: 'right', fontWeight: 'bold' }}
                                             value={g.count} onChange={e => updateGroup(i, { count: e.target.value })} />
                                         <span style={{ fontSize: 13, color: '#777' }}>×</span>
                                         {hasAlt && (
-                                            <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
+                                            <input type="number" min={0} step="any" className="xp-nospin" style={{ ...xpInput, flex: 1, minWidth: 0 }}
                                                 placeholder={altUom} value={g.alt}
                                                 onChange={e => setGroupAlt(i, e.target.value)} />
                                         )}
-                                        <input type="number" min={0} step="any" style={{ ...xpInput, flex: 1 }}
+                                        <input type="number" min={0} step="any" className="xp-nospin" style={{ ...xpInput, flex: 1, minWidth: 0 }}
                                             value={g.qty} onChange={e => setGroupQty(i, e.target.value)} />
                                         <span style={{
                                             fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap',

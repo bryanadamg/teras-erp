@@ -67,6 +67,11 @@ const miniBtn: React.CSSProperties = {
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
+// Width of the carton-count column on the pack form — the input and the header
+// above it, which drift apart the moment either is typed as a literal. Sized for
+// four digits with the native spinner suppressed (`.xp-nospin`): a whole pack run
+// is hundreds of cartons, and the old 46px clipped a three-digit count.
+const CARTON_COUNT_W = 56;
 
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
     const { locations, attributes, companyProfile, itemIndex, workCenters, authFetch } = useData();
@@ -1604,7 +1609,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                     {/* Visible, not a tooltip: a disabled button dispatches no mouse
                         events in Chrome, so a `title` on it would never be read. */}
                     {!readOnly && logBlockedBy && (
-                        <span style={{ fontFamily: xpFont, fontSize: 10, color: '#7a4a00', fontStyle: 'italic', marginLeft: 'auto', paddingRight: 6 }}>
+                        // The one flexible thing in the footer: it takes the leftover
+                        // width and wraps its own text, so the buttons either side keep
+                        // their natural size. `minWidth: 0` is what actually lets it
+                        // shrink — without it a flex item floors at its longest word.
+                        <span style={{
+                            fontFamily: xpFont, fontSize: 10, color: '#7a4a00', fontStyle: 'italic',
+                            marginLeft: 'auto', paddingRight: 6, flex: '1 1 auto', minWidth: 0,
+                            textAlign: 'right',
+                        }}>
                             {logBlockedBy}
                         </span>
                     )}
@@ -1751,7 +1764,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             background: '#f7f6f0', borderBottom: '1px solid #d8d5cc',
                                             position: 'sticky', top: 0, zIndex: 1,
                                         }}>
-                                            <span style={{ width: 46, flexShrink: 0, textAlign: 'right' }}>{po.package_label}s</span>
+                                            <span style={{ width: CARTON_COUNT_W, flexShrink: 0, textAlign: 'right' }}>{po.package_label}s</span>
                                             <span style={{ width: 12, flexShrink: 0 }} />
                                             {hasAlt && <span style={{ width: 56 + 24 + 5, flexShrink: 0 }}>{altUom} each</span>}
                                             <span style={{ flex: 1, minWidth: 0 }}>{uom || 'Qty'} each</span>
@@ -1777,7 +1790,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                         multiplier the packer actually counts on the floor. */}
                                                     <input
                                                         type="number"
-                                                        style={{ ...xpInput, width: 46, textAlign: 'right', flexShrink: 0, fontWeight: 'bold' }}
+                                                        className="xp-nospin"
+                                                        style={{ ...xpInput, width: CARTON_COUNT_W, textAlign: 'right', flexShrink: 0, fontWeight: 'bold' }}
                                                         value={g.count}
                                                         onChange={e => updateGroup(i, { count: e.target.value })}
                                                         min="0" step="1"
@@ -1791,6 +1805,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                         <>
                                                             <input
                                                                 type="number"
+                                                                className="xp-nospin"
                                                                 style={{ ...xpInput, width: 56, textAlign: 'right' }}
                                                                 value={g.alt}
                                                                 onChange={e => setGroupAlt(i, e.target.value)}
@@ -1802,6 +1817,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                     )}
                                                     <input
                                                         type="number"
+                                                        className="xp-nospin"
                                                         style={{ ...xpInput, flex: 1, minWidth: 0 }}
                                                         value={g.qty}
                                                         onChange={e => setGroupQty(i, e.target.value)}

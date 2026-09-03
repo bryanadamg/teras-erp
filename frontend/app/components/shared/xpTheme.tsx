@@ -946,6 +946,14 @@ export const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => (
     fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
     borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: BUTTON_RADIUS,
+    // A button is sized by its label, never by what is next to it. Flex items
+    // shrink by default, so a long sibling — a modal footer's "why this is
+    // disabled" hint, a toolbar's filter summary — squeezed the buttons until
+    // their labels wrapped, and a wrapped label is a taller button: the row ended
+    // up with four different button heights. `extra` still spreads last, so a call
+    // site that genuinely wants a flexible button (`flex: 1` on a mobile full-width
+    // action) keeps overriding this.
+    flexShrink: 0,
     ...extra,
 });
 
