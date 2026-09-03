@@ -73,6 +73,43 @@ const PO_PAGE_SIZE = 20;
 // is hundreds of cartons, and the old 46px clipped a three-digit count.
 const CARTON_COUNT_W = 56;
 
+// Pack progress, measured in whatever the order is COUNTED in. Read by both the
+// list row's bar and the pack modal's header panel, so the two can never quote
+// different percentages — keep any change to the basis here, in the one place.
+//
+// On an alt-unit order the basis is pieces: an order for 2880 Pcs is done when
+// 2880 pieces are in boxes, whatever they weighed. Measuring it in kg against a
+// target derived from g/y meant a run of elastic cloth that came in light could
+// box every ordered piece and still show 97%. Falls back to the base pair when
+// there is no alt unit. Both alt figures are COUNTED, never kilos divided back
+// out by the factor (see api/packing._packed_alt_qty).
+function packProgress(po: any, it?: any) {
+    const target = num(po.qty_target);
+    const packed = num(po.qty_packed);
+    const altUom = po.uom2 || '';
+    const altFactor = orderBasePerAlt(po, it);
+    const hasAlt = !!(altUom && altFactor);
+    const tAlt = hasAlt
+        ? (num(po.qty2) > 0 ? num(po.qty2) : baseToAlt(target, altFactor))
+        : null;
+    const pAlt = hasAlt && po.qty_packed_alt != null ? num(po.qty_packed_alt) : null;
+    const basis = tAlt !== null && pAlt !== null ? { done: pAlt, goal: tAlt } : { done: packed, goal: target };
+    return {
+        target,
+        packed,
+        remaining: Math.max(0, target - packed),
+        hasAlt,
+        altUom,
+        altFactor,
+        targetAlt: tAlt,
+        packedAlt: pAlt,
+        remainingAlt: tAlt !== null && pAlt !== null
+            ? Math.max(0, Math.round((tAlt - pAlt) * 100) / 100)
+            : null,
+        pct: basis.goal > 0 ? Math.min(100, Math.round((basis.done / basis.goal) * 100)) : 0,
+    };
+}
+
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
     const { locations, attributes, companyProfile, itemIndex, workCenters, authFetch } = useData();
     const { uiStyle } = useTheme();
@@ -196,7 +233,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
     const pages = Math.max(1, Math.ceil(total / PO_PAGE_SIZE));
     const clampedPage = Math.min(page, pages);
 
-    const PO_COLS = 10; // chevron + 8 data cols + actions
+    const PO_COLS = 11; // chevron + 9 data cols + actions
 
     // Expanded row — same three-pane shape as the WO list detail panel (info,
     // outputs, log), so a supervisor reads a packing order the way they read a WO.
@@ -463,6 +500,7 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                             <th style={xpTableHeader}>Status</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Target</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Packed</th>
+                            <th style={{ ...xpTableHeader, width: 130 }}>Progress</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
                             <th style={xpTableHeader}>Created</th>
                             <th style={{ ...xpTableHeader, textAlign: 'right' }}>Actions</th>
@@ -479,6 +517,9 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                         {orders.map((po: any, idx: number) => {
                             const it = itemById[String(po.item_id)];
                             const shortfall = num(po.qty_packed) < num(po.qty_target);
+                            // Same helper the pack modal's header bar reads, so the row
+                            // and the modal always show the same percentage.
+                            const prog = packProgress(po, it);
                             const closed = po.status === 'COMPLETED' || po.status === 'CANCELLED';
                             const isExpanded = expandedId === String(po.id);
                             return (
@@ -517,6 +558,22 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <td style={td}><StatusChip status={po.status} /></td>
                                     <td style={{ ...td, textAlign: 'right' }}>{num(po.qty_target).toLocaleString()} {po.item_uom || it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
+                                    {/* Progress in the order's COUNTED unit — pieces on an
+                                        alt-unit order, kilos otherwise. The hover states the
+                                        pair the bar is drawn from, since the Target/Packed
+                                        cells beside it are always in the stock UOM. */}
+                                    <td style={td}>
+                                        <ProgressBar
+                                            pct={prog.pct}
+                                            tone={prog.pct >= 100 ? 'green' : prog.pct > 0 ? 'blue' : 'gray'}
+                                            hatched
+                                            height={12}
+                                            label="inside"
+                                            title={prog.hasAlt
+                                                ? `${(prog.packedAlt ?? 0).toLocaleString()} / ${(prog.targetAlt ?? 0).toLocaleString()} ${prog.altUom} packed (${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''})`
+                                                : `${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''} packed`}
+                                        />
+                                    </td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
                                     <td style={td}>{po.created_at ? tzDate(po.created_at) : '—'}</td>
                                     <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
@@ -1215,13 +1272,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // Alt selling unit of this order (Pic = a roll, Pcs = a cut piece). When set,
     // the packer counts in it and every base figure is derived from it — the box
     // qtys and the label's CONTENT line all follow the same factor.
-    const altUom = po.uom2 || '';
-    const altFactor = useMemo(() => orderBasePerAlt(po, it), [po, it]);
+    const prog = useMemo(() => packProgress(po, it), [po, it]);
+    const altUom = prog.altUom;
+    const altFactor = prog.altFactor;
     const altLength = useMemo(
         () => lengthPerAlt({ factor: po.uom2_factor, lengthUom: po.uom2_length_uom }),
         [po.uom2_factor, po.uom2_length_uom],
     );
-    const hasAlt = !!(altUom && altFactor);
+    const hasAlt = prog.hasAlt;
 
     // The same three figures in what the customer counts in — DISPLAY ONLY. The
     // packer thinks in pieces ("2880 Pcs ordered, 1200 boxed"), so on an alt-unit
@@ -1237,25 +1295,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // weigh what it predicted, and the packer reweighs every box — so the kilos are
     // scale readings that drift with the fabric. Dividing them back out reports a
     // piece count nobody counted and leaves a physically complete order short.
-    const targetAlt = hasAlt
-        ? (num(po.qty2) > 0 ? num(po.qty2) : baseToAlt(target, altFactor))
-        : null;
-    const packedAlt = hasAlt && po.qty_packed_alt != null ? num(po.qty_packed_alt) : null;
-    const remainingAlt = targetAlt !== null && packedAlt !== null
-        ? Math.max(0, Math.round((targetAlt - packedAlt) * 100) / 100)
-        : null;
+    const targetAlt = prog.targetAlt;
+    const packedAlt = prog.packedAlt;
+    const remainingAlt = prog.remainingAlt;
 
-    // Progress is measured in whatever the order is COUNTED in. On an alt-unit order
-    // that is pieces: an order for 2880 Pcs is done when 2880 pieces are in boxes,
-    // whatever they weighed. Measuring it in kg against a target derived from g/y
-    // meant a run of elastic cloth that came in light could box every ordered piece
-    // and still show 97%. Falls back to the base pair when there is no alt unit.
-    const pctBasis = targetAlt !== null && packedAlt !== null
-        ? { done: packedAlt, goal: targetAlt }
-        : { done: packed, goal: target };
-    const pct = pctBasis.goal > 0
-        ? Math.min(100, Math.round((pctBasis.done / pctBasis.goal) * 100))
-        : 0;
+    // Progress basis lives in packProgress — the list row's bar reads the same
+    // helper, so this panel and that row can't disagree.
+    const pct = prog.pct;
 
     const [boxSize, setBoxSize] = useState<string>(() => (num(po.pack_size) > 0 ? String(num(po.pack_size)) : ''));
     // Loose scrap found during this pack event — offcuts, stained ends, material
