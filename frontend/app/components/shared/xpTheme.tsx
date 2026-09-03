@@ -710,16 +710,42 @@ export const resolveColorHex = (
 //   neither     → checkerboard, i.e. genuinely no colour
 // Pass `onPick` for an editable swatch: it renders the hidden `<input type=color>`
 // itself, which three call sites used to each hand-roll.
-export function SwatchBox({ hex, derived, size = 18, classic, title, onPick, style }: {
+//
+// `bands` is the fourth face and a different kind of value: several colours that
+// together ARE the thing (a combo's `BLACK WHITE`, `NVYRED`), drawn as hard-stop
+// bands. It keeps a SOLID border even though nothing is saved, because a combo has
+// no hex field to be missing — the strip is a depiction, not a stand-in for one.
+export function SwatchBox({ hex, derived, bands, size = 18, classic, title, onPick, style }: {
     hex?: string | null;
     /** Fallback shade implied by the name; rendered dashed to stay distinguishable. */
     derived?: string | null;
+    /** Two or more hexes drawn as equal hard-stop bands. Wins over hex/derived; a
+     *  single entry just fills the box. Pair with a wider `style.width`. */
+    bands?: string[];
     size?: number;
     classic?: boolean;
     title?: string;
     onPick?: (hex: string) => void;
     style?: React.CSSProperties;
 }) {
+    const strip = (bands || []).filter(Boolean);
+    if (strip.length) {
+        const step = 100 / strip.length;
+        return (
+            <span
+                title={title ?? `${strip.length} colour${strip.length !== 1 ? 's' : ''}`}
+                style={{
+                    display: 'inline-block', width: size, height: size, boxSizing: 'border-box',
+                    borderRadius: classic ? 2 : 4, verticalAlign: 'middle',
+                    border: '1px solid rgba(0,0,0,0.35)',
+                    background: strip.length === 1
+                        ? strip[0]
+                        : `linear-gradient(90deg, ${strip.map((c, i) => `${c} ${(i * step).toFixed(3)}% ${((i + 1) * step).toFixed(3)}%`).join(', ')})`,
+                    ...style,
+                }}
+            />
+        );
+    }
     const shown = hex || derived || null;
     const face: React.CSSProperties = {
         display: 'inline-block', width: size, height: size, boxSizing: 'border-box',

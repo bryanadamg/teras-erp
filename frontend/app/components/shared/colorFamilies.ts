@@ -64,8 +64,17 @@ const EXTRA_WORDS: Record<string, ColorFamilyKey> = {
     BLU: 'BLUE', DBL: 'BLUE', TURQIS: 'BLUE', TURQUOISE: 'BLUE', TEAL: 'BLUE',
     INDIGO: 'BLUE', DENIM: 'BLUE', AQUA: 'BLUE',
     GRN: 'GREEN', ARMY: 'GREEN', OLIVE: 'GREEN', LIME: 'GREEN', MINT: 'GREEN', EMERALD: 'GREEN',
-    YLW: 'YELLOW', MUSTARD: 'YELLOW', LEMON: 'YELLOW',
+    YLW: 'YELLOW', MUSTARD: 'YELLOW', LEMON: 'YELLOW', GLD: 'YELLOW', YEL: 'YELLOW',
     ORG: 'ORANGE',
+    // Combo Library vocabulary. SAX = saxe blue, CHC = chocolate, MILO = the drink
+    // (a mid brown), KHAKY = their spelling of khaki. WHY is a misspelling of WHT
+    // that is consistent across the whole library — it appears only in BLKWHY,
+    // NVYWHY and CGRYWHY, each pairing it with a dark, so it is white.
+    NVY: 'BLUE', SAX: 'BLUE',
+    SIL: 'GREY',
+    CHC: 'BROWN', MILO: 'BROWN',
+    KHAKY: 'BEIGE',
+    WHY: 'WHITE',
 };
 
 const WORD_FAMILY: Record<string, ColorFamilyKey> = (() => {
@@ -74,6 +83,28 @@ const WORD_FAMILY: Record<string, ColorFamilyKey> = (() => {
     for (const [word, family] of Object.entries(EXTRA_WORDS)) map[word.toUpperCase()] = family;
     return map;
 })();
+
+/**
+ * Splits an unseparated mill code into its parts: `BLKGLD` → BLACK + YELLOW,
+ * `DBLUBLK` → BLUE + BLACK, `CGRYWHY` → GREY + WHITE. Roughly a sixth of the
+ * Combo Library is written this way.
+ *
+ * Greedy left to right: on a hit, jump three characters; on a miss, advance one
+ * (which is what finds `GRY` inside `CGRY…` and `BLK` inside `BKBLK`). The
+ * caller only reaches this for a pure-alpha token of 5+ characters that matched
+ * no whole word, so a real word that happens to contain a code is not at risk —
+ * every colour word long enough to worry about (`MUSTARD`, `CHARCOAL`,
+ * `TURQUOISE`) matches whole first, and the non-colour words in the live data
+ * (`DESSERT`, `PRAMUKA`, `ZINNIA`, `SHADOW`, `MISTY`) contain no code at all.
+ */
+function familiesInCompound(token: string): ColorFamilyKey[] {
+    const out: ColorFamilyKey[] = [];
+    for (let i = 0; i + 3 <= token.length;) {
+        const fam = WORD_FAMILY[token.slice(i, i + 3)];
+        if (fam) { out.push(fam); i += 3; } else i += 1;
+    }
+    return out;
+}
 
 /** Representative swatch for a family chip. Read out of `COLOR_HEX` so the chip
  *  dot and the derived row swatch can never drift apart. */
@@ -110,6 +141,53 @@ export function colorFamilyOf(name?: string | null): ColorFamilyKey {
         if (tok && WORD_FAMILY[tok]) return WORD_FAMILY[tok];
     }
     return 'OTHER';
+}
+
+/**
+ * EVERY family named in the string, in reading order, deduped and capped — for
+ * combos, where two or three colours ARE the entity (`BLACK WHITE`, `NVYRED`,
+ * `DSR ABU TUL NAVY LIST NAVY`). `colorFamilyOf` above answers the different
+ * question, "which one bucket does this name belong in".
+ *
+ * `OTHER` is never emitted: a word that names no family contributes nothing to a
+ * band strip, and a strip of grey placeholders would be worse than a short one.
+ * The cap keeps a strip readable — the longest live names run to five or six
+ * colour words (`DSR HITAM PUTIH BINTIK PUTIH ABU BIRU MERAH`) and the leading
+ * ones are the ground and rib, which is what the eye needs.
+ */
+export function colorFamiliesIn(name?: string | null, cap = 4): ColorFamilyKey[] {
+    if (!name) return [];
+    const out: ColorFamilyKey[] = [];
+    const push = (f: ColorFamilyKey) => { if (f !== 'OTHER' && !out.includes(f)) out.push(f); };
+    for (const tok of String(name).toUpperCase().split(/[^A-Z0-9]+/)) {
+        if (out.length >= cap) break;
+        if (!tok) continue;   // split() yields empties around a leading/trailing separator
+        const whole = WORD_FAMILY[tok];
+        if (whole) { push(whole); continue; }
+        if (tok.length >= 5 && /^[A-Z]+$/.test(tok)) familiesInCompound(tok).forEach(push);
+    }
+    return out.slice(0, cap);
+}
+
+/** The band strip for a combo: one hex per family named, in order. Empty when the
+ *  name says nothing colour-like, which the swatch renders as "no colour". */
+export function colorBandsFor(name?: string | null, cap = 4): string[] {
+    return colorFamiliesIn(name, cap)
+        .map(f => COLOR_FAMILY_META[f].hex)
+        .filter((h): h is string => !!h);
+}
+
+/** Family tallies for names that can belong to several families at once (combos).
+ *  Counts deliberately OVERLAP and do not sum to the row count — the chip means
+ *  "contains this colour", which is the question worth asking of a combo. */
+export function colorFamilyMembershipCounts(values: { value?: string | null }[]): { key: ColorFamilyKey; count: number }[] {
+    const tally = {} as Record<ColorFamilyKey, number>;
+    for (const v of values || []) {
+        const fams = colorFamiliesIn(v?.value);
+        if (!fams.length) tally.OTHER = (tally.OTHER || 0) + 1;
+        else for (const f of fams) tally[f] = (tally[f] || 0) + 1;
+    }
+    return COLOR_FAMILY_ORDER.filter(k => tally[k] > 0).map(k => ({ key: k, count: tally[k] }));
 }
 
 /** Swatch to show when a value has no saved `hex`: the exact word match the rest
