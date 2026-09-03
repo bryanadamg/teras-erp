@@ -2898,6 +2898,10 @@ class BackupScheduleResponse(BaseModel):
 class BatchCreate(BaseModel):
     item_id: UUID
     notes: Optional[str] = None
+    # Optional opening stock for the new lot. qty > 0 requires a location — a lot
+    # with a quantity but nowhere to sit would write a balance row nothing reads.
+    qty: Optional[float] = None
+    location_id: Optional[UUID] = None
 
 class BatchResponse(BaseModel):
     id: UUID
