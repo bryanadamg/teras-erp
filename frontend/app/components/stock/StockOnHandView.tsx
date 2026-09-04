@@ -55,6 +55,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
     const [selectedCat, setSelectedCat] = useState('');
+    // MO/WO quick filters — set by clicking a row's MO/WO chip (exact-match, not the
+    // free-text `search` box's substring match) so an operator can jump from "this
+    // lot came from MO X" to "show me every other lot MO X produced" in one click.
+    const [moFilter, setMoFilter] = useState('');
+    const [woFilter, setWoFilter] = useState('');
     // QC-rejected lots stay physically in their location until disposed, so they are
     // shown by default (the table is the physical truth) but flagged, and hideable
     // for anyone reading the table as available stock.
@@ -512,6 +517,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             location_id: locationFilter,
             warehouse_id: warehouseFilter,
             category_id: categoryParam,
+            mo_code: moFilter,
+            wo_code: woFilter,
             hide_rejected: hideRejected,
             sort_by: sort?.key,
             sort_dir: sort ? (sort.dir === 1 ? 'asc' : 'desc') : '',
@@ -694,8 +701,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     {bal.mo_code ? (
                         <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
-                            title={`Produced by MO ${bal.mo_code}`}
-                            style={{ fontFamily: CODE_FONT }}>
+                            title={moFilter === bal.mo_code ? `Filtering to MO ${bal.mo_code} — click to clear` : `Produced by MO ${bal.mo_code} — click to filter the grid to this MO`}
+                            style={{ fontFamily: CODE_FONT }}
+                            onClick={() => setMoFilter(moFilter === bal.mo_code ? '' : bal.mo_code)}
+                            onRemove={moFilter === bal.mo_code ? () => setMoFilter('') : undefined}
+                            bold={moFilter === bal.mo_code}>
                             MO {bal.mo_code}
                         </Chip>
                     ) : (
@@ -705,8 +715,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     {bal.wo_code ? (
                         <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
-                            title={`Produced by WO ${bal.wo_code}`}
-                            style={{ fontFamily: CODE_FONT }}>
+                            title={woFilter === bal.wo_code ? `Filtering to WO ${bal.wo_code} — click to clear` : `Produced by WO ${bal.wo_code} — click to filter the grid to this WO`}
+                            style={{ fontFamily: CODE_FONT }}
+                            onClick={() => setWoFilter(woFilter === bal.wo_code ? '' : bal.wo_code)}
+                            onRemove={woFilter === bal.wo_code ? () => setWoFilter('') : undefined}
+                            bold={woFilter === bal.wo_code}>
                             WO {bal.wo_code}
                         </Chip>
                     ) : (
@@ -1170,6 +1183,20 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     {...(classic ? { style: { width: 200 } } : { size: 'sm' as const })}
                 />
             )}
+            {(moFilter || woFilter) && col('col-md-2 d-flex align-items-center gap-1', (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {moFilter && (
+                        <Chip classic={classic} tone={REF_TONES.producedBy} size="xs" onRemove={() => setMoFilter('')}>
+                            MO {moFilter}
+                        </Chip>
+                    )}
+                    {woFilter && (
+                        <Chip classic={classic} tone={REF_TONES.producedBy} size="xs" onRemove={() => setWoFilter('')}>
+                            WO {woFilter}
+                        </Chip>
+                    )}
+                </div>
+            ))}
             {classic && <div style={xpSep} />}
             {classic ? (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer', whiteSpace: 'nowrap' }}
