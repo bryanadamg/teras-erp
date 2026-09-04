@@ -38,7 +38,7 @@ interface StockOnHandViewProps {
 // Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
 // squeezing chip columns into overlapping percentages.
 const COL_W = {
-    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 150, mo: 140, attrs: 260,
+    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 150, mo: 120, wo: 120, attrs: 260,
     qty: 110, uom: 60, packaging: 130, notes: 190, actions: 74,
 };
 const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
@@ -694,9 +694,20 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                 <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
                     {bal.mo_code ? (
                         <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
-                            title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}
+                            title={`Produced by MO ${bal.mo_code}`}
                             style={{ fontFamily: CODE_FONT }}>
                             MO {bal.mo_code}
+                        </Chip>
+                    ) : (
+                        <Dash classic={classic} />
+                    )}
+                </td>
+                <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
+                    {bal.wo_code ? (
+                        <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
+                            title={`Produced by WO ${bal.wo_code}`}
+                            style={{ fontFamily: CODE_FONT }}>
+                            WO {bal.wo_code}
                         </Chip>
                     ) : (
                         <Dash classic={classic} />
@@ -1255,6 +1266,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.location } : { width: COL_W.location, ...colDivider }}>{t('locations') || 'Location'}</SortableTh>
                                 <SortableTh sort={sort} colKey="batch" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.lot } : { width: COL_W.lot, ...colDivider }}>Lot</SortableTh>
                                 <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.mo } : { width: COL_W.mo, ...colDivider }}>MO</SortableTh>
+                                <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.wo } : { width: COL_W.wo, ...colDivider }}>WO</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.attrs } : { width: COL_W.attrs, ...colDivider }}>{t('attributes') || 'Attributes'}</th>
                                 <SortableTh sort={sort} colKey="qty" onSort={toggleSort} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.qty } : { width: COL_W.qty, ...colDivider }} className={classic ? undefined : 'text-end'}>{t('qty') || 'Qty'}</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.uom } : { width: COL_W.uom, ...colDivider }}>UOM</th>
@@ -1266,16 +1278,16 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                         <tbody ref={listBodyRef}>
                             {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {pageRows.length === 0 && (loading ? (
-                                <TableSkeleton rows={8} cols={skel.cols ?? 13} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                                <TableSkeleton rows={8} cols={skel.cols ?? 14} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : classic ? (
                                 <tr>
-                                    <td colSpan={13} style={{ textAlign: 'center', padding: '24px' }}>
+                                    <td colSpan={14} style={{ textAlign: 'center', padding: '24px' }}>
                                         <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
                                     </td>
                                 </tr>
                             ) : (
                                 <tr>
-                                    <td colSpan={13} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={14} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
                             ))}
                         </tbody>
