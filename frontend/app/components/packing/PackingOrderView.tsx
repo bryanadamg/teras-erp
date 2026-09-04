@@ -774,6 +774,10 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
 
     const selectedSO = useMemo(() => sos.find((s: any) => String(s.id) === soId), [sos, soId]);
     const soLines = selectedSO?.lines || [];
+    const soOptions = useMemo(
+        () => sos.map((s: any) => ({ value: String(s.id), label: s.po_number, subLabel: s.customer_name })),
+        [sos],
+    );
 
     // Picking an SO line fixes what is being packed — item and variant both come
     // from the order, so they are not asked for twice.
@@ -1062,10 +1066,13 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                     <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr' }}>
                         <div>
                             <FieldLabel classic={CLASSIC} hint="Leave empty to pack to stock">Sales Order</FieldLabel>
-                            <select style={{ ...xpSelect, width: '100%' }} value={soId} onChange={e => { setSoId(e.target.value); setSoLineId(''); }}>
-                                <option value="">— pack to stock —</option>
-                                {sos.map((s: any) => <option key={s.id} value={s.id}>{s.po_number} · {s.customer_name}</option>)}
-                            </select>
+                            <SearchableSelect
+                                options={soOptions}
+                                value={soId}
+                                onChange={(v: string) => { setSoId(v); setSoLineId(''); }}
+                                placeholder="— pack to stock —"
+                                size="sm"
+                            />
                         </div>
                         {soId && (
                             <div>
