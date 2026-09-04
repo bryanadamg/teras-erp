@@ -38,7 +38,7 @@ interface StockOnHandViewProps {
 // Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
 // squeezing chip columns into overlapping percentages.
 const COL_W = {
-    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 150, mo: 120, wo: 120, attrs: 260,
+    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 150, mo: 170, wo: 170, attrs: 260,
     qty: 110, uom: 60, packaging: 130, notes: 190, actions: 74,
 };
 const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
@@ -1145,10 +1145,10 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
     const toolbarControls = (
         <>
-            {col('col-md-3',
+            {col('col-md-4',
                 <SearchField classic={classic} value={search} onChange={setSearch}
                     placeholder={classic ? 'Search item, location, lot, MO, WO, notes...' : 'Search item, location, category, lot, MO, WO, notes...'}
-                    width={classic ? 220 : 400}
+                    width={classic ? 300 : 520}
                     {...(classic ? {} : { grow: true, style: { display: 'flex', width: '100%' } })}
                 />
             )}
