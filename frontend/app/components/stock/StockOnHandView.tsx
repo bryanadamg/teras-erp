@@ -1147,7 +1147,7 @@ export default function StockOnHandView({ locations, attributes, categories, ite
         <>
             {col('col-md-3',
                 <SearchField classic={classic} value={search} onChange={setSearch}
-                    placeholder={classic ? 'Search item, location, lot, MO, notes...' : 'Search item, location, category, lot, MO, notes...'}
+                    placeholder={classic ? 'Search item, location, lot, MO, WO, notes...' : 'Search item, location, category, lot, MO, WO, notes...'}
                     width={classic ? 220 : 400}
                     {...(classic ? {} : { grow: true, style: { display: 'flex', width: '100%' } })}
                 />
