@@ -480,7 +480,7 @@ async def get_stock_balance_api(
 # Sort keys accepted by /stock/balance/paginated — they are the Stock On-Hand grid's
 # sortable column keys, kept 1:1 with the header cells so the client can pass its own
 # key straight through.
-_SOH_SORT_KEYS = ("item", "itemCategory", "location", "warehouse", "batch", "qty", "packaging", "notes")
+_SOH_SORT_KEYS = ("item", "itemCategory", "location", "warehouse", "batch", "mo", "wo", "qty", "packaging", "notes")
 
 
 @router.get("/stock/balance/paginated", response_model=PaginatedStockBalanceResponse)
@@ -489,6 +489,8 @@ async def get_stock_balance_paginated(
     location_id: Optional[str] = Query(None, description="Location id — matches that location plus any bin directly under it"),
     warehouse_id: Optional[str] = Query(None, description="Root-warehouse id above the row's location; '__uncat__' = location with no warehouse above it"),
     category_id: Optional[str] = Query(None, description="Item category id, or comma-separated ids (a category plus its descendants)"),
+    mo_code: Optional[str] = Query(None, description="Exact MO code — set by clicking a row's MO chip"),
+    wo_code: Optional[str] = Query(None, description="Exact WO code — set by clicking a row's WO chip"),
     hide_rejected: bool = Query(False, description="Drop rows whose lot is QC-flagged (quality_status != GOOD)"),
     sort_by: Optional[str] = Query(None, description=" | ".join(_SOH_SORT_KEYS)),
     sort_dir: str = Query("asc", description="asc | desc"),
@@ -576,6 +578,10 @@ async def get_stock_balance_paginated(
         cat_ids = [x for x in category_id.split(",") if x]
         if cat_ids:
             conditions.append(Item.category_id.in_(cat_ids))
+    if mo_code:
+        conditions.append(ManufacturingOrder.code == mo_code)
+    if wo_code:
+        conditions.append(WorkOrder.code == wo_code)
     if hide_rejected:
         conditions.append(~rejected_expr)
     if search and search.strip():
@@ -651,6 +657,8 @@ async def get_stock_balance_paginated(
         "location": LocL.name,
         "warehouse": wh_name_expr,
         "batch": batch_label_expr,
+        "mo": ManufacturingOrder.code,
+        "wo": WorkOrder.code,
         "qty": StockBalance.qty,
         "packaging": pkg_expr,
         "notes": Batch.notes,

@@ -36,9 +36,9 @@ interface StockOnHandViewProps {
 }
 
 // Fixed px column widths + a table min-width: the grid scrolls horizontally instead of
-// squeezing chip columns (Lot carries MO codes ~30 chars) into overlapping percentages.
+// squeezing chip columns into overlapping percentages.
 const COL_W = {
-    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 220, attrs: 260,
+    check: 34, item: 230, ends: 60, category: 140, location: 190, lot: 150, mo: 170, wo: 170, attrs: 260,
     qty: 110, uom: 60, packaging: 130, notes: 190, actions: 74,
 };
 const TABLE_MIN_WIDTH = Object.values(COL_W).reduce((a, b) => a + b, 0);
@@ -55,6 +55,11 @@ export default function StockOnHandView({ locations, attributes, categories, ite
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
     const [selectedCat, setSelectedCat] = useState('');
+    // MO/WO quick filters — set by clicking a row's MO/WO chip (exact-match, not the
+    // free-text `search` box's substring match) so an operator can jump from "this
+    // lot came from MO X" to "show me every other lot MO X produced" in one click.
+    const [moFilter, setMoFilter] = useState('');
+    const [woFilter, setWoFilter] = useState('');
     // QC-rejected lots stay physically in their location until disposed, so they are
     // shown by default (the table is the physical truth) but flagged, and hideable
     // for anyone reading the table as available stock.
@@ -512,6 +517,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
             location_id: locationFilter,
             warehouse_id: warehouseFilter,
             category_id: categoryParam,
+            mo_code: moFilter,
+            wo_code: woFilter,
             hide_rejected: hideRejected,
             sort_by: sort?.key,
             sort_dir: sort ? (sort.dir === 1 ? 'asc' : 'desc') : '',
@@ -679,13 +686,6 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                     SUP {bal.vendor_lot}
                                 </Chip>
                             )}
-                            {bal.mo_code && (
-                                <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
-                                    title={`Produced by MO ${bal.mo_code}${bal.wo_code ? ` (WO ${bal.wo_code})` : ''}`}
-                                    style={{ fontFamily: CODE_FONT }}>
-                                    MO {bal.mo_code}
-                                </Chip>
-                            )}
                             {qStatus && (
                                 <Chip classic={classic} tone={statusTint('REJECTED')} truncate size="xs" bold
                                     icon="bi-x-octagon-fill"
@@ -694,6 +694,34 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 </Chip>
                             )}
                         </div>
+                    ) : (
+                        <Dash classic={classic} />
+                    )}
+                </td>
+                <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
+                    {bal.mo_code ? (
+                        <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
+                            title={moFilter === bal.mo_code ? `Filtering to MO ${bal.mo_code} — click to clear` : `Produced by MO ${bal.mo_code} — click to filter the grid to this MO`}
+                            style={{ fontFamily: CODE_FONT }}
+                            onClick={() => setMoFilter(moFilter === bal.mo_code ? '' : bal.mo_code)}
+                            onRemove={moFilter === bal.mo_code ? () => setMoFilter('') : undefined}
+                            bold={moFilter === bal.mo_code}>
+                            MO {bal.mo_code}
+                        </Chip>
+                    ) : (
+                        <Dash classic={classic} />
+                    )}
+                </td>
+                <td style={classic ? { padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', overflow: 'hidden', ...colDivider } : { overflow: 'hidden', ...colDivider }}>
+                    {bal.wo_code ? (
+                        <Chip classic={classic} tone={REF_TONES.producedBy} truncate size="xs"
+                            title={woFilter === bal.wo_code ? `Filtering to WO ${bal.wo_code} — click to clear` : `Produced by WO ${bal.wo_code} — click to filter the grid to this WO`}
+                            style={{ fontFamily: CODE_FONT }}
+                            onClick={() => setWoFilter(woFilter === bal.wo_code ? '' : bal.wo_code)}
+                            onRemove={woFilter === bal.wo_code ? () => setWoFilter('') : undefined}
+                            bold={woFilter === bal.wo_code}>
+                            WO {bal.wo_code}
+                        </Chip>
                     ) : (
                         <Dash classic={classic} />
                     )}
@@ -1117,10 +1145,10 @@ export default function StockOnHandView({ locations, attributes, categories, ite
 
     const toolbarControls = (
         <>
-            {col('col-md-3',
+            {col('col-md-4',
                 <SearchField classic={classic} value={search} onChange={setSearch}
-                    placeholder={classic ? 'Search item, location, lot, MO, notes...' : 'Search item, location, category, lot, MO, notes...'}
-                    width={classic ? 220 : 400}
+                    placeholder={classic ? 'Search item, location, lot, MO, WO, notes...' : 'Search item, location, category, lot, MO, WO, notes...'}
+                    width={classic ? 300 : 520}
                     {...(classic ? {} : { grow: true, style: { display: 'flex', width: '100%' } })}
                 />
             )}
@@ -1155,6 +1183,20 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                     {...(classic ? { style: { width: 200 } } : { size: 'sm' as const })}
                 />
             )}
+            {(moFilter || woFilter) && col('col-md-2 d-flex align-items-center gap-1', (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {moFilter && (
+                        <Chip classic={classic} tone={REF_TONES.producedBy} size="xs" onRemove={() => setMoFilter('')}>
+                            MO {moFilter}
+                        </Chip>
+                    )}
+                    {woFilter && (
+                        <Chip classic={classic} tone={REF_TONES.producedBy} size="xs" onRemove={() => setWoFilter('')}>
+                            WO {woFilter}
+                        </Chip>
+                    )}
+                </div>
+            ))}
             {classic && <div style={xpSep} />}
             {classic ? (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -1250,6 +1292,8 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                                 <SortableTh sort={sort} colKey="itemCategory" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.category } : { width: COL_W.category, ...colDivider }}>Item Category</SortableTh>
                                 <SortableTh sort={sort} colKey="location" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.location } : { width: COL_W.location, ...colDivider }}>{t('locations') || 'Location'}</SortableTh>
                                 <SortableTh sort={sort} colKey="batch" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.lot } : { width: COL_W.lot, ...colDivider }}>Lot</SortableTh>
+                                <SortableTh sort={sort} colKey="mo" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.mo } : { width: COL_W.mo, ...colDivider }}>MO</SortableTh>
+                                <SortableTh sort={sort} colKey="wo" onSort={toggleSort} style={classic ? { ...xpTableHeader, width: COL_W.wo } : { width: COL_W.wo, ...colDivider }}>WO</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.attrs } : { width: COL_W.attrs, ...colDivider }}>{t('attributes') || 'Attributes'}</th>
                                 <SortableTh sort={sort} colKey="qty" onSort={toggleSort} style={classic ? { ...xpTableHeader, textAlign: 'right', width: COL_W.qty } : { width: COL_W.qty, ...colDivider }} className={classic ? undefined : 'text-end'}>{t('qty') || 'Qty'}</SortableTh>
                                 <th style={classic ? { ...xpTableHeader, width: COL_W.uom } : { width: COL_W.uom, ...colDivider }}>UOM</th>
@@ -1261,16 +1305,16 @@ export default function StockOnHandView({ locations, attributes, categories, ite
                         <tbody ref={listBodyRef}>
                             {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {pageRows.length === 0 && (loading ? (
-                                <TableSkeleton rows={8} cols={skel.cols ?? 12} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
+                                <TableSkeleton rows={8} cols={skel.cols ?? 14} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : classic ? (
                                 <tr>
-                                    <td colSpan={12} style={{ textAlign: 'center', padding: '24px' }}>
+                                    <td colSpan={14} style={{ textAlign: 'center', padding: '24px' }}>
                                         <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
                                     </td>
                                 </tr>
                             ) : (
                                 <tr>
-                                    <td colSpan={12} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={14} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
                             ))}
                         </tbody>

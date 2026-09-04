@@ -2961,6 +2961,12 @@ class BatchResponse(BaseModel):
     # share a machine, so they share an input location and the same substrate item.
     reserved_wo_id: Optional[UUID] = None
     reserved_wo_code: Optional[str] = None
+    # Warp beams only: the loom this beam is gaited on right now (active BeamMount).
+    # A mounted beam is not free stock — `mount_beam` refuses to double-mount it —
+    # so the beam scanner rejects it at the scan and names the machine holding it.
+    # The beam-side twin of reserved_wo_id/reserved_wo_code above.
+    mounted_wc_id: Optional[UUID] = None
+    mounted_wc_code: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -3799,6 +3805,10 @@ class QuarantineLotResponse(BaseModel):
     # The order that claimed it (first claimant when two orders split one lot).
     # A label for the UI — `claimed_qty` is the figure that decides anything.
     claimed_by_order_code: str | None = None
+    # The WO that produced this lot (`Batch.source_wo_id`). The group already
+    # rolls up to one MO, but a group can span several WOs (e.g. re-dyeing runs),
+    # so this is only ever meaningful per lot, not per group.
+    wo_code: str | None = None
 
 class QuarantineGroupResponse(BaseModel):
     # "<mo_id|unassigned>:<item_id>" — an MO can output several items and an item

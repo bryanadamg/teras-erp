@@ -774,6 +774,10 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
 
     const selectedSO = useMemo(() => sos.find((s: any) => String(s.id) === soId), [sos, soId]);
     const soLines = selectedSO?.lines || [];
+    const soOptions = useMemo(
+        () => sos.map((s: any) => ({ value: String(s.id), label: s.po_number, subLabel: s.customer_name })),
+        [sos],
+    );
 
     // Picking an SO line fixes what is being packed — item and variant both come
     // from the order, so they are not asked for twice.
@@ -958,28 +962,6 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
         if (factorObj?.to_uom_name) setUom2LengthUom(factorObj.to_uom_name);
     }, [uoms, uom2, uom2Factor, uom2LengthUom]);
 
-    // A native <select> can't render swatch chips, so this is the same identity
-    // (item, size, combo, colour/labdip) as LotChips, flattened to plain text —
-    // otherwise same-item lines that only differ by size/colour/combo are
-    // indistinguishable in the dropdown.
-    const soLineLabel = (l: any) => {
-        const parts = [l.item_name || l.item_code || l.item_id];
-        if (l.size_label) parts.push(l.size_label);
-        const combo = (l.variant_attributes || []).find((a: any) => a.system_role === 'combo');
-        if (combo) parts.push(combo.value);
-        if (l.color_code || l.color_name) parts.push([l.color_code, l.color_name].filter(Boolean).join(' '));
-        else if (l.labdip_variant_code) parts.push(`${l.labdip_variant_code} (pending)`);
-        // Both quantities, each with its unit. The ordered figure is authored in
-        // yards and the target field below is in the item's stock UOM, so showing
-        // the bare number here left the planner reading "… 2880" above a target of
-        // 2592 and no way to tell which was wrong — the sort of mismatch that
-        // invites a manual "correction" back into the wrong unit.
-        parts.push(`${num(l.qty).toLocaleString()} Yd`);
-        if (l.qty_ordered_base != null && l.base_uom && l.base_uom.toLowerCase() !== 'yard') {
-            parts.push(`${num(l.qty_ordered_base).toLocaleString()} ${l.base_uom}`);
-        }
-        return parts.join(' · ');
-    };
 
     const fgOptions = useMemo(
         () => (fgResults || []).map((i: any) => ({ value: String(i.id), label: i.name, subLabel: i.code })),
@@ -1062,23 +1044,60 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                     <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr' }}>
                         <div>
                             <FieldLabel classic={CLASSIC} hint="Leave empty to pack to stock">Sales Order</FieldLabel>
-                            <select style={{ ...xpSelect, width: '100%' }} value={soId} onChange={e => { setSoId(e.target.value); setSoLineId(''); }}>
-                                <option value="">— pack to stock —</option>
-                                {sos.map((s: any) => <option key={s.id} value={s.id}>{s.po_number} · {s.customer_name}</option>)}
-                            </select>
+                            <SearchableSelect
+                                options={soOptions}
+                                value={soId}
+                                onChange={(v: string) => { setSoId(v); setSoLineId(''); }}
+                                placeholder="— pack to stock —"
+                                size="sm"
+                            />
                         </div>
-                        {soId && (
-                            <div>
-                                <FieldLabel classic={CLASSIC} hint="Fixes the item being packed">Order line</FieldLabel>
-                                <select style={{ ...xpSelect, width: '100%' }} value={soLineId} onChange={e => applySoLine(e.target.value)}>
-                                    <option value="">— select line —</option>
-                                    {soLines.map((l: any) => (
-                                        <option key={l.id} value={l.id}>{soLineLabel(l)}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
                     </div>
+                    {soId && (
+                        <div style={{ marginTop: 8 }}>
+                            {/* A native <select> only had room for a flattened text line
+                                per option — fine for one line at a time, but it hid the
+                                very differences (size/combo/colour) a planner needs to
+                                tell same-item lines apart while comparing them side by
+                                side. A checkbox-style picker (same row shape as the WO
+                                staging lot picker) shows every line's badges at once. */}
+                            <FieldLabel classic={CLASSIC} hint="Fixes the item being packed">Order line</FieldLabel>
+                            <div style={{
+                                border: '1px solid #7f9db9', background: 'white',
+                                maxHeight: 220, overflowY: 'auto',
+                            }}>
+                                {soLines.length === 0 ? (
+                                    <div style={{ color: '#aaa', padding: '4px 6px', fontSize: 11 }}>— this order has no lines —</div>
+                                ) : soLines.map((l: any) => {
+                                    const checked = String(l.id) === String(soLineId);
+                                    return (
+                                        <label key={l.id} style={lvPickerRow(CLASSIC, checked)}>
+                                            <RowCheckbox
+                                                classic={CLASSIC}
+                                                checked={checked}
+                                                label={l.item_name || l.item_code || 'line'}
+                                                onChange={() => applySoLine(checked ? '' : String(l.id))}
+                                            />
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                    <CodeChip code={l.item_code || l.item_name} classic={CLASSIC} />
+                                                    <LotChip tone="qty" title="Ordered quantity">
+                                                        {num(l.qty).toLocaleString()} Yd
+                                                    </LotChip>
+                                                    {l.qty_ordered_base != null && l.base_uom && l.base_uom.toLowerCase() !== 'yard' ? (
+                                                        <LotChip tone="qty" title="Ordered quantity in the item's stock UOM">
+                                                            {num(l.qty_ordered_base).toLocaleString()} {l.base_uom}
+                                                        </LotChip>
+                                                    ) : null}
+                                                </div>
+                                                <LotChips batch={l} />
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                     {soLineId && (
                         <div style={hintText}>Colour and variant attributes are inherited from the order line.</div>
                     )}

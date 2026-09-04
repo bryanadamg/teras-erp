@@ -333,9 +333,11 @@ export default function WorkOrderListView({
     const canStage = (wo: FlatWO) =>
         canManage && woHasStaging(wo) &&
         wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
-    // Scan-to-stage is for the steps fed by weighed bags — greige into dyeing,
-    // dyed lots into setting — where the substrate arrives as many bagged lots
-    // the operator scans in rather than picking manually.
+    // Scan-to-stage is for the steps whose input arrives as printed, individually
+    // numbered units the operator scans in rather than picking by hand: greige bags
+    // into dyeing, dyed lots into setting, warp beams (and weft lots) into weaving.
+    // The modal branches per material — a bag stages in kg, a beam mounts on the
+    // machine in whole pieces. See SCAN_STAGE_WC_TYPES.
     const canScanStage = (wo: FlatWO) => canStage(wo) && woScanStages(wo);
 
     const openLog = async (wo: FlatWO) => {
@@ -358,11 +360,11 @@ export default function WorkOrderListView({
                 .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             if (onlyId) {
                 const idx = bags.findIndex((c: any) => String(c.id) === String(onlyId));
-                if (idx < 0) { showToast('No lot/bag recorded for this entry yet', 'warning'); return; }
+                if (idx < 0) { showToast('No lot recorded for this entry yet', 'warning'); return; }
                 setLabelSeqStart(idx + 1);
                 setLabelBags([bags[idx]]);
             } else {
-                if (!bags.length) { showToast('No weighed bags with lots on this WO yet', 'info'); return; }
+                if (!bags.length) { showToast('No lotted output logged on this WO yet', 'info'); return; }
                 setLabelSeqStart(1);
                 setLabelBags(bags);
             }
@@ -386,6 +388,10 @@ export default function WorkOrderListView({
         const completions: any[] = wo.completions || [];
         // Bag labels apply to lot-producing steps (each weighed bag = one lot).
         const isLotWOType = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING', 'SETTING'].includes((wo.work_center_type || '').toUpperCase());
+        // A beaming WO's output units are warp beams, not bags — same label modal,
+        // different card (BeamLabelCard), so the button has to say so or the floor
+        // reads it as the wrong sticker.
+        const isBeamWOType = (wo.work_center_type || '').toUpperCase() === 'BEAMING';
 
         const components: any[] = woComponents[wo.id] || [];
         const componentsLoading = !!woComponentsLoading[wo.id];
@@ -505,9 +511,11 @@ export default function WorkOrderListView({
                                         onClick={() => openBagLabels(wo)}
                                         disabled={labelLoadingWO === wo.id}
                                         style={{ fontFamily: xpFont, fontSize: 8, padding: '0 6px', cursor: 'pointer', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#000040', textTransform: 'none', letterSpacing: 0 }}
-                                        title="Print a sticker label for each weighed bag on this WO"
+                                        title={isBeamWOType
+                                            ? 'Print a sticker label for each beam produced on this WO'
+                                            : 'Print a sticker label for each weighed bag on this WO'}
                                     >
-                                        {labelLoadingWO === wo.id ? 'Loading…' : 'Bag Labels'}
+                                        {labelLoadingWO === wo.id ? 'Loading…' : isBeamWOType ? 'Beam Labels' : 'Bag Labels'}
                                     </button>
                                 )}
                             </div>
@@ -564,7 +572,7 @@ export default function WorkOrderListView({
                                                                             onClick={() => openBagLabels(wo, c.id)}
                                                                             disabled={labelLoadingWO === wo.id}
                                                                             style={{ fontFamily: xpFont, fontSize: 8, padding: '0 4px', cursor: 'pointer', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#000040' }}
-                                                                            title="Print this bag's label"
+                                                                            title={isBeamWOType ? "Print this beam's label" : "Print this bag's label"}
                                                                         >
                                                                             Label
                                                                         </button>

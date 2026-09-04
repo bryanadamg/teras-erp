@@ -310,7 +310,11 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                 {onScanMode && (
                     <div style={{ display: 'flex', gap: 0, marginBottom: 8, border: '1px solid #7f9db9', width: 'fit-content' }}>
                         <span style={{ padding: '3px 12px', fontWeight: 'bold', background: 'linear-gradient(to bottom,#cfe0ff,#8fb3e8)', color: '#0a2a66' }}>Manual</span>
-                        <button className={XP_BTN} onClick={onScanMode} style={{ ...xpBtn(false), border: 'none', borderLeft: '1px solid #7f9db9', padding: '3px 12px' }}>Scan bags</button>
+                        {/* "bags" only when there is nothing to mount: on a loom the scan
+                            branch puts a warp up, and calling that a bag misreads it. */}
+                        <button className={XP_BTN} onClick={onScanMode} style={{ ...xpBtn(false), border: 'none', borderLeft: '1px solid #7f9db9', padding: '3px 12px' }}>
+                            {hasBeams ? 'Scan' : 'Scan bags'}
+                        </button>
                     </div>
                 )}
                 {moIdentity && (

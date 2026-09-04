@@ -91,6 +91,9 @@ type Lot = {
     claimed_qty: number;
     // Who claimed it. A label — `claimed_qty` is the figure that gates anything.
     claimed_by_order_code: string | null;
+    // The WO that produced this lot. A group is one MO, but an MO can run
+    // several WOs (e.g. re-dyeing passes), so this is meaningful per lot.
+    wo_code: string | null;
 };
 
 type Group = {
@@ -492,8 +495,8 @@ export default function QuarantinePackingView() {
         );
     };
 
-    const COL_COUNT = 10;
-    const LOT_COL_COUNT = 7;   // 6 data columns + the select checkbox
+    const COL_COUNT = 11;
+    const LOT_COL_COUNT = 8;   // 7 data columns + the select checkbox
 
     // ── Decided-day banding ───────────────────────────────────────────────────
     // 'en-CA' + 2-digit gives an ISO-ish "2026-08-09", so the key sorts lexically
@@ -657,6 +660,7 @@ export default function QuarantinePackingView() {
                             />
                         </th>
                         <th style={lotTh}>Lot</th>
+                        <th style={{ ...lotTh, width: 100 }}>WO</th>
                         <th style={{ ...lotTh, width: 110, textAlign: 'right' }}>Qty</th>
                         <th style={{ ...lotTh, width: 170 }}>Location</th>
                         <th style={{ ...lotTh, width: 130 }}>Status</th>
@@ -764,6 +768,11 @@ export default function QuarantinePackingView() {
                                     )}
                                     <div style={{ marginLeft: 'auto' }}><LotChips batch={l} /></div>
                                 </div>
+                            </td>
+                            <td style={{ ...lotTd, ...dim }}>
+                                {l.wo_code
+                                    ? <CodeChip code={l.wo_code} classic={classic} />
+                                    : <span style={{ color: '#ccc' }}>—</span>}
                             </td>
                             <td style={{ ...lotTd, textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
                                 {/* A fully packed lot has nothing left on hand, so the
@@ -882,8 +891,9 @@ export default function QuarantinePackingView() {
                 <thead style={lvThead(classic, true)}>
                     <tr>
                         <th style={{ ...lvTh(classic), width: LV_EXPANDER_COL_W }} />
-                        <th style={lvTh(classic)}>Manufacturing Order</th>
                         <th style={lvTh(classic)}>Item</th>
+                        <th style={lvTh(classic)}>Manufacturing Order</th>
+                        <th style={{ ...lvTh(classic), width: 130 }}>Sales Order</th>
                         <th style={{ ...lvTh(classic), width: 150 }}>Colour</th>
                         <th style={{ ...lvTh(classic), width: 130 }}>Variant</th>
                         <th style={{ ...lvTh(classic), width: 70, textAlign: 'right' }}>Lots</th>
@@ -918,22 +928,26 @@ export default function QuarantinePackingView() {
                                 >
                                     <ExpanderCell classic={classic} expanded={open} onToggle={() => toggleRow(g.key, g.lots)} label="lots" />
                                     <td style={lvTd(classic)}>
+                                        <span style={{ fontWeight: 'bold' }}>{g.item_name}</span>
+                                        <div style={{ fontSize: 10, color: '#666', fontVariant: 'all-small-caps' }}>{g.item_code}</div>
+                                    </td>
+                                    <td style={lvTd(classic)}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             {g.mo_code
                                                 ? <CodeChip code={g.mo_code} classic={classic} tone="accent" />
                                                 : <span style={{ color: '#999', fontStyle: 'italic' }}>No MO</span>}
                                             {g.mo_status && <StatusChip status={g.mo_status} style={{ marginLeft: 'auto' }} tint />}
                                         </div>
-                                        {(g.production_run_code || g.sales_order_code) ? (
+                                        {g.production_run_code ? (
                                             <OriginChipRow style={{ marginTop: 2 }}>
-                                                {g.production_run_code && <OriginChip kind="pr" code={g.production_run_code} classic={classic} />}
-                                                {g.sales_order_code && <OriginChip kind="so" code={g.sales_order_code} classic={classic} />}
+                                                <OriginChip kind="pr" code={g.production_run_code} classic={classic} />
                                             </OriginChipRow>
                                         ) : <div style={{ fontSize: 10 }}>&nbsp;</div>}
                                     </td>
                                     <td style={lvTd(classic)}>
-                                        <span style={{ fontWeight: 'bold' }}>{g.item_name}</span>
-                                        <div style={{ fontSize: 10, color: '#666', fontVariant: 'all-small-caps' }}>{g.item_code}</div>
+                                        {g.sales_order_code
+                                            ? <OriginChip kind="so" code={g.sales_order_code} classic={classic} />
+                                            : <span style={{ color: '#ccc' }}>—</span>}
                                     </td>
                                     <td style={lvTd(classic)}>
                                         {g.color_name

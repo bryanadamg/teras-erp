@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 
 // Loom status → window chrome. Exported so the monitor grid can paint a card's
@@ -14,6 +14,7 @@ export const LOOM_TITLE_VARIANT: Record<string, 'primary' | 'success' | 'warning
     IDLE: 'secondary',
 };
 import SearchableSelect from '../shared/SearchableSelect';
+import CameraScanner from '../shared/CameraScanner';
 import VariantChips from '../shared/VariantChips';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -101,6 +102,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [freeLoading, setFreeLoading] = useState(false);
     const [beamSearch, setBeamSearch] = useState('');
     const [mountingId, setMountingId] = useState<string | null>(null);
+    // Camera mount: the picker's search box already accepts a keyboard-wedge
+    // scanner (Enter -> handleBeamScan), which covers a laser gun at the loom but
+    // not a phone. Same decode path either way — the camera just feeds the string.
+    const [beamCameraOn, setBeamCameraOn] = useState(false);
+    const beamScanSeenRef = useRef<Record<string, number>>({});
 
     const [moId, setMoId] = useState('');
     // WO candidates: the run is started per WORK ORDER, because a loom weaves the
@@ -293,6 +299,24 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         }
     };
 
+    // A QR in frame fires many frames a second and each read mounts a beam, so the
+    // camera path debounces per code — the typed path can't repeat itself this way.
+    const handleBeamCameraScan = (decoded: string) => {
+        const code = (decoded || '').trim();
+        if (!code) return;
+        const now = Date.now();
+        if (beamScanSeenRef.current[code] && now - beamScanSeenRef.current[code] < 2500) return;
+        beamScanSeenRef.current[code] = now;
+        handleBeamScan(code);
+    };
+
+    // Collapsing the picker takes the camera down with it: the video element lives
+    // inside the panel, and CLAUDE.md's one-live-camera rule means a hidden-but-
+    // running track is the bug, not a saving.
+    useEffect(() => {
+        if (!mountOpen) setBeamCameraOn(false);
+    }, [mountOpen]);
+
     // Picker feed: refetch when it opens and on a paused search — same 300ms shape
     // the shared list hooks use, so typing a lot number doesn't fire per keystroke.
     useEffect(() => {
@@ -307,6 +331,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             setUnmountingId(null);
             setMountOpen(false);
             setBeamSearch('');
+            setBeamCameraOn(false);
             setFreeBeams([]);
             setOverrideRunId(null);
             setTargetRunId(null);
@@ -1174,10 +1199,27 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                 icon="bi-upc-scan"
                                                 width={220}
                                             />
+                                            <XPActionButton
+                                                classic={cls}
+                                                tone={beamCameraOn ? 'neutral' : 'primary'}
+                                                icon="bi-camera-video"
+                                                label={beamCameraOn ? t('scan_beam_stop') : t('scan_beam')}
+                                                title={t('scan_beam_hint')}
+                                                onClick={() => setBeamCameraOn(v => !v)}
+                                            />
                                             {pcs >= slots && (
                                                 <span style={{ fontSize: 10, color: AMBER }}>{t('beam_slots_full')}</span>
                                             )}
                                         </div>
+                                        {/* An exact lot-number hit mounts straight away, same as Enter in
+                                            the box — so the floor points the phone at a beam label and the
+                                            warp goes up. ui-scale-exempt: html5-qrcode measures its own
+                                            viewfinder, so keep it 1:1 with the device pixels. */}
+                                        {beamCameraOn && (
+                                            <div className="ui-scale-exempt" style={{ width: '100%', maxWidth: 320, margin: '0 auto 8px' }}>
+                                                <CameraScanner id="beam-mount-reader" onDecode={handleBeamCameraScan} />
+                                            </div>
+                                        )}
                                         {freeLoading ? (
                                             <PanelSkeleton classic={cls} rows={3} />
                                         ) : freeBeams.length === 0 ? (

@@ -310,9 +310,10 @@ export default function BatchesView({ items, locations, categories, workCenters,
     }
   };
 
-  // Bag-label reprint. GRG (greige) lots are born as weaving MOCompletions; fetch
-  // the origin MO, find the completion that produced this lot, and hand it to the
-  // same BagLabelPrintModal the WO page uses — full-fidelity label, no new payload.
+  // Output-label reprint. GRG (greige) bags and BM- (warp beam) lots are both born
+  // as MOCompletions; fetch the origin MO, find the completion that produced this
+  // lot, and hand it to the same BagLabelPrintModal the WO page uses, which picks
+  // the bag or beam card off the lot prefix — full-fidelity label, no new payload.
   const [labelData, setLabelData] = useState<{ bags: any[]; wo: any; mo: any; seqStart: number } | null>(null);
   const { openId, pos, toggle, close } = useFloatingMenu(160);
 
@@ -1381,12 +1382,17 @@ export default function BatchesView({ items, locations, categories, workCenters,
       {openId && (() => {
         const b = batches.find(x => x.id === openId);
         if (!b) return null;
-        const canLabel = classifyLot(b.batch_number) === STAGE_META.GRG;
+        // Reprintable rich labels: greige bags and warp beams. Both are born as an
+        // MOCompletion with an output lot, which is what openBatchLabel needs to
+        // rebuild the full-fidelity card; every other prefix falls through to the
+        // generic lot sticker there anyway.
+        const lotMeta = classifyLot(b.batch_number);
+        const canLabel = lotMeta === STAGE_META.GRG || lotMeta === STAGE_META.BM;
         return (
           <FloatingMenu
             pos={pos}
             items={[
-              { key: 'label', label: 'Print Label', icon: 'bi-printer', hidden: !canLabel, title: "Print this greige bag's label", onClick: () => { close(); openBatchLabel(b); } },
+              { key: 'label', label: 'Print Label', icon: 'bi-printer', hidden: !canLabel, title: lotMeta === STAGE_META.BM ? "Print this warp beam's label" : "Print this greige bag's label", onClick: () => { close(); openBatchLabel(b); } },
               { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => { close(); handleDelete(b); } },
             ]}
           />

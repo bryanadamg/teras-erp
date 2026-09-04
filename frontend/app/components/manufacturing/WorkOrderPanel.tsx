@@ -148,9 +148,11 @@ export default function WorkOrderPanel({
     const canEditBase = hasPermission('work_order.edit');
     const canLog = (wo: any) => canLogBase && hasWorkCenterScope(wo.work_center_type);
     const canEdit = (wo: any) => canEditBase && hasWorkCenterScope(wo.work_center_type);
-    // Scan-to-stage is for the steps fed by weighed bags — greige into dyeing,
-    // dyed lots into setting — where the substrate arrives as many bagged lots
-    // the operator scans in rather than picking manually.
+    // Scan-to-stage is for the steps whose input arrives as printed, individually
+    // numbered units the operator scans in rather than picking by hand: greige bags
+    // into dyeing, dyed lots into setting, warp beams (and weft lots) into weaving.
+    // The modal branches per material — a bag stages in kg, a beam mounts on the
+    // machine in whole pieces. See SCAN_STAGE_WC_TYPES.
     const canScanStage = (wo: any) =>
         woScanStages(wo) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
     // Weaving "staging" is really mounting a warp beam on the loom — a machine-level
