@@ -15,6 +15,19 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-09-04
+
+### Added
+- Weaving can be staged by scanning a beam's own printed label instead of only the bag it travels in, so a beam separated from its bag — or re-mounted onto a different one — can still be staged correctly
+- New Packing Order's Sales Order picker is searchable instead of a long plain dropdown
+- New Packing Order's order-line badges are a checkbox picker, so multiple lines can be selected at once instead of one at a time
+- Quarantine packing shows the work order that produced each lot as its own column
+- Stock on-hand grid gained a WO column split out from the MO column, and clicking a lot's MO/WO chip filters the grid to that order
+
+### Changed
+- Quarantine packing grid splits Item and Sales Order into their own columns instead of combining them
+- Stock on-hand grid's search bar and MO/WO columns are wider, and the search placeholder now mentions WO
+
 ## [0.21.0] - 2026-09-03
 
 ### Added
