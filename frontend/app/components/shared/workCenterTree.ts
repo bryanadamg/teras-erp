@@ -96,11 +96,20 @@ export function machinesOfCenterType(workCenters: any[], type: string): any[] {
 export const STAGE_WC_TYPES = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'SETTING'];
 
 /**
- * Types whose input arrives as weighed, labelled bags (one bag = one lot), so the
- * floor scans lot QRs instead of typing them: greige into dyeing, dyed lots into
- * setting. Whole lots move (allow_overstage) with a split for a partial bag.
+ * Types whose input arrives as labelled, individually-numbered units, so the floor
+ * scans lot QRs instead of typing them: greige into dyeing, dyed lots into setting,
+ * warp beams (and weft lots) into weaving. Every unit here carries a printed lot
+ * number, which is the only requirement — the scan modal then branches per row:
+ *
+ *  - bag/cone lot (`is_beam` false) — kg move, split for a partial bag;
+ *  - warp beam (`is_beam` true)     — whole beam, mounted on the MACHINE in pcs,
+ *                                     never split, never pegged to the WO.
+ *
+ * WEAVING is in this list and NOT because a beam is a bag: beams got scannable
+ * `BM-` lot numbers at BEAMING completion all along, so the only thing that was
+ * missing was the branch. See BagScanStageModal.
  */
-export const SCAN_STAGE_WC_TYPES = ['DYEING', 'CELUP', 'SETTING'];
+export const SCAN_STAGE_WC_TYPES = ['DYEING', 'CELUP', 'SETTING', 'WEAVING', 'TENUN'];
 
 const wcType = (wo: any) => String(wo?.work_center_type || '').toUpperCase();
 
@@ -108,5 +117,5 @@ const wcType = (wo: any) => String(wo?.work_center_type || '').toUpperCase();
 export const woHasStaging = (wo: any) =>
     !!(wo?.bom_operation_id || STAGE_WC_TYPES.includes(wcType(wo)));
 
-/** WO stages by scanning bag labels rather than picking lots by hand. */
+/** WO stages by scanning printed lot labels rather than picking lots by hand. */
 export const woScanStages = (wo: any) => SCAN_STAGE_WC_TYPES.includes(wcType(wo));

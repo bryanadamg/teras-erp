@@ -2961,6 +2961,12 @@ class BatchResponse(BaseModel):
     # share a machine, so they share an input location and the same substrate item.
     reserved_wo_id: Optional[UUID] = None
     reserved_wo_code: Optional[str] = None
+    # Warp beams only: the loom this beam is gaited on right now (active BeamMount).
+    # A mounted beam is not free stock — `mount_beam` refuses to double-mount it —
+    # so the beam scanner rejects it at the scan and names the machine holding it.
+    # The beam-side twin of reserved_wo_id/reserved_wo_code above.
+    mounted_wc_id: Optional[UUID] = None
+    mounted_wc_code: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -4,12 +4,13 @@ from sqlalchemy import select, func, cast
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import selectinload, joinedload, aliased
 from app.db.session import get_async_db
-from app.models.batch import Batch, BatchConsumption
+from app.models.batch import Batch, BatchConsumption, BeamMount
 from app.models.manufacturing import MOCompletion
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.location import Location
 from app.models.work_order import WorkOrder
+from app.models.routing import WorkCenter
 from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
 from app.models.attribute import Attribute, AttributeValue
 from app.models.color import Color
@@ -419,6 +420,20 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
             )
         reservation_codes = await staging_service.wo_codes(db, set(reservation_map.values()))
 
+    # Which loom each beam is currently gaited on. A mounted beam is not free
+    # stock: `mount_beam` refuses to double-mount it, so a scanner has to be able
+    # to say "that warp is up on LOOM-07" at the scan rather than at submit —
+    # exactly the reason `reserved_wo_code` above exists for bag lots.
+    mount_map: dict[str, tuple] = {}
+    if batches:
+        mres = await db.execute(
+            select(BeamMount.batch_id, BeamMount.work_center_id, WorkCenter.code, WorkCenter.name)
+            .outerjoin(WorkCenter, WorkCenter.id == BeamMount.work_center_id)
+            .where(BeamMount.batch_id.in_([b.id for b in batches]),
+                   BeamMount.dismounted_at.is_(None))
+        )
+        mount_map = {str(bid): (wc_id, code or name) for bid, wc_id, code, name in mres.all()}
+
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.location_id, b.location_name = location_map.get(str(b.id), (None, None))
@@ -430,6 +445,7 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
         holder = reservation_map.get(str(b.id))
         b.reserved_wo_id = uuid.UUID(holder) if holder else None
         b.reserved_wo_code = reservation_codes.get(holder) if holder else None
+        b.mounted_wc_id, b.mounted_wc_code = mount_map.get(str(b.id), (None, None))
     await _resolve_gr_origins(db, list(batches))
     await _resolve_batch_origins(db, list(batches))
     await _resolve_batch_variants(db, list(batches))

@@ -6,6 +6,7 @@ import JsBarcode from 'jsbarcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import BagLabelCard from './BagLabelCard';
+import BeamLabelCard from './BeamLabelCard';
 import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { xpFont, PRINT_FONT } from '../shared/xpTheme';
 
@@ -24,14 +25,21 @@ function makeBarcodeDataUrl(text: string): string {
 }
 
 /**
- * Bag label print — renders one output-bag sticker per MOCompletion (each bag
- * is one completion / one lot). Reused for a single bag (one completion) and
- * for reprinting all bags on a WO. One label per A6 sheet. The QR on each label
- * encodes that bag's LOT number, not the WO id.
+ * Output-unit label print — one A6 sticker per MOCompletion (each unit off the
+ * machine is one completion / one lot). Reused for a single unit and for
+ * reprinting every unit on a WO. The QR on each label encodes that unit's LOT
+ * number, not the WO id.
+ *
+ * Two cards come out of here, chosen per completion by `isBeamLot` below:
+ * ./BagLabelCard for a weighed bag (greige, dyed, set) and ./BeamLabelCard for a
+ * warp beam. The print plumbing — A6 sheet, QR + Code 128, the hidden portal, the
+ * labels_printed_at stamp — is identical for both, which is why they share this
+ * modal rather than getting a second one; only what the floor reads differs.
  *
  * `bags` are the completion objects to print, already filtered to this WO and
  * to non-rejected rows with an output lot. `seqStart` is the sequence number of
  * the first bag (1-based) so single-bag reprints keep their real bag number.
+ * Beams ignore it — a beam is not counted off in bags.
  */
 export default function BagLabelPrintModal({
     bags,
@@ -84,25 +92,49 @@ export default function BagLabelPrintModal({
         ).then(entries => setQrUrls(Object.fromEntries(entries)));
     }, [bags]);
 
+    // Which card this completion gets. Read off the lot's own `BM-` prefix rather
+    // than the WO's work-centre type: a reprint from the Lot page (BatchesView)
+    // may hand us a WO object that is null or stale, and the lot number is the one
+    // fact that is always present and always right (see the prefix table in
+    // add_mo_completion — BM / GRG / DYE / SET / LOT).
+    const isBeamLot = (bag: any) =>
+        /^BM[-_]/i.test(String(bag?.output_batch_number || ''))
+        || String(workOrder?.work_center_type || '').toUpperCase() === 'BEAMING';
+
     const renderLabel = (bag: any, idx: number) => (
         <div key={bag.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: PRINT_FONT, display: 'flex', flexDirection: 'column' }}>
-            <BagLabelCard
-                completion={bag}
-                workOrder={workOrder}
-                parentMO={parentMO}
-                qrDataUrl={qrUrls[bag.id] || ''}
-                barcodeDataUrl={barcodeUrls[bag.id] || ''}
-                bagSeq={seqStart + idx}
-                companyName={companyProfile?.name}
-                attributes={attributes}
-            />
+            {isBeamLot(bag) ? (
+                <BeamLabelCard
+                    completion={bag}
+                    workOrder={workOrder}
+                    parentMO={parentMO}
+                    qrDataUrl={qrUrls[bag.id] || ''}
+                    barcodeDataUrl={barcodeUrls[bag.id] || ''}
+                    companyName={companyProfile?.name}
+                />
+            ) : (
+                <BagLabelCard
+                    completion={bag}
+                    workOrder={workOrder}
+                    parentMO={parentMO}
+                    qrDataUrl={qrUrls[bag.id] || ''}
+                    barcodeDataUrl={barcodeUrls[bag.id] || ''}
+                    bagSeq={seqStart + idx}
+                    companyName={companyProfile?.name}
+                    attributes={attributes}
+                />
+            )}
         </div>
     );
+
+    const allBeams = bags.length > 0 && bags.every(isBeamLot);
+    const unitNoun = (n: number) =>
+        allBeams ? (n === 1 ? 'beam' : 'beams') : (n === 1 ? 'bag' : 'bags');
 
     return (
         <>
             <PrintModalShell
-                title={`Print Bag Labels — ${bags.length} ${bags.length === 1 ? 'bag' : 'bags'} (${parentMO?.code})`}
+                title={`Print ${allBeams ? 'Beam' : 'Bag'} Labels — ${bags.length} ${unitNoun(bags.length)} (${parentMO?.code})`}
                 onClose={onClose}
                 width="calc(var(--app-vw) * 90 / 100)"
                 maxWidth={880}
@@ -112,7 +144,7 @@ export default function BagLabelPrintModal({
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
                         {bags.length === 0 && (
                             <div style={{ color: '#555', fontSize: '12px', marginTop: '40px', fontFamily: xpFont }}>
-                                No weighed bags to label yet. Log a completion (one per bag) first.
+                                No {allBeams ? 'beams' : 'weighed bags'} to label yet. Log a completion (one per {allBeams ? 'beam' : 'bag'}) first.
                             </div>
                         )}
                         {bags.map((bag, idx) => (
