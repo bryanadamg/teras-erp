@@ -480,7 +480,7 @@ async def get_stock_balance_api(
 # Sort keys accepted by /stock/balance/paginated — they are the Stock On-Hand grid's
 # sortable column keys, kept 1:1 with the header cells so the client can pass its own
 # key straight through.
-_SOH_SORT_KEYS = ("item", "itemCategory", "location", "warehouse", "batch", "qty", "packaging", "notes")
+_SOH_SORT_KEYS = ("item", "itemCategory", "location", "warehouse", "batch", "mo", "qty", "packaging", "notes")
 
 
 @router.get("/stock/balance/paginated", response_model=PaginatedStockBalanceResponse)
@@ -651,6 +651,7 @@ async def get_stock_balance_paginated(
         "location": LocL.name,
         "warehouse": wh_name_expr,
         "batch": batch_label_expr,
+        "mo": ManufacturingOrder.code,
         "qty": StockBalance.qty,
         "packaging": pkg_expr,
         "notes": Batch.notes,
