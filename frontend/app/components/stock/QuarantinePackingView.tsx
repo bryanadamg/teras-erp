@@ -91,6 +91,9 @@ type Lot = {
     claimed_qty: number;
     // Who claimed it. A label — `claimed_qty` is the figure that gates anything.
     claimed_by_order_code: string | null;
+    // The WO that produced this lot. A group is one MO, but an MO can run
+    // several WOs (e.g. re-dyeing passes), so this is meaningful per lot.
+    wo_code: string | null;
 };
 
 type Group = {
@@ -493,7 +496,7 @@ export default function QuarantinePackingView() {
     };
 
     const COL_COUNT = 11;
-    const LOT_COL_COUNT = 7;   // 6 data columns + the select checkbox
+    const LOT_COL_COUNT = 8;   // 7 data columns + the select checkbox
 
     // ── Decided-day banding ───────────────────────────────────────────────────
     // 'en-CA' + 2-digit gives an ISO-ish "2026-08-09", so the key sorts lexically
@@ -657,6 +660,7 @@ export default function QuarantinePackingView() {
                             />
                         </th>
                         <th style={lotTh}>Lot</th>
+                        <th style={{ ...lotTh, width: 100 }}>WO</th>
                         <th style={{ ...lotTh, width: 110, textAlign: 'right' }}>Qty</th>
                         <th style={{ ...lotTh, width: 170 }}>Location</th>
                         <th style={{ ...lotTh, width: 130 }}>Status</th>
@@ -764,6 +768,11 @@ export default function QuarantinePackingView() {
                                     )}
                                     <div style={{ marginLeft: 'auto' }}><LotChips batch={l} /></div>
                                 </div>
+                            </td>
+                            <td style={{ ...lotTd, ...dim }}>
+                                {l.wo_code
+                                    ? <CodeChip code={l.wo_code} classic={classic} />
+                                    : <span style={{ color: '#ccc' }}>—</span>}
                             </td>
                             <td style={{ ...lotTd, textAlign: 'right', whiteSpace: 'nowrap', ...dim }}>
                                 {/* A fully packed lot has nothing left on hand, so the

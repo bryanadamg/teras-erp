@@ -179,11 +179,11 @@ async def list_quarantine_stock(
     wo_ids |= {b.source_wo_id for (b, _, _, _, _) in history if b.source_wo_id}
     origin: dict = {}
     if wo_ids:
-        for (wo_id, mo_id, mo_code, mo_status, mo_qty, pr_code,
+        for (wo_id, wo_code, mo_id, mo_code, mo_status, mo_qty, pr_code,
              mo_so_id, mo_so_code, pr_so_id, pr_so_code,
              color_id, color_code, color_name, color_hex, labdip_code, bom_size_id) in (await db.execute(
             select(
-                WorkOrder.id,
+                WorkOrder.id, WorkOrder.code,
                 ManufacturingOrder.id, ManufacturingOrder.code,
                 ManufacturingOrder.status, ManufacturingOrder.qty,
                 ProductionRun.code,
@@ -201,6 +201,7 @@ async def list_quarantine_stock(
             .filter(WorkOrder.id.in_(wo_ids))
         )).all():
             origin[wo_id] = {
+                "wo_code": wo_code,
                 "mo_id": mo_id, "mo_code": mo_code, "mo_status": mo_status,
                 "mo_qty": float(mo_qty or 0), "production_run_code": pr_code,
                 "sales_order_id": mo_so_id or pr_so_id,
@@ -382,6 +383,7 @@ async def list_quarantine_stock(
         qty = float(bal.qty or 0)
         released = quarantine_service.is_pass(batch.quarantine_status) if batch is not None else False
         claimed_qty, claimed_code = _claim(bal)
+        wo_code = origin.get(batch.source_wo_id, {}).get("wo_code") if batch is not None else None
         grp.qty_total += qty
         if released:
             grp.qty_released += qty
@@ -412,6 +414,7 @@ async def list_quarantine_stock(
             labdip_variant_code=grp.labdip_variant_code,
             claimed_qty=claimed_qty,
             claimed_by_order_code=claimed_code,
+            wo_code=wo_code,
         ))
 
     # History rows deliberately touch neither the qty totals nor `lot_count`:
@@ -420,6 +423,7 @@ async def list_quarantine_stock(
     for batch, item, loc, qty_packed, last_packed_at in history:
         grp = _group(batch, item)
         grp.packed_lot_count += 1
+        wo_code = origin.get(batch.source_wo_id, {}).get("wo_code")
         grp.lots.append(QuarantineLotResponse(
             batch_id=batch.id, batch_number=batch.batch_number,
             item_id=item.id, item_code=item.code, item_name=item.name, uom=item.uom,
@@ -441,6 +445,7 @@ async def list_quarantine_stock(
             variant_attributes=getattr(batch, "variant_attributes", None),
             color_code=grp.color_code, color_name=grp.color_name, color_hex=grp.color_hex,
             labdip_variant_code=grp.labdip_variant_code,
+            wo_code=wo_code,
         ))
 
     items = list(groups.values())

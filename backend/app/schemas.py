@@ -3805,6 +3805,10 @@ class QuarantineLotResponse(BaseModel):
     # The order that claimed it (first claimant when two orders split one lot).
     # A label for the UI — `claimed_qty` is the figure that decides anything.
     claimed_by_order_code: str | None = None
+    # The WO that produced this lot (`Batch.source_wo_id`). The group already
+    # rolls up to one MO, but a group can span several WOs (e.g. re-dyeing runs),
+    # so this is only ever meaningful per lot, not per group.
+    wo_code: str | None = None
 
 class QuarantineGroupResponse(BaseModel):
     # "<mo_id|unassigned>:<item_id>" — an MO can output several items and an item
