@@ -2104,11 +2104,16 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         } finally { setRejecting(false); }
     };
 
+    // xl, not md: the Cartons to be Made grid is eight columns wide (count, qty
+    // each, unit, kg each, packaging, tare, line total, remove) and at 480px it
+    // scrolled sideways, which put the packaging picker and the tare — both
+    // required before the log button unlocks — off the edge of the panel the
+    // packer is filling in.
     return (
         <ModalWrapper
             isOpen onClose={onClose}
             title={`Pack ${po.code} — ${po.item_name || it?.name || ''}`}
-            size="md" modeless
+            size="xl" modeless
             footer={
                 <>
                     <button type="button" className={XP_BTN} onClick={onClose} style={xpBtn()}>Close</button>
@@ -2272,7 +2277,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                             </div>
 
                             <div>
-                                <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                {/* A div, not a label. A <label> forwards a click anywhere in
+                                    it to the first labelable element it contains, and <button>
+                                    is labelable — so clicking this caption fired the + and
+                                    appended a blank carton line. Nothing here labels a control
+                                    (the grid below is a table of them), so the element was only
+                                    ever borrowing the style. Same fix on the two headers below. */}
+                                <div style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span>
                                         {po.package_label}s to be Made
                                         <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
@@ -2296,7 +2307,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         title={`Add another ${po.package_label.toLowerCase()} line`}
                                         onClick={addGroup}
                                     />
-                                </label>
+                                </div>
                                 <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 168, overflowY: 'auto' }}>
                                     {boxGroups.length === 0 && (
                                         <div style={{ fontSize: 10, color: '#888', padding: '4px 5px' }}>
@@ -2673,7 +2684,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     </div>
                                 ) : (
                                     <div>
-                                        <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span>Lots to Pack From — {po.item_code || it?.code || ''}</span>
                                             <span style={{ fontWeight: 'normal', color: short ? '#900' : '#555' }}>
                                                 {selectedLots.length} lot{selectedLots.length === 1 ? '' : 's'} · {selAvailable.toFixed(2)} available · drawing{' '}
@@ -2685,7 +2696,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                     style={{ ...xpBtn(), fontSize: 9, padding: '0 6px', marginLeft: 6 }}
                                                 >{allSelected ? 'None' : 'All'}</button>
                                             </span>
-                                        </label>
+                                        </div>
                                         <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 150, overflowY: 'auto' }}>
                                             {lotsLoading && <div style={{ fontSize: 10, color: '#888', padding: '3px 5px' }}>Loading lots...</div>}
                                             {!lotsLoading && lots.length === 0 && (
@@ -2754,7 +2765,11 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
 
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
-                                    <label style={{ ...xpFormLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                                    {/* Also a div — see above. SearchableSelect is not a native
+                                        control, so the label association bought nothing, and while
+                                        the pin was showing a click on the word "Machine" wrote the
+                                        machine onto the order. */}
+                                    <div style={{ ...xpFormLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                                         <span>Machine</span>
                                         {machineDirty && workCenterId && (
                                             <XPActionButton
@@ -2764,7 +2779,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 onClick={saveMachine}
                                             />
                                         )}
-                                    </label>
+                                    </div>
                                     <SearchableSelect options={machineOptions || []} value={workCenterId}
                                         onChange={setWorkCenterId} placeholder="Select machine (optional)…" size="sm" />
                                 </div>

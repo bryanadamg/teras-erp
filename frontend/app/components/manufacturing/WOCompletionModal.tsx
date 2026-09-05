@@ -557,7 +557,13 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                     });
                                     return (
                                         <div key={itemId}>
-                                            <label style={{ ...xpLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            {/* A div, not a label: a <label> forwards a click
+                                                anywhere in it to the first labelable element it
+                                                contains, and <button> is labelable — so clicking
+                                                this caption fired All/None and selected or cleared
+                                                every lot. It labels no control either way; the
+                                                picker below is a stack of its own labels. */}
+                                            <div style={{ ...xpLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span>Lots to Consume — {code}</span>
                                                 <span style={{ fontWeight: 'normal', color: short ? '#900' : '#555' }}>
                                                     {sel.length} lot{sel.length === 1 ? '' : 's'} · {selKg.toFixed(2)} available · drawing{' '}
@@ -569,7 +575,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                         style={{ ...xpBtn(), fontSize: 9, padding: '0 6px', marginLeft: 6 }}
                                                     >{allSelected ? 'None' : 'All'}</button>
                                                 </span>
-                                            </label>
+                                            </div>
                                             <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 150, overflowY: 'auto' }}>
                                                 {(batchesByItem[itemId] || []).map((b: any) => (
                                                     <label key={b.id} style={{ ...lvPickerRow(true, selSet.has(b.id)), fontSize: 10 }}>
