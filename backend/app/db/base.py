@@ -41,6 +41,7 @@ from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeRecipeWashBat
 from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine
 from app.models.color import Color
 from app.models.combo import Combo
+from app.models.packaging_type import PackagingType
 from app.models.packing import (
     PackingOrder, PackingOrderMaterial, PackingCompletion, PackingCompletionMaterial,
     packing_order_values,

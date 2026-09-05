@@ -15,6 +15,18 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-09-05
+
+### Added
+- Packaging Types master page tracks the boxes the plant stocks, with a tare weight per type; a custom box is weighed at pack time instead of carrying a default nobody means
+- Packing an order picks the packaging type per carton, and each carton snapshots the tare and gross weight (net + box) it was packed with, so a later tare correction never rewrites an already-printed label
+- Gross weight prints on carton labels and the Surat Jalan alongside net weight, since the carrier bills on the gross figure
+- Packing order form takes a sampled unit weight for the cloth actually being run, overriding the item master's estimate (taken at style development) for that order's alt-unit conversion
+- Packing progress shows a pieces bar and a kilos bar side by side, since a light run can read 100% of pieces at 96% of kilos and packers need to see the real gap
+
+### Fixed
+- Clicking a pack section's caption no longer fires whichever action button (+, All/None, pin) happens to sit in it; the packing modal is also wider so the carton grid stops scrolling sideways
+
 ## [0.22.0] - 2026-09-04
 
 ### Added

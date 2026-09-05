@@ -10,7 +10,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, Chip, CODE_FONT, rowStateBg, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, RowCheckbox, lvThSticky, lvPickerRow, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -24,7 +24,10 @@ import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree
 import {
     BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
     filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload, orderBoxSizeAlt,
+    hasUnboxedBox, hasUnweighedTare, boxPackagingPayload, boxTarePayload,
+    findPackagingType, isCustomType, effectiveTare,
 } from '../shared/packingBoxes';
+import { usePackagingTypes } from '../shared/usePackagingTypes';
 import { basePerAlt, altToBase, baseToAlt, orderBasePerAlt, formatAlt, lengthPerAlt } from '../shared/altUnit';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
@@ -72,6 +75,13 @@ const PO_PAGE_SIZE = 20;
 // four digits with the native spinner suppressed (`.xp-nospin`): a whole pack run
 // is hundreds of cartons, and the old 46px clipped a three-digit count.
 const CARTON_COUNT_W = 56;
+// Packaging column on the pack form: the box picker and the tare slot beside it.
+// Same reason as CARTON_COUNT_W — the header labels and the controls under them
+// share these, so they cannot drift apart. The tare slot is reserved on every
+// row (an input for a custom box, the master's figure for any other) so a mixed
+// list stays aligned instead of jumping a column wide on one line.
+const PACKAGING_W = 104;
+const TARE_W = 46;
 
 // Pack progress, measured in whatever the order is COUNTED in. Read by both the
 // list row's bar and the pack modal's header panel, so the two can never quote
@@ -94,6 +104,8 @@ function packProgress(po: any, it?: any) {
         : null;
     const pAlt = hasAlt && po.qty_packed_alt != null ? num(po.qty_packed_alt) : null;
     const basis = tAlt !== null && pAlt !== null ? { done: pAlt, goal: tAlt } : { done: packed, goal: target };
+    const pctOf = (done: number, goal: number) =>
+        goal > 0 ? Math.min(100, Math.round((done / goal) * 100)) : 0;
     return {
         target,
         packed,
@@ -106,8 +118,82 @@ function packProgress(po: any, it?: any) {
         remainingAlt: tAlt !== null && pAlt !== null
             ? Math.max(0, Math.round((tAlt - pAlt) * 100) / 100)
             : null,
-        pct: basis.goal > 0 ? Math.min(100, Math.round((basis.done / basis.goal) * 100)) : 0,
+        pct: pctOf(basis.done, basis.goal),
+        // The two bars the pack screen and the list row draw side by side. They
+        // are the SAME run measured twice — the boxes are weighed, and the piece
+        // count is that weight read through the order's own sampled unit weight
+        // (`order_base_per_alt` -> `sample_weight_per_unit`, entered on the New
+        // Packing Order modal). Showing only one hid the gap the two open up: a
+        // light run is 100% of its pieces at 96% of its kilos, and the packer
+        // needs to see both figures rather than infer one from the other.
+        // `pctAlt` is null when the order has no alt unit — then `pctBase` is
+        // the only bar and `pct` equals it.
+        pctAlt: tAlt !== null && pAlt !== null ? pctOf(pAlt, tAlt) : null,
+        pctBase: pctOf(packed, target),
     };
+}
+
+/** Both bars for one packing order — pieces and kilos, one under the other.
+ *
+ *  Drawn by the list row and the pack modal from the same `packProgress`, so the
+ *  two screens can never quote a different pair. The alt row leads because that
+ *  is what the order is FOR and what `is_target_met` judges; the base row is the
+ *  weight actually on the scale, which is what the packer types and what stock
+ *  moves in. One is not derived from the other on screen — both come off the
+ *  order (`qty_packed_alt` is summed from the cartons, `qty_packed` from the
+ *  completions) and they meet only through the sampled unit weight the New
+ *  Packing Order modal captured. An order with no alt unit draws the base row
+ *  alone, which is exactly what the single bar used to be.
+ */
+function PackProgressBars({ prog, uom, height = 6, fontSize = 9, hatched = false }: {
+    prog: ReturnType<typeof packProgress>;
+    uom: string;
+    height?: number;
+    fontSize?: number;
+    hatched?: boolean;
+}) {
+    const rows: { key: string; pct: number; done: string; goal: string; unit: string }[] = [];
+    if (prog.pctAlt !== null) {
+        rows.push({
+            key: 'alt',
+            pct: prog.pctAlt,
+            done: (prog.packedAlt ?? 0).toLocaleString(),
+            goal: (prog.targetAlt ?? 0).toLocaleString(),
+            unit: prog.altUom,
+        });
+    }
+    rows.push({
+        key: 'base',
+        pct: prog.pctBase,
+        done: prog.packed.toFixed(2),
+        goal: prog.target.toFixed(2),
+        unit: uom,
+    });
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, width: '100%' }}>
+            {rows.map(r => (
+                <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <ProgressBar
+                            pct={r.pct}
+                            tone={r.pct >= 100 ? 'green' : r.pct > 0 ? 'blue' : 'gray'}
+                            hatched={hatched}
+                            height={height}
+                        />
+                    </div>
+                    {/* Fixed-width so the two lines' figures stack in a column
+                        instead of drifting with the length of each number. */}
+                    <div style={{
+                        fontFamily: xpFont, fontSize, whiteSpace: 'nowrap', flexShrink: 0,
+                        textAlign: 'right', minWidth: 96,
+                        color: r.pct >= 100 ? (CLASSIC ? '#1a5e1a' : '#166534') : '#777',
+                    }}>
+                        {r.pct}% · {r.done} / {r.goal} {r.unit}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 }
 
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
@@ -370,6 +456,21 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                 {u.alt_qty != null && po.uom2 && (
                                                     <span style={{ color: '#555' }}>{num(u.alt_qty)} {po.uom2}</span>
                                                 )}
+                                                {/* Which box it went into, and what the whole thing
+                                                    weighs — the two figures the delivery note carries.
+                                                    Both snapshotted on the carton at pack time, so an
+                                                    edited master never rewrites what shipped. */}
+                                                {u.packaging_type_name && (
+                                                    <Chip classic={CLASSIC} size="xs" truncate title={u.packaging_type_name} style={{ maxWidth: 74 }}>
+                                                        {u.packaging_type_name}
+                                                    </Chip>
+                                                )}
+                                                {u.gross_weight_kg != null && (
+                                                    <span style={{ color: '#555', whiteSpace: 'nowrap' }}
+                                                        title={`Gross ${num(u.gross_weight_kg).toFixed(2)} kg = net ${num(u.weight_kg).toFixed(2)} + tare ${num(u.tare_kg).toFixed(2)}`}>
+                                                        {num(u.gross_weight_kg).toFixed(2)} kg
+                                                    </span>
+                                                )}
                                                 {/* Zero on hand = the carton has left on a pick list. */}
                                                 <span style={{ fontWeight: 'bold', color: num(u.qty) > 0 ? '#0a3e0a' : '#999' }}>
                                                     {num(u.qty) > 0 ? num(u.qty).toFixed(2) : 'shipped'}
@@ -557,31 +658,16 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <td style={td}><StatusChip status={po.status} /></td>
                                     <td style={{ ...td, textAlign: 'right' }}>{num(po.qty_target).toLocaleString()} {po.item_uom || it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
-                                    {/* Progress in the order's COUNTED unit — pieces on an
-                                        alt-unit order, kilos otherwise. The hover states the
-                                        pair the bar is drawn from, since the Target/Packed
-                                        cells beside it are always in the stock UOM. Thin bar +
-                                        qty line below, matching the SO table's MO progress cell
+                                    {/* Both progress bars — pieces over kilos. The run is
+                                        weighed and the piece count is that weight read through
+                                        the order's sampled unit weight, so neither figure alone
+                                        tells the packer where the order stands: a light run
+                                        finishes its pieces before its kilos. Thin bars + qty
+                                        line, matching the SO table's MO progress cell
                                         (MOProgressLink/moProgressCell in SalesOrderView) instead
                                         of a hatched pill — one progress look across the app. */}
                                     <td style={td}>
-                                        <div
-                                            title={prog.hasAlt
-                                                ? `${(prog.packedAlt ?? 0).toLocaleString()} / ${(prog.targetAlt ?? 0).toLocaleString()} ${prog.altUom} packed (${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''})`
-                                                : `${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''} packed`}
-                                            style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
-                                        >
-                                            <ProgressBar
-                                                pct={prog.pct}
-                                                tone={prog.pct >= 100 ? 'green' : prog.pct > 0 ? 'blue' : 'gray'}
-                                                height={6}
-                                            />
-                                            <div style={{ fontFamily: xpFont, fontSize: '9px', color: prog.pct >= 100 ? (CLASSIC ? '#1a5e1a' : '#166534') : '#777' }}>
-                                                {prog.pct}%{prog.hasAlt
-                                                    ? ` · ${(prog.packedAlt ?? 0).toLocaleString()} / ${(prog.targetAlt ?? 0).toLocaleString()} ${prog.altUom}`
-                                                    : ` · ${prog.packed.toFixed(2)} / ${prog.target}`}
-                                            </div>
-                                        </div>
+                                        <PackProgressBars prog={prog} uom={po.item_uom || it?.uom || ''} height={6} />
                                     </td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
                                     <td style={td}>{po.created_at ? tzDate(po.created_at) : '—'}</td>
@@ -716,6 +802,15 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
     const [uom2Factor, setUom2Factor] = useState<number | null>(null);
     const [uom2LengthUom, setUom2LengthUom] = useState('');
     const [altPerCarton, setAltPerCarton] = useState('');
+    // What one yard/metre of THIS cloth actually weighs, sampled by the operator
+    // before packing. Prefilled from the item master (a development estimate) and
+    // overwritten with the measured figure; it is what every alt -> kg figure on
+    // this order converts through.
+    const [sampleWeight, setSampleWeight] = useState('');
+    const [sampleWeightUnit, setSampleWeightUnit] = useState('');
+    // True once the operator has touched either field, so the prefill effect below
+    // stops overwriting their number when the item row re-resolves.
+    const sampleTouched = useRef(false);
     // Both stores default to the seeded ones: bulk FG waits in Quarantine until QC
     // releases it, sealed cartons land in the Finished Goods store. A Quarantine
     // Packing suggestion still names its own source and wins. Both stay editable —
@@ -795,13 +890,37 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
     // Base-UOM qty in one alt unit. Null means the chain can't be resolved (a gsm
     // weight needs the fabric width, a counted stock UOM has no length at all) —
     // the form then keeps base-only entry rather than inventing a factor.
+    // Prefill the sample from the item's own spec when an item is picked, so the
+    // operator sees the estimate they are correcting rather than an empty box.
+    // Only until they touch it — the item row re-resolves when a search lands, and
+    // re-running this over a typed figure would quietly discard the sampling.
+    useEffect(() => {
+        if (sampleTouched.current || !selectedItem) return;
+        const unit = String(selectedItem.weight_unit || '').trim().toLowerCase();
+        // gsm can't convert a length to a weight without the fabric width, so it
+        // is not offered as a starting point — the field stays empty and the order
+        // keeps base-only entry, exactly as it does today.
+        if (!(Number(selectedItem.weight_per_unit) > 0) || !['g/y', 'g/m'].includes(unit)) return;
+        setSampleWeight(String(selectedItem.weight_per_unit));
+        setSampleWeightUnit(unit);
+    }, [selectedItem]);
+
+    // The weight spec every conversion in this form runs through: the sampled
+    // figure once both halves are set, the item's otherwise. Mirrors
+    // `packing_service.order_weight_spec`, so the form's preview and the order the
+    // server writes agree.
+    const useSample = num(sampleWeight) > 0 && !!sampleWeightUnit;
+    const weightSpec = {
+        weightPerUnit: useSample ? num(sampleWeight) : selectedItem?.weight_per_unit,
+        weightUnit: useSample ? sampleWeightUnit : selectedItem?.weight_unit,
+    };
+
     const altBaseFactor = useMemo(() => basePerAlt({
         factor: uom2Factor,
         lengthUom: uom2LengthUom,
         itemUom: selectedItem?.uom,
-        weightPerUnit: selectedItem?.weight_per_unit,
-        weightUnit: selectedItem?.weight_unit,
-    }), [uom2Factor, uom2LengthUom, selectedItem]);
+        ...weightSpec,
+    }), [uom2Factor, uom2LengthUom, selectedItem, sampleWeight, sampleWeightUnit]);
 
     // Is the base target being computed for the planner rather than typed by them?
     const altDrivesTarget = !!altBaseFactor && num(qty2) > 0;
@@ -835,8 +954,7 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
             factor: factorVal,
             lengthUom,
             itemUom: selectedItem?.uom,
-            weightPerUnit: selectedItem?.weight_per_unit,
-            weightUnit: selectedItem?.weight_unit,
+            ...weightSpec,
         });
         if (!factor) return;
         const target = altToBase(num(qty2Str), factor);
@@ -1002,6 +1120,11 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                 uom2: uom2 || null,
                 uom2_factor: uom2Factor,
                 uom2_length_uom: uom2LengthUom || null,
+                // The operator's measured figure. Sent as a pair, and only when
+                // both halves are set — a weight with no unit converts nothing,
+                // and the server refuses one anyway.
+                sample_weight_per_unit: useSample ? num(sampleWeight) : null,
+                sample_weight_unit: useSample ? sampleWeightUnit : null,
                 source_location_id: sourceLoc || null,
                 output_location_id: outputLoc || null,
                 work_center_id: workCenterId || null,
@@ -1204,13 +1327,50 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                                 value={altPerCarton} onChange={e => onAltPerCartonChange(e.target.value)} />
                         </div>
                     </div>
+                    {/* The measured weight of the goods being packed. Sits under the alt
+                        unit because it is the other half of the same conversion: the unit
+                        says how many yards a piece is, this says what a yard weighs. */}
+                    <div style={{ ...fieldGrid, gridTemplateColumns: 'minmax(220px, 1fr) 130px', marginTop: 8 }}>
+                        <div>
+                            <FieldLabel classic={CLASSIC}>Sampled weight</FieldLabel>
+                            <div style={{ display: 'flex' }}>
+                                <input type="number" min={0} step="any"
+                                    style={{ ...xpInput, flex: 1, minWidth: 0, borderRight: 'none', textAlign: 'right' }}
+                                    placeholder="0" value={sampleWeight}
+                                    onChange={e => { sampleTouched.current = true; setSampleWeight(e.target.value); }} />
+                                <select style={{ ...xpSelect, flexShrink: 0, width: 90 }} value={sampleWeightUnit}
+                                    onChange={e => { sampleTouched.current = true; setSampleWeightUnit(e.target.value); }}>
+                                    <option value="">— none —</option>
+                                    <option value="g/y">g/y</option>
+                                    <option value="g/m">g/m</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style={{ alignSelf: 'end' }}>
+                            {/* What the item master says, so the operator can see what
+                                they are correcting and by how much. */}
+                            {Number(selectedItem?.weight_per_unit) > 0 && (
+                                <div style={hintText}>
+                                    Item: {Number(selectedItem.weight_per_unit)} {selectedItem.weight_unit || ''}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div style={hintText}>
+                        {useSample
+                            ? 'Measured off the sampled goods — every kg figure on this order converts through it, '
+                              + 'not through the estimate on the item.'
+                            : 'Prefilled from the item as a sampling estimate. Replace it with the figure the '
+                              + 'operator measured off the actual goods.'}
+                    </div>
                     <div style={hintText}>
                         Qty per carton splits the target — leave it empty to decide the carton count per pack event.
                     </div>
                     {uom2 && uom2Factor && !altBaseFactor && (
                         <div style={{ ...hintText, color: '#a00000', fontStyle: 'normal' }}>
                             {uom2} can&apos;t be converted into {selectedItem?.uom || 'the stock unit'}: a kg-stocked item
-                            needs a g/y or g/m weight on the item (gsm needs the fabric width). Type the target in{' '}
+                            needs a g/y or g/m weight — enter the sampled one above, or set one on the item
+                            (gsm needs the fabric width). Type the target in{' '}
                             {selectedItem?.uom || 'the stock unit'} instead.
                         </div>
                     )}
@@ -1388,9 +1548,11 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const packedAlt = prog.packedAlt;
     const remainingAlt = prog.remainingAlt;
 
-    // Progress basis lives in packProgress — the list row's bar reads the same
-    // helper, so this panel and that row can't disagree.
-    const pct = prog.pct;
+    // Progress basis lives in packProgress — the list row's bars read the same
+    // helper, so this panel and that row can't disagree. The panel draws
+    // `pctAlt` and `pctBase` as two bars; `prog.pct` (the DELIVERED basis) is
+    // deliberately not one of them, since it is whichever of the two is
+    // load-bearing and drawing it a third time would say nothing new.
 
     // Box size, in whatever unit the order is COUNTED in — pieces on an alt-unit
     // order, the stock UOM otherwise. A carton holds a whole number of pieces and
@@ -1440,6 +1602,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const [srcDraft, setSrcDraft] = useState<string>(String(po.source_location_id || ''));
     const [outDraft, setOutDraft] = useState<string>(String(po.output_location_id || ''));
     const [savingLocs, setSavingLocs] = useState(false);
+    // Re-sampling: the operator measures the actual goods again and the order's
+    // kg figures follow. Drafted like the locations — typed here, saved through
+    // `PUT /packing/{id}`, which restates the kg target and the box-size estimate.
+    // Nothing already packed moves: a carton's weight is a scale reading and its
+    // count is what the packer counted.
+    const [sampleDraft, setSampleDraft] = useState<string>(
+        po.sample_weight_per_unit != null ? String(po.sample_weight_per_unit) : '');
+    const [sampleUnitDraft, setSampleUnitDraft] = useState<string>(po.sample_weight_unit || '');
+    const [savingSample, setSavingSample] = useState(false);
     const locsDirty = srcDraft !== String(po.source_location_id || '') || outDraft !== String(po.output_location_id || '');
     const locsMissing = !po.source_location_id || !po.output_location_id;
 
@@ -1465,6 +1636,43 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         } catch (e: any) {
             showToast(e.message, 'danger');
         } finally { setSavingMachine(false); }
+    };
+
+    const sampleSaved = po.sample_weight_per_unit != null ? String(po.sample_weight_per_unit) : '';
+    const sampleDirty = sampleDraft !== sampleSaved || sampleUnitDraft !== (po.sample_weight_unit || '');
+
+    const saveSample = async () => {
+        // Both halves or neither — a figure with no unit converts nothing, and
+        // clearing the figure hands the conversion back to the item's estimate.
+        const value = num(sampleDraft);
+        if (value > 0 && !sampleUnitDraft) { showToast('Pick g/y or g/m for the sampled weight', 'danger'); return; }
+        setSavingSample(true);
+        try {
+            const res = await authFetch(`${API_BASE}/packing/${po.id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sample_weight_per_unit: value > 0 ? value : null,
+                    sample_weight_unit: value > 0 ? sampleUnitDraft : null,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Could not save the sampled weight');
+            }
+            const fresh = await res.json();
+            setPo(fresh);
+            setSampleDraft(fresh.sample_weight_per_unit != null ? String(fresh.sample_weight_per_unit) : '');
+            setSampleUnitDraft(fresh.sample_weight_unit || '');
+            showToast(
+                value > 0
+                    ? `Sampled weight set to ${value} ${sampleUnitDraft} — target and box size restated`
+                    : 'Sampled weight cleared — back to the item’s estimate',
+                'success',
+            );
+            await onChanged();
+        } catch (e: any) {
+            showToast(e.message, 'danger');
+        } finally { setSavingSample(false); }
     };
 
     const saveLocations = async () => {
@@ -1599,6 +1807,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // and the same yardage weighs differently per lot).
     const [boxGroups, setBoxGroups] = useState<BoxGroup[]>([]);
     const [openGroups, setOpenGroups] = useState<Set<number>>(new Set());
+    // The box master. Its tare is what turns each carton's net reading into the
+    // brutto printed on the label and totalled on the delivery note.
+    const { packagingTypes } = usePackagingTypes();
     const boxRows = useMemo(() => expandBoxGroups(boxGroups), [boxGroups]);
 
     // Seeded from what the order still owes rather than from a typed qty — the
@@ -1652,6 +1863,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             return { ...g, kg };
         }));
 
+    // Picking a standard box drops any tare typed while a custom one was selected:
+    // the master's figure is what the server will use, so leaving the stale number
+    // visible would promise a brutto nobody is going to print.
+    const setGroupPackaging = (i: number, val: string) =>
+        updateGroup(i, {
+            packagingTypeId: val,
+            ...(isCustomType(val, packagingTypes) ? {} : { tare: '' }),
+        });
+
     // Typing a count fills the base qty; typing a base qty only back-fills a count
     // that isn't there yet. That asymmetry is the point: on a kg item the packer
     // types 12 Pcs, the qty pre-fills at the theoretical 10.80, and then the scale
@@ -1689,8 +1909,19 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const boxAlts = hasAlt ? boxAltPayload(boxRows) : null;
     const altTotal = hasAlt ? boxAltTotal(boxRows) : 0;
     const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
+    // Packaging is positional against `boxes` exactly like the weights. Tare only
+    // travels for a custom box; every other type takes the master's figure
+    // server-side, so a stale value from a re-picked row can't ride along.
+    const boxPackaging = boxPackagingPayload(boxRows);
+    const boxTares = boxTarePayload(boxRows, packagingTypes);
+    const packagingMissing = hasUnboxedBox(boxRows);
+    const taresMissing = hasUnweighedTare(boxRows, packagingTypes);
     const boxTotal = boxValues.reduce((s, v) => s + v, 0);
     const weightTotal = boxWeights.reduce((s: number, v) => s + v, 0);
+    // Brutto preview: net + the tare each carton will actually be given. Mirrors
+    // `packing_service.gross_weight`, so the footer and the printed label agree.
+    const tareTotal = boxes.reduce((s, b) => s + effectiveTare(b, packagingTypes), 0);
+    const grossTotal = weightTotal + tareTotal;
     // What the packer says was boxed. There is nothing left for it to disagree
     // with, so the old "boxes don't match qty to pack" block is gone along with
     // the field that caused it.
@@ -1730,11 +1961,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const logBlockedBy =
         locsMissing ? 'Set both locations on this order before packing'
         : locsDirty ? 'Save the location change before logging'
+        // An unsaved basis would box by one conversion and log against another.
+        : sampleDirty ? 'Save the sampled weight change before logging'
         // A scrap-only log is legitimate — a whole draw can fail QC and it still
         // has to leave the bin — so an empty carton list only blocks when there
         // is no scrap either. What is refused is a log that moves nothing.
         : drawTotal <= 0 ? `Add at least one ${po.package_label.toLowerCase()}, or state what was rejected`
         : weightsMissing ? `Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`
+        : packagingMissing ? `Pick the packaging for every ${po.package_label.toLowerCase()} — its tare makes up the brutto`
+        : taresMissing ? `Weigh the empty box on every custom ${po.package_label.toLowerCase()} line`
         : useLotPicker && !selectedLots.length ? 'Select at least one lot to pack from'
         : useLotPicker && short ? `Selected lots hold only ${drawn.toFixed(2)} of the ${drawTotal.toFixed(2)} needed`
         : null;
@@ -1743,6 +1978,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         e.preventDefault();
         if (locsMissing) { showToast('Set both locations on this order before packing', 'danger'); return; }
         if (locsDirty) { showToast('Save the location change before logging', 'danger'); return; }
+        if (sampleDirty) { showToast('Save the sampled weight change before logging', 'danger'); return; }
         if (drawTotal <= 0) {
             showToast(`Add at least one ${po.package_label.toLowerCase()}, or state what was rejected`, 'danger');
             return;
@@ -1751,11 +1987,21 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             showToast(`Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`, 'danger');
             return;
         }
+        if (packagingMissing) {
+            showToast(`Pick the packaging for every ${po.package_label.toLowerCase()} — its tare makes up the brutto`, 'danger');
+            return;
+        }
+        if (taresMissing) {
+            showToast(`Weigh the empty box on every custom ${po.package_label.toLowerCase()} line`, 'danger');
+            return;
+        }
 
         const common = {
             boxes: boxValues,
             box_weights: boxWeights,
             box_alt_qtys: boxAlts,
+            box_packaging_type_ids: boxPackaging,
+            box_tares: boxTares,
             work_center_id: workCenterId || null,
             operator: operator || null,
             notes: packNotes || null,
@@ -1810,6 +2056,17 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         String(u.packing_completion_id || '') === String(compId)
         && u.quality_status !== 'REJECTED' && u.quality_status !== 'REJECT_USABLE' && u.quality_status !== 'DISPOSED');
 
+    // One log's piece count, SUMMED off its own cartons rather than divided out of
+    // its kg — the same rule `PackingOrder.qty_packed_alt` follows, so the entry
+    // rows add up to the header's alt figure exactly. null when this event's
+    // cartons carry no count at all (no alt unit, or an unresolvable conversion),
+    // which is the only case the column has nothing to show.
+    const altOf = (compId: string): number | null => {
+        const counted = goodUnitsOf(compId).filter((u: any) => u.alt_qty != null);
+        if (!counted.length) return null;
+        return Math.round(counted.reduce((t: number, u: any) => t + num(u.alt_qty), 0) * 100) / 100;
+    };
+
     const openReject = (c: any) => {
         setRejectComp(c);
         setRejectReason('');
@@ -1847,11 +2104,16 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         } finally { setRejecting(false); }
     };
 
+    // xl, not md: the Cartons to be Made grid is eight columns wide (count, qty
+    // each, unit, kg each, packaging, tare, line total, remove) and at 480px it
+    // scrolled sideways, which put the packaging picker and the tare — both
+    // required before the log button unlocks — off the edge of the panel the
+    // packer is filling in.
     return (
         <ModalWrapper
             isOpen onClose={onClose}
             title={`Pack ${po.code} — ${po.item_name || it?.name || ''}`}
-            size="md" modeless
+            size="xl" modeless
             footer={
                 <>
                     <button type="button" className={XP_BTN} onClick={onClose} style={xpBtn()}>Close</button>
@@ -1894,15 +2156,28 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                             <span style={{ fontSize: 11, fontWeight: 'bold', color: '#000080' }}>{po.item_name || po.item_code}</span>
                             <span style={{ fontSize: 10, color: '#555' }}>{po.code}</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>PCK</span>
-                            <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} hatched height={14} label="inside" />
-                            <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 110, flexShrink: 0, textAlign: 'right' }}
-                                title={hasAlt ? `${packed.toFixed(2)} / ${target} ${uom}` : undefined}>
-                                {hasAlt
-                                    ? `${(packedAlt ?? 0).toLocaleString()} / ${(targetAlt ?? 0).toLocaleString()} ${altUom}`
-                                    : `${packed.toFixed(2)} / ${target}`}
-                            </span>
+                        {/* Both bars, pieces over kilos. See PackProgressBars: the boxes
+                            are weighed and the piece count is that weight read through this
+                            order's sampled unit weight, so the packer is shown both rather
+                            than left to divide one out of the other. */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {(hasAlt
+                                ? [
+                                    { key: 'alt', label: altUom || 'ALT', pct: prog.pctAlt ?? 0, done: (packedAlt ?? 0).toLocaleString(), goal: (targetAlt ?? 0).toLocaleString(), unit: altUom },
+                                    { key: 'base', label: uom || 'QTY', pct: prog.pctBase, done: packed.toFixed(2), goal: target.toFixed(2), unit: uom },
+                                ]
+                                : [{ key: 'base', label: uom || 'QTY', pct: prog.pctBase, done: packed.toFixed(2), goal: target.toFixed(2), unit: uom }]
+                            ).map(r => (
+                                <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 30, flexShrink: 0, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {r.label}
+                                    </span>
+                                    <ProgressBar pct={r.pct} tone={r.pct >= 100 ? 'green' : 'blue'} hatched height={14} label="inside" />
+                                    <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 120, flexShrink: 0, textAlign: 'right' }}>
+                                        {r.done} / {r.goal} {r.unit}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                         <div style={{ fontSize: 10, color: '#555', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                             <span>
@@ -2002,7 +2277,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                             </div>
 
                             <div>
-                                <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                {/* A div, not a label. A <label> forwards a click anywhere in
+                                    it to the first labelable element it contains, and <button>
+                                    is labelable — so clicking this caption fired the + and
+                                    appended a blank carton line. Nothing here labels a control
+                                    (the grid below is a table of them), so the element was only
+                                    ever borrowing the style. Same fix on the two headers below. */}
+                                <div style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span>
                                         {po.package_label}s to be Made
                                         <span style={{ fontWeight: 'normal', color: '#888', marginLeft: 5 }}>
@@ -2026,7 +2307,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         title={`Add another ${po.package_label.toLowerCase()} line`}
                                         onClick={addGroup}
                                     />
-                                </label>
+                                </div>
                                 <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 168, overflowY: 'auto' }}>
                                     {boxGroups.length === 0 && (
                                         <div style={{ fontSize: 10, color: '#888', padding: '4px 5px' }}>
@@ -2045,6 +2326,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             <span style={{ width: 12, flexShrink: 0 }} />
                                             {hasAlt && <span style={{ width: 56 + 24 + 5, flexShrink: 0 }}>{altUom} each</span>}
                                             <span style={{ flex: 1, minWidth: 0 }}>{uom || 'Qty'} each</span>
+                                            <span style={{ width: PACKAGING_W, flexShrink: 0 }}>Packaging</span>
+                                            <span style={{ width: TARE_W, flexShrink: 0, textAlign: 'right' }}>Tare</span>
                                             <span style={{ width: 78, flexShrink: 0, textAlign: 'right' }}>Line total</span>
                                             <span style={{ width: 40, flexShrink: 0 }} />
                                         </div>
@@ -2101,6 +2384,48 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                         min="0" step="any"
                                                         title={`${uom || 'Qty'} in each ${po.package_label.toLowerCase()} on this line`}
                                                     />
+                                                    {/* Which physical box this line goes into. Group-level: a
+                                                        "3 × 5 kg" line is three identical boxes, so the pick is
+                                                        made once. Its tare is what turns each carton's net
+                                                        reading into the brutto on the label. */}
+                                                    <select
+                                                        style={{ ...xpInput, width: PACKAGING_W, flexShrink: 0, background: g.packagingTypeId ? '#fff' : '#fffbe6' }}
+                                                        value={g.packagingTypeId}
+                                                        onChange={e => setGroupPackaging(i, e.target.value)}
+                                                        title={`Which ${po.package_label.toLowerCase()} this line is packed in — its tare is added to the net weight`}
+                                                    >
+                                                        <option value="">Pick box…</option>
+                                                        {packagingTypes.map(t => (
+                                                            <option key={t.id} value={t.id}>
+                                                                {t.name}{!t.is_custom && Number(t.tare_kg) > 0 ? ` (${Number(t.tare_kg)} kg)` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {/* One slot, two states: a custom box is weighed here, a
+                                                        standard one just shows the master tare being applied.
+                                                        Reserved either way so the rows stay aligned. */}
+                                                    {isCustomType(g.packagingTypeId, packagingTypes) ? (
+                                                        <input
+                                                            type="number"
+                                                            className="xp-nospin"
+                                                            style={{ ...xpInput, width: TARE_W, flexShrink: 0, textAlign: 'right', background: num(g.tare) > 0 ? '#fff' : '#fffbe6' }}
+                                                            value={g.tare}
+                                                            onChange={e => updateGroup(i, { tare: e.target.value })}
+                                                            min="0" step="any"
+                                                            placeholder="tare"
+                                                            title="Weight of the EMPTY custom box, off the scale"
+                                                        />
+                                                    ) : (
+                                                        <span style={{
+                                                            width: TARE_W, flexShrink: 0, textAlign: 'right', fontSize: 9,
+                                                            color: '#888', whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {(() => {
+                                                                const t = findPackagingType(g.packagingTypeId, packagingTypes);
+                                                                return t && Number(t.tare_kg) > 0 ? `+${Number(t.tare_kg)}` : '';
+                                                            })()}
+                                                        </span>
+                                                    )}
                                                     {/* The addition half: what this line contributes to the pack
                                                         total, so the packer never multiplies in their head. */}
                                                     <span style={{
@@ -2177,7 +2502,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 }}>
                                     <span style={{
                                         width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                                        background: weightsMissing ? '#d9a441' : '#4caf50',
+                                        background: weightsMissing || packagingMissing || taresMissing ? '#d9a441' : '#4caf50',
                                     }} />
                                     <span style={{ color: '#555' }}>Boxed:</span>
                                     {/* Same unit order as the target above it — the packer reads
@@ -2211,7 +2536,24 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     <span style={{ fontWeight: 'bold', color: weightsMissing ? '#7a4a00' : undefined }}>
                                         {weightTotal.toFixed(2)} kg
                                     </span>
-                                    {weightsMissing && <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>}
+                                    {/* Brutto — net plus the boxes themselves. Shown beside the net
+                                        rather than instead of it: the label prints both, and the
+                                        delivery note totals this one. */}
+                                    <span style={{ color: '#c0bdb5' }}>|</span>
+                                    <span style={{ color: '#555' }}>Gross:</span>
+                                    <span style={{ fontWeight: 'bold', color: packagingMissing || taresMissing ? '#7a4a00' : undefined }}>
+                                        {grossTotal.toFixed(2)} kg
+                                    </span>
+                                    {tareTotal > 0 && (
+                                        <span style={{ color: '#888' }}>(+{tareTotal.toFixed(2)} tare)</span>
+                                    )}
+                                    {weightsMissing
+                                        ? <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>
+                                        : packagingMissing
+                                            ? <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Pick a box on every line</span>
+                                            : taresMissing
+                                                ? <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every custom box</span>
+                                                : null}
                                 </div>
                             </div>
 
@@ -2285,6 +2627,54 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                         Unsaved location change — save before logging.
                                     </div>
                                 )}
+                                {/* The sampled weight of THIS cloth. Only on an alt-unit
+                                    order, because it is the basis that turns a piece count
+                                    into kilos — with no alt unit there is nothing to
+                                    convert and the field would be decoration. */}
+                                {hasAlt && (
+                                    <div style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', paddingTop: 4, borderTop: '1px solid #c8dcc8' }}>
+                                        <div style={{ minWidth: 150 }}>
+                                            <label style={{ ...xpFormLabel, fontSize: 9, color: '#555' }}>Sampled weight</label>
+                                            <div style={{ display: 'flex' }}>
+                                                <input
+                                                    type="number" min="0" step="any"
+                                                    style={{ ...xpInput, width: 80, borderRight: 'none', textAlign: 'right' }}
+                                                    value={sampleDraft}
+                                                    onChange={e => setSampleDraft(e.target.value)}
+                                                    placeholder="0"
+                                                    title="What one yard/metre of the goods being packed actually weighs"
+                                                />
+                                                <select
+                                                    style={{ ...xpInput, width: 62, flexShrink: 0 }}
+                                                    value={sampleUnitDraft}
+                                                    onChange={e => setSampleUnitDraft(e.target.value)}
+                                                >
+                                                    <option value="">—</option>
+                                                    <option value="g/y">g/y</option>
+                                                    <option value="g/m">g/m</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 180, color: '#555', paddingBottom: 2 }}>
+                                            {po.sample_weight_per_unit != null
+                                                ? `Sampled off these goods — 1 ${altUom} = ${altFactor} ${uom}.`
+                                                : `Not sampled — converting through the item's estimate (1 ${altUom} = ${altFactor} ${uom}).`}
+                                            {' '}Saving restates the kg target and box size; packed {po.package_label.toLowerCase()}s are untouched.
+                                        </div>
+                                        {sampleDirty && (
+                                            <button type="button" className={XP_BTN} onClick={saveSample}
+                                                disabled={savingSample}
+                                                style={{ ...xpBtn(), fontSize: 9, padding: '3px 8px', marginBottom: 1, opacity: savingSample ? 0.6 : 1 }}>
+                                                {savingSample ? 'Saving...' : 'Save Weight'}
+                                            </button>
+                                        )}
+                                        {sampleDirty && (
+                                            <div style={{ flexBasis: '100%', color: '#7a4a00' }}>
+                                                Unsaved sampled weight — save before logging.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {useLotPicker && (
@@ -2294,7 +2684,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     </div>
                                 ) : (
                                     <div>
-                                        <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span>Lots to Pack From — {po.item_code || it?.code || ''}</span>
                                             <span style={{ fontWeight: 'normal', color: short ? '#900' : '#555' }}>
                                                 {selectedLots.length} lot{selectedLots.length === 1 ? '' : 's'} · {selAvailable.toFixed(2)} available · drawing{' '}
@@ -2306,7 +2696,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                     style={{ ...xpBtn(), fontSize: 9, padding: '0 6px', marginLeft: 6 }}
                                                 >{allSelected ? 'None' : 'All'}</button>
                                             </span>
-                                        </label>
+                                        </div>
                                         <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 150, overflowY: 'auto' }}>
                                             {lotsLoading && <div style={{ fontSize: 10, color: '#888', padding: '3px 5px' }}>Loading lots...</div>}
                                             {!lotsLoading && lots.length === 0 && (
@@ -2375,7 +2765,11 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
 
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
-                                    <label style={{ ...xpFormLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                                    {/* Also a div — see above. SearchableSelect is not a native
+                                        control, so the label association bought nothing, and while
+                                        the pin was showing a click on the word "Machine" wrote the
+                                        machine onto the order. */}
+                                    <div style={{ ...xpFormLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                                         <span>Machine</span>
                                         {machineDirty && workCenterId && (
                                             <XPActionButton
@@ -2385,7 +2779,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 onClick={saveMachine}
                                             />
                                         )}
-                                    </label>
+                                    </div>
                                     <SearchableSelect options={machineOptions || []} value={workCenterId}
                                         onChange={setWorkCenterId} placeholder="Select machine (optional)…" size="sm" />
                                 </div>
@@ -2480,7 +2874,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
                                     <thead>
                                         <tr style={{ background: '#dddbd0' }}>
-                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
+                                            {/* Both measurements of the same log: what the scale
+                                                read, and the pieces that weight works out to
+                                                through this order's sampled unit weight. */}
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{uom || 'Qty'}</th>
+                                            {hasAlt && (
+                                                <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{altUom}</th>
+                                            )}
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{po.package_label}s</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>QC Reject</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
@@ -2497,6 +2897,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', textDecoration: c.rejected ? 'line-through' : undefined }}>
                                                     {num(c.qty).toFixed(2)}
                                                 </td>
+                                                {hasAlt && (() => {
+                                                    const a = altOf(c.id);
+                                                    return (
+                                                        <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555', textDecoration: c.rejected ? 'line-through' : undefined }}>
+                                                            {a === null ? '—' : a.toLocaleString()}
+                                                        </td>
+                                                    );
+                                                })()}
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>{c.package_count}</td>
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: num(c.qty_rejected) ? '#a00000' : '#aaa', fontWeight: num(c.qty_rejected) ? 'bold' : 'normal' }}
                                                     title={c.reject_reason || undefined}>

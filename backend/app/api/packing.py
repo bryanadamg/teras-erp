@@ -88,6 +88,14 @@ def _pu_response(b, bal, po_code=None, loc_name=None, variant=None) -> PackedUni
         package_label=b.package_label,
         weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
         alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
+        # Packaging + brutto. The name comes through the relationship (eager, see
+        # models/batch.py) but the tare and gross are read off the carton's own
+        # columns — the snapshot, not whatever the master says today.
+        packaging_type_id=b.packaging_type_id,
+        packaging_type_name=b.packaging_type.name if b.packaging_type else None,
+        packaging_type_code=b.packaging_type.code if b.packaging_type else None,
+        tare_kg=float(b.tare_kg) if b.tare_kg is not None else None,
+        gross_weight_kg=float(b.gross_weight_kg) if b.gross_weight_kg is not None else None,
         qty=float(bal.qty) if bal else 0.0,
         location_id=bal.location_id if bal else None,
         location_name=loc_name,
@@ -364,6 +372,36 @@ def _sync_target_to_alt(po: PackingOrder, item=None) -> Optional[float]:
     return derived
 
 
+# Weight units a length can be turned into a weight from. `gsm` / `g/m²` need the
+# fabric width, so they are refused here rather than silently producing a figure
+# wrong by that width — the same refusal `packing_service.base_per_alt` makes.
+SAMPLE_WEIGHT_UNITS = ("g/y", "g/m")
+
+
+def _apply_sample_weight(po: PackingOrder, payload) -> None:
+    """Set the order's own sampled unit weight from a create/update payload.
+
+    Both halves move together: clearing the figure clears the unit, so an order
+    can never carry a unit with nothing to apply it to. A blank figure means
+    "not sampled" and the item master's estimate takes over again.
+    """
+    if getattr(payload, "sample_weight_per_unit", None) is None and             getattr(payload, "sample_weight_unit", None) is None:
+        return
+    per_unit = payload.sample_weight_per_unit
+    unit = (payload.sample_weight_unit or "").strip().lower() or None
+    if per_unit is not None and float(per_unit) > 0:
+        if unit not in SAMPLE_WEIGHT_UNITS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sampled weight unit must be one of {', '.join(SAMPLE_WEIGHT_UNITS)}",
+            )
+        po.sample_weight_per_unit = float(per_unit)
+        po.sample_weight_unit = unit
+    else:
+        po.sample_weight_per_unit = None
+        po.sample_weight_unit = None
+
+
 async def _assert_work_center(db: AsyncSession, wc_id) -> None:
     """A named machine must exist. Deliberately not restricted to `node_type ==
     MACHINE`: a packing order may be dispatched to a GROUP/TYPE row before the
@@ -568,6 +606,11 @@ async def create_packing_order(
         notes=payload.notes,
         created_by_id=current_user.id,
     )
+    # The operator's sampled g/y, BEFORE the alt unit is applied: every figure
+    # `_apply_alt_unit` derives (the kg target, the box-size estimate) converts
+    # through it, so setting it afterwards would leave both computed against the
+    # item's estimate.
+    _apply_sample_weight(po, payload)
     # Alt selling unit + (when the caller sent only an alt count) the base target.
     # Before the flush so `qty_target` is never written as 0 and then corrected.
     await _apply_alt_unit(db, po, payload, so_line=so_line, item=item)
@@ -648,6 +691,12 @@ async def update_packing_order(
         if val is not None:
             setattr(po, field, val)
 
+    # Re-sampling changes what a piece weighs, so it is applied before anything
+    # derived from it is restated below.
+    sampled_before = (po.sample_weight_per_unit, po.sample_weight_unit)
+    _apply_sample_weight(po, payload)
+    resampled = (po.sample_weight_per_unit, po.sample_weight_unit) != sampled_before
+
     # Alt unit edits re-resolve the length unit and restate the base target off
     # the count. No SO line is passed: an edit states what it means rather than
     # silently re-snapshotting a line that may have moved on since the order was
@@ -655,6 +704,13 @@ async def update_packing_order(
     if any(getattr(payload, f) is not None
            for f in ("qty2", "uom2", "uom2_factor", "uom2_length_uom")):
         await _apply_alt_unit(db, po, payload, item=po.item)
+    elif resampled:
+        # A new basis with no other alt edit: the kg target and the box-size
+        # estimate are both restatements of counts the order already carries, so
+        # they follow the new figure. Nothing already packed moves — a carton's
+        # weight is a scale reading and its count is what the packer counted.
+        _sync_target_to_alt(po, po.item)
+        _sync_pack_size_to_alt(po, po.item)
     elif payload.qty_target is not None or payload.pack_size_alt is not None:
         # A base target restated on its own is only an estimate of the count the
         # order already carries, so it is re-derived rather than kept — otherwise
@@ -862,6 +918,8 @@ async def add_packing_completion(
                 [float(b) for b in payload.boxes],
                 weights=list(payload.box_weights) if payload.box_weights else None,
                 alt_qtys=list(payload.box_alt_qtys) if payload.box_alt_qtys else None,
+                packaging_type_ids=list(payload.box_packaging_type_ids) if payload.box_packaging_type_ids else None,
+                tares=list(payload.box_tares) if payload.box_tares else None,
                 lot_sizes=lot_size_rows,
                 package_label=po.package_label or "Box",
             )
@@ -918,9 +976,17 @@ async def add_packing_completion(
 
         # Logging happens after the boxes are packed and weighed: a carton with no
         # net weight prints a label with a blank N.W. line, so it is refused here
-        # rather than silently minted.
+        # rather than silently minted. The packaging gate sits beside it for the
+        # same reason — brutto is printed too, and a box with no type has no tare.
         try:
             packing_service.assert_all_weighed(carton_qtys, po.package_label)
+            packing_service.assert_all_boxed(carton_qtys, po.package_label)
+            # Master tare for a standard box, the packer's weighing for a custom
+            # one. Resolved before the mint so the figure written on the carton
+            # is the one that was in force at pack time.
+            carton_qtys = await packing_service.resolve_carton_tares(
+                db, carton_qtys, po.package_label,
+            )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -1027,6 +1093,7 @@ async def add_packing_completion(
                 )
                 box_groups.setdefault(piece.box_index, []).append({
                     "qty": piece.qty, "weight_kg": piece.weight_kg, "alt_qty": piece.alt_qty,
+                    "packaging_type_id": piece.packaging_type_id, "tare_kg": piece.tare_kg,
                     "source_batch_id": batch_id, "completion": completion,
                     "attr_ids": str_attr_ids, "color_id": color_id,
                 })

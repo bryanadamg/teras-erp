@@ -54,6 +54,7 @@ export const PERMISSION_MATRIX: PermissionMatrixSection[] = [
             { resource: 'category', label: 'Categorie' },
             { resource: 'uom', label: 'Unit Of Measure' },
             { resource: 'combo_library', label: 'Combo Library' },
+            { resource: 'packaging_type', label: 'Packaging Type' },
         ],
     },
     {
@@ -118,6 +119,9 @@ export const RESOURCE_ACTIONS: Record<string, PermissionMatrixAction[]> = {
     category: [CREATE, EDIT, DELETE, VIEW],
     uom: [CREATE, EDIT, DELETE, VIEW],
     combo_library: [CREATE, EDIT, DELETE, VIEW],
+    // No plain DELETE: a type used by any carton is deactivated instead, because
+    // deleting it would blank the box name on labels and notes already printed.
+    packaging_type: [CREATE, EDIT, A('archive', 'Delete/Deactivate'), VIEW],
 
     lot: [CREATE, A('split', 'Split'), DELETE, A('qc_reject', 'QC Reject'), VIEW],
     // set_status is the release-to-packing decision, so it is its own grant

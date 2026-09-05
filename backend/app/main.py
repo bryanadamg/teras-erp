@@ -32,14 +32,14 @@ from app.core.db_manager import db_manager
 from app.core.scheduler import backup_scheduler
 from app.db.base import Base
 from app.services import backup_schedule_service, event_log_service
-from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, shipments, colors, combos, weaving, print_templates, production_reports, quarantine, work_queue
+from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings, production_runs, work_orders, batches, dyeing_setting, preferences, lab_dips, packing, pick_lists, shipments, colors, combos, packaging_types, weaving, print_templates, production_reports, quarantine, work_queue
 from app.core.ws_manager import manager, WS_CLOSE_TOKEN_EXPIRED
 from app.core.ws_events import can_receive
 from app.core.ws_metrics import metrics as ws_metrics
 from app.api.auth import ws_connection_state, get_current_admin
 
 # Keep in sync with /VERSION, frontend/package.json "version", and CHANGELOG.md on release.
-APP_VERSION = "0.22.0"
+APP_VERSION = "0.23.0"
 
 # Process start time, a proxy for "last deployed/updated" — deploy is git pull +
 # docker compose up --build, which always restarts this process.
@@ -148,6 +148,7 @@ api_router.include_router(dyeing_setting.router)
 api_router.include_router(lab_dips.router)
 api_router.include_router(colors.router)
 api_router.include_router(combos.router)
+api_router.include_router(packaging_types.router)
 api_router.include_router(packing.router)
 api_router.include_router(quarantine.router)
 api_router.include_router(pick_lists.router)

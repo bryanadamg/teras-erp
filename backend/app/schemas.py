@@ -2357,6 +2357,38 @@ class ComboListResponse(BaseModel):
     size: int = 50
 
 
+# --- Packaging types (the physical box a carton is packed in) ---------------
+# Bounded master (a handful of rows: Box S/M/L/XL, Plastic Bag, Custom), served
+# as a bare list on purpose — see the lookup-feed rule in CLAUDE.md.
+
+class PackagingTypeCreate(BaseModel):
+    code: str
+    name: str
+    tare_kg: Optional[float] = None
+    is_custom: bool = False
+    sort_order: int = 0
+    active: bool = True
+
+class PackagingTypeUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    tare_kg: Optional[float] = None
+    is_custom: Optional[bool] = None
+    sort_order: Optional[int] = None
+    active: Optional[bool] = None
+
+class PackagingTypeResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    tare_kg: Optional[float] = None
+    is_custom: bool = False
+    sort_order: int = 0
+    active: bool = True
+    created_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LabDipLineCreate(BaseModel):
     color_name: str
     color_id: Optional[UUID] = None
@@ -3060,6 +3092,12 @@ class PackingOrderCreate(BaseModel):
     uom2: str | None = None
     uom2_factor: float | None = None
     uom2_length_uom: str | None = None
+    # What one yard/metre of THIS cloth actually weighs, sampled by the operator
+    # before packing. Overrides the item master's development estimate for every
+    # alt -> kg conversion on this order (see PackingOrder.sample_weight_per_unit).
+    # Send both halves or neither; `g/y` and `g/m` only.
+    sample_weight_per_unit: float | None = None
+    sample_weight_unit: str | None = None
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
     # Packing machine (WorkCenter MACHINE row) this order is dispatched to.
@@ -3082,6 +3120,12 @@ class PackingOrderUpdate(BaseModel):
     uom2: str | None = None
     uom2_factor: float | None = None
     uom2_length_uom: str | None = None
+    # What one yard/metre of THIS cloth actually weighs, sampled by the operator
+    # before packing. Overrides the item master's development estimate for every
+    # alt -> kg conversion on this order (see PackingOrder.sample_weight_per_unit).
+    # Send both halves or neither; `g/y` and `g/m` only.
+    sample_weight_per_unit: float | None = None
+    sample_weight_unit: str | None = None
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
     work_center_id: UUID | None = None
@@ -3150,6 +3194,18 @@ class PackingCompletionCreate(BaseModel):
     # 11.8 pieces for a box that holds 12. A carton split at a lot seam shares its
     # count so the parts still sum to what was stated.
     box_alt_qtys: list[float | None] | None = None
+    # Which packaging type each carton is packed in, positional against `boxes`.
+    # Required for every carton (packing_service.assert_all_boxed) — brutto is a
+    # printed figure on the label and the delivery note, and a carton with no box
+    # has no tare to add. A box split at a lot seam keeps one type: the pieces
+    # re-merge into a single physical carton.
+    box_packaging_type_ids: list[UUID | None] | None = None
+    # Hand-weighed tare per carton, positional against `boxes`. Only meaningful
+    # for a type flagged `is_custom` — a custom box has no master tare, so the
+    # packer weighs the empty box. Ignored (the master's tare wins) for every
+    # other type, so a stale value from a re-picked row cannot leak onto a
+    # standard box.
+    box_tares: list[float | None] | None = None
     source_batch_id: UUID | None = None
     # Multi-lot pack: one completion row is written per lot, so each keeps a
     # truthful source_batch_id and its own carton range.
@@ -3211,6 +3267,16 @@ class PackedUnitResponse(BaseModel):
     # (12 Pcs, 4 Pic). Stored on the carton, not divided out of `qty` at read
     # time: for a kg item `qty` is the scale reading. See models/batch.py.
     alt_qty: float | None = None
+    # --- Packaging / brutto -------------------------------------------------
+    # The box this carton is packed in, the tare snapshotted from it at pack
+    # time, and net + tare. All three are stored on the carton (see
+    # models/batch.py) so a later edit of the master never rewrites a printed
+    # label or a delivery note's weight.
+    packaging_type_id: UUID | None = None
+    packaging_type_name: str | None = None
+    packaging_type_code: str | None = None
+    tare_kg: float | None = None
+    gross_weight_kg: float | None = None
     location_id: UUID | None = None
     location_name: str | None = None
     packing_order_id: UUID | None = None
@@ -3305,6 +3371,10 @@ class PackingOrderResponse(BaseModel):
     uom2_factor: float | None = None
     uom2_length_uom: str | None = None
     uom2_base_factor: float | None = None
+    # The sampled weight spec `uom2_base_factor` was computed through, when the
+    # order has one — so a screen can say which basis its kilos came from.
+    sample_weight_per_unit: float | None = None
+    sample_weight_unit: str | None = None
     # "Keterangan stock" free text on the SO line, printed alongside CONTENT.
     ket_stock: str | None = None
     color_id: UUID | None = None
@@ -3414,6 +3484,12 @@ class PickListLineResponse(BaseModel):
     # a picker cannot recover from the SO line when an order runs several sizes.
     bom_size_snapshot: dict | None = None
     size_label: str | None = None
+    # The picked carton's packaging and weights, decorated off its Batch row.
+    # Brutto is what the carrier bills on, so the pick list and the Surat Jalan
+    # both have to be able to total it without reopening the packing order.
+    packaging_type_name: str | None = None
+    net_weight_kg: float | None = None
+    gross_weight_kg: float | None = None
     class Config:
         from_attributes = True
 

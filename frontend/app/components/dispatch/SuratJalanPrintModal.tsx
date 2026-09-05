@@ -69,6 +69,14 @@ function SJDocument({
     }, [lines, itemIndex, attributes]);
 
     const totalDus = groups.reduce((s, g) => s + g.cartons.length, 0);
+    // Brutto for the whole load: carton net + the empty box's tare, both
+    // snapshotted on the carton at pack time. Carriers bill on this, so it is
+    // summed straight off the picked cartons rather than re-derived from qty.
+    // Bulk lines carry no carton and so contribute nothing — the total says
+    // "weight of the boxes on this note", which is what is being handed over.
+    const totalBrutto = (lines || []).reduce(
+        (s: number, l: any) => s + (Number(l.gross_weight_kg) || 0), 0,
+    );
     const warna = (g: any) => (g.colorCode ? `${g.colorName || ''} ( ${g.colorCode} )`.trim() : g.colorName || '');
 
     // Continuation rows for any group whose cartons overflow one grid row.
@@ -245,7 +253,9 @@ function SJDocument({
                         <td style={{ ...cell, border: 'none' }} colSpan={PERINCIAN_COLS} />
                         <td style={{ ...cell, fontWeight: 'bold', textAlign: 'right' }}>Total :</td>
                         <td style={{ ...cell, fontWeight: 'bold', textAlign: 'center' }}>{totalDus}</td>
-                        <td style={{ ...cell, border: 'none' }} />
+                        <td style={{ ...cell, border: 'none', fontWeight: 'bold', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {totalBrutto > 0 ? `Bruto : ${num(totalBrutto)} KG` : ''}
+                        </td>
                     </tr>
                 </tbody>
             </table>

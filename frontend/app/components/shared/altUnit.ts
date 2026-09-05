@@ -139,13 +139,22 @@ export const lengthPerAlt = (spec: AltUnitSpec): { qty: number; uom: string } | 
  *  `uom2_base_factor` is served by the API (one server-side conversion, shared by
  *  every screen); the item fields are only needed to recompute it locally while a
  *  create form is still being typed. */
-export const orderAltSpec = (po: any, item?: any): AltUnitSpec => ({
-    factor: po?.uom2_factor ?? null,
-    lengthUom: po?.uom2_length_uom ?? null,
-    itemUom: po?.item_uom || item?.uom || null,
-    weightPerUnit: item?.weight_per_unit ?? null,
-    weightUnit: item?.weight_unit ?? null,
-});
+export const orderAltSpec = (po: any, item?: any): AltUnitSpec => {
+    // The operator's own sampling of THIS cloth beats the item master, which
+    // holds the estimate taken when the style was developed. Both halves must be
+    // present to count — mirrors `packing_service.order_weight_spec`, so a screen
+    // computing locally and the server's `uom2_base_factor` never disagree.
+    const sampled = Number(po?.sample_weight_per_unit) || 0;
+    const sampledUnit = po?.sample_weight_unit || null;
+    const useSample = sampled > 0 && !!sampledUnit;
+    return {
+        factor: po?.uom2_factor ?? null,
+        lengthUom: po?.uom2_length_uom ?? null,
+        itemUom: po?.item_uom || item?.uom || null,
+        weightPerUnit: useSample ? sampled : (item?.weight_per_unit ?? null),
+        weightUnit: useSample ? sampledUnit : (item?.weight_unit ?? null),
+    };
+};
 
 /** Base qty per alt unit for an order: the server's figure when it sent one,
  *  else computed from the same inputs. */

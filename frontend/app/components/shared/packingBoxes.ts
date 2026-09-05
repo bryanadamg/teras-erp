@@ -21,6 +21,39 @@ export type BoxRow = {
      *  for a kg item `qty` ends up being the scale reading, which no longer
      *  divides back into a whole number of pieces. */
     alt: string;
+    /** Which `PackagingType` this carton is packed in. Required at log time — the
+     *  label prints brutto and the delivery note totals it, and a carton with no
+     *  box has no tare to add (`packing_service.assert_all_boxed`). */
+    packagingTypeId: string;
+    /** Hand-weighed tare of the EMPTY box, in kg. Only meaningful for a type
+     *  flagged `is_custom`: a standard box's tare comes off the master and the
+     *  server ignores anything sent here for one. */
+    tare: string;
+};
+
+/** One row of the packaging master (`GET /packaging-types`). */
+export type PackagingType = {
+    id: string;
+    code: string;
+    name: string;
+    tare_kg: number | null;
+    is_custom: boolean;
+};
+
+export const findPackagingType = (id: string, types: PackagingType[]) =>
+    types.find(t => String(t.id) === String(id));
+
+export const isCustomType = (id: string, types: PackagingType[]) =>
+    !!findPackagingType(id, types)?.is_custom;
+
+/** The tare that will actually be used for a carton: the packer's weighing for a
+ *  custom box, the master's figure for every other type. Mirrors
+ *  `packing_service.resolve_carton_tares` so the footer's brutto preview and the
+ *  printed label can never disagree. */
+export const effectiveTare = (row: { packagingTypeId: string; tare: string }, types: PackagingType[]): number => {
+    const t = findPackagingType(row.packagingTypeId, types);
+    if (!t) return 0;
+    return t.is_custom ? n(row.tare) : Number(t.tare_kg) || 0;
 };
 
 // Parsed the same way the pack screens parse every other numeric field
@@ -61,9 +94,18 @@ export type BoxGroup = {
      *  the box already IS its net weight. May be shorter than `count`; a
      *  missing entry is an unweighed carton. */
     kg: string[];
+    /** Packaging type for every carton in the group. Group-level, not per box:
+     *  a "3 × 5 kg" line is three identical boxes, and picking the box three
+     *  times is the kind of repetition the group shape exists to remove. */
+    packagingTypeId: string;
+    /** Hand-weighed tare for a custom box, in kg — also group-level, so a group
+     *  of custom boxes is one weighing. Split the line if two custom boxes
+     *  really differ. Ignored for a standard type. */
+    tare: string;
 };
 
-export const emptyBoxGroup = (): BoxGroup => ({ count: '1', qty: '', alt: '', kg: [] });
+export const emptyBoxGroup = (): BoxGroup =>
+    ({ count: '1', qty: '', alt: '', kg: [], packagingTypeId: '', tare: '' });
 
 /** Cartons the group stands for — a blank or fractional count is floored, since
  *  half a carton is not a thing the floor can pack. */
@@ -79,6 +121,8 @@ export const expandBoxGroups = (groups: BoxGroup[]): BoxRow[] =>
             qty: g.qty,
             kg: g.kg[i] || '',
             alt: g.alt,
+            packagingTypeId: g.packagingTypeId,
+            tare: g.tare,
         })),
     );
 
@@ -149,6 +193,12 @@ export const seedBoxGroups = (
     altSize?: number | null,
 ): BoxGroup[] => {
     const prevWeights = expandBoxGroups(prev).map(r => r.kg);
+    // One carried packaging pick for the whole re-split: the old groups no longer
+    // line up with the new ones (a 5 kg split becoming a 4 kg split changes how
+    // many boxes there are), so the first group's box is carried rather than
+    // matched positionally. Mixed-packaging events are re-picked per line.
+    const carriedPackagingTypeId = prev[0]?.packagingTypeId || '';
+    const carriedTare = prev[0]?.tare || '';
     const byAlt = baseFactor ? splitBoxesByAlt(total, Number(altSize) || 0, baseFactor) : null;
     if (byAlt) {
         const groups: BoxGroup[] = [];
@@ -157,7 +207,13 @@ export const seedBoxGroups = (
             if (last && n(last.qty) === box.qty && n(last.alt) === box.alt) {
                 last.count = String(groupCount(last) + 1);
             } else {
-                groups.push({ count: '1', qty: String(box.qty), alt: String(box.alt), kg: [] });
+                groups.push({
+                    count: '1', qty: String(box.qty), alt: String(box.alt), kg: [],
+                    // The box the packer already picked survives a re-split: changing
+                    // the split does not change which carton they are packing into,
+                    // and re-picking it after every qty edit is pure friction.
+                    packagingTypeId: carriedPackagingTypeId, tare: carriedTare,
+                });
             }
         }
         let takenAlt = 0;
@@ -184,6 +240,8 @@ export const seedBoxGroups = (
                 qty: String(q),
                 alt: derived !== null ? String(derived) : '',
                 kg: [],
+                packagingTypeId: carriedPackagingTypeId,
+                tare: carriedTare,
             });
         }
     }
@@ -219,3 +277,25 @@ export const boxAltTotal = (rows: BoxRow[]) =>
  *  stated none, so the server derives that one rather than guessing all of them. */
 export const boxAltPayload = (rows: BoxRow[]): (number | null)[] =>
     filledBoxRows(rows).map(b => (n(b.alt) > 0 ? n(b.alt) : null));
+
+// --- Packaging -------------------------------------------------------------
+
+/** True when any carton has no packaging type; the server rejects those. */
+export const hasUnboxedBox = (rows: BoxRow[]) =>
+    filledBoxRows(rows).some(b => !b.packagingTypeId);
+
+/** True when a custom-box carton is missing its hand-weighed tare. Standard
+ *  boxes carry their tare on the master, so only the custom ones can be short. */
+export const hasUnweighedTare = (rows: BoxRow[], types: PackagingType[]) =>
+    filledBoxRows(rows).some(b => isCustomType(b.packagingTypeId, types) && !(n(b.tare) > 0));
+
+/** Packaging types to send, positional against `filledBoxRows`. */
+export const boxPackagingPayload = (rows: BoxRow[]): (string | null)[] =>
+    filledBoxRows(rows).map(b => b.packagingTypeId || null);
+
+/** Tares to send, positional against `filledBoxRows`. Only a custom box's is
+ *  sent: the server takes the master's tare for every other type, and shipping a
+ *  stale figure from a re-picked row would just be noise on the wire. */
+export const boxTarePayload = (rows: BoxRow[], types: PackagingType[]): (number | null)[] =>
+    filledBoxRows(rows).map(b =>
+        isCustomType(b.packagingTypeId, types) && n(b.tare) > 0 ? n(b.tare) : null);

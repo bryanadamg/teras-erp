@@ -10,7 +10,10 @@ import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree
 import {
     BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
     filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload, orderBoxSizeAlt,
+    hasUnboxedBox, hasUnweighedTare, boxPackagingPayload, boxTarePayload,
+    findPackagingType, isCustomType, effectiveTare,
 } from '../shared/packingBoxes';
+import { usePackagingTypes } from '../shared/usePackagingTypes';
 import { orderBasePerAlt, altToBase, baseToAlt } from '../shared/altUnit';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
@@ -59,6 +62,8 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     // physical carton for the payload — same shape and same helpers as the desktop
     // pack modal (see shared/packingBoxes).
     const [boxGroups, setBoxGroups] = useState<BoxGroup[]>([]);
+    // The box master — its tare is what makes each carton's brutto.
+    const { packagingTypes } = usePackagingTypes();
     const [openGroups, setOpenGroups] = useState<Set<number>>(new Set());
     const [sourceBatch, setSourceBatch] = useState('');
     const [operator, setOperator] = useState('');
@@ -248,6 +253,14 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
         const backfill = hasAlt && !(num(boxGroups[i]?.alt) > 0) ? baseToAlt(num(val), altFactor) : null;
         updateGroup(i, { qty: val, ...(backfill !== null ? { alt: String(backfill) } : {}) });
     };
+    // Switching to a standard box drops a tare typed for a custom one: the master's
+    // figure is what the server will apply, so leaving the old number on screen
+    // would promise a brutto that is not going to be printed.
+    const setGroupPackaging = (i: number, val: string) =>
+        updateGroup(i, {
+            packagingTypeId: val,
+            ...(isCustomType(val, packagingTypes) ? {} : { tare: '' }),
+        });
 
     const boxRows = useMemo(() => expandBoxGroups(boxGroups), [boxGroups]);
     const boxes = filledBoxRows(boxRows);
@@ -259,6 +272,13 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
     const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
     const weightTotal = boxes.reduce((s, b) => s + (qtyIsWeight ? num(b.qty) : num(b.kg)), 0);
     const altTotal = hasAlt ? boxAltTotal(boxRows) : 0;
+    // Which box each line is packed in. The master's tare (or, on a custom box,
+    // the packer's own weighing) is what turns each net reading into the brutto
+    // printed on the label — so it is required here exactly as the weight is.
+    const packagingMissing = hasUnboxedBox(boxRows);
+    const taresMissing = hasUnweighedTare(boxRows, packagingTypes);
+    const tareTotal = boxes.reduce((s, b) => s + effectiveTare(b, packagingTypes), 0);
+    const grossTotal = weightTotal + tareTotal;
 
     const logPack = async () => {
         const label = (po?.package_label || 'carton').toLowerCase();
@@ -269,6 +289,8 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
             return;
         }
         if (weightsMissing) { setError(`Weigh every ${label} — the label prints its net weight.`); return; }
+        if (packagingMissing) { setError(`Pick the box for every ${label} — its tare makes up the brutto.`); return; }
+        if (taresMissing) { setError(`Weigh the empty box on every custom ${label} line.`); return; }
         setLogging(true);
         setError(null);
         try {
@@ -281,6 +303,9 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                     // Null per carton where no count was typed — the server derives
                     // just that one rather than every carton's.
                     box_alt_qtys: hasAlt ? boxAltPayload(boxRows) : null,
+                    box_packaging_type_ids: boxPackagingPayload(boxRows),
+                    // Custom boxes only — a standard box's tare is the master's.
+                    box_tares: boxTarePayload(boxRows, packagingTypes),
                     source_batch_id: sourceBatch || null,
                     work_center_id: workCenterId || null,
                     operator: operator || null,
@@ -346,6 +371,12 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                     <div style={{ margin: '2px 0 6px' }}><LotChips batch={unit} /></div>
                     <Row label="Carton no." value={String(unit.package_no ?? '—')} />
                     <Row label="Qty in stock" value={num(unit.qty).toLocaleString()} />
+                    {/* The box and its brutto — what a packer holding the carton can
+                        check against the label in front of them. */}
+                    <Row label="Packaging" value={unit.packaging_type_name || '—'} />
+                    <Row label="Weight" value={unit.gross_weight_kg != null
+                        ? `${num(unit.gross_weight_kg).toFixed(2)} kg gross (${num(unit.weight_kg).toFixed(2)} net)`
+                        : unit.weight_kg != null ? `${num(unit.weight_kg).toFixed(2)} kg net` : '—'} />
                     <Row label="Location" value={unit.location_name || '—'} />
                     <Row label="Packing order" value={unit.packing_order_code || '—'} />
                     <Row label="Quality" value={unit.quality_status} />
@@ -374,8 +405,12 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <Row label="Target" value={hasAlt
                             ? `${(num(po.qty2) > 0 ? num(po.qty2) : baseToAlt(num(po.qty_target), altFactor) ?? 0).toLocaleString()} ${altUom} (${num(po.qty_target).toLocaleString()} ${po.item_uom || ''})`
                             : `${num(po.qty_target).toLocaleString()} ${po.item_uom || ''}`} />
+                        {/* Both figures, like Target above: the boxes are weighed and the
+                            piece count is what that weight works out to through this
+                            order's sampled unit weight, so the kg stays in brackets rather
+                            than being dropped. */}
                         <Row label="Packed" value={hasAlt && po.qty_packed_alt != null
-                            ? `${num(po.qty_packed_alt).toLocaleString()} ${altUom} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`
+                            ? `${num(po.qty_packed_alt).toLocaleString()} ${altUom} (${num(po.qty_packed).toFixed(2)} ${po.item_uom || ''}) · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`
                             : `${num(po.qty_packed).toLocaleString()} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`} />
                         <Row label="Machine" value={po.work_center_name || 'not assigned'} />
                     </MobilePanel>
@@ -388,6 +423,8 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                                     #{u.package_no} · {u.batch_number} ·{' '}
                                     {u.alt_qty != null && altUom ? `${num(u.alt_qty)} ${altUom} · ` : ''}
                                     {num(u.qty).toLocaleString()}
+                                    {u.packaging_type_name ? ` · ${u.packaging_type_name}` : ''}
+                                    {u.gross_weight_kg != null ? ` · ${num(u.gross_weight_kg).toFixed(2)} kg gross` : ''}
                                 </div>
                             ))}
                             <div style={{ marginTop: 4, fontSize: 11 }}>Print these labels from the desktop Packing Orders screen.</div>
@@ -479,6 +516,37 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                                         )}
                                         <MobileButton compact tone="danger" icon="bi-x-lg" onClick={() => removeGroup(i)} />
                                     </div>
+                                    {/* The box itself, on its own line: a phone row already
+                                        carries count × qty and the picker needs a readable
+                                        target. Group-level — every carton on this line is the
+                                        same box, so it is picked once. */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                        <select
+                                            style={{ ...xpInput, flex: 1, minWidth: 0, background: g.packagingTypeId ? '#fff' : '#fffbe6' }}
+                                            value={g.packagingTypeId}
+                                            onChange={e => setGroupPackaging(i, e.target.value)}
+                                        >
+                                            <option value="">— pick box —</option>
+                                            {packagingTypes.map(t => (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name}{!t.is_custom && Number(t.tare_kg) > 0 ? ` (${Number(t.tare_kg)} kg)` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {isCustomType(g.packagingTypeId, packagingTypes) ? (
+                                            <input type="number" min={0} step="any" className="xp-nospin"
+                                                style={{ ...xpInput, width: 96, background: num(g.tare) > 0 ? '#fff' : '#fffbe6' }}
+                                                placeholder="tare kg" value={g.tare}
+                                                onChange={e => updateGroup(i, { tare: e.target.value })} />
+                                        ) : (
+                                            <span style={{ fontSize: 11, color: '#777', width: 96, textAlign: 'right' }}>
+                                                {(() => {
+                                                    const t = findPackagingType(g.packagingTypeId, packagingTypes);
+                                                    return t && Number(t.tare_kg) > 0 ? `+${Number(t.tare_kg)} kg` : '';
+                                                })()}
+                                            </span>
+                                        )}
+                                    </div>
                                     {open && !qtyIsWeight && (
                                         <div style={{ paddingLeft: 14, marginBottom: 4 }}>
                                             {count === 0 && (
@@ -501,12 +569,18 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                             );
                         })}
                         {boxGroups.length > 0 && (
-                            <div style={{ fontSize: 11, color: boxMismatch || weightsMissing ? '#7a4a00' : '#0a3e0a', marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: boxMismatch || weightsMissing || packagingMissing || taresMissing ? '#7a4a00' : '#0a3e0a', marginTop: 2 }}>
                                 {boxMismatch
                                     ? `Boxed ${boxTotal.toFixed(2)} of ${num(qty).toFixed(2)}`
                                     : weightsMissing
                                         ? `Weigh every ${(po.package_label || 'carton').toLowerCase()}`
-                                        : `${boxes.length} ${(po.package_label || 'carton').toLowerCase()}s${hasAlt ? ` · ${altTotal.toLocaleString()} ${altUom}` : ''} · ${weightTotal.toFixed(2)} kg`}
+                                        : packagingMissing
+                                            ? `Pick a box on every line`
+                                            : taresMissing
+                                                ? `Weigh every custom box`
+                                                // Net and gross both: the label prints the pair, and the
+                                                // packer should see the tare land before they log.
+                                                : `${boxes.length} ${(po.package_label || 'carton').toLowerCase()}s${hasAlt ? ` · ${altTotal.toLocaleString()} ${altUom}` : ''} · ${weightTotal.toFixed(2)} kg net · ${grossTotal.toFixed(2)} kg gross`}
                             </div>
                         )}
                         {lots.length > 0 && (

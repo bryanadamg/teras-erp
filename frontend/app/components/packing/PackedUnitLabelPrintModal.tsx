@@ -49,6 +49,11 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
  *            on the carton itself at packing, off the lot it was packed from.
  *   PO. NO   the customer's own `customer_po_ref`, our SO number under it.
  *   LOT. NO  the source lot this carton was packed from (via its completion).
+ *   G W      `Batch.gross_weight_kg` — net plus the empty box, both snapshotted on
+ *            the carton at pack time. The carrier bills on this figure and the
+ *            Surat Jalan totals it, so it prints beside the net rather than
+ *            instead of it. Blank on a carton packed before packaging was
+ *            recorded — an unknown tare must read as unknown, not as zero.
  *   N W      `Batch.weight_kg` — the packer's scale reading at pack time. For a
  *            kg-based item there is nothing separate to read: the carton qty is
  *            that weight, so the server derives it and this line matches the base
@@ -129,6 +134,7 @@ export default function PackedUnitLabelPrintModal({
                 po: makeBarcodeDataUrl(po.customer_po_ref || po.sales_order_code || ''),
                 lot: makeBarcodeDataUrl(lotByCompletion[String(u.packing_completion_id || '')] || ''),
                 nw: makeBarcodeDataUrl(u.weight_kg != null ? String(u.weight_kg) : ''),
+                gw: makeBarcodeDataUrl(u.gross_weight_kg != null ? String(u.gross_weight_kg) : ''),
             };
         });
         return map;
@@ -244,6 +250,25 @@ export default function PackedUnitLabelPrintModal({
                                     : <span style={{ fontWeight: 'normal', color: '#666' }}>__________ KG</span>}
                             </td>
                             {barRow(bc.nw)}
+                        </tr>
+
+                        <tr>
+                            <td style={lblCell}>G W</td>
+                            <td style={valCell}>
+                                {u.gross_weight_kg != null
+                                    ? `${Number(u.gross_weight_kg).toFixed(2)}  KG`
+                                    : <span style={{ fontWeight: 'normal', color: '#666' }}>__________ KG</span>}
+                                {/* Which box that tare came from, small beside the figure —
+                                    the receiving end reconciles brutto against the box type,
+                                    and reprinting an old carton must show the box it was
+                                    actually packed in, not today's master. */}
+                                {u.packaging_type_name && (
+                                    <span style={{ fontSize: 8, fontWeight: 'normal', color: '#555', marginLeft: 4 }}>
+                                        ({u.packaging_type_name})
+                                    </span>
+                                )}
+                            </td>
+                            {barRow(bc.gw)}
                         </tr>
                     </tbody>
                 </table>

@@ -37,6 +37,23 @@ def _seed_locations(*codes):
         conn.close()
 
 
+def _box(client, auth_headers):
+    """A standard packaging type to pack into.
+
+    Every carton must name one (`packing_service.assert_all_boxed`) — brutto is
+    printed on the label and totalled on the delivery note, and a carton with no
+    box has no tare to add. These tests are about scrap, not packaging, so they
+    take the seeded Box S; a fresh test DB has it from `seed_packaging_types`.
+    """
+    types = client.get("/api/packaging-types", headers=auth_headers).json()
+    standard = next((t for t in types if not t.get("is_custom")), None)
+    if standard is None:
+        standard = client.post("/api/packaging-types", json={
+            "code": "BOX-TEST", "name": "Test Box", "tare_kg": 0.5,
+        }, headers=auth_headers).json()
+    return standard["id"]
+
+
 def _location_ids(client, auth_headers):
     return {l["code"]: l["id"] for l in client.get("/api/locations", headers=auth_headers).json()}
 
@@ -83,10 +100,12 @@ def test_scrap_leaves_the_source_but_never_counts_as_packed(client, auth_headers
     item, po, locs = packing_setup["item"], packing_setup["po"], packing_setup["locs"]
 
     # 24kg boxed into four 6kg cartons; 6kg of offcuts scrapped.
+    box = _box(client, auth_headers)
     res = client.post(f"/api/packing/{po['id']}/complete", json={
         "qty": 24,
         "boxes": [6, 6, 6, 6],
         "box_weights": [6, 6, 6, 6],
+        "box_packaging_type_ids": [box] * 4,
         "qty_rejected": 6,
         "reject_reason": "stained offcuts",
     }, headers=auth_headers)
@@ -144,6 +163,7 @@ def test_scrap_must_be_covered_by_the_same_draw(client, auth_headers, packing_se
         "qty": 28,
         "boxes": [6, 6, 6, 6, 4],
         "box_weights": [6, 6, 6, 6, 4],
+        "box_packaging_type_ids": [_box(client, auth_headers)] * 5,
         "qty_rejected": 5,
     }, headers=auth_headers)
     assert res.status_code == 400
@@ -180,7 +200,9 @@ def test_scrap_without_a_defect_store_writes_off_rather_than_500s(client, auth_h
     }, headers=auth_headers).json()
 
     res = client.post(f"/api/packing/{po['id']}/complete", json={
-        "qty": 8, "boxes": [4, 4], "box_weights": [4, 4], "qty_rejected": 2,
+        "qty": 8, "boxes": [4, 4], "box_weights": [4, 4],
+        "box_packaging_type_ids": [_box(client, auth_headers)] * 2,
+        "qty_rejected": 2,
     }, headers=auth_headers)
     assert res.status_code == 200, res.text
     assert float(res.json()["qty_rejected"]) == 2.0
