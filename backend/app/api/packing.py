@@ -372,6 +372,36 @@ def _sync_target_to_alt(po: PackingOrder, item=None) -> Optional[float]:
     return derived
 
 
+# Weight units a length can be turned into a weight from. `gsm` / `g/m²` need the
+# fabric width, so they are refused here rather than silently producing a figure
+# wrong by that width — the same refusal `packing_service.base_per_alt` makes.
+SAMPLE_WEIGHT_UNITS = ("g/y", "g/m")
+
+
+def _apply_sample_weight(po: PackingOrder, payload) -> None:
+    """Set the order's own sampled unit weight from a create/update payload.
+
+    Both halves move together: clearing the figure clears the unit, so an order
+    can never carry a unit with nothing to apply it to. A blank figure means
+    "not sampled" and the item master's estimate takes over again.
+    """
+    if getattr(payload, "sample_weight_per_unit", None) is None and             getattr(payload, "sample_weight_unit", None) is None:
+        return
+    per_unit = payload.sample_weight_per_unit
+    unit = (payload.sample_weight_unit or "").strip().lower() or None
+    if per_unit is not None and float(per_unit) > 0:
+        if unit not in SAMPLE_WEIGHT_UNITS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sampled weight unit must be one of {', '.join(SAMPLE_WEIGHT_UNITS)}",
+            )
+        po.sample_weight_per_unit = float(per_unit)
+        po.sample_weight_unit = unit
+    else:
+        po.sample_weight_per_unit = None
+        po.sample_weight_unit = None
+
+
 async def _assert_work_center(db: AsyncSession, wc_id) -> None:
     """A named machine must exist. Deliberately not restricted to `node_type ==
     MACHINE`: a packing order may be dispatched to a GROUP/TYPE row before the
@@ -576,6 +606,11 @@ async def create_packing_order(
         notes=payload.notes,
         created_by_id=current_user.id,
     )
+    # The operator's sampled g/y, BEFORE the alt unit is applied: every figure
+    # `_apply_alt_unit` derives (the kg target, the box-size estimate) converts
+    # through it, so setting it afterwards would leave both computed against the
+    # item's estimate.
+    _apply_sample_weight(po, payload)
     # Alt selling unit + (when the caller sent only an alt count) the base target.
     # Before the flush so `qty_target` is never written as 0 and then corrected.
     await _apply_alt_unit(db, po, payload, so_line=so_line, item=item)
@@ -656,6 +691,12 @@ async def update_packing_order(
         if val is not None:
             setattr(po, field, val)
 
+    # Re-sampling changes what a piece weighs, so it is applied before anything
+    # derived from it is restated below.
+    sampled_before = (po.sample_weight_per_unit, po.sample_weight_unit)
+    _apply_sample_weight(po, payload)
+    resampled = (po.sample_weight_per_unit, po.sample_weight_unit) != sampled_before
+
     # Alt unit edits re-resolve the length unit and restate the base target off
     # the count. No SO line is passed: an edit states what it means rather than
     # silently re-snapshotting a line that may have moved on since the order was
@@ -663,6 +704,13 @@ async def update_packing_order(
     if any(getattr(payload, f) is not None
            for f in ("qty2", "uom2", "uom2_factor", "uom2_length_uom")):
         await _apply_alt_unit(db, po, payload, item=po.item)
+    elif resampled:
+        # A new basis with no other alt edit: the kg target and the box-size
+        # estimate are both restatements of counts the order already carries, so
+        # they follow the new figure. Nothing already packed moves — a carton's
+        # weight is a scale reading and its count is what the packer counted.
+        _sync_target_to_alt(po, po.item)
+        _sync_pack_size_to_alt(po, po.item)
     elif payload.qty_target is not None or payload.pack_size_alt is not None:
         # A base target restated on its own is only an estimate of the count the
         # order already carries, so it is re-derived rather than kept — otherwise

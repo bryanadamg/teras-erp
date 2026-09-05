@@ -42,6 +42,11 @@ def _apply(payload, item, po=None):
         pack_size=payload.pack_size,
         pack_size_alt=payload.pack_size_alt,
     )
+    # The endpoint applies the operator's sampled weight BEFORE the alt unit, so
+    # every figure derived below converts through it. Mirrored here for the same
+    # reason the box size is seeded above: this helper stands in for the create
+    # path, not for one function inside it.
+    papi._apply_sample_weight(po, payload)
     asyncio.run(papi._apply_alt_unit(None, po, payload, item=item))
     return po
 
@@ -243,3 +248,107 @@ def test_a_stated_alt_unit_beats_the_line_it_packs():
     ))
     assert po.uom2 == "Roll"
     assert float(po.uom2_factor) == 144
+
+
+# --- the order's own sampled unit weight ------------------------------------
+#
+# `Item.weight_per_unit` is the estimate taken when the style was developed. The
+# operator samples the actual goods before packing, and every alt -> kg figure on
+# the order converts through that measurement instead.
+
+def test_the_sampled_weight_beats_the_items_estimate():
+    # Same 2880 Pcs x 5 yard, but the cloth sampled at 200 g/y rather than the
+    # item's 180: 2880 x 5 x 200 / 1000 = 2880 kg, not 2592.
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                 sample_weight_per_unit=200, sample_weight_unit="g/y"),
+        _kg_item(),
+    )
+    assert float(po.qty_target) == 2880.0
+    assert float(po.sample_weight_per_unit) == 200.0
+    assert po.sample_weight_unit == "g/y"
+
+
+def test_no_sample_falls_back_to_the_item():
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard"),
+        _kg_item(),
+    )
+    assert float(po.qty_target) == 2592.0
+    assert po.sample_weight_per_unit is None
+
+
+def test_a_sample_without_a_unit_is_refused():
+    # A weight with no unit cannot be applied, and silently ignoring it would
+    # leave the operator believing they had set the basis while every kg on the
+    # order still came from the item's estimate. Refused so they are told.
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as e:
+        _apply(
+            _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                     sample_weight_per_unit=200),
+            _kg_item(),
+        )
+    assert e.value.status_code == 400
+
+
+def test_clearing_the_sample_hands_the_conversion_back_to_the_item():
+    # Both halves blank is "not sampled", not a half-stated spec — the item's own
+    # figure converts again, which is what an order created before this feature
+    # (and one whose sampling is withdrawn) must do.
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                 sample_weight_per_unit=0, sample_weight_unit=""),
+        _kg_item(),
+    )
+    assert float(po.qty_target) == 2592.0
+    assert po.sample_weight_per_unit is None
+    assert po.sample_weight_unit is None
+
+
+def test_a_sample_unit_that_cannot_convert_a_length_is_refused():
+    # gsm needs the fabric width. Refused at the API rather than stored and used,
+    # which is the same call `packing_service.base_per_alt` makes.
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as e:
+        _apply(
+            _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                     sample_weight_per_unit=200, sample_weight_unit="gsm"),
+            _kg_item(),
+        )
+    assert e.value.status_code == 400
+
+
+def test_the_sample_makes_an_item_with_no_weight_convertible():
+    # The item was never given a g/y, so today this order could only be typed in
+    # kg. The operator's sampling is enough on its own.
+    po = _apply(
+        _payload(qty2=100, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                 sample_weight_per_unit=180, sample_weight_unit="g/y"),
+        _kg_item(weight=None, unit=None),
+    )
+    assert float(po.qty_target) == 90.0
+
+
+def test_the_sample_also_restates_the_box_size():
+    # 12 Pcs per carton at 200 g/y is 12 kg a box, not the 10.8 the item implies.
+    po = _apply(
+        _payload(qty2=2880, uom2="Pcs", uom2_factor=5, uom2_length_uom="yard",
+                 pack_size_alt=12, sample_weight_per_unit=200, sample_weight_unit="g/y"),
+        _kg_item(),
+    )
+    assert float(po.pack_size) == 12.0
+
+
+def test_order_weight_spec_prefers_the_sample():
+    from app.services import packing_service as ps
+
+    po = PackingOrder(code="PCK-TEST", sample_weight_per_unit=200, sample_weight_unit="g/y")
+    assert ps.order_weight_spec(po, _kg_item()) == (200.0, "g/y")
+    # Cleared back to nothing: the item's estimate returns, rather than the order
+    # being left with no basis at all.
+    po.sample_weight_per_unit = None
+    po.sample_weight_unit = None
+    assert ps.order_weight_spec(po, _kg_item()) == (180.0, "g/y")

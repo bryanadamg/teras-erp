@@ -197,23 +197,49 @@ def base_to_alt(qty_base: float, base_factor: Optional[float], snap: bool = True
     return round(raw, 2)
 
 
+def order_weight_spec(po: PackingOrder, item=None) -> tuple[Optional[float], Optional[str]]:
+    """The (weight per unit, unit) this order converts a length to a weight with.
+
+    The operator's own sampling of THIS cloth wins over the item master, which
+    holds the estimate taken when the style was developed. Both halves must be
+    present to count — a figure with no unit is unusable, and a unit with no
+    figure states nothing — so a half-filled pair falls back rather than being
+    read against the wrong basis.
+    """
+    per_unit = getattr(po, "sample_weight_per_unit", None)
+    unit = getattr(po, "sample_weight_unit", None)
+    try:
+        sampled = float(per_unit or 0)
+    except (TypeError, ValueError):
+        sampled = 0.0
+    if sampled > 0 and unit:
+        return sampled, unit
+    it = item if item is not None else getattr(po, "item", None)
+    return getattr(it, "weight_per_unit", None), getattr(it, "weight_unit", None)
+
+
 def order_base_per_alt(po: PackingOrder, item=None) -> Optional[float]:
     """`base_per_alt` for one packing order — the one call sites should use.
 
-    Keeps the (factor, length unit, item UOM, item weight) tuple in a single
+    Keeps the (factor, length unit, item UOM, weight spec) tuple in a single
     place so an endpoint, a label and a pack screen can't each assemble it
     slightly differently. Returns None when the order carries no alt unit, or
-    when the item's weight spec can't convert a length to its stock UOM.
+    when the weight spec can't convert a length to its stock UOM.
+
+    The weight half comes from `order_weight_spec`, so an order that was sampled
+    converts through what its own cloth weighs and not through the item's
+    development estimate.
     """
     it = item if item is not None else getattr(po, "item", None)
     if not po.uom2 or not po.uom2_factor:
         return None
+    weight_per_unit, weight_unit = order_weight_spec(po, it)
     return base_per_alt(
         po.uom2_factor,
         po.uom2_length_uom,
         getattr(it, "uom", None),
-        getattr(it, "weight_per_unit", None),
-        getattr(it, "weight_unit", None),
+        weight_per_unit,
+        weight_unit,
     )
 
 

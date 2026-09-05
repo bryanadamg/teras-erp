@@ -97,6 +97,22 @@ class PackingOrder(Base):
     # metre-based recipe into a 9% error. One column removes that guess.
     uom2_length_uom: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
+    # --- Sampled unit weight (this order's own g/y) --------------------------
+    # What one metre/yard of THIS cloth actually weighs, measured by the operator
+    # who sampled the goods before packing. `Item.weight_per_unit` is a sampling
+    # ESTIMATE taken when the style was developed; an elastic woven does not hold
+    # it, and every alt -> kg conversion on this order (the kg target, the box-size
+    # estimate, a carton's derived count) rides on that number.
+    #
+    # Stored per order rather than corrected on the item, because it is a property
+    # of one production batch: the next run off a different beam weighs something
+    # else, and rewriting the item would restate every other order's estimates.
+    # Null = never sampled, and the item's figure is used exactly as before.
+    # Only `g/y` and `g/m` are accepted — `gsm` needs the fabric width, which is
+    # the same refusal `packing_service.base_per_alt` already makes.
+    sample_weight_per_unit: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    sample_weight_unit: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+
     source_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )

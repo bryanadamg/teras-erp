@@ -3092,6 +3092,12 @@ class PackingOrderCreate(BaseModel):
     uom2: str | None = None
     uom2_factor: float | None = None
     uom2_length_uom: str | None = None
+    # What one yard/metre of THIS cloth actually weighs, sampled by the operator
+    # before packing. Overrides the item master's development estimate for every
+    # alt -> kg conversion on this order (see PackingOrder.sample_weight_per_unit).
+    # Send both halves or neither; `g/y` and `g/m` only.
+    sample_weight_per_unit: float | None = None
+    sample_weight_unit: str | None = None
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
     # Packing machine (WorkCenter MACHINE row) this order is dispatched to.
@@ -3114,6 +3120,12 @@ class PackingOrderUpdate(BaseModel):
     uom2: str | None = None
     uom2_factor: float | None = None
     uom2_length_uom: str | None = None
+    # What one yard/metre of THIS cloth actually weighs, sampled by the operator
+    # before packing. Overrides the item master's development estimate for every
+    # alt -> kg conversion on this order (see PackingOrder.sample_weight_per_unit).
+    # Send both halves or neither; `g/y` and `g/m` only.
+    sample_weight_per_unit: float | None = None
+    sample_weight_unit: str | None = None
     source_location_id: UUID | None = None
     output_location_id: UUID | None = None
     work_center_id: UUID | None = None
@@ -3359,6 +3371,10 @@ class PackingOrderResponse(BaseModel):
     uom2_factor: float | None = None
     uom2_length_uom: str | None = None
     uom2_base_factor: float | None = None
+    # The sampled weight spec `uom2_base_factor` was computed through, when the
+    # order has one — so a screen can say which basis its kilos came from.
+    sample_weight_per_unit: float | None = None
+    sample_weight_unit: str | None = None
     # "Keterangan stock" free text on the SO line, printed alongside CONTENT.
     ket_stock: str | None = None
     color_id: UUID | None = None
