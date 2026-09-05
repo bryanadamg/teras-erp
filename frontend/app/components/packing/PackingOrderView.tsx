@@ -10,7 +10,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, CODE_FONT, rowStateBg, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, TableSkeleton, useTableSkeletonMetrics, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ExpandedRowPanel, ProgressBar, CodeChip, Chip, CODE_FONT, rowStateBg, CHIP_RADIUS, BTN_TONES, XP_BTN } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTd, lvRow, lvSubTh, lvSubTd, lvSubRow, ExpanderCell, RowCheckbox, lvThSticky, lvPickerRow, lvSubTable } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar, ToolbarButton } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -24,7 +24,10 @@ import { machinesOfCenterType, toMachineOptions } from '../shared/workCenterTree
 import {
     BoxGroup, emptyBoxGroup, seedBoxGroups, expandBoxGroups, groupCount, groupTotal,
     filledBoxRows, hasUnweighedBox, uomIsKg, boxAltTotal, boxAltPayload, orderBoxSizeAlt,
+    hasUnboxedBox, hasUnweighedTare, boxPackagingPayload, boxTarePayload,
+    findPackagingType, isCustomType, effectiveTare,
 } from '../shared/packingBoxes';
+import { usePackagingTypes } from '../shared/usePackagingTypes';
 import { basePerAlt, altToBase, baseToAlt, orderBasePerAlt, formatAlt, lengthPerAlt } from '../shared/altUnit';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
@@ -72,6 +75,13 @@ const PO_PAGE_SIZE = 20;
 // four digits with the native spinner suppressed (`.xp-nospin`): a whole pack run
 // is hundreds of cartons, and the old 46px clipped a three-digit count.
 const CARTON_COUNT_W = 56;
+// Packaging column on the pack form: the box picker and the tare slot beside it.
+// Same reason as CARTON_COUNT_W — the header labels and the controls under them
+// share these, so they cannot drift apart. The tare slot is reserved on every
+// row (an input for a custom box, the master's figure for any other) so a mixed
+// list stays aligned instead of jumping a column wide on one line.
+const PACKAGING_W = 104;
+const TARE_W = 46;
 
 // Pack progress, measured in whatever the order is COUNTED in. Read by both the
 // list row's bar and the pack modal's header panel, so the two can never quote
@@ -369,6 +379,21 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                                     of its qty. */}
                                                 {u.alt_qty != null && po.uom2 && (
                                                     <span style={{ color: '#555' }}>{num(u.alt_qty)} {po.uom2}</span>
+                                                )}
+                                                {/* Which box it went into, and what the whole thing
+                                                    weighs — the two figures the delivery note carries.
+                                                    Both snapshotted on the carton at pack time, so an
+                                                    edited master never rewrites what shipped. */}
+                                                {u.packaging_type_name && (
+                                                    <Chip classic={CLASSIC} size="xs" truncate title={u.packaging_type_name} style={{ maxWidth: 74 }}>
+                                                        {u.packaging_type_name}
+                                                    </Chip>
+                                                )}
+                                                {u.gross_weight_kg != null && (
+                                                    <span style={{ color: '#555', whiteSpace: 'nowrap' }}
+                                                        title={`Gross ${num(u.gross_weight_kg).toFixed(2)} kg = net ${num(u.weight_kg).toFixed(2)} + tare ${num(u.tare_kg).toFixed(2)}`}>
+                                                        {num(u.gross_weight_kg).toFixed(2)} kg
+                                                    </span>
                                                 )}
                                                 {/* Zero on hand = the carton has left on a pick list. */}
                                                 <span style={{ fontWeight: 'bold', color: num(u.qty) > 0 ? '#0a3e0a' : '#999' }}>
@@ -1599,6 +1624,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     // and the same yardage weighs differently per lot).
     const [boxGroups, setBoxGroups] = useState<BoxGroup[]>([]);
     const [openGroups, setOpenGroups] = useState<Set<number>>(new Set());
+    // The box master. Its tare is what turns each carton's net reading into the
+    // brutto printed on the label and totalled on the delivery note.
+    const { packagingTypes } = usePackagingTypes();
     const boxRows = useMemo(() => expandBoxGroups(boxGroups), [boxGroups]);
 
     // Seeded from what the order still owes rather than from a typed qty — the
@@ -1652,6 +1680,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             return { ...g, kg };
         }));
 
+    // Picking a standard box drops any tare typed while a custom one was selected:
+    // the master's figure is what the server will use, so leaving the stale number
+    // visible would promise a brutto nobody is going to print.
+    const setGroupPackaging = (i: number, val: string) =>
+        updateGroup(i, {
+            packagingTypeId: val,
+            ...(isCustomType(val, packagingTypes) ? {} : { tare: '' }),
+        });
+
     // Typing a count fills the base qty; typing a base qty only back-fills a count
     // that isn't there yet. That asymmetry is the point: on a kg item the packer
     // types 12 Pcs, the qty pre-fills at the theoretical 10.80, and then the scale
@@ -1689,8 +1726,19 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const boxAlts = hasAlt ? boxAltPayload(boxRows) : null;
     const altTotal = hasAlt ? boxAltTotal(boxRows) : 0;
     const weightsMissing = !qtyIsWeight && hasUnweighedBox(boxRows);
+    // Packaging is positional against `boxes` exactly like the weights. Tare only
+    // travels for a custom box; every other type takes the master's figure
+    // server-side, so a stale value from a re-picked row can't ride along.
+    const boxPackaging = boxPackagingPayload(boxRows);
+    const boxTares = boxTarePayload(boxRows, packagingTypes);
+    const packagingMissing = hasUnboxedBox(boxRows);
+    const taresMissing = hasUnweighedTare(boxRows, packagingTypes);
     const boxTotal = boxValues.reduce((s, v) => s + v, 0);
     const weightTotal = boxWeights.reduce((s: number, v) => s + v, 0);
+    // Brutto preview: net + the tare each carton will actually be given. Mirrors
+    // `packing_service.gross_weight`, so the footer and the printed label agree.
+    const tareTotal = boxes.reduce((s, b) => s + effectiveTare(b, packagingTypes), 0);
+    const grossTotal = weightTotal + tareTotal;
     // What the packer says was boxed. There is nothing left for it to disagree
     // with, so the old "boxes don't match qty to pack" block is gone along with
     // the field that caused it.
@@ -1735,6 +1783,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         // is no scrap either. What is refused is a log that moves nothing.
         : drawTotal <= 0 ? `Add at least one ${po.package_label.toLowerCase()}, or state what was rejected`
         : weightsMissing ? `Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`
+        : packagingMissing ? `Pick the packaging for every ${po.package_label.toLowerCase()} — its tare makes up the brutto`
+        : taresMissing ? `Weigh the empty box on every custom ${po.package_label.toLowerCase()} line`
         : useLotPicker && !selectedLots.length ? 'Select at least one lot to pack from'
         : useLotPicker && short ? `Selected lots hold only ${drawn.toFixed(2)} of the ${drawTotal.toFixed(2)} needed`
         : null;
@@ -1751,11 +1801,21 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
             showToast(`Weigh every ${po.package_label.toLowerCase()} — the label prints its net weight`, 'danger');
             return;
         }
+        if (packagingMissing) {
+            showToast(`Pick the packaging for every ${po.package_label.toLowerCase()} — its tare makes up the brutto`, 'danger');
+            return;
+        }
+        if (taresMissing) {
+            showToast(`Weigh the empty box on every custom ${po.package_label.toLowerCase()} line`, 'danger');
+            return;
+        }
 
         const common = {
             boxes: boxValues,
             box_weights: boxWeights,
             box_alt_qtys: boxAlts,
+            box_packaging_type_ids: boxPackaging,
+            box_tares: boxTares,
             work_center_id: workCenterId || null,
             operator: operator || null,
             notes: packNotes || null,
@@ -2045,6 +2105,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                             <span style={{ width: 12, flexShrink: 0 }} />
                                             {hasAlt && <span style={{ width: 56 + 24 + 5, flexShrink: 0 }}>{altUom} each</span>}
                                             <span style={{ flex: 1, minWidth: 0 }}>{uom || 'Qty'} each</span>
+                                            <span style={{ width: PACKAGING_W, flexShrink: 0 }}>Packaging</span>
+                                            <span style={{ width: TARE_W, flexShrink: 0, textAlign: 'right' }}>Tare</span>
                                             <span style={{ width: 78, flexShrink: 0, textAlign: 'right' }}>Line total</span>
                                             <span style={{ width: 40, flexShrink: 0 }} />
                                         </div>
@@ -2101,6 +2163,48 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                         min="0" step="any"
                                                         title={`${uom || 'Qty'} in each ${po.package_label.toLowerCase()} on this line`}
                                                     />
+                                                    {/* Which physical box this line goes into. Group-level: a
+                                                        "3 × 5 kg" line is three identical boxes, so the pick is
+                                                        made once. Its tare is what turns each carton's net
+                                                        reading into the brutto on the label. */}
+                                                    <select
+                                                        style={{ ...xpInput, width: PACKAGING_W, flexShrink: 0, background: g.packagingTypeId ? '#fff' : '#fffbe6' }}
+                                                        value={g.packagingTypeId}
+                                                        onChange={e => setGroupPackaging(i, e.target.value)}
+                                                        title={`Which ${po.package_label.toLowerCase()} this line is packed in — its tare is added to the net weight`}
+                                                    >
+                                                        <option value="">Pick box…</option>
+                                                        {packagingTypes.map(t => (
+                                                            <option key={t.id} value={t.id}>
+                                                                {t.name}{!t.is_custom && Number(t.tare_kg) > 0 ? ` (${Number(t.tare_kg)} kg)` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {/* One slot, two states: a custom box is weighed here, a
+                                                        standard one just shows the master tare being applied.
+                                                        Reserved either way so the rows stay aligned. */}
+                                                    {isCustomType(g.packagingTypeId, packagingTypes) ? (
+                                                        <input
+                                                            type="number"
+                                                            className="xp-nospin"
+                                                            style={{ ...xpInput, width: TARE_W, flexShrink: 0, textAlign: 'right', background: num(g.tare) > 0 ? '#fff' : '#fffbe6' }}
+                                                            value={g.tare}
+                                                            onChange={e => updateGroup(i, { tare: e.target.value })}
+                                                            min="0" step="any"
+                                                            placeholder="tare"
+                                                            title="Weight of the EMPTY custom box, off the scale"
+                                                        />
+                                                    ) : (
+                                                        <span style={{
+                                                            width: TARE_W, flexShrink: 0, textAlign: 'right', fontSize: 9,
+                                                            color: '#888', whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {(() => {
+                                                                const t = findPackagingType(g.packagingTypeId, packagingTypes);
+                                                                return t && Number(t.tare_kg) > 0 ? `+${Number(t.tare_kg)}` : '';
+                                                            })()}
+                                                        </span>
+                                                    )}
                                                     {/* The addition half: what this line contributes to the pack
                                                         total, so the packer never multiplies in their head. */}
                                                     <span style={{
@@ -2177,7 +2281,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 }}>
                                     <span style={{
                                         width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                                        background: weightsMissing ? '#d9a441' : '#4caf50',
+                                        background: weightsMissing || packagingMissing || taresMissing ? '#d9a441' : '#4caf50',
                                     }} />
                                     <span style={{ color: '#555' }}>Boxed:</span>
                                     {/* Same unit order as the target above it — the packer reads
@@ -2211,7 +2315,24 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                     <span style={{ fontWeight: 'bold', color: weightsMissing ? '#7a4a00' : undefined }}>
                                         {weightTotal.toFixed(2)} kg
                                     </span>
-                                    {weightsMissing && <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>}
+                                    {/* Brutto — net plus the boxes themselves. Shown beside the net
+                                        rather than instead of it: the label prints both, and the
+                                        delivery note totals this one. */}
+                                    <span style={{ color: '#c0bdb5' }}>|</span>
+                                    <span style={{ color: '#555' }}>Gross:</span>
+                                    <span style={{ fontWeight: 'bold', color: packagingMissing || taresMissing ? '#7a4a00' : undefined }}>
+                                        {grossTotal.toFixed(2)} kg
+                                    </span>
+                                    {tareTotal > 0 && (
+                                        <span style={{ color: '#888' }}>(+{tareTotal.toFixed(2)} tare)</span>
+                                    )}
+                                    {weightsMissing
+                                        ? <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every {po.package_label.toLowerCase()}</span>
+                                        : packagingMissing
+                                            ? <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Pick a box on every line</span>
+                                            : taresMissing
+                                                ? <span style={{ color: '#7a4a00', marginLeft: 'auto', fontStyle: 'italic' }}>Weigh every custom box</span>
+                                                : null}
                                 </div>
                             </div>
 
