@@ -94,6 +94,10 @@ EVENT_PERMISSIONS: dict[str, tuple[str, ...]] = {
         "item.view",
     ),
     "COMBO_UPDATE": ("combo_library.view", "item.view", "bom.view"),
+    # The box master changed. `sales.manage` is on the list because the pack
+    # screens (not just the master page) read it — their picker and the tare that
+    # makes every carton's brutto come from these rows.
+    "PACKAGING_TYPE_UPDATE": ("packaging_type.view", "sales.manage"),
     # ── Platform ─────────────────────────────────────────────────────────────
     "KPI_UPDATE": ("reports.view",),
     # A print layout changed. Carries no business data and every print modal in
@@ -125,6 +129,9 @@ EVENT_TOPICS: dict[str, str] = {
     "BOM_UPDATE": "bom",
     "COLOR_UPDATE": "bom",
     "COMBO_UPDATE": "bom",
+    # 'sales' rather than 'bom': the screens that must re-read a changed tare are
+    # the packing ones.
+    "PACKAGING_TYPE_UPDATE": "sales",
     "KPI_UPDATE": "kpi",
     "PRINT_TEMPLATE_UPDATE": "system",
 }

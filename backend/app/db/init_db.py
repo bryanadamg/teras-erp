@@ -40,6 +40,36 @@ def seed_sizes(db):
         logger.warning(f"Size seeding skipped: {e}")
 
 
+def seed_packaging_types(db):
+    """Seed the box master the pack screens pick from.
+
+    Tares are left NULL, not guessed: the plant weighs its own empty boxes and a
+    wrong default would print a wrong brutto on a delivery note without anyone
+    noticing. The Custom row carries `is_custom`, which is what makes the pack
+    form ask for a hand-weighed tare instead of reading one from here.
+
+    Seeded once (skipped when the table has rows), so renaming or deleting a row
+    later sticks.
+    """
+    try:
+        from app.models.packaging_type import PackagingType
+        if db.query(PackagingType).count() == 0:
+            rows = [
+                ("BOX-S", "Box S", 10, False),
+                ("BOX-M", "Box M", 20, False),
+                ("BOX-L", "Box L", 30, False),
+                ("BOX-XL", "Box XL", 40, False),
+                ("BAG", "Plastic Bag", 50, False),
+                ("CUSTOM", "Custom Box", 90, True),
+            ]
+            for code, name, order, custom in rows:
+                db.add(PackagingType(code=code, name=name, sort_order=order, is_custom=custom))
+            db.commit()
+            logger.info("Seeded packaging types (tare weights left blank for the plant to set)")
+    except Exception as e:
+        logger.warning(f"Packaging type seeding skipped: {e}")
+
+
 def seed_qty_formula(db):
     """Seed the plant-wide production-quantity formula with the rule that used
     to be hardcoded in ProductionRunModal.tsx (S=0, M=(S+M)/2, L=(S+M)/2+L,
@@ -378,6 +408,11 @@ def seed_rbac(db):
             ("combo_library.edit", "Edit Combos"),
             ("combo_library.delete", "Delete Combos"),
             ("combo_library.view", "View Combo Library"),
+            # Packaging Types — the box master (tare weights) the pack screens pick from
+            ("packaging_type.create", "Create Packaging Types"),
+            ("packaging_type.edit", "Edit Packaging Types"),
+            ("packaging_type.archive", "Delete/Deactivate Packaging Types"),
+            ("packaging_type.view", "View Packaging Types"),
             # Lot Management (scoped by Role.allowed_locations)
             ("lot.create", "Create Lots"),
             ("lot.split", "Split Lots"),
@@ -517,6 +552,7 @@ def seed_rbac(db):
                 "category.create", "category.edit", "category.delete", "category.view",
                 "uom.create", "uom.edit", "uom.delete", "uom.view",
                 "combo_library.create", "combo_library.edit", "combo_library.delete", "combo_library.view",
+                "packaging_type.create", "packaging_type.edit", "packaging_type.archive", "packaging_type.view",
                 "lot.create", "lot.split", "lot.delete", "lot.qc_reject", "lot.view",
                 "quarantine.view", "quarantine.set_status",
                 "stock_on_hand.create", "stock_on_hand.adjust", "stock_on_hand.move", "stock_on_hand.view",
@@ -790,6 +826,7 @@ def init_db() -> None:
         backfill_combo_library(db)
         seed_sizes(db)
         seed_qty_formula(db)
+        seed_packaging_types(db)
         seed_system_locations(db)
         backfill_mo_planned_components(db)
         sync_stock_balances(db)
