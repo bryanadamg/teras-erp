@@ -741,6 +741,15 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
     const [uom2Factor, setUom2Factor] = useState<number | null>(null);
     const [uom2LengthUom, setUom2LengthUom] = useState('');
     const [altPerCarton, setAltPerCarton] = useState('');
+    // What one yard/metre of THIS cloth actually weighs, sampled by the operator
+    // before packing. Prefilled from the item master (a development estimate) and
+    // overwritten with the measured figure; it is what every alt -> kg figure on
+    // this order converts through.
+    const [sampleWeight, setSampleWeight] = useState('');
+    const [sampleWeightUnit, setSampleWeightUnit] = useState('');
+    // True once the operator has touched either field, so the prefill effect below
+    // stops overwriting their number when the item row re-resolves.
+    const sampleTouched = useRef(false);
     // Both stores default to the seeded ones: bulk FG waits in Quarantine until QC
     // releases it, sealed cartons land in the Finished Goods store. A Quarantine
     // Packing suggestion still names its own source and wins. Both stay editable —
@@ -820,13 +829,37 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
     // Base-UOM qty in one alt unit. Null means the chain can't be resolved (a gsm
     // weight needs the fabric width, a counted stock UOM has no length at all) —
     // the form then keeps base-only entry rather than inventing a factor.
+    // Prefill the sample from the item's own spec when an item is picked, so the
+    // operator sees the estimate they are correcting rather than an empty box.
+    // Only until they touch it — the item row re-resolves when a search lands, and
+    // re-running this over a typed figure would quietly discard the sampling.
+    useEffect(() => {
+        if (sampleTouched.current || !selectedItem) return;
+        const unit = String(selectedItem.weight_unit || '').trim().toLowerCase();
+        // gsm can't convert a length to a weight without the fabric width, so it
+        // is not offered as a starting point — the field stays empty and the order
+        // keeps base-only entry, exactly as it does today.
+        if (!(Number(selectedItem.weight_per_unit) > 0) || !['g/y', 'g/m'].includes(unit)) return;
+        setSampleWeight(String(selectedItem.weight_per_unit));
+        setSampleWeightUnit(unit);
+    }, [selectedItem]);
+
+    // The weight spec every conversion in this form runs through: the sampled
+    // figure once both halves are set, the item's otherwise. Mirrors
+    // `packing_service.order_weight_spec`, so the form's preview and the order the
+    // server writes agree.
+    const useSample = num(sampleWeight) > 0 && !!sampleWeightUnit;
+    const weightSpec = {
+        weightPerUnit: useSample ? num(sampleWeight) : selectedItem?.weight_per_unit,
+        weightUnit: useSample ? sampleWeightUnit : selectedItem?.weight_unit,
+    };
+
     const altBaseFactor = useMemo(() => basePerAlt({
         factor: uom2Factor,
         lengthUom: uom2LengthUom,
         itemUom: selectedItem?.uom,
-        weightPerUnit: selectedItem?.weight_per_unit,
-        weightUnit: selectedItem?.weight_unit,
-    }), [uom2Factor, uom2LengthUom, selectedItem]);
+        ...weightSpec,
+    }), [uom2Factor, uom2LengthUom, selectedItem, sampleWeight, sampleWeightUnit]);
 
     // Is the base target being computed for the planner rather than typed by them?
     const altDrivesTarget = !!altBaseFactor && num(qty2) > 0;
@@ -860,8 +893,7 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
             factor: factorVal,
             lengthUom,
             itemUom: selectedItem?.uom,
-            weightPerUnit: selectedItem?.weight_per_unit,
-            weightUnit: selectedItem?.weight_unit,
+            ...weightSpec,
         });
         if (!factor) return;
         const target = altToBase(num(qty2Str), factor);
@@ -1027,6 +1059,11 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                 uom2: uom2 || null,
                 uom2_factor: uom2Factor,
                 uom2_length_uom: uom2LengthUom || null,
+                // The operator's measured figure. Sent as a pair, and only when
+                // both halves are set — a weight with no unit converts nothing,
+                // and the server refuses one anyway.
+                sample_weight_per_unit: useSample ? num(sampleWeight) : null,
+                sample_weight_unit: useSample ? sampleWeightUnit : null,
                 source_location_id: sourceLoc || null,
                 output_location_id: outputLoc || null,
                 work_center_id: workCenterId || null,
@@ -1229,13 +1266,50 @@ function PackingOrderForm({ locPickerTreeOptions, machineOptions, defaultSourceL
                                 value={altPerCarton} onChange={e => onAltPerCartonChange(e.target.value)} />
                         </div>
                     </div>
+                    {/* The measured weight of the goods being packed. Sits under the alt
+                        unit because it is the other half of the same conversion: the unit
+                        says how many yards a piece is, this says what a yard weighs. */}
+                    <div style={{ ...fieldGrid, gridTemplateColumns: 'minmax(220px, 1fr) 130px', marginTop: 8 }}>
+                        <div>
+                            <FieldLabel classic={CLASSIC}>Sampled weight</FieldLabel>
+                            <div style={{ display: 'flex' }}>
+                                <input type="number" min={0} step="any"
+                                    style={{ ...xpInput, flex: 1, minWidth: 0, borderRight: 'none', textAlign: 'right' }}
+                                    placeholder="0" value={sampleWeight}
+                                    onChange={e => { sampleTouched.current = true; setSampleWeight(e.target.value); }} />
+                                <select style={{ ...xpSelect, flexShrink: 0, width: 90 }} value={sampleWeightUnit}
+                                    onChange={e => { sampleTouched.current = true; setSampleWeightUnit(e.target.value); }}>
+                                    <option value="">— none —</option>
+                                    <option value="g/y">g/y</option>
+                                    <option value="g/m">g/m</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style={{ alignSelf: 'end' }}>
+                            {/* What the item master says, so the operator can see what
+                                they are correcting and by how much. */}
+                            {Number(selectedItem?.weight_per_unit) > 0 && (
+                                <div style={hintText}>
+                                    Item: {Number(selectedItem.weight_per_unit)} {selectedItem.weight_unit || ''}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div style={hintText}>
+                        {useSample
+                            ? 'Measured off the sampled goods — every kg figure on this order converts through it, '
+                              + 'not through the estimate on the item.'
+                            : 'Prefilled from the item as a sampling estimate. Replace it with the figure the '
+                              + 'operator measured off the actual goods.'}
+                    </div>
                     <div style={hintText}>
                         Qty per carton splits the target — leave it empty to decide the carton count per pack event.
                     </div>
                     {uom2 && uom2Factor && !altBaseFactor && (
                         <div style={{ ...hintText, color: '#a00000', fontStyle: 'normal' }}>
                             {uom2} can&apos;t be converted into {selectedItem?.uom || 'the stock unit'}: a kg-stocked item
-                            needs a g/y or g/m weight on the item (gsm needs the fabric width). Type the target in{' '}
+                            needs a g/y or g/m weight — enter the sampled one above, or set one on the item
+                            (gsm needs the fabric width). Type the target in{' '}
                             {selectedItem?.uom || 'the stock unit'} instead.
                         </div>
                     )}
@@ -1465,6 +1539,15 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const [srcDraft, setSrcDraft] = useState<string>(String(po.source_location_id || ''));
     const [outDraft, setOutDraft] = useState<string>(String(po.output_location_id || ''));
     const [savingLocs, setSavingLocs] = useState(false);
+    // Re-sampling: the operator measures the actual goods again and the order's
+    // kg figures follow. Drafted like the locations — typed here, saved through
+    // `PUT /packing/{id}`, which restates the kg target and the box-size estimate.
+    // Nothing already packed moves: a carton's weight is a scale reading and its
+    // count is what the packer counted.
+    const [sampleDraft, setSampleDraft] = useState<string>(
+        po.sample_weight_per_unit != null ? String(po.sample_weight_per_unit) : '');
+    const [sampleUnitDraft, setSampleUnitDraft] = useState<string>(po.sample_weight_unit || '');
+    const [savingSample, setSavingSample] = useState(false);
     const locsDirty = srcDraft !== String(po.source_location_id || '') || outDraft !== String(po.output_location_id || '');
     const locsMissing = !po.source_location_id || !po.output_location_id;
 
@@ -1490,6 +1573,43 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         } catch (e: any) {
             showToast(e.message, 'danger');
         } finally { setSavingMachine(false); }
+    };
+
+    const sampleSaved = po.sample_weight_per_unit != null ? String(po.sample_weight_per_unit) : '';
+    const sampleDirty = sampleDraft !== sampleSaved || sampleUnitDraft !== (po.sample_weight_unit || '');
+
+    const saveSample = async () => {
+        // Both halves or neither — a figure with no unit converts nothing, and
+        // clearing the figure hands the conversion back to the item's estimate.
+        const value = num(sampleDraft);
+        if (value > 0 && !sampleUnitDraft) { showToast('Pick g/y or g/m for the sampled weight', 'danger'); return; }
+        setSavingSample(true);
+        try {
+            const res = await authFetch(`${API_BASE}/packing/${po.id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sample_weight_per_unit: value > 0 ? value : null,
+                    sample_weight_unit: value > 0 ? sampleUnitDraft : null,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Could not save the sampled weight');
+            }
+            const fresh = await res.json();
+            setPo(fresh);
+            setSampleDraft(fresh.sample_weight_per_unit != null ? String(fresh.sample_weight_per_unit) : '');
+            setSampleUnitDraft(fresh.sample_weight_unit || '');
+            showToast(
+                value > 0
+                    ? `Sampled weight set to ${value} ${sampleUnitDraft} — target and box size restated`
+                    : 'Sampled weight cleared — back to the item’s estimate',
+                'success',
+            );
+            await onChanged();
+        } catch (e: any) {
+            showToast(e.message, 'danger');
+        } finally { setSavingSample(false); }
     };
 
     const saveLocations = async () => {
@@ -1778,6 +1898,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const logBlockedBy =
         locsMissing ? 'Set both locations on this order before packing'
         : locsDirty ? 'Save the location change before logging'
+        // An unsaved basis would box by one conversion and log against another.
+        : sampleDirty ? 'Save the sampled weight change before logging'
         // A scrap-only log is legitimate — a whole draw can fail QC and it still
         // has to leave the bin — so an empty carton list only blocks when there
         // is no scrap either. What is refused is a log that moves nothing.
@@ -1793,6 +1915,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         e.preventDefault();
         if (locsMissing) { showToast('Set both locations on this order before packing', 'danger'); return; }
         if (locsDirty) { showToast('Save the location change before logging', 'danger'); return; }
+        if (sampleDirty) { showToast('Save the sampled weight change before logging', 'danger'); return; }
         if (drawTotal <= 0) {
             showToast(`Add at least one ${po.package_label.toLowerCase()}, or state what was rejected`, 'danger');
             return;
@@ -2404,6 +2527,54 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 {locsDirty && !locsMissing && (
                                     <div style={{ flexBasis: '100%', color: '#7a4a00' }}>
                                         Unsaved location change — save before logging.
+                                    </div>
+                                )}
+                                {/* The sampled weight of THIS cloth. Only on an alt-unit
+                                    order, because it is the basis that turns a piece count
+                                    into kilos — with no alt unit there is nothing to
+                                    convert and the field would be decoration. */}
+                                {hasAlt && (
+                                    <div style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', paddingTop: 4, borderTop: '1px solid #c8dcc8' }}>
+                                        <div style={{ minWidth: 150 }}>
+                                            <label style={{ ...xpFormLabel, fontSize: 9, color: '#555' }}>Sampled weight</label>
+                                            <div style={{ display: 'flex' }}>
+                                                <input
+                                                    type="number" min="0" step="any"
+                                                    style={{ ...xpInput, width: 80, borderRight: 'none', textAlign: 'right' }}
+                                                    value={sampleDraft}
+                                                    onChange={e => setSampleDraft(e.target.value)}
+                                                    placeholder="0"
+                                                    title="What one yard/metre of the goods being packed actually weighs"
+                                                />
+                                                <select
+                                                    style={{ ...xpInput, width: 62, flexShrink: 0 }}
+                                                    value={sampleUnitDraft}
+                                                    onChange={e => setSampleUnitDraft(e.target.value)}
+                                                >
+                                                    <option value="">—</option>
+                                                    <option value="g/y">g/y</option>
+                                                    <option value="g/m">g/m</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 180, color: '#555', paddingBottom: 2 }}>
+                                            {po.sample_weight_per_unit != null
+                                                ? `Sampled off these goods — 1 ${altUom} = ${altFactor} ${uom}.`
+                                                : `Not sampled — converting through the item's estimate (1 ${altUom} = ${altFactor} ${uom}).`}
+                                            {' '}Saving restates the kg target and box size; packed {po.package_label.toLowerCase()}s are untouched.
+                                        </div>
+                                        {sampleDirty && (
+                                            <button type="button" className={XP_BTN} onClick={saveSample}
+                                                disabled={savingSample}
+                                                style={{ ...xpBtn(), fontSize: 9, padding: '3px 8px', marginBottom: 1, opacity: savingSample ? 0.6 : 1 }}>
+                                                {savingSample ? 'Saving...' : 'Save Weight'}
+                                            </button>
+                                        )}
+                                        {sampleDirty && (
+                                            <div style={{ flexBasis: '100%', color: '#7a4a00' }}>
+                                                Unsaved sampled weight — save before logging.
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
