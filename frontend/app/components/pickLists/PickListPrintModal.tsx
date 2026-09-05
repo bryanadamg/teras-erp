@@ -48,6 +48,9 @@ export default function PickListPrintModal({ pl, companyProfile, onClose }: any)
 
     const lines: any[] = pl.lines || [];
     const cartons = lines.filter((l: any) => l.batch_id);
+    // Brutto across the picked cartons — net plus the boxes, both snapshotted on
+    // each carton at pack time.
+    const grossTotal = cartons.reduce((s: number, l: any) => s + (Number(l.gross_weight_kg) || 0), 0);
 
     // What actually ships, per item — the same roll-up the desktop expand panel
     // shows, so the card and the screen never disagree on the shipping total.
@@ -127,25 +130,45 @@ export default function PickListPrintModal({ pl, companyProfile, onClose }: any)
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10 }}>
                 <thead>
                     <tr>
-                        <th style={{ ...hCell, width: '8%' }}>No</th>
-                        <th style={{ ...hCell, width: '34%', textAlign: 'left' }}>No. Koli / Carton</th>
-                        <th style={{ ...hCell, width: '30%', textAlign: 'left' }}>Barang / Item</th>
-                        <th style={{ ...hCell, width: '18%' }}>Qty</th>
-                        <th style={{ ...hCell, width: '10%' }}>✓</th>
+                        <th style={{ ...hCell, width: '7%' }}>No</th>
+                        <th style={{ ...hCell, width: '27%', textAlign: 'left' }}>No. Koli / Carton</th>
+                        <th style={{ ...hCell, width: '20%', textAlign: 'left' }}>Barang / Item</th>
+                        <th style={{ ...hCell, width: '15%', textAlign: 'left' }}>Kemasan / Packaging</th>
+                        <th style={{ ...hCell, width: '14%' }}>Qty</th>
+                        {/* The figure the loader and the carrier both check the load
+                            against, so it is on the sheet the picker carries. */}
+                        <th style={{ ...hCell, width: '11%' }}>Bruto</th>
+                        <th style={{ ...hCell, width: '6%' }}>✓</th>
                     </tr>
                 </thead>
                 <tbody>
                     {cartons.length === 0 ? (
-                        <tr><td style={{ ...cell, textAlign: 'center' }} colSpan={5}>Belum ada koli / no cartons allocated</td></tr>
+                        <tr><td style={{ ...cell, textAlign: 'center' }} colSpan={7}>Belum ada koli / no cartons allocated</td></tr>
                     ) : cartons.map((l: any, i: number) => (
                         <tr key={l.id}>
                             <td style={{ ...cell, textAlign: 'center' }}>{l.package_no ?? i + 1}</td>
                             <td style={{ ...cell, fontFamily: CODE_FONT }}>{l.batch_number || '—'}</td>
                             <td style={cell}>{l.item_code || '—'}</td>
+                            <td style={cell}>{l.packaging_type_name || '—'}</td>
                             <td style={{ ...cell, textAlign: 'right' }}>{n(l.qty_picked).toLocaleString()} {l.item_uom || ''}</td>
+                            <td style={{ ...cell, textAlign: 'right' }}>
+                                {l.gross_weight_kg != null ? `${n(l.gross_weight_kg).toFixed(2)} kg` : '—'}
+                            </td>
                             <td style={{ ...cell, height: 18 }} />
                         </tr>
                     ))}
+                    {/* Load total, so the sheet the picker hands over says what the
+                        whole trolley weighs. Cartons packed before packaging was
+                        recorded contribute nothing rather than a guessed zero-tare
+                        figure — the row shows "—" and the total stays honest. */}
+                    {grossTotal > 0 && (
+                        <tr>
+                            <td style={{ ...cell, border: 'none' }} colSpan={4} />
+                            <td style={{ ...cell, fontWeight: 'bold', textAlign: 'right' }}>Total bruto</td>
+                            <td style={{ ...cell, fontWeight: 'bold', textAlign: 'right' }}>{grossTotal.toFixed(2)} kg</td>
+                            <td style={{ ...cell, border: 'none' }} />
+                        </tr>
+                    )}
                 </tbody>
             </table>
 

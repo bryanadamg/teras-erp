@@ -320,7 +320,11 @@ export default function PickListView() {
                                                     <th style={{ ...th, width: 24 }}>#</th>
                                                     <th style={th}>Lot</th>
                                                     <th style={th}>Item</th>
+                                                    <th style={{ ...th, width: 78 }}>Packaging</th>
                                                     <th style={{ ...th, textAlign: 'right', width: 54 }}>Qty</th>
+                                                    {/* Brutto per carton — the figure the loading deck counts
+                                                        the load by and the carrier bills on. */}
+                                                    <th style={{ ...th, textAlign: 'right', width: 62 }}>Gross</th>
                                                     <th style={{ ...th, width: 96 }}>Scanned</th>
                                                 </tr>
                                             </thead>
@@ -345,7 +349,16 @@ export default function PickListView() {
                                                                 <LotChip tone="size" title={`Size: ${l.size_label}`}>{l.size_label}</LotChip>
                                                             )}
                                                         </td>
+                                                        <td style={{ ...td, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 78 }}
+                                                            title={l.packaging_type_name || undefined}>
+                                                            {l.packaging_type_name || '—'}
+                                                        </td>
                                                         <td style={{ ...td, textAlign: 'right', fontWeight: 'bold' }}>{num(l.qty_picked).toFixed(2)}</td>
+                                                        <td style={{ ...td, textAlign: 'right', color: '#555', whiteSpace: 'nowrap' }}
+                                                            title={l.gross_weight_kg != null && l.net_weight_kg != null
+                                                                ? `Net ${num(l.net_weight_kg).toFixed(2)} kg + tare` : undefined}>
+                                                            {l.gross_weight_kg != null ? `${num(l.gross_weight_kg).toFixed(2)}` : '—'}
+                                                        </td>
                                                         <td style={{ ...td, color: '#555', whiteSpace: 'nowrap' }}>
                                                             {l.picked_at
                                                                 ? <span title={l.picked_by ? `by ${l.picked_by}` : undefined} style={{ color: '#0a3e0a' }}>

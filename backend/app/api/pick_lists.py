@@ -86,6 +86,15 @@ def _decorate(pl: PickList) -> PickList:
         if line.batch is not None:
             line.bom_size_snapshot = line.batch.bom_size_snapshot
             line.size_label = stock_service._bom_size_label(line.batch.bom_size_snapshot)
+            # Packaging + weights, snapshotted on the carton at pack time.
+            pt = line.batch.packaging_type
+            line.packaging_type_name = pt.name if pt else None
+            line.net_weight_kg = (
+                float(line.batch.weight_kg) if line.batch.weight_kg is not None else None
+            )
+            line.gross_weight_kg = (
+                float(line.batch.gross_weight_kg) if line.batch.gross_weight_kg is not None else None
+            )
     return pl
 
 
