@@ -88,6 +88,14 @@ def _pu_response(b, bal, po_code=None, loc_name=None, variant=None) -> PackedUni
         package_label=b.package_label,
         weight_kg=float(b.weight_kg) if b.weight_kg is not None else None,
         alt_qty=float(b.alt_qty) if b.alt_qty is not None else None,
+        # Packaging + brutto. The name comes through the relationship (eager, see
+        # models/batch.py) but the tare and gross are read off the carton's own
+        # columns — the snapshot, not whatever the master says today.
+        packaging_type_id=b.packaging_type_id,
+        packaging_type_name=b.packaging_type.name if b.packaging_type else None,
+        packaging_type_code=b.packaging_type.code if b.packaging_type else None,
+        tare_kg=float(b.tare_kg) if b.tare_kg is not None else None,
+        gross_weight_kg=float(b.gross_weight_kg) if b.gross_weight_kg is not None else None,
         qty=float(bal.qty) if bal else 0.0,
         location_id=bal.location_id if bal else None,
         location_name=loc_name,
@@ -862,6 +870,8 @@ async def add_packing_completion(
                 [float(b) for b in payload.boxes],
                 weights=list(payload.box_weights) if payload.box_weights else None,
                 alt_qtys=list(payload.box_alt_qtys) if payload.box_alt_qtys else None,
+                packaging_type_ids=list(payload.box_packaging_type_ids) if payload.box_packaging_type_ids else None,
+                tares=list(payload.box_tares) if payload.box_tares else None,
                 lot_sizes=lot_size_rows,
                 package_label=po.package_label or "Box",
             )
@@ -918,9 +928,17 @@ async def add_packing_completion(
 
         # Logging happens after the boxes are packed and weighed: a carton with no
         # net weight prints a label with a blank N.W. line, so it is refused here
-        # rather than silently minted.
+        # rather than silently minted. The packaging gate sits beside it for the
+        # same reason — brutto is printed too, and a box with no type has no tare.
         try:
             packing_service.assert_all_weighed(carton_qtys, po.package_label)
+            packing_service.assert_all_boxed(carton_qtys, po.package_label)
+            # Master tare for a standard box, the packer's weighing for a custom
+            # one. Resolved before the mint so the figure written on the carton
+            # is the one that was in force at pack time.
+            carton_qtys = await packing_service.resolve_carton_tares(
+                db, carton_qtys, po.package_label,
+            )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -1027,6 +1045,7 @@ async def add_packing_completion(
                 )
                 box_groups.setdefault(piece.box_index, []).append({
                     "qty": piece.qty, "weight_kg": piece.weight_kg, "alt_qty": piece.alt_qty,
+                    "packaging_type_id": piece.packaging_type_id, "tare_kg": piece.tare_kg,
                     "source_batch_id": batch_id, "completion": completion,
                     "attr_ids": str_attr_ids, "color_id": color_id,
                 })

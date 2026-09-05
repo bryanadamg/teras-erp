@@ -56,6 +56,22 @@ class Batch(Base):
     # holds 12 — a printed count has to be the count that was packed. Null for
     # every batch that is not a carton, and for cartons packed with no alt unit.
     alt_qty: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    # --- Packaging / brutto ---------------------------------------------------
+    # Which physical box this carton is packed in, and what that box weighs.
+    # `tare_kg` is SNAPSHOTTED off the master (or typed by the packer on a custom
+    # box) rather than read through the FK at display time: editing Box L's tare
+    # next month must not rewrite the labels and delivery notes already printed
+    # for cartons packed this month. Same reasoning as MOPlannedComponent.
+    #
+    # `gross_weight_kg` is stored for the same reason its parts are — net is a
+    # scale reading and tare is a snapshot, so brutto is a fact about one physical
+    # box at one moment, not a formula to re-run. Null on every non-carton batch
+    # and on cartons packed before this feature.
+    packaging_type_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("packaging_types.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    tare_kg: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    gross_weight_kg: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     # Soft SO tag — records what the carton was packed for; does NOT reserve it.
     # Any pick list may still take this carton.
     #
@@ -89,6 +105,10 @@ class Batch(Base):
     quarantine_notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     item = relationship("Item")
+    # Eager by default: the master is a handful of rows and every carton list,
+    # label and delivery note wants its name — a lazy load would MissingGreenlet
+    # in the async routes that serve them.
+    packaging_type = relationship("PackagingType", foreign_keys=[packaging_type_id], lazy="joined")
     consumptions_as_input = relationship("BatchConsumption", foreign_keys="BatchConsumption.input_batch_id", back_populates="input_batch")
     consumptions_as_output = relationship("BatchConsumption", foreign_keys="BatchConsumption.output_batch_id", back_populates="output_batch")
 

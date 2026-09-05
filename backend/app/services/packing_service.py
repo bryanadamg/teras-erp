@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.batch import Batch, BatchConsumption
 from app.models.packing import PackingOrder, PackingCompletion
+from app.models.packaging_type import PackagingType
 from app.models.pick_list import PickList, PickListLine
 from app.models.stock_balance import StockBalance
 from app.services import stock_service, numbering_service
@@ -59,6 +60,15 @@ class Carton(NamedTuple):
     # physical carton. None on every other path (box-size split never crosses a
     # lot boundary, so there is nothing to re-merge).
     box_index: Optional[int] = None
+    # --- Packaging (the physical box) ---------------------------------------
+    # Which `PackagingType` this box is, and what the empty box weighs. Tare is
+    # the master's for a standard box and the packer's hand-weighing for a
+    # custom one — `resolve_carton_tares` decides which and fills it in, so
+    # everything downstream reads one field. They ride in the tuple for the same
+    # reason `weight_kg` does: a lot-seam split must not knock them out of
+    # alignment with the qty they describe.
+    packaging_type_id: Optional[uuid.UUID] = None
+    tare_kg: Optional[float] = None
 
 
 # --- Alt (selling) unit conversion -----------------------------------------
@@ -347,6 +357,8 @@ def allocate_boxes_to_lots(
     boxes: list[float],
     weights: Optional[list[Optional[float]]] = None,
     alt_qtys: Optional[list[Optional[float]]] = None,
+    packaging_type_ids: Optional[list] = None,
+    tares: Optional[list[Optional[float]]] = None,
     lot_sizes: Optional[list] = None,
     package_label: str = "Box",
 ) -> list[list[Carton]]:
@@ -377,6 +389,11 @@ def allocate_boxes_to_lots(
       the parts still SUM to the count the packer stated — a discrete count must
       not gain or lose a piece to rounding.
 
+    `packaging_type_ids` and `tares` are the box itself, also positional against
+    `boxes`. Unlike weight and count they are NOT shared at a seam — they describe
+    one physical box, and both halves of a split are that same box, so each piece
+    carries the whole value and the re-merge picks it up unchanged.
+
     Returns `Carton` rows; a weight is None only where the caller passed none,
     which `assert_all_weighed` then rejects.
     """
@@ -403,6 +420,11 @@ def allocate_boxes_to_lots(
         if qty <= 1e-9:
             continue
         queue.append((qty, qty, _at(weights, i), _at(alt_qtys, i), i))
+
+    def _pkg(i: int):
+        if packaging_type_ids is None or i >= len(packaging_type_ids):
+            return None
+        return packaging_type_ids[i]
 
     # box index -> (lot index, LotSize) of the first sized lot that fed it, so a
     # later lot of a different size is caught at the seam it crosses.
@@ -437,7 +459,10 @@ def allocate_boxes_to_lots(
                 alt_share = round(box_alt, 4)
             else:
                 alt_share = round(box_alt * take / box, 4)
-            cartons.append(Carton(take, share, alt_share, box_idx))
+            cartons.append(Carton(
+                take, share, alt_share, box_idx,
+                packaging_type_id=_pkg(box_idx), tare_kg=_at(tares, box_idx),
+            ))
             remaining = round(remaining - take, 4)
             if whole_box:
                 queue.popleft()
@@ -508,6 +533,82 @@ def assert_all_weighed(carton_qtys: list[Carton], package_label: str = "carton")
         raise ValueError(
             f"Net weight is required for every {label} — "
             f"{len(missing)} of {len(carton_qtys)} not weighed"
+        )
+
+
+async def resolve_carton_tares(
+    db: AsyncSession,
+    carton_qtys: list[Carton],
+    package_label: str = "carton",
+) -> list[Carton]:
+    """Fill each carton's `tare_kg` from its packaging type, or from the packer.
+
+    The master's tare is authoritative for a standard box; only a type flagged
+    `is_custom` takes the hand-weighed figure the packer typed. Anything the
+    caller sent for a standard box is DROPPED rather than trusted — a re-picked
+    row can leave a stale custom tare behind in the form, and a box whose brutto
+    silently disagreed with every other box of the same type is exactly the kind
+    of error a delivery note carries out of the building.
+
+    The value is copied onto the carton (and from there onto the `Batch`) rather
+    than read through the FK later: see the snapshot note in models/batch.py.
+    """
+    ids = {c.packaging_type_id for c in carton_qtys if c.packaging_type_id}
+    types: dict = {}
+    if ids:
+        rows = (await db.execute(
+            select(PackagingType).filter(PackagingType.id.in_(list(ids)))
+        )).scalars().all()
+        types = {row.id: row for row in rows}
+        missing = [str(i) for i in ids if i not in types]
+        if missing:
+            raise ValueError(f"Unknown packaging type: {', '.join(missing)}")
+
+    label = (package_label or "carton").lower()
+    out: list[Carton] = []
+    for idx, c in enumerate(carton_qtys):
+        pt = types.get(c.packaging_type_id) if c.packaging_type_id else None
+        if pt is None:
+            out.append(c._replace(tare_kg=None))
+            continue
+        if pt.is_custom:
+            if c.tare_kg is None or float(c.tare_kg) <= 0:
+                raise ValueError(
+                    f"{package_label} {idx + 1} is a {pt.name} — weigh the empty "
+                    f"{label} and enter its tare, or pick a standard packaging type"
+                )
+            out.append(c._replace(tare_kg=round(float(c.tare_kg), 4)))
+        else:
+            out.append(c._replace(tare_kg=round(float(pt.tare_kg or 0), 4)))
+    return out
+
+
+def gross_weight(net_kg: Optional[float], tare_kg: Optional[float]) -> Optional[float]:
+    """Brutto = the packer's net reading plus the empty box.
+
+    None when there is no net reading to add to — a carton with no scale reading
+    never reaches minting (`assert_all_weighed`), so this only returns None for
+    the historic rows that predate weighing.
+    """
+    if net_kg is None:
+        return None
+    return round(float(net_kg) + float(tare_kg or 0), 4)
+
+
+def assert_all_boxed(carton_qtys: list[Carton], package_label: str = "carton") -> None:
+    """Every carton must name the packaging it went into.
+
+    Brutto is printed on the carton label and totalled on the delivery note, and
+    a carton with no packaging type has no tare to add — its gross would silently
+    equal its net and understate the shipment. Enforced beside
+    `assert_all_weighed` and for the same reason: so no caller can mint one.
+    """
+    missing = [i + 1 for i, c in enumerate(carton_qtys) if not c.packaging_type_id]
+    if missing:
+        label = (package_label or "carton").lower()
+        raise ValueError(
+            f"Packaging type is required for every {label} — "
+            f"{len(missing)} of {len(carton_qtys)} not set"
         )
 
 
@@ -723,6 +824,10 @@ async def mint_packed_units(
             bom_size_snapshot=bom_size_snapshot,
             weight_kg=net_weight,
             alt_qty=alt_qty,
+            # The box and its tare, snapshotted, plus net + tare. See models/batch.py.
+            packaging_type_id=carton.packaging_type_id,
+            tare_kg=carton.tare_kg,
+            gross_weight_kg=gross_weight(net_weight, carton.tare_kg),
             # Allocated per carton, not as a pre-reserved block: a block computed
             # up front overlaps a completion posted concurrently on the same order.
             package_no=await _next_package_no(db, po.id),
@@ -786,7 +891,8 @@ async def mint_merged_packed_unit(
     piece pegged to a truthful source lot — merging here is what keeps the
     packed-unit count equal to the boxes actually on the floor, not the number
     of lots that fed them. Each `pieces` entry is
-    `{qty, weight_kg, alt_qty, source_batch_id}`; the OUT stock move for each
+    `{qty, weight_kg, alt_qty, packaging_type_id, tare_kg, source_batch_id}`;
+    the OUT stock move for each
     piece already happened against its own lot before this is called — this
     only does the single IN move (mint qty) plus one `BatchConsumption` peg per
     contributing lot, so genealogy still traces every gram to its real source.
@@ -799,6 +905,11 @@ async def mint_merged_packed_unit(
     weight_kg = round(sum(float(w) for w in weights), 4) if weights else None
     alts = [p["alt_qty"] for p in pieces]
     alt_qty = round(sum(float(a) for a in alts), 4) if all(a is not None for a in alts) else None
+    # The box is ONE physical box however many lots fed it, so its packaging is
+    # not summed or shared — it is taken whole from the closing piece, the same
+    # piece that already supplies this carton's operator and variant identity.
+    packaging_type_id = pieces[-1].get("packaging_type_id")
+    tare_kg = pieces[-1].get("tare_kg")
 
     bom_size_id, bom_size_snapshot = await lot_size_identity(
         db, [p["source_batch_id"] for p in pieces]
@@ -813,6 +924,9 @@ async def mint_merged_packed_unit(
         bom_size_snapshot=bom_size_snapshot,
         weight_kg=weight_kg,
         alt_qty=alt_qty,
+        packaging_type_id=packaging_type_id,
+        tare_kg=tare_kg,
+        gross_weight_kg=gross_weight(weight_kg, tare_kg),
         package_no=await _next_package_no(db, po.id),
         package_label=po.package_label or "Carton",
         packed_for_so_id=po.sales_order_id,
