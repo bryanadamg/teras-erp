@@ -104,6 +104,8 @@ function packProgress(po: any, it?: any) {
         : null;
     const pAlt = hasAlt && po.qty_packed_alt != null ? num(po.qty_packed_alt) : null;
     const basis = tAlt !== null && pAlt !== null ? { done: pAlt, goal: tAlt } : { done: packed, goal: target };
+    const pctOf = (done: number, goal: number) =>
+        goal > 0 ? Math.min(100, Math.round((done / goal) * 100)) : 0;
     return {
         target,
         packed,
@@ -116,8 +118,82 @@ function packProgress(po: any, it?: any) {
         remainingAlt: tAlt !== null && pAlt !== null
             ? Math.max(0, Math.round((tAlt - pAlt) * 100) / 100)
             : null,
-        pct: basis.goal > 0 ? Math.min(100, Math.round((basis.done / basis.goal) * 100)) : 0,
+        pct: pctOf(basis.done, basis.goal),
+        // The two bars the pack screen and the list row draw side by side. They
+        // are the SAME run measured twice — the boxes are weighed, and the piece
+        // count is that weight read through the order's own sampled unit weight
+        // (`order_base_per_alt` -> `sample_weight_per_unit`, entered on the New
+        // Packing Order modal). Showing only one hid the gap the two open up: a
+        // light run is 100% of its pieces at 96% of its kilos, and the packer
+        // needs to see both figures rather than infer one from the other.
+        // `pctAlt` is null when the order has no alt unit — then `pctBase` is
+        // the only bar and `pct` equals it.
+        pctAlt: tAlt !== null && pAlt !== null ? pctOf(pAlt, tAlt) : null,
+        pctBase: pctOf(packed, target),
     };
+}
+
+/** Both bars for one packing order — pieces and kilos, one under the other.
+ *
+ *  Drawn by the list row and the pack modal from the same `packProgress`, so the
+ *  two screens can never quote a different pair. The alt row leads because that
+ *  is what the order is FOR and what `is_target_met` judges; the base row is the
+ *  weight actually on the scale, which is what the packer types and what stock
+ *  moves in. One is not derived from the other on screen — both come off the
+ *  order (`qty_packed_alt` is summed from the cartons, `qty_packed` from the
+ *  completions) and they meet only through the sampled unit weight the New
+ *  Packing Order modal captured. An order with no alt unit draws the base row
+ *  alone, which is exactly what the single bar used to be.
+ */
+function PackProgressBars({ prog, uom, height = 6, fontSize = 9, hatched = false }: {
+    prog: ReturnType<typeof packProgress>;
+    uom: string;
+    height?: number;
+    fontSize?: number;
+    hatched?: boolean;
+}) {
+    const rows: { key: string; pct: number; done: string; goal: string; unit: string }[] = [];
+    if (prog.pctAlt !== null) {
+        rows.push({
+            key: 'alt',
+            pct: prog.pctAlt,
+            done: (prog.packedAlt ?? 0).toLocaleString(),
+            goal: (prog.targetAlt ?? 0).toLocaleString(),
+            unit: prog.altUom,
+        });
+    }
+    rows.push({
+        key: 'base',
+        pct: prog.pctBase,
+        done: prog.packed.toFixed(2),
+        goal: prog.target.toFixed(2),
+        unit: uom,
+    });
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, width: '100%' }}>
+            {rows.map(r => (
+                <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <ProgressBar
+                            pct={r.pct}
+                            tone={r.pct >= 100 ? 'green' : r.pct > 0 ? 'blue' : 'gray'}
+                            hatched={hatched}
+                            height={height}
+                        />
+                    </div>
+                    {/* Fixed-width so the two lines' figures stack in a column
+                        instead of drifting with the length of each number. */}
+                    <div style={{
+                        fontFamily: xpFont, fontSize, whiteSpace: 'nowrap', flexShrink: 0,
+                        textAlign: 'right', minWidth: 96,
+                        color: r.pct >= 100 ? (CLASSIC ? '#1a5e1a' : '#166534') : '#777',
+                    }}>
+                        {r.pct}% · {r.done} / {r.goal} {r.unit}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 }
 
 export default function PackingOrderView({ initialCreateState, onClearInitialState }: any = {}) {
@@ -582,31 +658,16 @@ export default function PackingOrderView({ initialCreateState, onClearInitialSta
                                     <td style={td}><StatusChip status={po.status} /></td>
                                     <td style={{ ...td, textAlign: 'right' }}>{num(po.qty_target).toLocaleString()} {po.item_uom || it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
-                                    {/* Progress in the order's COUNTED unit — pieces on an
-                                        alt-unit order, kilos otherwise. The hover states the
-                                        pair the bar is drawn from, since the Target/Packed
-                                        cells beside it are always in the stock UOM. Thin bar +
-                                        qty line below, matching the SO table's MO progress cell
+                                    {/* Both progress bars — pieces over kilos. The run is
+                                        weighed and the piece count is that weight read through
+                                        the order's sampled unit weight, so neither figure alone
+                                        tells the packer where the order stands: a light run
+                                        finishes its pieces before its kilos. Thin bars + qty
+                                        line, matching the SO table's MO progress cell
                                         (MOProgressLink/moProgressCell in SalesOrderView) instead
                                         of a hatched pill — one progress look across the app. */}
                                     <td style={td}>
-                                        <div
-                                            title={prog.hasAlt
-                                                ? `${(prog.packedAlt ?? 0).toLocaleString()} / ${(prog.targetAlt ?? 0).toLocaleString()} ${prog.altUom} packed (${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''})`
-                                                : `${prog.packed.toFixed(2)} / ${prog.target} ${po.item_uom || it?.uom || ''} packed`}
-                                            style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
-                                        >
-                                            <ProgressBar
-                                                pct={prog.pct}
-                                                tone={prog.pct >= 100 ? 'green' : prog.pct > 0 ? 'blue' : 'gray'}
-                                                height={6}
-                                            />
-                                            <div style={{ fontFamily: xpFont, fontSize: '9px', color: prog.pct >= 100 ? (CLASSIC ? '#1a5e1a' : '#166534') : '#777' }}>
-                                                {prog.pct}%{prog.hasAlt
-                                                    ? ` · ${(prog.packedAlt ?? 0).toLocaleString()} / ${(prog.targetAlt ?? 0).toLocaleString()} ${prog.altUom}`
-                                                    : ` · ${prog.packed.toFixed(2)} / ${prog.target}`}
-                                            </div>
-                                        </div>
+                                        <PackProgressBars prog={prog} uom={po.item_uom || it?.uom || ''} height={6} />
                                     </td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
                                     <td style={td}>{po.created_at ? tzDate(po.created_at) : '—'}</td>
@@ -1487,9 +1548,11 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
     const packedAlt = prog.packedAlt;
     const remainingAlt = prog.remainingAlt;
 
-    // Progress basis lives in packProgress — the list row's bar reads the same
-    // helper, so this panel and that row can't disagree.
-    const pct = prog.pct;
+    // Progress basis lives in packProgress — the list row's bars read the same
+    // helper, so this panel and that row can't disagree. The panel draws
+    // `pctAlt` and `pctBase` as two bars; `prog.pct` (the DELIVERED basis) is
+    // deliberately not one of them, since it is whichever of the two is
+    // load-bearing and drawing it a third time would say nothing new.
 
     // Box size, in whatever unit the order is COUNTED in — pieces on an alt-unit
     // order, the stock UOM otherwise. A carton holds a whole number of pieces and
@@ -1993,6 +2056,17 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
         String(u.packing_completion_id || '') === String(compId)
         && u.quality_status !== 'REJECTED' && u.quality_status !== 'REJECT_USABLE' && u.quality_status !== 'DISPOSED');
 
+    // One log's piece count, SUMMED off its own cartons rather than divided out of
+    // its kg — the same rule `PackingOrder.qty_packed_alt` follows, so the entry
+    // rows add up to the header's alt figure exactly. null when this event's
+    // cartons carry no count at all (no alt unit, or an unresolvable conversion),
+    // which is the only case the column has nothing to show.
+    const altOf = (compId: string): number | null => {
+        const counted = goodUnitsOf(compId).filter((u: any) => u.alt_qty != null);
+        if (!counted.length) return null;
+        return Math.round(counted.reduce((t: number, u: any) => t + num(u.alt_qty), 0) * 100) / 100;
+    };
+
     const openReject = (c: any) => {
         setRejectComp(c);
         setRejectReason('');
@@ -2077,15 +2151,28 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                             <span style={{ fontSize: 11, fontWeight: 'bold', color: '#000080' }}>{po.item_name || po.item_code}</span>
                             <span style={{ fontSize: 10, color: '#555' }}>{po.code}</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>PCK</span>
-                            <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} hatched height={14} label="inside" />
-                            <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 110, flexShrink: 0, textAlign: 'right' }}
-                                title={hasAlt ? `${packed.toFixed(2)} / ${target} ${uom}` : undefined}>
-                                {hasAlt
-                                    ? `${(packedAlt ?? 0).toLocaleString()} / ${(targetAlt ?? 0).toLocaleString()} ${altUom}`
-                                    : `${packed.toFixed(2)} / ${target}`}
-                            </span>
+                        {/* Both bars, pieces over kilos. See PackProgressBars: the boxes
+                            are weighed and the piece count is that weight read through this
+                            order's sampled unit weight, so the packer is shown both rather
+                            than left to divide one out of the other. */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {(hasAlt
+                                ? [
+                                    { key: 'alt', label: altUom || 'ALT', pct: prog.pctAlt ?? 0, done: (packedAlt ?? 0).toLocaleString(), goal: (targetAlt ?? 0).toLocaleString(), unit: altUom },
+                                    { key: 'base', label: uom || 'QTY', pct: prog.pctBase, done: packed.toFixed(2), goal: target.toFixed(2), unit: uom },
+                                ]
+                                : [{ key: 'base', label: uom || 'QTY', pct: prog.pctBase, done: packed.toFixed(2), goal: target.toFixed(2), unit: uom }]
+                            ).map(r => (
+                                <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 30, flexShrink: 0, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {r.label}
+                                    </span>
+                                    <ProgressBar pct={r.pct} tone={r.pct >= 100 ? 'green' : 'blue'} hatched height={14} label="inside" />
+                                    <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 120, flexShrink: 0, textAlign: 'right' }}>
+                                        {r.done} / {r.goal} {r.unit}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                         <div style={{ fontSize: 10, color: '#555', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                             <span>
@@ -2772,7 +2859,13 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
                                     <thead>
                                         <tr style={{ background: '#dddbd0' }}>
-                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
+                                            {/* Both measurements of the same log: what the scale
+                                                read, and the pieces that weight works out to
+                                                through this order's sampled unit weight. */}
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{uom || 'Qty'}</th>
+                                            {hasAlt && (
+                                                <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{altUom}</th>
+                                            )}
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{po.package_label}s</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>QC Reject</th>
                                             <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
@@ -2789,6 +2882,14 @@ function PackingOrderDetail({ po: initialPo, itemById, locationById, locPickerTr
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', textDecoration: c.rejected ? 'line-through' : undefined }}>
                                                     {num(c.qty).toFixed(2)}
                                                 </td>
+                                                {hasAlt && (() => {
+                                                    const a = altOf(c.id);
+                                                    return (
+                                                        <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555', textDecoration: c.rejected ? 'line-through' : undefined }}>
+                                                            {a === null ? '—' : a.toLocaleString()}
+                                                        </td>
+                                                    );
+                                                })()}
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>{c.package_count}</td>
                                                 <td style={{ padding: '2px 6px', textAlign: 'right', color: num(c.qty_rejected) ? '#a00000' : '#aaa', fontWeight: num(c.qty_rejected) ? 'bold' : 'normal' }}
                                                     title={c.reject_reason || undefined}>

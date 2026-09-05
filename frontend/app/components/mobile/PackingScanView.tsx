@@ -405,8 +405,12 @@ export default function PackingScanView({ authFetch, initialCode, onClose }: { a
                         <Row label="Target" value={hasAlt
                             ? `${(num(po.qty2) > 0 ? num(po.qty2) : baseToAlt(num(po.qty_target), altFactor) ?? 0).toLocaleString()} ${altUom} (${num(po.qty_target).toLocaleString()} ${po.item_uom || ''})`
                             : `${num(po.qty_target).toLocaleString()} ${po.item_uom || ''}`} />
+                        {/* Both figures, like Target above: the boxes are weighed and the
+                            piece count is what that weight works out to through this
+                            order's sampled unit weight, so the kg stays in brackets rather
+                            than being dropped. */}
                         <Row label="Packed" value={hasAlt && po.qty_packed_alt != null
-                            ? `${num(po.qty_packed_alt).toLocaleString()} ${altUom} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`
+                            ? `${num(po.qty_packed_alt).toLocaleString()} ${altUom} (${num(po.qty_packed).toFixed(2)} ${po.item_uom || ''}) · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`
                             : `${num(po.qty_packed).toLocaleString()} · ${po.package_count || 0} ${(po.package_label || 'carton').toLowerCase()}s`} />
                         <Row label="Machine" value={po.work_center_name || 'not assigned'} />
                     </MobilePanel>
