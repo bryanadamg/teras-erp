@@ -70,11 +70,16 @@ export const NAV_SECTIONS: NavSection[] = [
     },
     {
         key: 'inventory', label: 'Inventory', i18nKey: 'inventory', icon: 'bi-box-seam', accent: 'blue',
-        permissions: ['item.view', 'stock_on_hand.view', 'lot.view', 'location.view', 'combo_library.view', 'booking_stock.view'],
+        permissions: ['item.view', 'stock_on_hand.view', 'lot.view', 'location.view', 'combo_library.view', 'packaging_type.view', 'booking_stock.view'],
         items: [
             { tab: 'inventory', label: 'Item Inventory', i18nKey: 'item_inventory', icon: 'bi-list-check', permission: 'item.view' },
             { tab: 'item-metadata', label: 'Attributes', i18nKey: 'attributes', icon: 'bi-tag', permission: 'attribute.view' },
             { tab: 'combos', label: 'Combo Library', icon: 'bi-grid-3x3-gap', permission: 'combo_library.view' },
+            // The box master the pack screens pick from — bounded reference data
+            // (a handful of rows), sitting beside the other masters rather than
+            // buried in Settings, because its tare weights are a floor-facing
+            // number the packing supervisor maintains.
+            { tab: 'packaging-types', label: 'Packaging', icon: 'bi-box2', permission: 'packaging_type.view' },
             { tab: 'batches', label: 'Lot', icon: 'bi-upc-scan', permission: 'lot.view' },
             // Stock entry/transfer/adjust duties were merged into Stock On-Hand
             // (commit e6f38da), and /stock-on-hand was later folded into this
