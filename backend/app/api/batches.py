@@ -887,15 +887,26 @@ async def reject_batch(
             source_wo_id=batch.source_wo_id,
             bom_size_id=batch.bom_size_id,
             bom_size_snapshot=batch.bom_size_snapshot,
+            parent_batch_id=batch.id,
             notes=(f"QC reject of {batch.batch_number}" + (f": {reason}" if reason else "")),
             created_by=current_user.username,
         )
         db.add(sub)
         await db.flush()
-        await _move_batch_stock(
+        moved = await _move_batch_stock(
             db, item_id=batch.item_id, src_batch_id=batch.id, dst_batch_id=sub.id,
             qty=float(reject_qty), reference_type="QC_REJECT", reference_id=sub.batch_number,
         )
+        # Same lineage a split writes (see split_batch): parent_batch_id for the
+        # cheap answer, a BatchConsumption row so trace-back walks the rejected
+        # piece up into whatever the parent lot was made from. Pegged to the kg
+        # that actually moved, and to no order — a QC reject is neither an MO nor
+        # a packing order.
+        db.add(BatchConsumption(
+            input_batch_id=batch.id,
+            output_batch_id=sub.id,
+            qty_consumed=moved,
+        ))
     else:
         batch.quality_status = grade
 
