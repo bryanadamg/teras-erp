@@ -171,6 +171,49 @@ def base_per_alt(
     return None
 
 
+def to_yards(
+    qty: float,
+    item_uom: Optional[str],
+    weight_per_unit: Optional[float] = None,
+    weight_unit: Optional[str] = None,
+) -> Optional[float]:
+    """A base-UOM qty restated in yards, or None when the chain can't be resolved.
+
+    The inverse of the weight hop `base_per_alt` makes, and it lives here for that
+    reason: the dyeing monitor measures output in yards while production is logged
+    in the item's stock UOM, and a second copy of the g/y rule elsewhere is how the
+    two would drift apart.
+
+    Same refusal as `base_per_alt`: only `g/y` and `g/m` bridge weight to length.
+    `gsm` / `g/m²` need the fabric width, so they return None — a caller must show
+    nothing rather than a figure wrong by the width.
+    """
+    try:
+        q = float(qty)
+    except (TypeError, ValueError):
+        return None
+
+    # Already a length: yard as-is, metre converted.
+    src = normalize_length_uom(item_uom)
+    if src:
+        return convert_length(q, src, "yard")
+
+    if not uom_is_kg(item_uom):
+        # A counted base UOM (pcs, roll). Nothing here bridges it to a length.
+        return None
+
+    try:
+        gpu = float(weight_per_unit or 0)
+    except (TypeError, ValueError):
+        return None
+    unit = (weight_unit or "").strip().lower()
+    if gpu <= 0 or unit not in ("g/y", "g/m"):
+        return None
+    # kg -> grams -> the length one gram-per-unit buys -> yards.
+    length = q * 1000.0 / gpu
+    return convert_length(length, "yard" if unit == "g/y" else "meter", "yard")
+
+
 def alt_to_base(qty_alt: float, base_factor: Optional[float]) -> Optional[float]:
     if not base_factor or float(base_factor) <= 0:
         return None

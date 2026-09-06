@@ -484,6 +484,10 @@ def seed_rbac(db):
             ("weaving_monitor.start", "Start Weaving Runs"),
             ("weaving_monitor.stop", "Stop Weaving Runs"),
             ("weaving_monitor.view", "View Weaving Monitor"),
+            # Dyeing Monitor. View only: a dye batch is started and completed from
+            # the Dyeing Orders tab under work_order.log, so this grid adds no
+            # lifecycle verbs of its own.
+            ("dyeing_monitor.view", "View Dyeing Monitor"),
             # Calender
             ("calendar.edit", "Edit Work Center Calendars"),
             ("calendar.view", "View Work Center Calendars"),
@@ -575,6 +579,7 @@ def seed_rbac(db):
                 "work_order.create", "work_order.log", "work_order.edit", "work_order.delete",
                 "work_order.print_card", "work_order.print_label", "work_order.view", "work_order.stage",
                 "weaving_monitor.start", "weaving_monitor.stop", "weaving_monitor.view",
+                "dyeing_monitor.view",
                 "calendar.edit", "calendar.view", "beam.unmount", "beam.view",
                 "dye_recipe.create", "dye_recipe.edit", "dye_recipe.delete", "dye_recipe.print", "dye_recipe.view",
                 "dye_order.view", "setting_order.view",
@@ -589,7 +594,8 @@ def seed_rbac(db):
             # Floor operator: log/stage/view only — not the full Edit/Delete access
             # "work_order.manage" used to imply. Tighten via the Roles page if a
             # site actually wants operators editing/deleting WOs.
-            "Operator": ["work_order.log", "work_order.view", "work_order.stage", "weaving_monitor.view"],
+            "Operator": ["work_order.log", "work_order.view", "work_order.stage",
+                         "weaving_monitor.view", "dyeing_monitor.view"],
             # QC desk: dispositions held stock on the Quarantine Packing page and
             # scraps bad lots. Read-only everywhere else — releasing to packing is
             # the only write this role owns.
