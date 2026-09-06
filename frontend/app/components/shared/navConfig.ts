@@ -93,7 +93,7 @@ export const NAV_SECTIONS: NavSection[] = [
     },
     {
         key: 'engineering', label: 'Engineering', i18nKey: 'engineering', icon: 'bi-gear', accent: 'blue',
-        permissions: ['bom.view', 'routing.view', 'production_run.view', 'manufacturing_order.view', 'work_order.view', 'weaving_monitor.view'],
+        permissions: ['bom.view', 'routing.view', 'production_run.view', 'manufacturing_order.view', 'work_order.view', 'weaving_monitor.view', 'dyeing_monitor.view'],
         items: [
             { tab: 'bom', label: 'BOM', i18nKey: 'bom', icon: 'bi-diagram-3', permission: 'bom.view' },
             { tab: 'routing', label: 'Routing', i18nKey: 'routing', icon: 'bi-shuffle', permission: 'routing.view' },
@@ -105,6 +105,10 @@ export const NAV_SECTIONS: NavSection[] = [
             // the planner — see services/work_queue_service.py.
             { tab: 'work-queue', label: 'Work Queue', icon: 'bi-list-ol', permission: 'work_order.view' },
             { tab: 'weaving-monitor', label: 'Weaving Monitor', i18nKey: 'weaving_monitor', icon: 'bi-speedometer2', permission: 'weaving_monitor.view' },
+            // Sits beside the loom grid rather than in Dyeing & Setting: this is a
+            // machine-floor tool like Routing and Work Queue, whereas that section is
+            // recipes, colours and lab dips.
+            { tab: 'dyeing-monitor', label: 'Dyeing Monitor', i18nKey: 'dyeing_monitor', icon: 'bi-droplet-half', permission: 'dyeing_monitor.view' },
         ],
     },
     {

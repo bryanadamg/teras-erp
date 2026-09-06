@@ -38,7 +38,7 @@ export interface ItemIndexEntry {
 // Kinds of debounced live (WebSocket) event a page can be told about. One alias
 // so adding a kind can't leave the queue, the buffer, and the subscriber
 // signature disagreeing — which is exactly what a bare repeated union did.
-export type LiveKind = 'production' | 'kpi' | 'stock' | 'weaving' | 'bom' | 'sales';
+export type LiveKind = 'production' | 'kpi' | 'stock' | 'weaving' | 'dyeing' | 'bom' | 'sales';
 
 /**
  * Every event type the backend can broadcast. `EVENT_PERMISSIONS` in
@@ -58,6 +58,7 @@ export type LiveEventType =
     | 'WORK_ORDER_UPDATE'
     | 'PRODUCTION_RUN_UPDATE'
     | 'WEAVING_RUN_UPDATE'
+    | 'DYEING_RUN_UPDATE'
     | 'STOCK_UPDATE'
     | 'QUARANTINE_UPDATE'
     | 'SALES_ORDER_UPDATE'
@@ -79,8 +80,9 @@ export type LiveEventType =
  * waiting to happen — a route added to one and not the other either refetches
  * data it never receives, or receives events it never acts on.
  *
- * Subscribers (`subscribeLiveEvents`) add their own kinds on top; 'weaving' is
- * only ever reached that way, since no DataContext-owned domain reads it.
+ * Subscribers (`subscribeLiveEvents`) add their own kinds on top; 'weaving' and
+ * 'dyeing' are only ever reached that way, since no DataContext-owned domain
+ * reads either.
  */
 export const routeLiveKinds = (path: string): Set<LiveKind> => {
     const onDashboard = path === '/' || path.startsWith('/dashboard');
@@ -1228,6 +1230,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 // (WeavingMonitorView) subscribe and reload themselves.
                 notifyLiveSubsRef.current('weaving');
             }
+            if (kinds.has('dyeing')) {
+                // Same shape as weaving: DyeingMonitorView self-fetches and subscribes.
+                // Note the dye grid ALSO subscribes to 'production', because a logged
+                // completion is the numerator of its efficiency and broadcasts
+                // MANUFACTURING_ORDER_UPDATE, never a dyeing event.
+                notifyLiveSubsRef.current('dyeing');
+            }
             if (kinds.has('bom')) {
                 // A BOM was created/updated/deleted elsewhere. The /bom page owns its
                 // own paginated /boms/summary list and reloads via subscription below;
@@ -1253,11 +1262,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // Every event published while the socket was down is gone — the server
         // keeps no backlog and replays nothing on reconnect. So a re-established
         // connection has to assume the screen is stale and re-pull. Queueing all
-        // six kinds reuses flushLive's route-awareness, so this still only fetches
+        // kinds reuses flushLive's route-awareness, so this still only fetches
         // what the CURRENT page reads. No codes are queued: a resync is not news
         // about any one order and must never toast.
         const resyncAfterReconnect = () => {
-            (['production', 'kpi', 'stock', 'weaving', 'bom', 'sales'] as LiveKind[])
+            (['production', 'kpi', 'stock', 'weaving', 'dyeing', 'bom', 'sales'] as LiveKind[])
                 .forEach(k => pending.kinds.add(k));
             if (flushTimer) clearTimeout(flushTimer);
             flushTimer = setTimeout(flushLive, 0);
@@ -1382,6 +1391,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                             break;
                         case 'WEAVING_RUN_UPDATE':
                             queueLive('weaving');
+                            break;
+                        case 'DYEING_RUN_UPDATE':
+                            queueLive('dyeing');
                             break;
                         default:
                             break;
