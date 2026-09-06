@@ -130,6 +130,9 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     // run itself. All three are prep-in-flight, so all three read blue; IDLE falls
     // through to gray via PENDING and a live run shows RUNNING/IN_PROGRESS green-ish.
     DRAW_IN: 'blue', TUNING: 'blue', IDLE: 'gray',
+    // Dye vessel (dyeing monitor): a batch is loaded and waiting to start. Amber for
+    // the same reason ON_HOLD is — open work sitting still, waiting on the floor.
+    LOADED: 'amber',
     // DELIVERED is blue, not green: on an MO it means "planned qty met, order still
     // open for logging". Green is reserved for closed/terminal.
     DELIVERED: 'blue',

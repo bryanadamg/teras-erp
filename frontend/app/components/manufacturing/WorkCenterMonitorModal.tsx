@@ -6,13 +6,11 @@ import ModalWrapper from '../shared/ModalWrapper';
 // Loom status → window chrome. Exported so the monitor grid can paint a card's
 // status strip with the very gradient the window it opens will wear (see
 // `loomStrip` in WeavingMonitorView) — one map, so the two can't drift.
-export const LOOM_TITLE_VARIANT: Record<string, 'primary' | 'success' | 'warning' | 'secondary'> = {
-    RUNNING: 'success',
-    STAGED: 'warning',
-    DRAW_IN: 'primary',
-    TUNING: 'primary',
-    IDLE: 'secondary',
-};
+// Re-exported, not redefined: the card strip and this window's title bar must
+// come from ONE table or a green tile can open a slightly different green window.
+// See machineMonitor/machineStatus.ts, which also covers the dye vessel states.
+export { MACHINE_TITLE_VARIANT as LOOM_TITLE_VARIANT } from './machineMonitor/machineStatus';
+import { MACHINE_TITLE_VARIANT } from './machineMonitor/machineStatus';
 import SearchableSelect from '../shared/SearchableSelect';
 import CameraScanner from '../shared/CameraScanner';
 import VariantChips from '../shared/VariantChips';
@@ -155,7 +153,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     // WeavingMonitorView; success/warning/primary here resolve to those exact
     // gradients). Falls back to `info` when the caller passes no status, so a
     // non-weaving work centre keeps the neutral window chrome.
-    const titleVariant = LOOM_TITLE_VARIANT[workCenter?.loom_status as string] || 'info';
+    const titleVariant = MACHINE_TITLE_VARIANT[workCenter?.loom_status as string] || 'info';
 
 
     const wcId = workCenter?.id;
