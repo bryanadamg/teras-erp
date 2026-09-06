@@ -19,6 +19,7 @@ export default function BagLabelCard({
     bagSeq,
     companyName,
     attributes = [],
+    lotRemaining,
 }: {
     completion: any;
     workOrder: any;
@@ -28,11 +29,17 @@ export default function BagLabelCard({
     bagSeq: number;
     companyName?: string;
     attributes?: any[];
+    lotRemaining?: number | null;
 }) {
     const { formatCustom: tzFmt } = useTimezone();
     const bom = parentMO?.bom;
     const lotNo = completion?.output_batch_number || '—';
-    const berat = Number(completion?.qty_completed ?? 0);
+    // BERAT is the lot's CURRENT weight, not the weight it was born with:
+    // `qty_completed` is frozen at the completion, so a bag that was split
+    // (or partly staged) kept printing its pre-split kg on every reprint.
+    // `lotRemaining` is the live StockBalance sum resolved by BagLabelPrintModal;
+    // fall back to the completion only when the lot could not be resolved.
+    const berat = Number(lotRemaining ?? completion?.qty_completed ?? 0);
 
     // WARNA — resolve the system Colors attribute value carried by the MO.
     const colorAttr = (attributes || []).find((a: any) => (a.system_role || '').toLowerCase() === 'color');

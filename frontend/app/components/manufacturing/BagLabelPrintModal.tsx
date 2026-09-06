@@ -76,6 +76,37 @@ export default function BagLabelPrintModal({
         return map;
     }, [bags]);
 
+    // Live weight per lot. The completion's `qty_completed` is the weight the bag
+    // was BORN with and is never restated, so after a lot split (or a partial
+    // stage) a reprint used to carry the original kg while the physical bag held
+    // less. Resolve each lot's current StockBalance sum instead; the completion
+    // stays the fallback when the lot can't be resolved (offline, deleted, perms).
+    const [lotKg, setLotKg] = useState<Record<string, number>>({});
+    const lotNumbers = useMemo(
+        () => Array.from(new Set(bags.map((b: any) => String(b.output_batch_number || '')).filter(Boolean))),
+        [bags],
+    );
+    useEffect(() => {
+        if (!lotNumbers.length) { setLotKg({}); return; }
+        let cancelled = false;
+        Promise.all(lotNumbers.map(n =>
+            authFetch(`${API_BASE}/batches/resolve?number=${encodeURIComponent(n)}`)
+                .then((r: Response) => (r.ok ? r.json() : null))
+                .then((j: any) => (j && j.remaining != null ? [n, Number(j.remaining)] as [string, number] : null))
+                .catch(() => null)
+        )).then(entries => {
+            if (cancelled) return;
+            setLotKg(Object.fromEntries(entries.filter(Boolean) as [string, number][]));
+        });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lotNumbers.join('|')]);
+
+    const lotKgOf = (bag: any): number | null => {
+        const n = String(bag?.output_batch_number || '');
+        return n && lotKg[n] != null ? lotKg[n] : null;
+    };
+
     useEffect(() => {
         document.body.classList.add('bag-label-print-active');
         return () => { document.body.classList.remove('bag-label-print-active'); };
@@ -111,6 +142,7 @@ export default function BagLabelPrintModal({
                     qrDataUrl={qrUrls[bag.id] || ''}
                     barcodeDataUrl={barcodeUrls[bag.id] || ''}
                     companyName={companyProfile?.name}
+                    lotRemaining={lotKgOf(bag)}
                 />
             ) : (
                 <BagLabelCard
@@ -122,6 +154,7 @@ export default function BagLabelPrintModal({
                     bagSeq={seqStart + idx}
                     companyName={companyProfile?.name}
                     attributes={attributes}
+                    lotRemaining={lotKgOf(bag)}
                 />
             )}
         </div>
