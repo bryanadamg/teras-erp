@@ -632,6 +632,7 @@ async def get_production_run_material_requirements(
             item_code=item.code if item else str(data["item_id"]),
             item_name=item.name if item else str(data["item_id"]),
             uom=item.uom if item else "",
+            ends=item.ends if item else None,
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
             size_label=sizes.label_for_token(size_tok),
             qty_claimed_elsewhere=others,

@@ -103,7 +103,25 @@ class DyeingRun(Base):
     substrate_qty: Mapped[float] = mapped_column(Numeric(14, 4))
     input_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
     output_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
+    # LEGACY, display only. The machine this batch ran on is `work_order.work_center_id`
+    # — the WO is the dispatch record. Any per-machine aggregate must peg through it and
+    # never through this free-text field (see services/dyeing_monitor_service.py).
     machine_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+
+    # --- Monitor rate inputs -------------------------------------------------
+    # Reel speed and rope count for THIS batch. Both vary run to run (a heavier
+    # cloth is run slower, a rope count is chosen per load), which is why they are
+    # here and not on the work center — the same split as WeavingRun.lines vs
+    # WorkCenter.beam_slots. Paired with WorkCenter.yards_per_rev they give the
+    # monitor its theoretical rate: yd/min = rpm * yards_per_rev * lines.
+    # rpm null = no efficiency reported for the run; a guessed rpm would read as a
+    # measurement.
+    rpm: Mapped[Optional[float]] = mapped_column(Numeric(10, 3), nullable=True)
+    lines: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    target_efficiency_pct: Mapped[float] = mapped_column(
+        Numeric(6, 2), default=50, server_default="50"
+    )
+
     liquor_ratio: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     volume_air_liters: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     machine_speed: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)

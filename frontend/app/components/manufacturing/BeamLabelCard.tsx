@@ -31,6 +31,7 @@ export default function BeamLabelCard({
     qrDataUrl,
     barcodeDataUrl,
     companyName,
+    lotRemaining,
 }: {
     completion: any;
     workOrder: any;
@@ -38,11 +39,14 @@ export default function BeamLabelCard({
     qrDataUrl: string;
     barcodeDataUrl?: string;
     companyName?: string;
+    lotRemaining?: number | null;
 }) {
     const { formatCustom: tzFmt } = useTimezone();
 
     const beamNo = completion?.output_batch_number || '—';
-    const berat = Number(completion?.qty_completed ?? 0);
+    // Live kg off the beam's own lot, not the frozen completion — a beam is drawn
+    // down as it weaves, so a reprint must say what is left on it. See BagLabelCard.
+    const berat = Number(lotRemaining ?? completion?.qty_completed ?? 0);
     // Ends are planned per-WO (utas on the beaming order) and fall back to the
     // beam item's own default — the same precedence add_mo_completion stamps onto
     // the Batch, so the sticker cannot disagree with the lot it is stuck to.

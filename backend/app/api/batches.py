@@ -744,7 +744,14 @@ async def split_batch(
     same location/variant, leaving the original with the remainder. Both stay
     GOOD/active. The sub-lot copies ``source_wo_id`` so its production origin
     (e.g. the weaving WO) still traces. Used when only part of a physical bag is
-    staged/consumed and the rest goes back to stock as its own trackable bag."""
+    staged/consumed and the rest goes back to stock as its own trackable bag.
+
+    Lineage is written the same two ways a leftover beam writes it
+    (``beam_service.dismount``): ``parent_batch_id`` as the cheap "whose piece is
+    this" answer, plus a ``BatchConsumption`` row (input = parent, output = sub) so
+    ``/batches/{id}/trace-back`` walks a split child up into the parent's own
+    inputs. Without the consumption row a split cut the genealogy chain: the sub-lot
+    kept the parent's ``source_wo_id`` but nothing said what it was made from."""
     result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
     batch = result.scalars().first()
     if not batch:
@@ -768,6 +775,7 @@ async def split_batch(
         ends=batch.ends,
         bom_size_id=batch.bom_size_id,
         bom_size_snapshot=batch.bom_size_snapshot,
+        parent_batch_id=batch.id,
         notes=(f"Split from {batch.batch_number}" + (f": {reason}" if reason else "")),
         created_by=current_user.username,
     )
@@ -778,6 +786,15 @@ async def split_batch(
         db, item_id=batch.item_id, src_batch_id=batch.id, dst_batch_id=sub.id,
         qty=qty, reference_type="Split", reference_id=sub.batch_number,
     )
+    # Pegged to the kg that actually moved, not the requested qty — a source row
+    # short of the ask leaves `moved` below `qty`, and genealogy must state what
+    # the child is really made of. No order id: a split belongs to no MO or
+    # packing order, same as the beam-leftover row.
+    db.add(BatchConsumption(
+        input_batch_id=batch.id,
+        output_batch_id=sub.id,
+        qty_consumed=moved,
+    ))
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "SPLIT", "Batch", str(batch.id),
@@ -870,15 +887,26 @@ async def reject_batch(
             source_wo_id=batch.source_wo_id,
             bom_size_id=batch.bom_size_id,
             bom_size_snapshot=batch.bom_size_snapshot,
+            parent_batch_id=batch.id,
             notes=(f"QC reject of {batch.batch_number}" + (f": {reason}" if reason else "")),
             created_by=current_user.username,
         )
         db.add(sub)
         await db.flush()
-        await _move_batch_stock(
+        moved = await _move_batch_stock(
             db, item_id=batch.item_id, src_batch_id=batch.id, dst_batch_id=sub.id,
             qty=float(reject_qty), reference_type="QC_REJECT", reference_id=sub.batch_number,
         )
+        # Same lineage a split writes (see split_batch): parent_batch_id for the
+        # cheap answer, a BatchConsumption row so trace-back walks the rejected
+        # piece up into whatever the parent lot was made from. Pegged to the kg
+        # that actually moved, and to no order — a QC reject is neither an MO nor
+        # a packing order.
+        db.add(BatchConsumption(
+            input_batch_id=batch.id,
+            output_batch_id=sub.id,
+            qty_consumed=moved,
+        ))
     else:
         batch.quality_status = grade
 

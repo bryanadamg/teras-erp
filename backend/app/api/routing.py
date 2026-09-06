@@ -52,6 +52,20 @@ def _with_effective_locations(db: Session, wc: WorkCenter) -> WorkCenter:
 
 
 # --- Work Centers ---
+def _positive_or_none(value):
+    """A measured machine constant, or None when it has never been measured.
+
+    Zero and negatives collapse to None rather than being stored: the dyeing
+    monitor divides by this, and a 0 would read as "measured, and the vessel
+    moves no cloth" instead of "nobody has measured the reel yet".
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
 @router.post("/work-centers", response_model=WorkCenterResponse)
 def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('routing.create'))):
     if db.query(WorkCenter).filter(WorkCenter.code == payload.code).first():
@@ -72,6 +86,7 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
         reject_location_id=payload.reject_location_id,
         parent_id=payload.parent_id,
         beam_slots=max(1, int(payload.beam_slots or 1)),
+        yards_per_rev=_positive_or_none(payload.yards_per_rev),
     )
     db.add(wc)
     db.commit()
@@ -113,6 +128,7 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     wc.reject_location_id = payload.reject_location_id
     wc.parent_id = payload.parent_id
     wc.beam_slots = max(1, int(payload.beam_slots or 1))
+    wc.yards_per_rev = _positive_or_none(payload.yards_per_rev)
     # Cascade center_type down the whole subtree, not just direct children — with a
     # GROUP tier in between, a one-hop update left the machines on the old type.
     if type_changed and node_type != "MACHINE":

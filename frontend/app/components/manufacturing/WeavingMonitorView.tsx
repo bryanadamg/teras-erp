@@ -5,20 +5,21 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, familyColor, ProgressBar, StatusChip, CardGridSkeleton, SkeletonBar, XPEmptyState, XPActionButton, CHIP_RADIUS, SECTION_RADIUS, BUTTON_RADIUS, XP_BTN, ToggleChip } from '../shared/xpTheme';
-import { ShellWindow, ShellTitleBar, xpToolbar, FilterChipBar } from '../shared/shellTheme';
+import { xpFont, familyColor, StatusChip, XPEmptyState, XPActionButton, BUTTON_RADIUS, XP_BTN } from '../shared/xpTheme';
 import VariantChips from '../shared/VariantChips';
 import { useToast } from '../shared/Toast';
-import WorkCenterMonitorModal, { LOOM_TITLE_VARIANT } from './WorkCenterMonitorModal';
-import { xpTitleGradients } from '../shared/ModalWrapper';
+import WorkCenterMonitorModal from './WorkCenterMonitorModal';
 import GroupCalendarModal from './GroupCalendarModal';
+import { useMonitorSections } from './machineMonitor/useMonitorSections';
+import {
+    EffBar, CardGrid, MachineCard, GroupHeader, MonitorChipBar,
+} from './machineMonitor/MonitorParts';
+import { MonitorShell, MonitorGridSkeleton } from './machineMonitor/MonitorShell';
 
 // Measurement accents come from the shared five-family palette (DESIGN.md's one
 // semantic layer) — never a per-view hex.
 const GREEN = familyColor('green');
 const RED = familyColor('red');
-// Sentinel for the leading "All" segment — groupFilter itself stays null for "no filter".
-const ALL_GROUPS = '__all__';
 const BLUE = familyColor('blue');
 const AMBER = familyColor('amber');
 
@@ -63,9 +64,9 @@ export default function WeavingMonitorView() {
     // whole plant, so this narrows on request and never hides a bank by default.
     const [groupFilter, setGroupFilter] = useState<string | null>(null);
     // Which run each multi-WO loom card is showing, keyed by machine id. It lives up
-    // here and not in the card because `card`/`RunStack` are declared inside this
+    // here and not in the card because `card`/`RunCarousel` are declared inside this
     // render: a component identity that changes every render remounts and would drop
-    // the slide on every 60s poll.
+    // the slide on every live refresh.
     const [runSlide, setRunSlide] = useState<Record<string, number>>({});
     // "Running only" — hides looms with no active run. Same rule as groupFilter: it
     // hides CARDS, never measurements, so every count/badge on the strip and the
@@ -98,23 +99,11 @@ export default function WeavingMonitorView() {
 
     // Loom prep walk: IDLE → STAGED (warp up) → DRAW_IN → TUNING → RUNNING. The
     // backend derives the state (see weaving_service.derive_loom_status) — this view
-    // only names and colours it, so the card can never invent a state the API
-    // wouldn't accept a transition from.
+    // only names it, so the card can never invent a state the API wouldn't accept a
+    // transition from. Colour comes from the shared machineStatus map.
     const loomLabel = (s: string): string => ({
         RUNNING: t('running'), STAGED: t('staged'), DRAW_IN: t('draw_in'), TUNING: t('tuning'),
     } as Record<string, string>)[s] || t('idle');
-    // Strip gradient per state: green running, amber waiting on the floor's next
-    // click, blue prep in flight, gray nothing up.
-    // Card status strip = the title bar of the window that card opens. Both read the
-    // same gradient table off the same status→variant map, so a green card can't open
-    // a blue window (or a slightly different green one).
-    const loomStrip = (s: string): string => {
-        const variant = LOOM_TITLE_VARIANT[s];
-        return variant ? xpTitleGradients[variant] : 'linear-gradient(to right, #808080, #a8a8a8)';
-    };
-    // Chip family reuse: prep states are already in STATUS_FAMILY, so the modern
-    // card gets its colour from the same map every other list uses.
-    const loomChipStatus = (s: string): string => (s === 'RUNNING' ? 'IN_PROGRESS' : s === 'IDLE' ? 'PENDING' : s);
 
     const [prepBusy, setPrepBusy] = useState<string | null>(null);
     const setPrep = async (m: any, step: string | null) => {
@@ -138,69 +127,11 @@ export default function WeavingMonitorView() {
     // Looms are shown per work-center GROUP so a whole group's calendar can be set in
     // one go. Machines that sit straight under their TYPE node (the pre-group shape)
     // collect in a trailing Ungrouped section — no group, so no batch action.
-    //
-    // Each section carries its own health roll-up (running / below-target / avg
-    // efficiency). That is what lets a bank report itself from its header band: a
-    // group scrolled past — or filtered out — still surfaces its alarms in the chip
-    // bar, which is the whole reason this screen doesn't hide groups behind tabs.
-    const sections = useMemo(() => {
-        const byGroup = new Map<string, { id: string | null; code: string; name: string; machines: any[] }>();
-        for (const m of machines) {
-            const key = m.group_id || '__ungrouped__';
-            if (!byGroup.has(key)) {
-                byGroup.set(key, { id: m.group_id || null, code: m.group_code || '', name: m.group_name || '', machines: [] });
-            }
-            byGroup.get(key)!.machines.push(m);
-        }
-        return [...byGroup.values()]
-            .sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1) || (a.code || '').localeCompare(b.code || ''))
-            .map(sec => {
-                const runs = sec.machines.flatMap((m: any) => runsOf(m));
-                // on_target is null until a run has an efficiency to judge (no elapsed
-                // working day yet) — only count a run that actually reports below.
-                const belowTarget = runs.filter((r: any) => r.on_target === false).length;
-                const effs = runs.map((r: any) => r.efficiency_pct).filter((e: any) => e !== null && e !== undefined);
-                return {
-                    ...sec,
-                    running: runs.length,
-                    // Projected past the date the WO promised. Separate alarm from
-                    // below-target: a loom can hold its efficiency and still miss the
-                    // date because the order needs more machines or more working days.
-                    late: runs.filter((r: any) => r.is_late).length,
-                    belowTarget,
-                    avgEff: effs.length ? effs.reduce((a: number, b: number) => a + Number(b), 0) / effs.length : null,
-                };
-            });
-    }, [machines]);
-    const isGrouped = sections.some(s => !!s.id);
-    const plantBelowTarget = sections.reduce((n, s) => n + s.belowTarget, 0);
-    const plantLate = sections.reduce((n, s) => n + s.late, 0);
-
-    // Chip bar filters which sections render; it never changes what was measured, so
-    // the counts on the chips stay plant-wide. A filter that matches nothing (the
-    // group was deleted or re-parented since it was picked) falls back to everything
-    // — a monitor must never render an empty screen because of stale UI state.
-    const visibleSections = useMemo(() => {
-        if (!groupFilter) return sections;
-        const hit = sections.filter(s => (s.id || '__ungrouped__') === groupFilter);
-        return hit.length ? hit : sections;
-    }, [sections, groupFilter]);
+    const { sections, visibleSections, isGrouped, plantBelowTarget, plantLate } =
+        useMonitorSections({ machines, runsOf, groupFilter });
 
     const shown = (list: any[]) => (runningOnly ? list.filter((m: any) => runsOf(m).length > 0) : list);
     const runningCount = useMemo(() => machines.filter((m: any) => runsOf(m).length > 0).length, [machines]);
-
-    // Efficiency vs its target tick — the shared ProgressBar with a threshold
-    // marker, so this reads like every other bar in the app. The machine modal's
-    // hero renders the same call; keep the two in step.
-    const EffBar = ({ eff, target }: { eff: number; target: number }) => (
-        <ProgressBar
-            pct={Number(eff) || 0}
-            tone={(eff ?? 0) >= (target ?? 0) ? 'green' : 'red'}
-            markerPct={Number(target) || 0}
-            markerTitle={`${t('target')} ${fmt(target, 0)}%`}
-            height={9}
-        />
-    );
 
     // loom_status rides along so the window that opens wears the same title-bar
     // colour as the card that opened it — green for a running loom, not the generic
@@ -380,7 +311,10 @@ export default function WeavingMonitorView() {
                         {run.lines} {t('lines')}
                     </span>
                 </div>
-                <div style={{ margin: '4px 0' }}><EffBar eff={run.efficiency_pct} target={run.target_efficiency_pct} /></div>
+                <div style={{ margin: '4px 0' }}>
+                    <EffBar eff={run.efficiency_pct} target={run.target_efficiency_pct}
+                        label={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%`} />
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: cls ? 10 : 12 }}>
                     <span><span style={{ color: '#888' }}>{t('actual')}:</span> <b>{fmt(run.actual_kg, 1)}</b> / {fmt(run.target_qty, 0)} kg</span>
                     <span style={{ color: '#666' }}>{fmt(run.actual_daily_rate_kg, 1)} kg/d</span>
@@ -509,198 +443,52 @@ export default function WeavingMonitorView() {
         );
     };
 
-    // Loom card. Classic = XP raised tile with a status strip; modern = bootstrap
-    // card. Body content is shared (RunBody / IdleBody / BeamStrip / PrepRow).
     const card = (m: any) => {
         const runs = runsOf(m);
-        const lateCount = runs.filter((r: any) => r.is_late).length;
         const loomStatus: string = m.loom_status || (runs.length ? 'RUNNING' : 'IDLE');
-        if (cls) {
-            const strip: React.CSSProperties = {
-                background: loomStrip(loomStatus),
-                color: '#fff', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
-                padding: '2px 7px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6,
-                borderBottom: '1px solid #00000033',
-            };
-            return (
-                <div key={m.id} onClick={() => openCard(m)} title={t('click_for_detail')} className="tile-hover"
-                    style={{
-                        border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff', background: '#ece9d8',
-                        cursor: 'pointer', borderRadius: SECTION_RADIUS, overflow: 'hidden',
-                        // Every card is the same height (grid stretch) whatever its status,
-                        // so the white body must grow with it — an IDLE loom's tile used to
-                        // stop under its warp line and leave bare bevel below.
-                        display: 'flex', flexDirection: 'column',
-                    }}>
-                    <div style={strip}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.code} — {m.name}</span>
-                        <span style={{ fontSize: 9, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                            {lateCount > 0 && <i className="bi bi-exclamation-triangle-fill" title={t('behind_schedule')} />}
-                            {runs.length > 1 && <span>{runs.length} {t('wo_short')}</span>}
-                            {loomLabel(loomStatus).toUpperCase()}
-                        </span>
-                    </div>
-                    <div style={{ padding: '6px 8px', background: '#fff', fontFamily: xpFont, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                            {runs.length ? <RunCarousel m={m} runs={runs} /> : <IdleBody status={loomStatus} />}
-                        </div>
-                        <BeamStrip m={m} />
-                        <PrepRow m={m} />
-                    </div>
-                </div>
-            );
-        }
         return (
-            <div key={m.id} onClick={() => openCard(m)} className="card h-100 shadow-sm border tile-hover" style={{ cursor: 'pointer', borderRadius: SECTION_RADIUS }} title={t('click_for_detail')}>
-                <div className="card-body p-3 d-flex flex-column">
-                    <div className="d-flex align-items-center gap-2 mb-2">
-                        <span style={{ fontWeight: 'bold', fontSize: 15 }}>{m.code}</span>
-                        <span className="text-muted small text-truncate" style={{ flex: 1 }}>{m.name}</span>
-                        {/* Loom state through the shared chip so the grid uses the same
-                            status vocabulary as every other list in the app. */}
-                        {lateCount > 0 && (
-                            <i className="bi bi-exclamation-triangle-fill" style={{ color: RED }} title={t('behind_schedule')} />
-                        )}
-                        {runs.length > 1 && (
-                            <span className="text-muted" style={{ fontSize: 11 }}>{runs.length} {t('wo_short')}</span>
-                        )}
-                        <StatusChip status={loomChipStatus(loomStatus)} label={loomLabel(loomStatus)} tint />
-                    </div>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        {runs.length ? <RunCarousel m={m} runs={runs} /> : <IdleBody status={loomStatus} />}
-                    </div>
-                    <BeamStrip m={m} />
-                    <PrepRow m={m} />
-                </div>
-            </div>
-        );
-    };
-
-    const cardGrid = (list: any[]) => (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cls ? 240 : 250}px, 1fr))`, gap: cls ? 8 : 12 }}>
-            {list.map(card)}
-        </div>
-    );
-
-    const sectionLabel = (sec: any) => (sec.id ? `${sec.code}${sec.name ? ' — ' + sec.name : ''}` : 'Ungrouped');
-
-    // Group band. Carries the bank's own health (running · avg efficiency · below
-    // target) so a section reports itself without the reader tallying cards — the
-    // counts alone said nothing about whether the bank was in trouble. Classic reuses
-    // the shared toolbar strip (xpToolbar); modern keeps the underlined caption row.
-    const groupHeader = (sec: any) => {
-        const health = (
-            <>
-                <span style={{ fontWeight: 'normal', color: '#555' }}>
-                    {sec.machines.length} {t('machines')} · {sec.running} {t('running')}
-                </span>
-                {sec.avgEff !== null && (
-                    <span style={{ fontWeight: 'normal', color: '#555' }}>
-                        {t('avg_efficiency')}: <b style={{ color: '#333' }}>{fmt(sec.avgEff, 1)}%</b>
-                    </span>
-                )}
-                {sec.belowTarget > 0 && (
-                    <StatusChip status="CANCELLED" label={`${sec.belowTarget} ${t('below_target')}`} tint />
-                )}
-                {sec.late > 0 && (
-                    <StatusChip status="CANCELLED" label={`${sec.late} ${t('behind_schedule')}`} tint />
-                )}
-            </>
-        );
-        const action = sec.id && canManage ? (
-            <span style={{ marginLeft: 'auto' }}>
-                <XPActionButton classic={cls} tone="neutral" icon="bi-calendar3" label={t('work_calendar')} onClick={() => setCalGroup(sec)} />
-            </span>
-        ) : null;
-        return cls ? (
-            <div style={xpToolbar({ marginBottom: 6, border: '1px solid #b0a898', borderRadius: SECTION_RADIUS, fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: BLUE })}>
-                <i className="bi bi-collection" />
-                <span>{sectionLabel(sec)}</span>
-                {health}
-                {action}
-            </div>
-        ) : (
-            <div className="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom small">
-                <i className="bi bi-collection text-secondary" />
-                <span className="fw-semibold">{sectionLabel(sec)}</span>
-                {health}
-                {action}
-            </div>
-        );
-    };
-
-    // Group focus chips. These FILTER (they don't hide): every chip keeps its
-    // plant-wide below-target badge, so an alarm in a bank you are not looking at is
-    // still on screen — the property tabs would have cost.
-    const runningToggle = (
-        <span style={{ marginLeft: isGrouped ? 'auto' : undefined }}>
-            <ToggleChip
+            <MachineCard
+                key={m.id}
                 classic={cls}
-                on={runningOnly}
-                tone="green"
-                toneIdle
-                title={t('running_only_hint')}
-                onClick={() => setRunningOnly(v => !v)}
+                code={m.code}
+                name={m.name}
+                status={loomStatus}
+                statusLabel={loomLabel(loomStatus)}
+                alarm={runs.some((r: any) => r.is_late)}
+                alarmTitle={t('behind_schedule')}
+                badge={runs.length > 1 ? `${runs.length} ${t('wo_short')}` : undefined}
+                onClick={() => openCard(m)}
+                title={t('click_for_detail')}
+                footer={<><BeamStrip m={m} /><PrepRow m={m} /></>}
             >
-                <i className="bi bi-play-circle-fill" style={{ marginRight: 4 }} />
-                {t('running_only')} ({runningCount})
-            </ToggleChip>
-        </span>
-    );
+                {runs.length ? <RunCarousel m={m} runs={runs} /> : <IdleBody status={loomStatus} />}
+            </MachineCard>
+        );
+    };
+
+    const cardGrid = (list: any[]) => <CardGrid classic={cls}>{list.map(card)}</CardGrid>;
 
     const chipBar = (
-        <div style={cls
-            ? xpToolbar({ marginBottom: 8, border: '1px solid #b0a898', borderRadius: SECTION_RADIUS })
-            : { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            {!isGrouped ? runningToggle : null}
-            {isGrouped && <span style={{ fontSize: cls ? 11 : 12, color: '#666', fontFamily: cls ? xpFont : undefined }}>
-                <i className="bi bi-funnel" style={{ marginRight: 4 }} />{t('group')}
-            </span>}
-            {isGrouped && <FilterChipBar
-                classic={cls}
-                value={groupFilter ?? ALL_GROUPS}
-                onChange={v => setGroupFilter(v === ALL_GROUPS || v === groupFilter ? null : v)}
-                options={[
-                    { value: ALL_GROUPS, label: `${t('all')} (${machines.length})` },
-                    ...sections.map(sec => ({
-                        value: sec.id || '__ungrouped__',
-                        title: `${sec.machines.length} ${t('machines')} · ${sec.running} ${t('running')}`,
-                        label: (
-                            <>
-                                {sectionLabel(sec)}
-                                <span style={{ opacity: 0.75 }}> ({sec.machines.length})</span>
-                                {sec.belowTarget > 0 && (
-                                    <span
-                                        title={`${sec.belowTarget} ${t('below_target')}`}
-                                        style={{
-                                            marginLeft: 5, padding: '0 4px', borderRadius: CHIP_RADIUS,
-                                            background: RED, color: '#fff', fontSize: 9, fontWeight: 700,
-                                        }}
-                                    >
-                                        {sec.belowTarget}
-                                    </span>
-                                )}
-                            </>
-                        ),
-                    })),
-                ]}
-            />}
-            {isGrouped ? runningToggle : null}
-        </div>
+        <MonitorChipBar
+            classic={cls}
+            sections={sections}
+            isGrouped={isGrouped}
+            groupFilter={groupFilter}
+            onGroupChange={setGroupFilter}
+            machineCount={machines.length}
+            runningOnly={runningOnly}
+            runningCount={runningCount}
+            onRunningOnlyChange={setRunningOnly}
+            labels={{
+                group: t('group'), all: t('all'), machines: t('machines'), running: t('running'),
+                belowTarget: t('below_target'), runningOnly: t('running_only'),
+                runningOnlyHint: t('running_only_hint'),
+            }}
+        />
     );
 
-    // Geometry mirrors cardGrid()/card() above — same minmax floor and gap, and a
-    // body deep enough for the run stack + beam strip + prep row — so the real
-    // grid drops straight into the skeleton's tracks with no shift.
     const body = loading ? (
-        <CardGridSkeleton
-            count={12}
-            minWidth={cls ? 240 : 250}
-            gap={cls ? 8 : 12}
-            classic={cls}
-            bodyLines={3}
-            bodyHeight={cls ? 96 : 118}
-        />
+        <MonitorGridSkeleton classic={cls} />
     ) : machines.length === 0 ? (
         <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
     ) : runningOnly && runningCount === 0 ? (
@@ -714,51 +502,41 @@ export default function WeavingMonitorView() {
                 still on the chip bar, which is why hiding it is safe. */}
             {visibleSections.filter(sec => shown(sec.machines).length > 0).map(sec => (
                 <div key={sec.id || 'ungrouped'}>
-                    {groupHeader(sec)}
+                    <GroupHeader
+                        classic={cls}
+                        sec={sec}
+                        labels={{
+                            machines: t('machines'), running: t('running'),
+                            avgEfficiency: t('avg_efficiency'), belowTarget: t('below_target'),
+                            late: t('behind_schedule'),
+                        }}
+                        action={sec.id && canManage ? (
+                            <XPActionButton classic={cls} tone="neutral" icon="bi-calendar3"
+                                label={t('work_calendar')} onClick={() => setCalGroup(sec)} />
+                        ) : null}
+                    />
                     {cardGrid(shown(sec.machines))}
                 </div>
             ))}
         </div>
     );
 
-    // One chrome path for both themes via the shared shell primitives — the same
-    // window + title bar every other top-level view uses, instead of a hand-rolled
-    // bevel here and a bare <h4> in modern. The grid scrolls inside the window.
     return (
-        <div className="fade-in" style={cls ? { fontFamily: xpFont } : undefined}>
-            <ShellWindow classic={cls} fill="page">
-                <ShellTitleBar
-                    classic={cls}
-                    icon="bi-speedometer2"
-                    title={t('weaving_monitor')}
-                    right={
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 'normal', fontSize: cls ? 11 : 12 }}>
-                            <span className={cls ? undefined : 'text-muted'}>{summaryText}</span>
-                            <XPActionButton classic={cls} tone="neutral" icon="bi-arrow-clockwise" title={t('refresh')} onClick={load} />
-                        </span>
-                    }
-                />
-                {/* Chip bar sits OUTSIDE the scroll area: the filter and its alarm
-                    badges stay on screen no matter how far down the grid you are. */}
-                {(loading || machines.length > 0) && (
-                    <div style={{ padding: cls ? '6px 8px 0' : '12px 12px 0', background: cls ? '#ece9d8' : undefined }}>
-                        {/* Placeholder chips hold the strip's height while loading —
-                            without them the whole grid jumps down when the real chip
-                            bar appears. */}
-                        {loading
-                            ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                {[70, 96, 84, 110].map((w, i) => (
-                                    <SkeletonBar key={i} width={w} height={cls ? 17 : 24} />
-                                ))}
-                            </div>
-                            : chipBar}
-                    </div>
-                )}
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: cls ? 8 : 12, background: cls ? '#ece9d8' : undefined }}>
-                    {body}
-                </div>
-            </ShellWindow>
+        <>
+            <MonitorShell
+                classic={cls}
+                icon="bi-speedometer2"
+                title={t('weaving_monitor')}
+                summary={summaryText}
+                onRefresh={load}
+                refreshTitle={t('refresh')}
+                loading={loading}
+                hasMachines={machines.length > 0}
+                chipBar={chipBar}
+            >
+                {body}
+            </MonitorShell>
             {modal}
-        </div>
+        </>
     );
 }

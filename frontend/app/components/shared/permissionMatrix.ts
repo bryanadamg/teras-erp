@@ -77,6 +77,7 @@ export const PERMISSION_MATRIX: PermissionMatrixSection[] = [
             { resource: 'manufacturing_order', label: 'Manufacture Order' },
             { resource: 'work_order', label: 'Work Order', scope: 'work_center_type' },
             { resource: 'weaving_monitor', label: 'Weaving Monitor' },
+            { resource: 'dyeing_monitor', label: 'Dyeing Monitor' },
             { resource: 'calendar', label: 'Calender' },
             { resource: 'beam', label: 'Beam' },
         ],
@@ -141,6 +142,9 @@ export const RESOURCE_ACTIONS: Record<string, PermissionMatrixAction[]> = {
     // taxonomy with no checkbox anywhere that could grant it.
     work_order: [CREATE, A('log', 'Log'), EDIT, DELETE, A('print_card', 'Print Kartu Kerja'), VIEW, A('print_label', 'Print Label'), A('stage', 'Stage')],
     weaving_monitor: [A('start', 'Start'), A('stop', 'Stop'), VIEW],
+    // View only: a dye batch is started and completed from the Dyeing Orders tab
+    // under work_order.log, so this grid owns no lifecycle verbs of its own.
+    dyeing_monitor: [VIEW],
     calendar: [EDIT, VIEW],
     beam: [A('unmount', 'Unmount'), VIEW],
 

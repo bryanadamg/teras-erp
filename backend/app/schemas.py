@@ -646,6 +646,10 @@ class PRMaterialRequirementItem(BaseModel):
     item_code: str
     item_name: str
     uom: str
+    # Warp ends (utas) from the item master — beam items only, null everywhere else.
+    # Item.ends is one of the three arms of beam_service.beam_item_ids(), so a
+    # non-null value is itself the "this line is a beam" signal on the pull sheet.
+    ends: int | None = None
     attribute_value_ids: list[UUID]
     # Size bucket this requirement nets in — null = the unsized/generic pool. Netting
     # is size-aware, so a sized component yields one row per size and the rows are
@@ -1543,6 +1547,9 @@ class WorkCenterCreate(BaseModel):
     # parent → TYPE root, parent → MACHINE), so older clients keep working.
     node_type: str | None = None
     beam_slots: int = 1
+    # Yards the rope advances per reel revolution (dyeing vessels). Machine
+    # geometry, so it rides here beside beam_slots rather than on each run.
+    yards_per_rev: float | None = None
 
 class WorkCenterResponse(BaseModel):
     id: UUID
@@ -1571,6 +1578,7 @@ class WorkCenterResponse(BaseModel):
     reject_location_inherited: bool = False
     working_weekdays: list[int] | None = None
     beam_slots: int = 1
+    yards_per_rev: float | None = None
 
     class Config:
         from_attributes = True
@@ -2796,6 +2804,18 @@ class DyeingRunCreate(BaseModel):
     artikel: str | None = None
     po_number: str | None = None
     qty_order_kg: float | None = None
+
+class DyeingRunMonitorUpdate(BaseModel):
+    """The rate inputs the dyeing monitor needs for one batch.
+
+    All optional and applied only when present, so the setup screen may send just
+    the rpm without restating a target the supervisor never touched. An empty body
+    is a 422, not a silent no-op.
+    """
+    rpm: float | None = None
+    lines: int | None = None
+    target_efficiency_pct: float | None = None
+
 
 class DyeingRunCompletePayload(BaseModel):
     shade_result: str | None = None

@@ -40,6 +40,7 @@ EVENT_PERMISSIONS: dict[str, tuple[str, ...]] = {
         "production_run.view",
         "work_order.view",
         "weaving_monitor.view",
+        "dyeing_monitor.view",
     ),
     "WORK_ORDER_UPDATE": (
         "work_order.view",
@@ -56,6 +57,14 @@ EVENT_PERMISSIONS: dict[str, tuple[str, ...]] = {
         "weaving_monitor.view",
         "work_order.view",
         "beam.view",
+    ),
+    # The dye vessel grid. Its numerator moves on MANUFACTURING_ORDER_UPDATE above
+    # (a logged completion), so this one carries only the run's own lifecycle --
+    # start, complete, and a corrected rpm/lines.
+    "DYEING_RUN_UPDATE": (
+        "dyeing_monitor.view",
+        "work_order.view",
+        "dye_order.view",
     ),
     # ── Stock ────────────────────────────────────────────────────────────────
     # Widest union in the map: 19 broadcast sites across production, packing and
