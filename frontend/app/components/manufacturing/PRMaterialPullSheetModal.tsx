@@ -72,6 +72,11 @@ export default function PRMaterialPullSheetModal({
         ? pr.bom_entries.map((e: any) => e.bom?.item_name || e.bom?.item_code || e.bom?.code).filter(Boolean).join(' / ')
         : (pr.bom?.item_name || pr.bom?.item_code || pr.bom?.code || ''));
 
+    // Beam lines carry a warp-ends spec; nothing else does. Rendered as a column
+    // only when this run actually has one, so a garment PR keeps the full width of
+    // an already-tight six-column table for the material name.
+    const showEnds = (reqs || []).some((r: any) => r.ends != null);
+
     const renderMaterialsTable = (rows: any[]) => (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8px', marginBottom: '10px' }}>
             <thead>
@@ -79,6 +84,7 @@ export default function PRMaterialPullSheetModal({
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'left', width: '12%' }}>Code</th>
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'left' }}>Material</th>
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'center', width: '8%' }}>UOM</th>
+                    {showEnds && <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '8%' }}>Ends (Utas)</th>}
                     {/* Net of what this run has already been issued — never ask the store
                         to pull material the floor has already consumed. */}
                     <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '13%' }}>Still Required</th>
@@ -101,6 +107,7 @@ export default function PRMaterialPullSheetModal({
                                 {attrNames.length > 0 && <span style={{ color: '#666', marginLeft: '4px', fontSize: '7px' }}>[{attrNames.join(', ')}]</span>}
                             </td>
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'center', color: '#555' }}>{r.uom}</td>
+                            {showEnds && <td style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', color: r.ends != null ? '#000' : '#888' }}>{r.ends != null ? r.ends : '—'}</td>}
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', fontWeight: 'bold' }}>{r.total_required.toFixed(3)}</td>
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right' }}>{r.qty_available.toFixed(3)}</td>
                             <td style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', fontWeight: hasShort ? 'bold' : undefined, color: hasShort ? '#c00000' : '#000', background: hasShort ? '#fdecea' : undefined }}>

@@ -646,6 +646,10 @@ class PRMaterialRequirementItem(BaseModel):
     item_code: str
     item_name: str
     uom: str
+    # Warp ends (utas) from the item master — beam items only, null everywhere else.
+    # Item.ends is one of the three arms of beam_service.beam_item_ids(), so a
+    # non-null value is itself the "this line is a beam" signal on the pull sheet.
+    ends: int | None = None
     attribute_value_ids: list[UUID]
     # Size bucket this requirement nets in — null = the unsized/generic pool. Netting
     # is size-aware, so a sized component yields one row per size and the rows are
