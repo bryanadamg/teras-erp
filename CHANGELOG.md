@@ -15,6 +15,17 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-09-06
+
+### Added
+- Dyeing machine monitor grid (Engineering nav), mirroring the weaving monitor's loom cards for dyeing vessels
+- Dyeing machine efficiency is measured in yards against reel speed (RPM × yards/rev × lines ÷ wall-clock minutes) — a different formula from weaving's, since a dyeing vessel's throughput unit is yards on the reel, not picks on a loom
+- PR material pull sheet's beam lines show warp ends alongside the other beam specs
+
+### Fixed
+- A QC-rejected piece and a split lot both now trace back to the lot they were cut from; a backfill migration repairs genealogy for lots split or rejected before this fix
+- Bag and beam labels print the lot's current remaining weight instead of a frozen completion quantity
+
 ## [0.23.0] - 2026-09-05
 
 ### Added
