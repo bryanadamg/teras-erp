@@ -25,7 +25,7 @@ from app.schemas import (
 )
 from app.services import (
     audit_service, weaving_service, id_holidays, work_center_service, stock_service,
-    beam_service,
+    beam_service, mo_variant_service,
 )
 from app.core.ws_manager import manager
 
@@ -91,40 +91,6 @@ async def _loom_status(db: AsyncSession, wc: WorkCenter) -> str:
     )).first())
     pcs = await beam_service.mounted_pcs(db, wc.id)
     return weaving_service.derive_loom_status(wc.prep_status, pcs, wc.beam_slots, has_run)
-
-
-def _mo_variant_labels(mo: Optional[ManufacturingOrder]) -> dict:
-    """Which variant a run is actually producing: combo / size / colour.
-
-    Same source and shape as the WO list in `api/manufacturing.py` (attribute values
-    by system_role + the BOMSize snapshot), so the loom card and the WO screen never
-    disagree about what is on the machine.
-    """
-    if mo is None:
-        return {
-            "combo_label": None, "size_label": None, "color_label": None,
-            "color_code": None, "color_name": None, "color_hex": None,
-            "labdip_variant_code": None,
-        }
-
-    def by_role(role: str) -> Optional[str]:
-        av = next(
-            (v for v in (mo.attribute_values or [])
-             if v.attribute and v.attribute.system_role == role),
-            None,
-        )
-        return av.value if av else None
-
-    color = mo.color  # lazy="joined", rides along with the MO load
-    return {
-        "combo_label": by_role("combo"),
-        "size_label": stock_service._bom_size_label(mo.bom_size_snapshot),
-        "color_label": by_role("color"),
-        "color_code": color.code if color else None,
-        "color_name": color.name if color else None,
-        "color_hex": color.hex if color else None,
-        "labdip_variant_code": mo.labdip_variant_code,
-    }
 
 
 # Variant labels need the MO's attribute values *and* their attribute (for
@@ -242,7 +208,7 @@ async def work_center_candidate_wos(
                 # Already running here: the picker greys it out instead of letting the
                 # operator hit the duplicate guard on submit.
                 "already_running": wo.id in running,
-                **_mo_variant_labels(wo.manufacturing_order),
+                **mo_variant_service.variant_labels(wo.manufacturing_order),
             }
             for wo in wos
         ],
@@ -569,7 +535,7 @@ def _run_card(run: WeavingRun, metrics: dict, projection: Optional[dict],
         "wo_qty": proj.get("wo_qty"),
         "status": run.status,
         "start_date": run.start_date,
-        **_mo_variant_labels(mo),
+        **mo_variant_service.variant_labels(mo),
         **{k: metrics[k] for k in (
             "efficiency_pct", "target_efficiency_pct", "on_target", "actual_kg",
             "theoretical_100_kg", "actual_daily_rate_kg", "elapsed_working_days", "lines",
@@ -817,7 +783,7 @@ async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, to
         "days_late": proj.get("days_late", 0),
         "reality_unreachable": bool(proj.get("reality_unreachable")),
         "projection": projection,
-        **_mo_variant_labels(mo),
+        **mo_variant_service.variant_labels(mo),
         "start_date": run.start_date,
         "end_date": run.end_date,
         "status": run.status,
