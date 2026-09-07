@@ -1179,13 +1179,6 @@ export default function ManufacturingOrdersTab({
                                     height: 46,
                                 } : { height: 46, verticalAlign: 'middle' };
 
-                                const isBlocked = wo.status === 'PENDING' && manufacturingOrders.some(
-                                    (other: any) => other.manufacturing_order_id === wo.manufacturing_order_id
-                                                 && other.sequence < wo.sequence
-                                                 && other.status !== 'COMPLETED'
-                                                 && other.id !== wo.id
-                                );
-
                                 // XP-style action button
                                 const xpBtn = (label: string, colorScheme: 'primary'|'success'|'danger'|'default', onClick: () => void, title?: string, iconCls?: string) => {
                                     if (!classic) return null; // rendered separately below
@@ -1336,15 +1329,13 @@ export default function ManufacturingOrdersTab({
 
                                         {/* Status */}
                                         <td style={tdStyle}>
-                                            {isBlocked
-                                                ? <StatusChip status="BLOCKED" title="Earlier routing steps must complete first" />
-                                                : <StatusChip status={wo.status || 'PENDING'} />}
+                                            <StatusChip status={wo.status || 'PENDING'} />
                                         </td>
 
                                         {/* Actions — icon Start + [...] menu (Print / Delete) */}
                                         <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print" onClick={(e) => e.stopPropagation()}>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                                                {canManage && wo.status === 'PENDING' && !isBlocked && (
+                                                {canManage && wo.status === 'PENDING' && (
                                                     classic
                                                         ? <span style={{ width: '26px', display: 'inline-flex' }}>{xpBtn('', 'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'), 'Start production', 'bi bi-play-fill')}</span>
                                                         : <button className="btn btn-sm btn-primary py-0 px-2" title="Start production" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
