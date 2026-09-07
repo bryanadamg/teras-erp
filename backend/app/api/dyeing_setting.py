@@ -20,13 +20,14 @@ from app.models.work_order import WorkOrder
 from app.models.routing import WorkCenter
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
-from app.services import audit_service
+from app.services import audit_service, dyeing_dose_service
 from app.core.pagination import PageParams, PageWindow
 from app.schemas import (
     DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse, PaginatedDyeRecipeResponse,
     DyeRecipeWashBathCreate, DyeRecipeWashBathResponse,
     DyeRecipeFinishingCreate, DyeRecipeFinishingResponse,
     DyeingRunCreate, DyeingRunCompletePayload, DyeingRunResponse,
+    DyeingRunBathUpdate, DyeDoseResponse,
     SettingRunCreate, SettingRunCompletePayload, SettingRunResponse,
 )
 
@@ -136,6 +137,22 @@ async def _resolve_step_descriptions(db: AsyncSession, entries, role: str) -> di
     return found
 
 
+def _assert_single_dose_basis(lines) -> None:
+    """A recipe line is dosed EITHER per litre of bath OR per 100 kg of substrate.
+    Filling both leaves the dose undefined, so reject it at save rather than let a
+    call site pick one (which is exactly how the owf figure used to be dropped)."""
+    bad = dyeing_dose_service.assert_single_basis(lines)
+    if bad is not None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Recipe line {bad} sets both a per-litre (g/L) and a per-100kg rate. "
+                "Pick one basis: g/L for bath chemicals (dose follows bath volume), "
+                "per-100kg for dyestuff (dose follows fabric weight)."
+            ),
+        )
+
+
 async def _get_next_run_number(db: AsyncSession, model, work_order_id) -> int:
     result = await db.execute(
         select(model).filter(model.work_order_id == work_order_id)
@@ -190,6 +207,7 @@ async def create_dye_recipe(
     existing = await db.execute(select(DyeRecipe).filter(DyeRecipe.code == payload.code))
     if existing.scalars().first():
         raise HTTPException(status_code=400, detail="Recipe code already exists")
+    _assert_single_dose_basis(payload.lines)
 
     recipe = DyeRecipe(
         code=payload.code,
@@ -318,6 +336,8 @@ async def update_dye_recipe(
     r = result.scalars().first()
     if not r:
         raise HTTPException(status_code=404, detail="Recipe not found")
+    if payload.lines is not None:
+        _assert_single_dose_basis(payload.lines)
 
     for field in ("code", "name", "color_standard", "color_id", "substrate_type", "notes", "is_active"):
         val = getattr(payload, field)
@@ -404,6 +424,42 @@ async def delete_dye_recipe(
     return {"status": "success"}
 
 
+@router.get("/dye-recipes/{recipe_id}/doses", response_model=DyeDoseResponse)
+async def get_dye_recipe_doses(
+    recipe_id: str,
+    substrate_qty: Optional[float] = Query(None, description="Substrate weight of this load, kg"),
+    bath_volume_liters: Optional[float] = Query(None, description="Water volume of the bath, litres (volume air)"),
+    liquor_ratio: Optional[float] = Query(None, description="Litres of water per kg of substrate — used to derive the volume when it isn't given"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission("dye_recipe.view", "dye_order.view", "work_order.view")),
+):
+    """Weigh out a recipe against one bath: g/L rates x the bath volume, owf rates
+    x the substrate weight.
+
+    Server-side and shared so the run form's preview, the Complete Run dose sheet
+    and (later) the recipe print view cannot drift apart — the same reason the size
+    netting rule lives in netting_service. Pass `liquor_ratio` instead of
+    `bath_volume_liters` and the volume is derived from the substrate weight.
+    """
+    result = await db.execute(
+        select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe_id)
+    )
+    r = result.scalars().first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    volume, ratio = dyeing_dose_service.solve_bath(substrate_qty, bath_volume_liters, liquor_ratio)
+    return {
+        "recipe_id": r.id,
+        "recipe_code": r.code,
+        "recipe_name": r.name,
+        "substrate_qty": substrate_qty,
+        "bath_volume_liters": volume,
+        "liquor_ratio": ratio,
+        "lines": dyeing_dose_service.compute_doses(r, substrate_qty, volume),
+    }
+
+
 # ─── Dyeing Runs ─────────────────────────────────────────────────────────────
 
 @router.get("/dyeing-runs", response_model=list[DyeingRunResponse])
@@ -430,6 +486,11 @@ async def create_dyeing_run(
         raise HTTPException(status_code=404, detail="Work Order not found")
 
     run_number = await _get_next_run_number(db, DyeingRun, payload.work_order_id)
+    # Bath volume and liquor ratio are one fact twice — store the pair solved, so a
+    # dose calculated from the volume can never disagree with the ratio on screen.
+    bath_volume, bath_ratio = dyeing_dose_service.solve_bath(
+        payload.substrate_qty, payload.volume_air_liters, payload.liquor_ratio,
+    )
     run = DyeingRun(
         work_order_id=payload.work_order_id,
         run_number=run_number,
@@ -437,12 +498,12 @@ async def create_dyeing_run(
         substrate_qty=payload.substrate_qty,
         input_batch_id=payload.input_batch_id,
         machine_name=payload.machine_name,
-        liquor_ratio=payload.liquor_ratio,
+        liquor_ratio=bath_ratio,
         temperature_c=payload.temperature_c,
         duration_min=payload.duration_min,
         operator_name=payload.operator_name,
         notes=payload.notes,
-        volume_air_liters=payload.volume_air_liters,
+        volume_air_liters=bath_volume,
         machine_speed=payload.machine_speed,
         machine_pressure=payload.machine_pressure,
         color_name=payload.color_name,
@@ -463,6 +524,72 @@ async def create_dyeing_run(
     await audit_service.log_activity(
         db, str(current_user.id), "CREATE", "DyeingRun", str(run.id),
         details=f"Created dyeing run #{run.run_number} for WO {run.work_order_id}", changes={}
+    )
+    return _enrich_dyeing_run(run)
+
+
+@router.patch("/dyeing-runs/{run_id}/bath", response_model=DyeingRunResponse)
+async def update_dyeing_run_bath(
+    run_id: str,
+    payload: DyeingRunBathUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.log')),
+):
+    """Record the bath the operator actually filled.
+
+    Separate from run creation because the volume is only known once the machine is
+    loaded — planning cuts the run, the floor fills the bath. Every g/L dose is
+    calculated from this number, so it is editable while the run is open (a bath
+    topped up mid-cycle moves every chemical) and frozen once COMPLETED, where the
+    recorded chemicals are already the history of what went in.
+    """
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Dyeing run not found")
+    if run.status == "COMPLETED":
+        raise HTTPException(status_code=400, detail="Run is completed — its bath is history, not a plan")
+    if payload.volume_air_liters is None and payload.liquor_ratio is None and payload.substrate_qty is None:
+        raise HTTPException(status_code=422, detail="Send a bath volume, a liquor ratio or a substrate qty")
+    for v in (payload.volume_air_liters, payload.liquor_ratio, payload.substrate_qty):
+        if v is not None and v <= 0:
+            raise HTTPException(status_code=422, detail="Bath volume, liquor ratio and substrate qty must be positive")
+
+    before = {
+        "substrate_qty": run.substrate_qty,
+        "volume_air_liters": run.volume_air_liters,
+        "liquor_ratio": run.liquor_ratio,
+    }
+    if payload.substrate_qty is not None:
+        run.substrate_qty = payload.substrate_qty
+    # Whichever of the pair the operator sent wins; the other is re-derived from it
+    # against the (possibly just updated) substrate weight.
+    volume, ratio = dyeing_dose_service.solve_bath(
+        run.substrate_qty,
+        payload.volume_air_liters if payload.volume_air_liters is not None else (
+            None if payload.liquor_ratio is not None else run.volume_air_liters
+        ),
+        payload.liquor_ratio if payload.liquor_ratio is not None else run.liquor_ratio,
+    )
+    run.volume_air_liters = volume
+    run.liquor_ratio = ratio
+    await db.commit()
+
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    after = {
+        "substrate_qty": run.substrate_qty,
+        "volume_air_liters": run.volume_air_liters,
+        "liquor_ratio": run.liquor_ratio,
+    }
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "DyeingRun", run_id,
+        details=f"Bath set to {run.volume_air_liters} L on run #{run.run_number}",
+        changes={k: [before[k], after[k]] for k in after if str(before[k]) != str(after[k])},
     )
     return _enrich_dyeing_run(run)
 

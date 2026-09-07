@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { STATUS_COLORS, xpFont, ListSkeleton, CHIP_RADIUS, FORM_SECTION_BLUE, XP_BTN } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
@@ -79,6 +79,48 @@ interface CompleteForm {
     chemicals: ChemicalRow[];
 }
 
+/** The bath as filled, editable while the run is open. Every g/L dose comes off it. */
+interface BathForm {
+    volume_air_liters: string;
+    substrate_qty: string;
+}
+
+/** A weighed-out recipe from GET /dye-recipes/{id}/doses. Never computed here — the
+ *  formula lives in backend services/dyeing_dose_service.py so this preview, the
+ *  Complete Run dose sheet and the recipe print view cannot drift apart. */
+interface DosePreview {
+    recipe_code?: string | null;
+    recipe_name?: string | null;
+    substrate_qty?: number | null;
+    bath_volume_liters?: number | null;
+    liquor_ratio?: number | null;
+    lines: {
+        line_id: string;
+        item_id: string;
+        item_code?: string | null;
+        item_name?: string | null;
+        chemical_type?: string | null;
+        basis?: string | null;
+        qty_per_liter?: number | null;
+        qty_per_100kg?: number | null;
+        dose?: number | null;
+        dose_unit?: string | null;
+        dose_kg?: number | null;
+        uom_id?: string | null;
+        uom_name?: string | null;
+    }[];
+}
+
+const fmtDose = (v: number | null | undefined, digits = 3) =>
+    v == null ? '—' : v.toLocaleString(undefined, { maximumFractionDigits: digits });
+
+/** How a line is dosed, spelled out — the two bases are not interchangeable and the
+ *  operator has to see which number a row followed. */
+const BASIS_LABEL: Record<string, string> = {
+    PER_LITER: 'g/L x bath',
+    PER_100KG: '% owf x kg',
+};
+
 interface DyeingOrdersTabProps {
     items: any[];
     recipes: any[];
@@ -115,6 +157,8 @@ const emptyCompleteForm: CompleteForm = {
     chemicals: [],
 };
 
+const emptyBathForm: BathForm = { volume_air_liters: '', substrate_qty: '' };
+
 export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrdersTabProps) {
     const { uiStyle } = useTheme();
     const { formatCustom: tzFmt } = useTimezone();
@@ -141,6 +185,16 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [runPage, setRunPage] = useState(1);
+    // Live dose preview under the create form, and the dose sheet behind the
+    // Complete Run modal's planned quantities.
+    const [dosePreview, setDosePreview] = useState<DosePreview | null>(null);
+    const [completeDoses, setCompleteDoses] = useState<DosePreview | null>(null);
+    const [bathForm, setBathForm] = useState<BathForm>(emptyBathForm);
+    const [bathSaving, setBathSaving] = useState(false);
+    // Generation counter: the preview refires on every keystroke of substrate/volume,
+    // so without it a slow earlier response lands after a newer one and shows doses
+    // for a bath the operator has already changed.
+    const doseGen = useRef(0);
 
     // Server-paginated: this list previously sent no window, so it silently showed
     // only the endpoint's default first page and paged over that — dyeing WO #51 was
@@ -154,6 +208,49 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         pageSize: WO_PAGE_SIZE,
         params: { center_type: 'DYEING' },
     });
+
+    /** Weigh a recipe against a bath, server-side. Volume wins over ratio; the
+     *  backend derives whichever is missing (dyeing_dose_service.solve_bath). */
+    const fetchDoses = useCallback(async (
+        recipeId: string,
+        substrateQty: string | number | null | undefined,
+        volumeLiters: string | number | null | undefined,
+        liquorRatio?: string | number | null,
+    ): Promise<DosePreview | null> => {
+        if (!recipeId) return null;
+        const qs = new URLSearchParams();
+        if (substrateQty) qs.set('substrate_qty', String(substrateQty));
+        if (volumeLiters) qs.set('bath_volume_liters', String(volumeLiters));
+        else if (liquorRatio) qs.set('liquor_ratio', String(liquorRatio));
+        try {
+            const res = await authFetch(`${API_BASE}/dye-recipes/${recipeId}/doses?${qs.toString()}`);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch {
+            return null;
+        }
+    }, [authFetch]);
+
+    // Debounced so typing a substrate weight doesn't fire a request per keystroke —
+    // same 350ms the item search uses.
+    useEffect(() => {
+        if (!showCreateRun || !createForm.recipe_id) {
+            setDosePreview(null);
+            return;
+        }
+        const gen = ++doseGen.current;
+        const timer = setTimeout(async () => {
+            const data = await fetchDoses(
+                createForm.recipe_id, createForm.substrate_qty,
+                createForm.volume_air_liters, createForm.liquor_ratio,
+            );
+            if (gen === doseGen.current) setDosePreview(data);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [
+        showCreateRun, createForm.recipe_id, createForm.substrate_qty,
+        createForm.volume_air_liters, createForm.liquor_ratio, fetchDoses,
+    ]);
 
     const fetchRuns = useCallback(async (woId: string) => {
         setLoading(true);
@@ -285,41 +382,97 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         }
     };
 
-    const handleOpenComplete = (run: any) => {
-        let preChemicals: ChemicalRow[] = (run.chemicals ?? []).map((c: any) => ({
+    /** Dose rows -> chemical rows. `planned_qty` is the calculated dose in the unit
+     *  the dose sheet shows beside it (grams for a g/L line), so it is only ever
+     *  filled from the server calc — never recomputed here. */
+    const chemicalRowsFromDoses = (doses: DosePreview | null): ChemicalRow[] =>
+        (doses?.lines ?? []).map(l => ({
+            item_id: String(l.item_id ?? ''),
+            planned_qty: l.dose != null ? String(parseFloat(l.dose.toFixed(4))) : '',
+            actual_qty: '',
+            uom_id: String(l.uom_id ?? ''),
+        }));
+
+    const handleOpenComplete = async (run: any) => {
+        const preChemicals: ChemicalRow[] = (run.chemicals ?? []).map((c: any) => ({
             item_id: String(c.item_id ?? ''),
             planned_qty: String(c.planned_qty ?? ''),
             actual_qty: String(c.actual_qty ?? ''),
             uom_id: String(c.uom_id ?? ''),
         }));
-        // Auto-populate from recipe if no chemicals recorded yet and volume_air_liters is set
-        if (preChemicals.length === 0 && run.recipe_id && run.volume_air_liters) {
-            const recipe = recipes.find((r: any) => String(r.id) === String(run.recipe_id));
-            if (recipe?.lines?.length) {
-                preChemicals = recipe.lines.map((line: any) => {
-                    let planned = 0;
-                    if (line.qty_per_liter != null) {
-                        planned = parseFloat((line.qty_per_liter * run.volume_air_liters).toFixed(4));
-                    } else if (line.qty_per_100kg != null) {
-                        planned = parseFloat((line.qty_per_100kg * run.substrate_qty / 100).toFixed(4));
-                    }
-                    return {
-                        item_id: String(line.item_id ?? ''),
-                        planned_qty: String(planned),
-                        actual_qty: '',
-                        uom_id: String(line.uom_id ?? ''),
-                    };
-                });
-            }
-        }
         setCompleteForm({
             shade_result: run.shade_result ?? '',
             shade_notes: run.shade_notes ?? '',
             output_batch_number: run.output_batch_number ?? '',
             chemicals: preChemicals,
         });
+        setBathForm({
+            volume_air_liters: run.volume_air_liters != null ? String(run.volume_air_liters) : '',
+            substrate_qty: run.substrate_qty != null ? String(run.substrate_qty) : '',
+        });
+        setCompleteDoses(null);
         setShowCompleteModal(run);
         setErrorMsg(null);
+
+        if (!run.recipe_id) return;
+        // Always load the dose sheet (it also labels each row's basis and unit), but
+        // only seed the planned quantities when nothing has been recorded yet —
+        // reopening a run must not overwrite what the operator already weighed.
+        const doses = await fetchDoses(run.recipe_id, run.substrate_qty, run.volume_air_liters);
+        setCompleteDoses(doses);
+        if (preChemicals.length === 0 && doses?.lines?.length) {
+            setCompleteForm(prev => ({ ...prev, chemicals: chemicalRowsFromDoses(doses) }));
+        }
+    };
+
+    /** Record the bath the operator actually filled, then re-weigh the recipe against
+     *  it. A bath change moves every g/L dose, so the planned column is refilled. */
+    const handleSaveBath = async () => {
+        if (!showCompleteModal) return;
+        setBathSaving(true);
+        setErrorMsg(null);
+        try {
+            const res = await authFetch(`${API_BASE}/dyeing-runs/${showCompleteModal.id}/bath`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    volume_air_liters: bathForm.volume_air_liters ? parseFloat(bathForm.volume_air_liters) : null,
+                    substrate_qty: bathForm.substrate_qty ? parseFloat(bathForm.substrate_qty) : null,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                setErrorMsg(err.detail || 'Failed to save the bath.');
+                return;
+            }
+            const updated = await res.json();
+            setShowCompleteModal(updated);
+            setBathForm({
+                volume_air_liters: updated.volume_air_liters != null ? String(updated.volume_air_liters) : '',
+                substrate_qty: updated.substrate_qty != null ? String(updated.substrate_qty) : '',
+            });
+            const doses = await fetchDoses(updated.recipe_id, updated.substrate_qty, updated.volume_air_liters);
+            setCompleteDoses(doses);
+            if (doses?.lines?.length) {
+                // Keep whatever actuals are already typed; only the planned column
+                // follows the new bath.
+                setCompleteForm(prev => {
+                    const seeded = chemicalRowsFromDoses(doses);
+                    return {
+                        ...prev,
+                        chemicals: seeded.map(row => {
+                            const existing = prev.chemicals.find(c => c.item_id === row.item_id);
+                            return existing ? { ...row, actual_qty: existing.actual_qty } : row;
+                        }),
+                    };
+                });
+            }
+            if (selectedWoId) await fetchRuns(selectedWoId);
+        } catch {
+            setErrorMsg('Network error saving the bath.');
+        } finally {
+            setBathSaving(false);
+        }
     };
 
     const handleCompleteFormChange = (field: keyof Omit<CompleteForm, 'chemicals'>, value: string) => {
@@ -378,6 +531,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
             } else {
                 setShowCompleteModal(null);
                 setCompleteForm(emptyCompleteForm);
+                setBathForm(emptyBathForm);
+                setCompleteDoses(null);
                 if (selectedWoId) await fetchRuns(selectedWoId);
             }
         } catch {
@@ -385,6 +540,93 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         } finally {
             setSaving(false);
         }
+    };
+
+    /** Unit of a chemical row's planned qty, taken from the dose sheet that filled it.
+     *  A g/L line is dosed in grams while an owf line carries the line's own UOM, so
+     *  an unlabelled number in that column is a 1000x mistake waiting to happen. */
+    const doseUnitFor = (itemId: string) =>
+        completeDoses?.lines.find(l => String(l.item_id) === String(itemId))?.dose_unit ?? null;
+
+    /** The weighed-out recipe for one bath. Shared by the create form's preview and
+     *  the Complete Run modal so the operator reads the same sheet in both. */
+    const renderDoseSheet = (doses: DosePreview | null, emptyHint: string) => {
+        const rows = doses?.lines ?? [];
+        const noBath = !doses?.bath_volume_liters;
+        return (
+            <div style={{ ...xpPanel, marginTop: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
+                <div style={{ ...xpSectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span>Dye Weights for this Bath</span>
+                    <span style={{ fontWeight: 400, fontSize: classic ? 10 : 11 }}>
+                        {doses?.bath_volume_liters != null
+                            ? `${fmtDose(doses.bath_volume_liters, 1)} L water`
+                            : 'no bath volume yet'}
+                        {doses?.liquor_ratio != null ? `  |  1 : ${fmtDose(doses.liquor_ratio, 2)}` : ''}
+                        {doses?.substrate_qty != null ? `  |  ${fmtDose(doses.substrate_qty, 2)} kg substrate` : ''}
+                    </span>
+                </div>
+                {rows.length === 0 ? (
+                    <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>
+                        {emptyHint}
+                    </div>
+                ) : (
+                    <>
+                        {noBath && (
+                            <div style={classic
+                                ? { background: '#fff3cd', borderBottom: '1px solid #ffc107', padding: '3px 8px', fontSize: 10, color: '#664d03' }
+                                : { background: '#fef3cd', borderBottom: '1px solid #f0d98a', padding: '5px 10px', fontSize: 12, color: '#854d0e' }}>
+                                Enter the bath volume (Volume Air) to weigh out the g/L chemicals. Per-100kg
+                                dyestuff is already costed off the substrate weight.
+                            </div>
+                        )}
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
+                            <thead>
+                                <tr style={classic ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' } : {}}>
+                                    <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Chemical</th>
+                                    <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Type</th>
+                                    <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rate</th>
+                                    <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Basis</th>
+                                    <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Weigh Out</th>
+                                    <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>kg</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((l, idx) => (
+                                    <tr key={l.line_id} style={classic
+                                        ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
+                                        : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                        <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>
+                                            {l.item_name ?? l.item_code ?? <Dash />}
+                                        </td>
+                                        <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#64748b', fontFamily: modernFont }}>
+                                            {l.chemical_type ?? <Dash />}
+                                        </td>
+                                        <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#334155', fontFamily: modernFont }}>
+                                            {l.basis === 'PER_LITER'
+                                                ? `${fmtDose(l.qty_per_liter, 4)} g/L`
+                                                : l.basis === 'PER_100KG'
+                                                    ? `${fmtDose(l.qty_per_100kg, 4)} /100kg`
+                                                    : <Dash />}
+                                        </td>
+                                        <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
+                                            {l.basis ? (BASIS_LABEL[l.basis] ?? l.basis) : 'no rate set'}
+                                        </td>
+                                        <td style={classic
+                                            ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold' }
+                                            : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>
+                                            {l.dose == null ? <Dash /> : `${fmtDose(l.dose, 3)}${l.dose_unit ? ` ${l.dose_unit}` : ''}`}
+                                        </td>
+                                        <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
+                                            {l.dose_kg == null ? <Dash /> : fmtDose(l.dose_kg, 4)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </>
+                )}
+            </div>
+        );
     };
 
     const formatDateTime = (dt: string | null | undefined) => {
@@ -608,7 +850,10 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Liquor Ratio</span>
+                                        <span
+                                            style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
+                                            title="Litres of water per kg of substrate. Used to derive the bath volume when Volume Air is left blank; an entered Volume Air always wins."
+                                        >Liquor Ratio (1:x)</span>
                                         <input
                                             type="number"
                                             style={xpInput}
@@ -618,7 +863,10 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Volume Air (L)</span>
+                                        <span
+                                            style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
+                                            title="Water volume of the bath, in litres. Every g/L chemical is weighed out against this. Leave blank to have it derived from the liquor ratio."
+                                        >Volume Air (L)</span>
                                         <input type="number" step="0.1" style={xpInput} value={createForm.volume_air_liters}
                                             onChange={e => handleCreateFormChange('volume_air_liters', e.target.value)} placeholder="e.g. 190" />
                                     </label>
@@ -673,6 +921,10 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                 </div>
+                                {createForm.recipe_id && renderDoseSheet(
+                                    dosePreview,
+                                    'This recipe has no chemical lines to weigh out.',
+                                )}
                                 <div style={{ marginTop: classic ? 6 : 10, display: 'flex', gap: classic ? 4 : 8 }}>
                                     <button className={XP_BTN} style={xpPrimaryBtn} onClick={handleSaveRun} disabled={saving}>
                                         {saving ? 'Saving...' : 'Save Run'}
@@ -699,6 +951,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Run #</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Recipe</th>
                                             <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Substrate Qty</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }} title="Water volume of the bath — what every g/L dose is weighed against">Volume Air (L)</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>L:R</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Machine</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
                                             <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Shade Result</th>
@@ -722,6 +976,12 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{recipeName}</td>
                                                     <td style={classic ? { padding: '2px 6px', textAlign: 'right' } : { padding: '6px 10px', textAlign: 'right', color: '#334155', fontFamily: modernFont }}>
                                                         {run.substrate_qty != null ? run.substrate_qty : '—'}
+                                                    </td>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#334155', fontFamily: modernFont }}>
+                                                        {fmtDose(run.volume_air_liters, 1)}
+                                                    </td>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
+                                                        {run.liquor_ratio != null ? `1:${fmtDose(run.liquor_ratio, 2)}` : '—'}
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{run.machine_name ?? '-'}</td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
@@ -879,8 +1139,64 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 </label>
                             </div>
 
-                            {/* Chemicals section */}
+                            {/* Bath — the operator's input. Recorded here rather than at run
+                                creation because the volume is only known once the machine is
+                                loaded, and every g/L dose below is weighed against it. */}
                             <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
+                                <div style={xpSectionHeader}>Bath</div>
+                                <div style={{ padding: classic ? '5px 8px' : '8px 12px', display: 'flex', alignItems: 'flex-end', gap: classic ? 8 : 12, flexWrap: 'wrap' }}>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span
+                                            style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
+                                            title="Water volume of the bath, in litres. Every g/L chemical is weighed out against this."
+                                        >Volume Air (L)</span>
+                                        <input
+                                            type="number" step="0.1" style={{ ...xpInput, width: 100 }}
+                                            value={bathForm.volume_air_liters}
+                                            onChange={e => setBathForm(prev => ({ ...prev, volume_air_liters: e.target.value }))}
+                                            placeholder="e.g. 950"
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Substrate (kg)</span>
+                                        <input
+                                            type="number" step="0.01" style={{ ...xpInput, width: 100 }}
+                                            value={bathForm.substrate_qty}
+                                            onChange={e => setBathForm(prev => ({ ...prev, substrate_qty: e.target.value }))}
+                                            placeholder="e.g. 100"
+                                        />
+                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Liquor Ratio</span>
+                                        <span
+                                            style={classic
+                                                ? { fontSize: 11, padding: '2px 4px', color: '#333' }
+                                                : { fontSize: 13, padding: '4px 2px', color: '#334155', fontFamily: modernFont }}
+                                            title="Derived from the bath volume and substrate weight — never typed separately, so the two can't disagree."
+                                        >
+                                            {showCompleteModal.liquor_ratio != null ? `1 : ${fmtDose(showCompleteModal.liquor_ratio, 2)}` : '—'}
+                                        </span>
+                                    </div>
+                                    <button
+                                        className={XP_BTN}
+                                        style={classic ? { ...xpPrimaryBtn } : { ...xpPrimaryBtn }}
+                                        onClick={handleSaveBath}
+                                        disabled={bathSaving || (!bathForm.volume_air_liters && !bathForm.substrate_qty)}
+                                    >
+                                        {bathSaving ? 'Saving...' : 'Save Bath & Recalculate'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {showCompleteModal.recipe_id && renderDoseSheet(
+                                completeDoses,
+                                completeDoses
+                                    ? 'This recipe has no chemical lines to weigh out.'
+                                    : 'Loading the recipe...',
+                            )}
+
+                            {/* Chemicals section */}
+                            <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, marginTop: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
                                 <div style={{ ...xpSectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <span>Chemicals Used</span>
                                     <button className={XP_BTN} style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }} onClick={handleAddChemical}>+ Add Chemical</button>
@@ -894,7 +1210,10 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                 ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
                                                 : {}}>
                                                 <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
-                                                <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Planned Qty</th>
+                                                <th
+                                                    style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}
+                                                    title="Calculated from the recipe against this bath — g/L lines follow the bath volume, per-100kg lines the substrate weight. Save the bath above to refill it."
+                                                >Planned Qty</th>
                                                 <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual Qty</th>
                                                 <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>UOM</th>
                                                 <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px' }}></th>
@@ -920,20 +1239,30 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                         </select>
                                                     </td>
                                                     <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <input
-                                                            type="number"
-                                                            style={{ ...xpInput, width: 70 }}
-                                                            value={row.planned_qty}
-                                                            onChange={e => handleChemicalChange(idx, 'planned_qty', e.target.value)}
-                                                        />
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
+                                                            <input
+                                                                type="number"
+                                                                style={{ ...xpInput, width: 70 }}
+                                                                value={row.planned_qty}
+                                                                onChange={e => handleChemicalChange(idx, 'planned_qty', e.target.value)}
+                                                            />
+                                                            <span style={{ fontSize: classic ? 10 : 11, color: classic ? '#666' : '#64748b', minWidth: 10 }}>
+                                                                {doseUnitFor(row.item_id) ?? ''}
+                                                            </span>
+                                                        </div>
                                                     </td>
                                                     <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <input
-                                                            type="number"
-                                                            style={{ ...xpInput, width: 70 }}
-                                                            value={row.actual_qty}
-                                                            onChange={e => handleChemicalChange(idx, 'actual_qty', e.target.value)}
-                                                        />
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
+                                                            <input
+                                                                type="number"
+                                                                style={{ ...xpInput, width: 70 }}
+                                                                value={row.actual_qty}
+                                                                onChange={e => handleChemicalChange(idx, 'actual_qty', e.target.value)}
+                                                            />
+                                                            <span style={{ fontSize: classic ? 10 : 11, color: classic ? '#666' : '#64748b', minWidth: 10 }}>
+                                                                {doseUnitFor(row.item_id) ?? ''}
+                                                            </span>
+                                                        </div>
                                                     </td>
                                                     <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <input

@@ -858,8 +858,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                         <th style={thStyle({ width: 24 })}>#</th>
                                         <th style={thStyle({ width: 80 })}>Type</th>
                                         <th style={thStyle()}>Item</th>
-                                        <th style={thStyle({ width: 80 })}>Qty/100kg</th>
-                                        <th style={thStyle({ width: 80, fontSize: classic ? 11 : 11 })}>g/L</th>
+                                        <th
+                                            style={thStyle({ width: 80 })}
+                                            title="Weight-on-fabric basis: the dose follows the substrate weight, not the bath. Use it for dyestuff. Fill this OR g/L, never both."
+                                        >Qty/100kg</th>
+                                        <th
+                                            style={thStyle({ width: 80, fontSize: classic ? 11 : 11 })}
+                                            title="Bath concentration: the dose is this rate times the run's bath volume (Volume Air). Use it for salt, soda ash, alkali, auxiliaries. Fill this OR Qty/100kg, never both."
+                                        >g/L</th>
                                         <th style={thStyle({ width: 50 })}>Sort</th>
                                         <th style={thStyle({ textAlign: 'center', width: 28 })}></th>
                                     </tr>

@@ -2814,6 +2814,37 @@ class PaginatedDyeRecipeResponse(BaseModel):
     page: int = 1
     size: int = 50
 
+class DyeDoseLine(BaseModel):
+    """One recipe line weighed out for a specific bath. See dyeing_dose_service."""
+    line_id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    chemical_type: str | None = None
+    sort_order: int = 0
+    # PER_LITER (g/L x bath volume) or PER_100KG (owf x substrate). None = the line
+    # carries no rate at all, so nothing can be dosed from it.
+    basis: str | None = None
+    qty_per_liter: float | None = None
+    qty_per_100kg: float | None = None
+    # None when the input this line's basis needs is still missing (typically the
+    # bath volume) — the row is still returned so the UI can say which line is blocked.
+    dose: float | None = None
+    dose_unit: str | None = None
+    dose_kg: float | None = None
+    uom_id: UUID | None = None
+    uom_name: str | None = None
+
+class DyeDoseResponse(BaseModel):
+    recipe_id: UUID
+    recipe_code: str | None = None
+    recipe_name: str | None = None
+    substrate_qty: float | None = None
+    bath_volume_liters: float | None = None
+    # Derived from the pair above, never a second typed copy (see solve_bath).
+    liquor_ratio: float | None = None
+    lines: list[DyeDoseLine] = []
+
 class DyeingRunChemicalCreate(BaseModel):
     item_id: UUID
     planned_qty: float
@@ -2859,6 +2890,19 @@ class DyeingRunMonitorUpdate(BaseModel):
     rpm: float | None = None
     lines: int | None = None
     target_efficiency_pct: float | None = None
+
+
+class DyeingRunBathUpdate(BaseModel):
+    """The bath the operator actually filled, set at fill time rather than at run
+    creation — the volume is only known once the machine is loaded, and it is what
+    every g/L dose is calculated from.
+
+    Send either field: the other is derived (`dyeing_dose_service.solve_bath`).
+    `substrate_qty` is here too because a re-weighed load moves both.
+    """
+    volume_air_liters: float | None = None
+    liquor_ratio: float | None = None
+    substrate_qty: float | None = None
 
 
 class DyeingRunCompletePayload(BaseModel):
