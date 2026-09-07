@@ -337,6 +337,17 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
         src_result = await db.execute(select(Location).filter(Location.code == payload.source_location_code))
         source_location = src_result.scalars().first()
 
+    # ManufacturingOrder.code is unique, and /available-code only PROPOSES one — two
+    # planners who opened the form together hold the same proposal. Check before
+    # either branch: the nested path overwrote the root code without looking, so the
+    # loser got a raw IntegrityError re-raised as a 500 below.
+    if payload.code:
+        clash = (await db.execute(
+            select(ManufacturingOrder.id).filter(ManufacturingOrder.code == payload.code).limit(1)
+        )).scalars().first()
+        if clash:
+            raise HTTPException(status_code=400, detail="Manufacturing Order Code already exists")
+
     # 2. Logic: Regular or Nested
     if payload.create_nested:
         try:
@@ -364,11 +375,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
             await db.rollback()
             raise HTTPException(status_code=500, detail=str(e))
     else:
-        # Standard Single MO logic
-        result = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.code == payload.code))
-        if result.scalars().first():
-            raise HTTPException(status_code=400, detail="Manufacturing Order Code already exists")
-
+        # Standard Single MO logic (code uniqueness already checked above)
         mo = ManufacturingOrder(
             code=payload.code,
             bom_id=bom.id,
@@ -434,13 +441,45 @@ async def get_available_mo_code(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("manufacturing_order.view", "production_run.view"))
 ):
+    """Propose the next free `{base}-NNNNN`.
+
+    A preview for the create form, so it deliberately reserves nothing — two
+    planners opening the form at the same moment DO get the same code, and the
+    second POST is rejected by the unique constraint with a 409 (see below).
+    Reserving here instead would burn a number every time a form was cancelled.
+
+    Was `counter = 1; while True:` with one SELECT per candidate, which walked
+    every order already on that base — thousands of round trips on a live series,
+    and an unbounded loop on the request thread. Codes are zero-padded to five
+    digits, so the highest one lexicographically is the highest numerically: one
+    query finds it, and the probe below only covers oddly-shaped legacy codes.
+    """
+    escaped = base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    highest = (await db.execute(
+        select(ManufacturingOrder.code)
+        .filter(ManufacturingOrder.code.like(f"{escaped}-%", escape="\\"))
+        .order_by(ManufacturingOrder.code.desc())
+        .limit(1)
+    )).scalar()
+
     counter = 1
-    while True:
+    if highest:
+        suffix = highest.rsplit("-", 1)[-1]
+        if suffix.isdigit():
+            counter = int(suffix) + 1
+
+    for _ in range(50):
         candidate = f"{base}-{str(counter).zfill(5)}"
-        result = await db.execute(select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1))
-        if result.scalars().first() is None:
+        taken = (await db.execute(
+            select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1)
+        )).scalars().first()
+        if taken is None:
             return {"code": candidate}
         counter += 1
+    raise HTTPException(
+        status_code=409,
+        detail=f"Could not find a free code for '{base}' — the series looks corrupted",
+    )
 
 @router.get("/manufacturing-orders", response_model=PaginatedManufacturingOrderResponse)
 async def get_manufacturing_orders(
