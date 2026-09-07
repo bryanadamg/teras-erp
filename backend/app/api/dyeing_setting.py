@@ -14,7 +14,9 @@ from app.models.dyeing_setting import (
 from app.models.attribute import Attribute, AttributeValue
 from app.models.color import Color
 from app.models.work_order import WorkOrder as _WorkOrder
-from app.models.manufacturing import ManufacturingOrder as _MO, manufacturing_order_values as _mo_values
+from app.models.manufacturing import (
+    ManufacturingOrder as _MO, manufacturing_order_values as _mo_values, MOCompletion,
+)
 from app.models.batch import Batch
 from app.models.work_order import WorkOrder
 from app.models.routing import WorkCenter
@@ -719,33 +721,45 @@ async def complete_dyeing_run(
     if run.status == "COMPLETED":
         raise HTTPException(status_code=400, detail="Run already completed")
 
-    # Create output batch
-    batch_check = await db.execute(
-        select(Batch).filter(Batch.batch_number == payload.output_batch_number)
-    )
-    out_batch = batch_check.scalars().first()
-    if not out_batch:
-        wo_result = await db.execute(
-            select(WorkOrder).filter(WorkOrder.id == run.work_order_id)
+    # Output lot — ONE per physical dye lot. This route used to mint its own Batch
+    # from a typed number while add_mo_completion separately minted the `DYE-` lot,
+    # so every dyed batch existed twice, unlinked. The WO completion is the only
+    # minter now (it is what credits the output to stock); the run adopts that lot,
+    # either here if the output was already logged, or later when it is —
+    # add_mo_completion claims the earliest unlinked run on the WO.
+    #
+    # Several bags off one bath: `output_batch_id` holds the FIRST lot only. The rest
+    # trace through `BatchConsumption` + `Batch.source_wo_id`, exactly as multiple
+    # bags per weaving WO already do; a join table would duplicate that lineage.
+    if not run.output_batch_id:
+        lot_res = await db.execute(
+            select(MOCompletion.output_batch_id)
+            .filter(
+                MOCompletion.work_order_id == run.work_order_id,
+                MOCompletion.output_batch_id.isnot(None),
+                MOCompletion.rejected == False,  # noqa: E712
+            )
+            .order_by(MOCompletion.created_at)
+            .limit(1)
         )
-        wo = wo_result.scalars().first()
-        out_batch = Batch(
-            batch_number=payload.output_batch_number,
-            item_id=wo.manufacturing_order_id,  # placeholder — batch item derived from WO's MO output item
-            created_by=str(current_user.id),
-        )
-        # Use the MO's item_id for the batch
-        from app.models.manufacturing import ManufacturingOrder
-        mo_result = await db.execute(
-            select(ManufacturingOrder).filter(ManufacturingOrder.id == wo.manufacturing_order_id)
-        )
-        mo = mo_result.scalars().first()
-        if mo:
-            out_batch.item_id = mo.item_id
-        db.add(out_batch)
-        await db.flush()
+        run.output_batch_id = lot_res.scalar()
+    # Legacy callers may still name a lot. Accept it only if it already exists —
+    # minting here is what produced the duplicates.
+    if not run.output_batch_id and (payload.output_batch_number or "").strip():
+        wanted = payload.output_batch_number.strip()
+        b_res = await db.execute(select(Batch).filter(Batch.batch_number == wanted))
+        named = b_res.scalars().first()
+        if not named:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Lot '{wanted}' does not exist. The dyed lot is created when the work "
+                    "order's output is logged — log the completion on the work order, and "
+                    "this run picks the lot up automatically."
+                ),
+            )
+        run.output_batch_id = named.id
 
-    run.output_batch_id = out_batch.id
     run.status = "COMPLETED"
     run.shade_result = payload.shade_result
     run.shade_notes = payload.shade_notes
@@ -769,13 +783,22 @@ async def complete_dyeing_run(
         db.add(c)
 
     await db.commit()
+    # expire_on_commit=False, so the re-fetch below would hand back this session's
+    # cached instance: the chemicals just deleted/recreated, and an `output_batch`
+    # relationship still cached as None from before the lot was adopted above.
+    db.expire_all()
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
     )
     run = result.scalars().first()
+    lot_no = run.output_batch.batch_number if run.output_batch else None
     await audit_service.log_activity(
         db, str(current_user.id), "COMPLETE", "DyeingRun", str(run.id),
-        details=f"Completed dyeing run #{run.run_number}, shade={payload.shade_result}", changes={}
+        details=(
+            f"Completed dyeing run #{run.run_number}, shade={payload.shade_result}"
+            + (f", lot {lot_no}" if lot_no else ", no output lot yet (log the WO output)")
+        ),
+        changes={},
     )
     return _enrich_dyeing_run(run)
 

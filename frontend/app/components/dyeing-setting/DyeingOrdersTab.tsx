@@ -72,10 +72,12 @@ interface CreateForm {
     qty_order_kg: string;
 }
 
+/** No output lot field: the dyed lot is minted once, by the WO production log, and
+ *  the run adopts it (backend add_mo_completion). Typing one here created a second
+ *  Batch row for the same physical dye lot. */
 interface CompleteForm {
     shade_result: string;
     shade_notes: string;
-    output_batch_number: string;
     chemicals: ChemicalRow[];
 }
 
@@ -153,7 +155,6 @@ const emptyCreateForm: CreateForm = {
 const emptyCompleteForm: CompleteForm = {
     shade_result: '',
     shade_notes: '',
-    output_batch_number: '',
     chemicals: [],
 };
 
@@ -457,7 +458,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         setCompleteForm({
             shade_result: run.shade_result ?? '',
             shade_notes: run.shade_notes ?? '',
-            output_batch_number: run.output_batch_number ?? '',
             chemicals: preChemicals,
         });
         setBathForm({
@@ -570,7 +570,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
             const payload: any = {
                 shade_result: completeForm.shade_result || null,
                 shade_notes: completeForm.shade_notes || null,
-                output_batch_number: completeForm.output_batch_number || null,
                 chemicals: completeForm.chemicals
                     .filter(c => c.item_id)
                     .map(c => ({
@@ -1230,7 +1229,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             className={XP_BTN}
                             style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
                             onClick={handleSaveComplete}
-                            disabled={saving || !completeForm.output_batch_number}
+                            disabled={saving}
                         >
                             {saving ? 'Saving...' : 'Save'}
                         </button>
@@ -1268,16 +1267,20 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         <option value="REWORK">REWORK</option>
                                     </select>
                                 </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Output Lot Number *</span>
-                                    <input
-                                        type="text"
-                                        style={xpInput}
-                                        value={completeForm.output_batch_number}
-                                        onChange={e => handleCompleteFormChange('output_batch_number', e.target.value)}
-                                        placeholder="lot number (required)"
-                                    />
-                                </label>
+                                {/* Read-only: the dyed lot is minted by the WO production log
+                                    (one lot per physical dye batch) and this run adopts it.
+                                    Typing a number here used to mint a second Batch row. */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Output Lot</span>
+                                    <span
+                                        style={classic
+                                            ? { fontSize: 11, padding: '2px 4px', color: showCompleteModal.output_batch_number ? '#333' : '#888' }
+                                            : { fontSize: 13, padding: '4px 2px', fontFamily: modernFont, color: showCompleteModal.output_batch_number ? '#334155' : '#94a3b8' }}
+                                        title="The dyed lot is created when the work order's output is logged, and this run picks it up automatically — one lot per physical dye batch."
+                                    >
+                                        {showCompleteModal.output_batch_number || 'set when the WO output is logged'}
+                                    </span>
+                                </div>
                                 <label style={{ display: 'flex', flexDirection: 'column', gap: 1, gridColumn: '1 / -1' }}>
                                     <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Notes</span>
                                     <textarea

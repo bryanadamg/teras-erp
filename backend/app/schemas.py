@@ -2919,9 +2919,16 @@ class DyeingRunBathUpdate(BaseModel):
 
 
 class DyeingRunCompletePayload(BaseModel):
+    """Closes the bath: shade result plus the chemicals actually weighed out.
+
+    `output_batch_number` is legacy and optional. The dyed output lot is minted by
+    the WO completion (`add_mo_completion`, the `DYE-` prefix) — one physical dye
+    lot, one `Batch` row — and the run adopts it rather than creating a second.
+    When given it may only name a lot that already exists; this route never mints.
+    """
     shade_result: str | None = None
     shade_notes: str | None = None
-    output_batch_number: str
+    output_batch_number: str | None = None
     chemicals: list[DyeingRunChemicalCreate]
 
 class DyeingRunResponse(BaseModel):

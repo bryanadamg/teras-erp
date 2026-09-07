@@ -41,6 +41,7 @@ from app.api.auth import get_current_user, require_permission, require_any_permi
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
+from app.models.dyeing_setting import DyeingRun
 from app.api.batches import generate_batch_number
 from datetime import datetime
 from typing import Optional
@@ -1535,6 +1536,28 @@ async def add_mo_completion(
     db.add(completion)
     await db.flush()
 
+    # A dyeing WO's bath record adopts the lot this completion just minted, instead
+    # of minting a second one of its own (complete_dyeing_run used to, so every dyed
+    # batch existed twice, unlinked). Claim the earliest run on the WO that has no
+    # lot yet: run 1 takes the first bag, run 2 the second on a multi-bath WO.
+    # Several bags off ONE bath keep only the first here — the rest trace through
+    # BatchConsumption + Batch.source_wo_id, as multiple bags per weaving WO already do.
+    dye_run_claimed = None
+    if output_batch and wo and wo_wc_type in ("DYEING", "CELUP"):
+        run_res = await db.execute(
+            select(DyeingRun)
+            .filter(
+                DyeingRun.work_order_id == wo.id,
+                DyeingRun.output_batch_id.is_(None),
+            )
+            .order_by(DyeingRun.run_number)
+            .limit(1)
+        )
+        dye_run = run_res.scalars().first()
+        if dye_run:
+            dye_run.output_batch_id = output_batch.id
+            dye_run_claimed = dye_run
+
     # Auto-advance WO to IN_PROGRESS on first log. Weaving runs are NOT started
     # here — the monitor run is opened manually on the /weaving-monitor page so
     # the operator sets lines/rate/target before the window starts counting.
@@ -1751,6 +1774,15 @@ async def add_mo_completion(
             db, current_user.id, "STATUS_CHANGE", entity_type, entity_id,
             details=f"{was} -> {now} (automatic, on production log)",
             changes={"status": [was, now]},
+        )
+    if dye_run_claimed and output_batch:
+        await audit_service.log_activity(
+            db, current_user.id, "UPDATE", "DyeingRun", str(dye_run_claimed.id),
+            details=(
+                f"Output lot {output_batch.batch_number} linked from the production log "
+                f"on WO {wo.code or wo.name}"
+            ),
+            changes={"output_batch_id": [None, str(output_batch.id)]},
         )
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped_runs, "work order completed (target qty reached)")
