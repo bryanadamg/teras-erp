@@ -474,7 +474,7 @@ export default function ManufacturingOrdersTab({
                                                     const hex = getAttributeValueHex(id);
                                                     return (
                                                         <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic}
-                                                            swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                                            swatch={hex} icon={null} truncate
                                                             style={activeChipStyle(isActive)}
                                                         >{getAttributeValueName(id)}</VariantChip>
                                                     );
@@ -482,7 +482,7 @@ export default function ManufacturingOrdersTab({
                                                 {(node.bom_size_id || node.bom_size_snapshot) && (() => {
                                                     const label = getBomSizeLabel(node.bom_id, node.bom_size_id, node.bom_size_snapshot);
                                                     return label ? (
-                                                        <VariantChip kind="size" classic={classic} title={`Size: ${label}`}
+                                                        <VariantChip kind="size" classic={classic} truncate
                                                             style={activeChipStyle(isActive)}
                                                         >{label}</VariantChip>
                                                     ) : null;
@@ -529,7 +529,7 @@ export default function ManufacturingOrdersTab({
                             const hex = getAttributeValueHex(id);
                             return (
                                 <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic} size="sm"
-                                    swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                    swatch={hex} icon={null}
                                 >{getAttributeValueName(id)}</VariantChip>
                             );
                         })}
@@ -567,7 +567,7 @@ export default function ManufacturingOrdersTab({
                         {(selectedNode.bom_size_id || selectedNode.bom_size_snapshot) && (() => {
                             const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id, selectedNode.bom_size_snapshot);
                             return label ? (
-                                <VariantChip kind="size" classic={classic} size="sm" title={`Size: ${label}`}>{label}</VariantChip>
+                                <VariantChip kind="size" classic={classic} size="sm">{label}</VariantChip>
                             ) : null;
                         })()}
                         <span
@@ -1166,14 +1166,14 @@ export default function ManufacturingOrdersTab({
                                                                 const hex = getAttributeValueHex(id);
                                                                 return (
                                                                     <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic}
-                                                                        swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                                                        swatch={hex} icon={null} truncate
                                                                     >{getAttributeValueName(id)}</VariantChip>
                                                                 );
                                                             })}
                                                             {mo.bom_size_id && (() => {
                                                                 const label = getBomSizeLabel(mo.bom_id, mo.bom_size_id);
                                                                 return label ? (
-                                                                    <VariantChip kind="size" classic={classic} title={`Size: ${label}`}>{label}</VariantChip>
+                                                                    <VariantChip kind="size" classic={classic} truncate>{label}</VariantChip>
                                                                 ) : null;
                                                             })()}
                                                         </div>
