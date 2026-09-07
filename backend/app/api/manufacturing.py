@@ -7,6 +7,7 @@ from collections import defaultdict
 from app.db.session import get_async_db
 from app.models.manufacturing import (
     ManufacturingOrder, MOCompletion, MOCompletionItem, MODependency, MOPlannedComponent,
+    CLOSED_ORDER_STATUSES,
 )
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
@@ -41,7 +42,6 @@ from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
 from app.api.batches import generate_batch_number
-from app.api.work_orders import next_wo_code
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
@@ -54,10 +54,11 @@ router = APIRouter()
 # (legacy rows created before the field existed).
 DEFAULT_OVERDELIVERY_PCT = 10.0
 
-# MO statuses that still accept production logs. DELIVERED means "planned qty met,
-# order still open" — the industry split between delivery and closure (SAP DLV vs
-# TECO). Only an explicit close moves an order to COMPLETED.
-OPEN_MO_STATUSES = ("PENDING", "IN_PROGRESS", "DELIVERED")
+# CLOSED_ORDER_STATUSES is imported from the model above. It replaced an
+# `OPEN_MO_STATUSES` tuple that documented the rule here while all six gates were
+# spelled out inline as `in ("COMPLETED","CANCELLED")` literals — so the constant was
+# free to drift from the behaviour it described, and adding a status meant finding
+# all six by hand.
 
 
 def mo_overdelivery_pct(mo) -> float:
@@ -273,31 +274,11 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
     return mo_map
 
 
-async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, operations: list) -> list:
-    """Auto-generate WorkOrders from BOMOperation routing steps at MO creation time.
-    Returns list of created WorkOrder objects (after flush so IDs are populated)."""
-    if not operations:
-        return []
-    sorted_ops = sorted(operations, key=lambda o: int(o.sequence))
-    created = []
-    for op in sorted_ops:
-        # Same allocator the manual WO endpoints use — a count-based sequence here
-        # would race any concurrent dispatch on this MO.
-        _, code = await next_wo_code(db, mo)
-        name = op.work_center.name if (op.work_center is not None) else code
-        wo = WorkOrderModel(
-            manufacturing_order_id=mo.id,
-            sequence=int(op.sequence),
-            code=code,
-            name=name,
-            work_center_id=op.work_center_id,
-            qty=mo.qty,
-            planned_duration_hours=float(op.time_minutes) / 60 if op.time_minutes else None,
-            status="PENDING",
-        )
-        db.add(wo)
-        created.append(wo)
-    return created
+# NOTE: WOs are NOT auto-generated from a BOM's routing steps. There was a
+# `_create_wos_from_operations` helper here that did exactly that; its call site was
+# removed in 1ff929b8 and it sat dead afterwards. Cutting a work order is a floor
+# dispatch decision — a WO existing is what says "this step is released" — so
+# creating one per BOMOperation up front would make every MO look released.
 
 
 @router.post("/manufacturing-orders/preview", response_model=list[NettingPreviewNode])
@@ -1121,7 +1102,7 @@ async def update_mo_putaway(
     mo = result.unique().scalars().first()
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
-    if mo.status in ("COMPLETED", "CANCELLED"):
+    if mo.status in CLOSED_ORDER_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot set putaway on a {mo.status} MO")
 
     old_id = str(mo.planned_putaway_location_id) if mo.planned_putaway_location_id else None
@@ -1243,7 +1224,7 @@ async def add_mo_completion(
 
     # DELIVERED is deliberately absent: the planned qty being met does not close the
     # order. Only an explicit close (COMPLETED) or CANCELLED stops logging.
-    if mo.status in ("COMPLETED", "CANCELLED"):
+    if mo.status in CLOSED_ORDER_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot log completion on a {mo.status} MO")
 
     if payload.qty_completed <= 0:
@@ -1272,7 +1253,7 @@ async def add_mo_completion(
         wo = next((w for w in mo.work_orders if str(w.id) == str(payload.work_order_id)), None)
         if not wo:
             raise HTTPException(status_code=400, detail="Work order does not belong to this MO")
-        if wo.status in ("COMPLETED", "CANCELLED"):
+        if wo.status in CLOSED_ORDER_STATUSES:
             raise HTTPException(status_code=400, detail=f"Cannot log on a {wo.status} work order")
         if wo.work_center_id:
             wc_type_res = await db.execute(
