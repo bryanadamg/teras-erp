@@ -453,6 +453,18 @@ async def mark_work_orders_printed_bulk(
         return {"updated": 0}
     result = await db.execute(select(WorkOrder).filter(WorkOrder.id.in_(payload.ids)))
     wos = result.scalars().all()
+    # Same scope wall as the single-WO route: card_printed_at drives the `unprinted`
+    # filter the floor dispatches off, so a weaving-scoped user must not be able to
+    # mark dyeing cards printed just by batching the ids.
+    types = {}
+    if wos:
+        rows = await db.execute(
+            select(WorkCenter.id, WorkCenter.center_type)
+            .filter(WorkCenter.id.in_({w.work_center_id for w in wos if w.work_center_id}))
+        )
+        types = {str(i): t for i, t in rows.all()}
+    for wo in wos:
+        _require_wo_scope(current_user, types.get(str(wo.work_center_id)))
     now = datetime.utcnow()
     for wo in wos:
         if payload.kind == "card":
