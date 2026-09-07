@@ -1727,6 +1727,16 @@ async def add_mo_completion(
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped_runs, "work order completed (target qty reached)")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", **(await mo_progress_fields(db, mo, wo))})
+    # This route is the single largest stock mover in the system — it deducts every
+    # consumed component, credits the output, mints Batch rows and moves packaging
+    # tallies. Those screens live on the `stock` topic, which no MO event reaches.
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    # The WO itself changed too: status may have advanced (PENDING -> IN_PROGRESS, or
+    # -> COMPLETED at target) and a first log can pin its machine and both locations.
+    # mo_progress_fields carries those numbers for MO watchers, but a WO-only board
+    # is on no MO event.
+    if wo:
+        await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})
 
     try:
         await kpi_service.invalidate_kpis_async(db)
@@ -1976,6 +1986,8 @@ async def complete_manufacturing_order_with_batches(
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped_runs, "MO completed")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": "COMPLETED", "code": mo.code})
+    # Deducts every planned component at MO level, so the stock screens have to hear it.
+    await manager.broadcast({"type": "STOCK_UPDATE"})
 
     try:
         await kpi_service.invalidate_kpis_async(db)
