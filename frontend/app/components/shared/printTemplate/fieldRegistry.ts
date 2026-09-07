@@ -63,6 +63,13 @@ export const WO_CARD_FIELDS: FieldDef[] = [
     { key: 'bom.kerapatan_picks', label: 'Kerapatan (picks)', kind: 'number', group: 'Spec' },
     { key: 'bom.sisir_no', label: 'Sisir No.', kind: 'text', group: 'Spec' },
 
+    // Dyeing bath (the WO's DyeingRun — empty on every other work centre type)
+    { key: 'dye.bath_volume', label: 'Volume Air', kind: 'number', unit: 'L', group: 'Dyeing' },
+    { key: 'dye.liquor_ratio', label: 'Perbandingan Larutan', kind: 'text', group: 'Dyeing' },
+    { key: 'dye.substrate_qty', label: 'Substrat (run)', kind: 'number', unit: 'kg', group: 'Dyeing' },
+    { key: 'dye.recipe_name', label: 'Resep Celup', kind: 'text', group: 'Dyeing' },
+    { key: 'dye.run_label', label: 'Run No.', kind: 'text', group: 'Dyeing' },
+
     // Document chrome
     { key: 'company.name', label: 'Company Name', kind: 'text', group: 'Document' },
     { key: 'print.date', label: 'Print Date', kind: 'date', group: 'Document' },
@@ -163,6 +170,23 @@ export function resolveField(key: string, ctx: PrintContext): ResolvedField {
             return wo.planned_recipe_id
                 ? { text: 'Assigned', empty: false }
                 : { text: EM_DASH, empty: true };
+
+        // The bath is the run's, not the WO's: a multi-bath WO splits its load across
+        // runs, so `wo.qty` is the whole order and only the run knows this vessel.
+        case 'dye.bath_volume':
+            return num(ctx.dyeing?.run?.volume_air_liters);
+        case 'dye.liquor_ratio': {
+            const r = ctx.dyeing?.run?.liquor_ratio;
+            return r == null ? { text: EM_DASH, empty: true } : { text: `1 : ${Number(r).toFixed(2)}`, empty: false };
+        }
+        case 'dye.substrate_qty':
+            return num(ctx.dyeing?.run?.substrate_qty);
+        case 'dye.recipe_name':
+            return txt(ctx.dyeing?.run?.recipe_name);
+        case 'dye.run_label': {
+            const n = ctx.dyeing?.run?.run_number;
+            return n == null ? { text: '', empty: true } : { text: `Run ${n}`, empty: false };
+        }
 
         case 'attr.color':
             return txt(ctx.moAttributeValue('color'));

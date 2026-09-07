@@ -7,6 +7,7 @@ import { buildPrintContext } from '../shared/printTemplate/renderContext';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
 import { resolveLayout } from '../shared/printTemplate/templateStore';
 import type { PrintTemplateRecord } from '../shared/printTemplate/types';
+import type { DyeingPrintData } from '../shared/printTemplate/dyeingPrintData';
 
 /**
  * Print-time preferences from the modal's sidebar. Declared here rather than
@@ -39,6 +40,7 @@ export default function KartuKerjaTemplateCard({
     companyName,
     attributes = [],
     templates,
+    dyeing = null,
 }: {
     workOrder: any;
     parentMO: any;
@@ -47,6 +49,8 @@ export default function KartuKerjaTemplateCard({
     companyName?: string;
     attributes?: any[];
     templates?: PrintTemplateRecord[] | null;
+    /** Bath + doses for a dyeing card, fetched by the print surface. */
+    dyeing?: DyeingPrintData | null;
 }) {
     const { formatCustom } = useTimezone();
 
@@ -63,6 +67,7 @@ export default function KartuKerjaTemplateCard({
         department: settings.headerDepartment,
         attributes,
         tzFormatCustom: formatCustom,
+        dyeing,
     });
 
     return (

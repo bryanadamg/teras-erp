@@ -11,6 +11,7 @@ import { PanelSkeleton, xpFont, CHIP_RADIUS } from '../shared/xpTheme';
 
 import TemplateRenderer from '../shared/printTemplate/TemplateRenderer';
 import { buildPrintContext } from '../shared/printTemplate/renderContext';
+import { fetchDyeingPrintData, isDyeingWorkOrder, type DyeingPrintData } from '../shared/printTemplate/dyeingPrintData';
 import type { PrintLayout, Band } from '../shared/printTemplate/types';
 import { DOC_TYPE_LABELS, EDITABLE_DOC_TYPES, defaultLayout, resolveLayout, isCustomised } from '../shared/printTemplate/templateStore';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
@@ -124,6 +125,18 @@ export default function PrintDesignerView() {
         if (active && active.wo.id !== sampleId) setSampleId(active.wo.id);
     }, [active, sampleId]);
 
+    // The dyeing card's dose band feeds off the sample WO's own bath. Without this
+    // the band would `hideWhenEmpty` itself in the canvas and the client could not
+    // see, move or restyle a band that prints on the floor.
+    const [sampleDyeing, setSampleDyeing] = useState<DyeingPrintData | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        if (!active?.wo || !isDyeingWorkOrder(active.wo)) { setSampleDyeing(null); return; }
+        fetchDyeingPrintData(authFetch, API_BASE, active.wo)
+            .then(data => { if (!cancelled) setSampleDyeing(data); });
+        return () => { cancelled = true; };
+    }, [active?.wo, authFetch]);
+
     const ctx = useMemo(() => buildPrintContext({
         workOrder: active?.wo || {},
         parentMO: active?.mo || {},
@@ -134,7 +147,8 @@ export default function PrintDesignerView() {
         department: '',
         attributes,
         tzFormatCustom: formatCustom,
-    }), [active, companyProfile, attributes, formatCustom]);
+        dyeing: sampleDyeing,
+    }), [active, companyProfile, attributes, formatCustom, sampleDyeing]);
 
     // Undo/redo history. Each entry is a full layout snapshot taken right BEFORE
     // a change is applied — so undo replaces the current draft with the top of

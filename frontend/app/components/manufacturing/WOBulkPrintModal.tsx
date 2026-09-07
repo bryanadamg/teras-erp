@@ -9,6 +9,7 @@ import PrintModalShell, { PrintModalFooter } from '../shared/PrintModalShell';
 import { resolveLayout } from '../shared/printTemplate/templateStore';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
 import { paperDimsMm, paperCssSize, paperSizeLabel } from '../shared/printTemplate/paper';
+import { fetchDyeingPrintDataMap, isDyeingWorkOrder, type DyeingPrintData } from '../shared/printTemplate/dyeingPrintData';
 import { PRINT_FONT } from '../shared/xpTheme';
 
 interface PrintSettings {
@@ -115,6 +116,25 @@ export default function WOBulkPrintModal({
         ).then(entries => setQrUrls(Object.fromEntries(entries)));
     }, [selectedWOs]);
 
+    // Dyeing cards carry the weighed dose sheet, which needs the WO's bath — one
+    // fetch per dyeing WO in the selection (see printTemplate/dyeingPrintData.ts).
+    // `dyeLoading` gates the Print button: the band hides itself when the data has
+    // not landed, so printing early would silently hand the vessel a card with no
+    // weights on it.
+    const [dyeData, setDyeData] = useState<Record<string, DyeingPrintData>>({});
+    const [dyeLoading, setDyeLoading] = useState(false);
+    const hasDyeingWO = selectedWOs.some(isDyeingWorkOrder);
+
+    useEffect(() => {
+        if (!hasDyeingWO) { setDyeData({}); setDyeLoading(false); return; }
+        let cancelled = false;
+        setDyeLoading(true);
+        fetchDyeingPrintDataMap(authFetch, API_BASE, selectedWOs)
+            .then(map => { if (!cancelled) setDyeData(map); })
+            .finally(() => { if (!cancelled) setDyeLoading(false); });
+        return () => { cancelled = true; };
+    }, [selectedWOs, hasDyeingWO, authFetch, API_BASE]);
+
     const update = (patch: Partial<PrintSettings>) => {
         const next = { ...settings, ...patch };
         setSettings(next);
@@ -141,6 +161,7 @@ export default function WOBulkPrintModal({
                     companyName={companyProfile?.name}
                     attributes={attributes}
                     templates={printTemplates}
+                    dyeing={dyeData[String(wo.id)] || null}
                 />
             </div>
         );
@@ -205,6 +226,7 @@ export default function WOBulkPrintModal({
                                         companyName={companyProfile?.name}
                                         attributes={attributes}
                                         templates={printTemplates}
+                                        dyeing={dyeData[String(selectedWOs[0].id)] || null}
                                     />
                                 </div>
                             </div>
@@ -230,7 +252,16 @@ export default function WOBulkPrintModal({
                         )}
                     </div>
 
-                    <PrintModalFooter onClose={onClose} onPrint={doPrint} />
+                    {/* Held while the dye bath loads: the dose band hides itself until
+                        the data lands, and a card printed in that window would reach
+                        the vessel with no weights on it. */}
+                    <PrintModalFooter
+                        onClose={onClose}
+                        onPrint={doPrint}
+                        printDisabled={dyeLoading}
+                        printLabel={dyeLoading ? 'Loading doses...' : 'Print'}
+                        note={dyeLoading ? 'Weighing the dye recipe against each bath...' : undefined}
+                    />
             </PrintModalShell>
 
             {isSingle
@@ -246,6 +277,7 @@ export default function WOBulkPrintModal({
                                 companyName={companyProfile?.name}
                                 attributes={attributes}
                                 templates={printTemplates}
+                                dyeing={dyeData[String(selectedWOs[0].id)] || null}
                             />
                         </div>
                     </div>,

@@ -30,6 +30,12 @@ interface VariantSpec {
     identityRows: KeyValueRow[];
     /** The hand-fill tally band. */
     tally: TallyBand;
+    /**
+     * Extra bands inserted straight after the identity grid — the dyeing card's
+     * dose sheet. Kept as a spec hook rather than a fifth hand-written layout: the
+     * four variants drifting apart is exactly what the factory function prevents.
+     */
+    extraBands?: Band[];
 }
 
 /** Numbered write-in boxes — the "Cek / 10 mnt" grid shared by beaming/dyeing/general. */
@@ -132,6 +138,7 @@ function buildLayout(spec: VariantSpec): PrintLayout {
             id: 'identity', type: 'keyvalue', rows: spec.identityRows,
             labelWidth: '24%', marginBottom: 6,
         },
+        ...(spec.extraBands ?? []),
         spec.tally,
         {
             id: 'materials', type: 'table', source: 'bom_step_lines',
@@ -200,6 +207,26 @@ export const KARTU_KERJA_BEAMING: PrintLayout = buildLayout({
     tally: CEK_10_MNT,
 });
 
+/** The dose sheet the operator weighs from at the vessel.
+ *
+ *  Hidden when the run or its dose calc could not be loaded (`hideWhenEmpty`), so a
+ *  card still prints. The title carries the bath volume — or says it is missing —
+ *  because a g/L rate with no bath is not a weight, and printing one in a "Timbang"
+ *  column would be read as one. */
+const DOSIS_KIMIA: Band = {
+    id: 'doses', type: 'table', source: 'dye_doses',
+    title: '{auto}', titleUppercase: true, marginBottom: 6, fontSize: 9,
+    hideWhenEmpty: true,
+    columns: [
+        { field: 'item', label: 'Kimia', align: 'left' },
+        { field: 'rate', label: 'Rate', width: '20%', align: 'right' },
+        { field: 'weigh_out', label: 'Timbang', width: '22%', align: 'right', bold: true },
+        // Blank, not dashed — the operator writes in what actually went into the
+        // vessel, the same way the materials band's Aktual column works.
+        { field: 'actual_qty', label: 'Aktual', width: '18%', align: 'right', decimals: 2, emptyText: '' },
+    ],
+};
+
 export const KARTU_KERJA_DYEING: PrintLayout = buildLayout({
     headerCodeField: 'mo.code',
     operationLabel: 'CELUP / DYEING',
@@ -208,7 +235,14 @@ export const KARTU_KERJA_DYEING: PrintLayout = buildLayout({
         { field: 'wo.qty', label: 'SUBSTRATE QTY (KG)', unit: 'kg' },
         { field: 'wo.recipe_status', label: 'RECIPE', fontSize: 13, unit: '' },
     ],
-    identityRows: BASE_IDENTITY('Produk'),
+    // The bath pair rides on the identity grid: the doses below are all calculated
+    // from it, so the operator can check the number the weights came from.
+    identityRows: [
+        ...BASE_IDENTITY('Produk'),
+        { field: 'dye.bath_volume', label: 'Volume Air', span: 1, unit: 'L' },
+        { field: 'dye.liquor_ratio', label: 'Perbandingan', span: 1 },
+    ],
+    extraBands: [DOSIS_KIMIA],
     tally: CEK_10_MNT,
 });
 
