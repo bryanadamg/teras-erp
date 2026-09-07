@@ -1193,9 +1193,14 @@ export default function ManufacturingOrdersTab({
                                     );
                                 };
 
+                                // Keyed Fragment, not <>: a row is TWO <tr>s (the row and its
+                                // expanded detail), and a bare fragment takes no key — so the
+                                // keys sat on the inner <tr>s where React never sees them.
+                                // Paging or reordering then remounted both, dropping the
+                                // expanded panel's state and any open inline form with it.
                                 return (
-                                    <>
-                                    <tr key={wo.id} id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}>
+                                    <React.Fragment key={wo.id}>
+                                    <tr id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}>
 
                                         <ExpanderCell classic={classic} expanded={!!isExpanded} onToggle={() => toggleRow(wo.id)} label="order detail" tdStyle={tdStyle} />
 
@@ -1345,7 +1350,7 @@ export default function ManufacturingOrdersTab({
                                         </td>
                                     </tr>
                                     {isExpanded && (
-                                        <tr key={`${wo.id}-detail`}>
+                                        <tr>
                                             <td colSpan={10} className="p-0 border-0">
                                                 {renderWOExpandedPanel({
                                                     wo,
@@ -1355,7 +1360,7 @@ export default function ManufacturingOrdersTab({
                                             </td>
                                         </tr>
                                     )}
-                                    </>
+                                    </React.Fragment>
                                 );
                             })}
                         </tbody>
