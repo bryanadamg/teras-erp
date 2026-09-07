@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { STATUS_COLORS, CodeChip, xpFont, xpBtn as xpBtnBase, BTN_TONES, XP_BTN } from './xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from './shellTheme';
+import { calculateRequiredQty, stockAtLocation } from './moHelpers';
 
 interface QRScannerViewProps {
     workOrders: any[];
@@ -81,30 +82,13 @@ export default function QRScannerView({
     const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
 
-    const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {
-        let required = parseFloat(line.qty);
-        if (line.is_percentage) {
-            required = (baseQty * required) / 100;
-        } else {
-            required = baseQty * required;
-        }
-        const tolerance = parseFloat(bom?.tolerance_percentage || 0);
-        if (tolerance > 0) {
-            required = required * (1 + (tolerance / 100));
-        }
-        return required;
-    };
-
-    const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
-        const targetIds = attribute_value_ids || [];
-        const matchingEntries = stockBalance.filter((s: any) =>
-            s.item_id === item_id && s.location_id === location_id &&
-            (s.attribute_value_ids || []).length === targetIds.length &&
-            (s.attribute_value_ids || []).every((id: string) => targetIds.includes(id))
-        );
-        const available = matchingEntries.reduce((sum: number, e: any) => sum + parseFloat(e.qty), 0);
-        return { available, isEnough: available >= required_qty };
-    };
+    // Both of these were private copies. The requirement one branched on
+    // `line.is_percentage` — a field this schema does not have (BOMLine.percentage is
+    // the scaling field; see CLAUDE.md) — so it always fell through to
+    // `baseQty * line.qty` and the floor scanner's material check disagreed with the
+    // MO page for every percentage-based line. Shared now, so it cannot drift again.
+    const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) =>
+        stockAtLocation(stockBalance, item_id, location_id, attribute_value_ids, required_qty);
 
     const validateMaterials = (wo: any) => {
         // WOs don't carry bom_id directly — the recipe lives on the parent MO.

@@ -1,5 +1,7 @@
 import { useTimezone } from '../../context/TimezoneContext';
 import { colorHexFor } from '../shared/xpTheme';
+// Pure, closure-free calculation shared with the floor scanner — see moHelpers.
+import { calculateRequiredQty } from '../shared/moHelpers';
 
 export interface ManufacturingHelpersInput {
     items: any[];
@@ -89,24 +91,10 @@ export function useManufacturingHelpers({
         return null;
     };
 
-    const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {
-        let required: number;
-        if (line.percentage > 0) {
-            required = (baseQty * line.percentage) / 100;
-        } else {
-            required = baseQty * parseFloat(line.qty || 0);
-        }
-        const tolerance = parseFloat(bom?.tolerance_percentage || 0);
-        if (tolerance > 0) {
-            required = required * (1 + (tolerance / 100));
-        }
-        return required;
-    };
-
     // NOTE: no checkStockAvailability here. Nothing on the MO/PR side consumed it —
     // every caller wants getStockAcrossLocations below, which rolls up plant-wide
-    // rather than asking about one bin. components/shared/QRScannerView.tsx carries
-    // its own local copy of the single-location check it actually needs.
+    // rather than asking about one bin. The single-location check is
+    // `stockAtLocation` in shared/moHelpers, where the floor scanner reads it too.
 
     const getBeamBatchCount = (item_id: string) => {
         const keys = new Set<string>();
