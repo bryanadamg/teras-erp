@@ -191,10 +191,19 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const [completeDoses, setCompleteDoses] = useState<DosePreview | null>(null);
     const [bathForm, setBathForm] = useState<BathForm>(emptyBathForm);
     const [bathSaving, setBathSaving] = useState(false);
+    // Starting a run IS filling the bath, so the volume is taken there and the dose
+    // sheet is in the operator's hand before any chemical goes in.
+    const [showStartModal, setShowStartModal] = useState<any | null>(null);
+    const [startBath, setStartBath] = useState<BathForm>(emptyBathForm);
+    const [startDoses, setStartDoses] = useState<DosePreview | null>(null);
+    const [starting, setStarting] = useState(false);
     // Generation counter: the preview refires on every keystroke of substrate/volume,
     // so without it a slow earlier response lands after a newer one and shows doses
     // for a bath the operator has already changed.
     const doseGen = useRef(0);
+    // The Start modal keeps its own counter: the create form's preview can be open at
+    // the same time, and sharing one would let each cancel the other's response.
+    const startDoseGen = useRef(0);
 
     // Server-paginated: this list previously sent no window, so it silently showed
     // only the endpoint's default first page and paged over that — dyeing WO #51 was
@@ -251,6 +260,23 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         showCreateRun, createForm.recipe_id, createForm.substrate_qty,
         createForm.volume_air_liters, createForm.liquor_ratio, fetchDoses,
     ]);
+
+    // Same debounce for the Start modal's sheet: the operator types the volume off
+    // the machine and watches the weights settle before committing the start.
+    useEffect(() => {
+        if (!showStartModal?.recipe_id) {
+            setStartDoses(null);
+            return;
+        }
+        const gen = ++startDoseGen.current;
+        const timer = setTimeout(async () => {
+            const data = await fetchDoses(
+                showStartModal.recipe_id, startBath.substrate_qty, startBath.volume_air_liters,
+            );
+            if (gen === startDoseGen.current) setStartDoses(data);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [showStartModal, startBath.substrate_qty, startBath.volume_air_liters, fetchDoses]);
 
     const fetchRuns = useCallback(async (woId: string) => {
         setLoading(true);
@@ -367,18 +393,46 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         }
     };
 
-    const handleStartRun = async (run: any) => {
+    const handleOpenStart = (run: any) => {
+        setShowStartModal(run);
+        setStartDoses(null);
+        setErrorMsg(null);
+        // The debounced effect below loads the sheet off this seed — no fetch here, or
+        // the modal fires two requests for the same bath on every open.
+        setStartBath({
+            volume_air_liters: run.volume_air_liters != null ? String(run.volume_air_liters) : '',
+            substrate_qty: run.substrate_qty != null ? String(run.substrate_qty) : '',
+        });
+    };
+
+    /** Start = bath fill. The backend rejects a start with no resolvable volume and
+     *  snapshots the doses onto the run, so there is nothing to seed at completion. */
+    const handleStartRun = async () => {
+        if (!showStartModal) return;
+        setStarting(true);
         setErrorMsg(null);
         try {
-            const res = await authFetch(`${API_BASE}/dyeing-runs/${run.id}/start`, { method: 'POST' });
+            const res = await authFetch(`${API_BASE}/dyeing-runs/${showStartModal.id}/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    volume_air_liters: startBath.volume_air_liters ? parseFloat(startBath.volume_air_liters) : null,
+                    substrate_qty: startBath.substrate_qty ? parseFloat(startBath.substrate_qty) : null,
+                }),
+            });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
                 setErrorMsg(err.detail || 'Failed to start run.');
-            } else {
-                if (selectedWoId) await fetchRuns(selectedWoId);
+                return;
             }
+            setShowStartModal(null);
+            setStartBath(emptyBathForm);
+            setStartDoses(null);
+            if (selectedWoId) await fetchRuns(selectedWoId);
         } catch {
             setErrorMsg('Network error starting run.');
+        } finally {
+            setStarting(false);
         }
     };
 
@@ -415,14 +469,11 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         setErrorMsg(null);
 
         if (!run.recipe_id) return;
-        // Always load the dose sheet (it also labels each row's basis and unit), but
-        // only seed the planned quantities when nothing has been recorded yet —
-        // reopening a run must not overwrite what the operator already weighed.
-        const doses = await fetchDoses(run.recipe_id, run.substrate_qty, run.volume_air_liters);
-        setCompleteDoses(doses);
-        if (preChemicals.length === 0 && doses?.lines?.length) {
-            setCompleteForm(prev => ({ ...prev, chemicals: chemicalRowsFromDoses(doses) }));
-        }
+        // The dose sheet is loaded for reference only — it labels each row's basis and
+        // unit. The planned quantities themselves come off the run, snapshotted when
+        // the bath was filled at start; recomputing them here would quietly replace
+        // what the operator was told to weigh with what the recipe says today.
+        setCompleteDoses(await fetchDoses(run.recipe_id, run.substrate_qty, run.volume_air_liters));
     };
 
     /** Record the bath the operator actually filled, then re-weigh the recipe against
@@ -454,17 +505,26 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
             const doses = await fetchDoses(updated.recipe_id, updated.substrate_qty, updated.volume_air_liters);
             setCompleteDoses(doses);
             if (doses?.lines?.length) {
-                // Keep whatever actuals are already typed; only the planned column
-                // follows the new bath.
+                // Only the planned column follows the new bath. Typed actuals survive,
+                // an actual already recorded pins its plan (the backend leaves those
+                // rows alone too — the chemical is in the vessel), and off-recipe rows
+                // the operator added by hand are kept rather than replaced away.
                 setCompleteForm(prev => {
                     const seeded = chemicalRowsFromDoses(doses);
-                    return {
-                        ...prev,
-                        chemicals: seeded.map(row => {
-                            const existing = prev.chemicals.find(c => c.item_id === row.item_id);
-                            return existing ? { ...row, actual_qty: existing.actual_qty } : row;
-                        }),
-                    };
+                    const seededIds = new Set(seeded.map(r => r.item_id));
+                    const reweighed = seeded.map(row => {
+                        const existing = prev.chemicals.find(c => c.item_id === row.item_id);
+                        if (!existing) return row;
+                        const weighed = parseFloat(existing.actual_qty);
+                        return {
+                            ...row,
+                            planned_qty: weighed > 0 ? existing.planned_qty : row.planned_qty,
+                            actual_qty: existing.actual_qty,
+                            uom_id: existing.uom_id || row.uom_id,
+                        };
+                    });
+                    const manual = prev.chemicals.filter(c => !seededIds.has(c.item_id));
+                    return { ...prev, chemicals: [...reweighed, ...manual] };
                 });
             }
             if (selectedWoId) await fetchRuns(selectedWoId);
@@ -1031,7 +1091,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                                     <button
                                                                         className={XP_BTN}
                                                                         style={xpPrimaryBtn}
-                                                                        onClick={() => handleStartRun(run)}
+                                                                        onClick={() => handleOpenStart(run)}
                                                                     >
                                                                         Start
                                                                     </button>
@@ -1066,6 +1126,96 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                     </>
                 )}
             </div>
+
+            {/* Start Run Modal — the bath-fill screen.
+                The volume is taken here, not at completion: the doses below are what
+                the operator actually weighs into the vessel, so they have to exist
+                before the run starts. Starting also snapshots them onto the run, which
+                is why the Complete screen no longer calculates anything. */}
+            {showStartModal && (
+                <ModalWrapper
+                    isOpen={!!showStartModal}
+                    onClose={() => { setShowStartModal(null); setErrorMsg(null); }}
+                    title={`Start Dyeing Run ${showStartModal.run_number ?? `#${showStartModal.id}`} — Fill the Bath`}
+                    size="lg"
+                    modeless
+                    footer={<>
+                        <button
+                            className={XP_BTN}
+                            style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
+                            onClick={handleStartRun}
+                            disabled={starting || !startBath.volume_air_liters}
+                        >
+                            {starting ? 'Starting...' : 'Start Run'}
+                        </button>
+                        <button
+                            className={XP_BTN}
+                            style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpBtn, padding: '6px 18px' }}
+                            onClick={() => { setShowStartModal(null); setErrorMsg(null); }}
+                            disabled={starting}
+                        >
+                            Cancel
+                        </button>
+                    </>}
+                >
+                    <div>
+                        {errorMsg && (
+                            <div style={classic
+                                ? { background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03', marginBottom: 6 }
+                                : { background: '#fef3cd', border: '1px solid #f0d98a', borderRadius: 7, padding: '6px 10px', fontSize: 13, color: '#854d0e', marginBottom: 10 }}>
+                                {errorMsg}
+                            </div>
+                        )}
+                        <div style={{ ...xpPanel, overflow: classic ? undefined : 'hidden' }}>
+                            <div style={xpSectionHeader}>Bath</div>
+                            <div style={{ padding: classic ? '5px 8px' : '8px 12px', display: 'flex', alignItems: 'flex-end', gap: classic ? 8 : 12, flexWrap: 'wrap' }}>
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span
+                                        style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
+                                        title="Water volume of the bath, in litres. Required to start — every g/L chemical is weighed out against it."
+                                    >Volume Air (L) *</span>
+                                    <input
+                                        type="number" step="0.1" style={{ ...xpInput, width: 110 }}
+                                        value={startBath.volume_air_liters}
+                                        onChange={e => setStartBath(prev => ({ ...prev, volume_air_liters: e.target.value }))}
+                                        placeholder="e.g. 950"
+                                        autoFocus
+                                    />
+                                </label>
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Substrate (kg)</span>
+                                    <input
+                                        type="number" step="0.01" style={{ ...xpInput, width: 110 }}
+                                        value={startBath.substrate_qty}
+                                        onChange={e => setStartBath(prev => ({ ...prev, substrate_qty: e.target.value }))}
+                                        placeholder="e.g. 100"
+                                    />
+                                </label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Liquor Ratio</span>
+                                    <span
+                                        style={classic
+                                            ? { fontSize: 11, padding: '2px 4px', color: '#333' }
+                                            : { fontSize: 13, padding: '4px 2px', color: '#334155', fontFamily: modernFont }}
+                                        title="Derived from the bath volume and substrate weight — never typed separately, so the two can't disagree."
+                                    >
+                                        {startDoses?.liquor_ratio != null ? `1 : ${fmtDose(startDoses.liquor_ratio, 2)}` : '—'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {showStartModal.recipe_id ? renderDoseSheet(
+                            startDoses,
+                            startDoses ? 'This recipe has no chemical lines to weigh out.' : 'Loading the recipe...',
+                        ) : (
+                            <div style={{ ...xpPanel, marginTop: classic ? 6 : 10, padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>
+                                This run carries no recipe, so there is nothing to dose. The bath volume is still recorded.
+                            </div>
+                        )}
+                    </div>
+                </ModalWrapper>
+            )}
 
             {/* Complete Run Modal */}
             {showCompleteModal && (
@@ -1139,11 +1289,12 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 </label>
                             </div>
 
-                            {/* Bath — the operator's input. Recorded here rather than at run
-                                creation because the volume is only known once the machine is
-                                loaded, and every g/L dose below is weighed against it. */}
+                            {/* Bath — the correction path, not the primary entry point: the
+                                volume is normally taken at Start (bath fill). It stays editable
+                                here for a bath topped up mid-cycle, and for back-filling a run
+                                completed straight out of PENDING, which never saw a Start. */}
                             <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
-                                <div style={xpSectionHeader}>Bath</div>
+                                <div style={xpSectionHeader}>Bath (adjust)</div>
                                 <div style={{ padding: classic ? '5px 8px' : '8px 12px', display: 'flex', alignItems: 'flex-end', gap: classic ? 8 : 12, flexWrap: 'wrap' }}>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                         <span

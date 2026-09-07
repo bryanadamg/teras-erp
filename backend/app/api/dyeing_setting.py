@@ -27,7 +27,7 @@ from app.schemas import (
     DyeRecipeWashBathCreate, DyeRecipeWashBathResponse,
     DyeRecipeFinishingCreate, DyeRecipeFinishingResponse,
     DyeingRunCreate, DyeingRunCompletePayload, DyeingRunResponse,
-    DyeingRunBathUpdate, DyeDoseResponse,
+    DyeingRunStartPayload, DyeingRunBathUpdate, DyeDoseResponse,
     SettingRunCreate, SettingRunCompletePayload, SettingRunResponse,
 )
 
@@ -575,6 +575,27 @@ async def update_dyeing_run_bath(
     )
     run.volume_air_liters = volume
     run.liquor_ratio = ratio
+
+    # The stored dose sheet follows the bath: a topped-up bath means every g/L
+    # chemical is re-weighed. Rows with an actual already recorded are left alone —
+    # that chemical is in the vessel, and rewriting its plan would erase the variance.
+    if run.recipe_id and run.chemicals:
+        rec_res = await db.execute(
+            select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == run.recipe_id)
+        )
+        recipe = rec_res.scalars().first()
+        if recipe:
+            doses = {
+                str(row["item_id"]): row["dose"]
+                for row in dyeing_dose_service.compute_doses(recipe, run.substrate_qty, volume)
+                if row["dose"] is not None
+            }
+            for chem in run.chemicals:
+                if float(chem.actual_qty or 0) > 0:
+                    continue
+                new_dose = doses.get(str(chem.item_id))
+                if new_dose is not None:
+                    chem.planned_qty = new_dose
     await db.commit()
 
     result = await db.execute(
@@ -597,9 +618,21 @@ async def update_dyeing_run_bath(
 @router.post("/dyeing-runs/{run_id}/start", response_model=DyeingRunResponse)
 async def start_dyeing_run(
     run_id: str,
+    payload: DyeingRunStartPayload | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('work_order.log')),
 ):
+    """Start the run = fill the bath.
+
+    The bath volume is taken here rather than at completion because this is the
+    moment it physically exists, and the dose sheet weighed from it has to be in the
+    operator's hand *before* the chemicals go in. The doses are materialized as
+    `DyeingRunChemical.planned_qty` in the same transaction, snapshotting them
+    against later recipe edits the way MOPlannedComponent does for BOM lines — what
+    the operator was told to weigh must stay readable after someone retunes the
+    recipe.
+    """
+    payload = payload or DyeingRunStartPayload()
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
     )
@@ -608,12 +641,61 @@ async def start_dyeing_run(
         raise HTTPException(status_code=404, detail="Dyeing run not found")
     if run.status != "PENDING":
         raise HTTPException(status_code=400, detail=f"Run is already {run.status}")
+
+    for v in (payload.volume_air_liters, payload.liquor_ratio, payload.substrate_qty):
+        if v is not None and v <= 0:
+            raise HTTPException(status_code=422, detail="Bath volume, liquor ratio and substrate qty must be positive")
+    if payload.substrate_qty is not None:
+        run.substrate_qty = payload.substrate_qty
+    volume, ratio = dyeing_dose_service.solve_bath(
+        run.substrate_qty,
+        payload.volume_air_liters if payload.volume_air_liters is not None else (
+            None if payload.liquor_ratio is not None else run.volume_air_liters
+        ),
+        payload.liquor_ratio if payload.liquor_ratio is not None else run.liquor_ratio,
+    )
+    if not volume:
+        # Starting a bath nobody can dose is not a real start — the g/L half of every
+        # recipe is unweighable without this number.
+        raise HTTPException(
+            status_code=422,
+            detail="Enter the bath volume (or a liquor ratio and substrate qty) before starting — the chemical doses are calculated from it",
+        )
+    run.volume_air_liters = volume
+    run.liquor_ratio = ratio
     run.status = "IN_PROGRESS"
     run.started_at = datetime.now(timezone.utc)
+
+    # Materialize the dose sheet. Guarded on "no chemicals yet" so a run that
+    # somehow carries rows keeps them rather than having its history rewritten.
+    dosed = 0
+    if run.recipe_id and not run.chemicals:
+        rec_res = await db.execute(
+            select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == run.recipe_id)
+        )
+        recipe = rec_res.scalars().first()
+        if recipe:
+            for row in dyeing_dose_service.compute_doses(recipe, run.substrate_qty, volume):
+                if row["dose"] is None:
+                    continue  # line carries no rate — nothing to weigh
+                db.add(DyeingRunChemical(
+                    run_id=run.id,
+                    item_id=row["item_id"],
+                    planned_qty=row["dose"],
+                    # Filled in at completion with what actually went in; planned vs
+                    # actual is the only dosing variance signal there is.
+                    actual_qty=0,
+                    uom_id=row["uom_id"],
+                ))
+                dosed += 1
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "DyeingRun", run_id,
-        details=f"Started dyeing run {run.run_number}"
+        details=(
+            f"Started dyeing run {run.run_number} — bath {volume} L"
+            + (f", {dosed} chemical doses calculated" if dosed else "")
+        ),
+        changes={"status": ["PENDING", "IN_PROGRESS"], "volume_air_liters": [None, volume]},
     )
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)

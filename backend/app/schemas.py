@@ -2892,6 +2892,19 @@ class DyeingRunMonitorUpdate(BaseModel):
     target_efficiency_pct: float | None = None
 
 
+class DyeingRunStartPayload(BaseModel):
+    """The bath, recorded at the moment it is filled.
+
+    Starting a run is the bath-fill event, so this is where the volume belongs: the
+    dose sheet the operator weighs from is calculated off it, and calculating it
+    afterwards would make it a record of what should have been weighed rather than
+    an instruction for weighing it. Send a volume or a liquor ratio; one must resolve.
+    """
+    volume_air_liters: float | None = None
+    liquor_ratio: float | None = None
+    substrate_qty: float | None = None
+
+
 class DyeingRunBathUpdate(BaseModel):
     """The bath the operator actually filled, set at fill time rather than at run
     creation — the volume is only known once the machine is loaded, and it is what
