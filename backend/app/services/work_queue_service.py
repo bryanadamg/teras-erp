@@ -204,9 +204,10 @@ def _required_qty(wo: Optional[WorkOrder], mo: ManufacturingOrder, c: MOPlannedC
 
 
 async def _staged_by_wo(db: AsyncSession, wos: list[WorkOrder]) -> dict[tuple[str, str], float]:
-    """(wo_id, item_id) -> qty already staged to that WO's input location.
+    """(wo_id, item_id) -> qty currently staged to that WO's input location.
     One grouped query for the whole queue; the per-WO helper in api/work_orders
-    runs one query per WO."""
+    runs one query per WO. Signed sum, so an unstage reversal nets back out —
+    keep this in step with _wo_staged_by_item there."""
     wo_ids = [str(w.id) for w in wos if w.input_location_id]
     if not wo_ids:
         return {}
@@ -216,7 +217,6 @@ async def _staged_by_wo(db: AsyncSession, wos: list[WorkOrder]) -> dict[tuple[st
         .where(
             StockLedger.reference_type == "Staging",
             StockLedger.reference_id.in_(wo_ids),
-            StockLedger.qty_change > 0,
         )
         .group_by(StockLedger.reference_id, StockLedger.item_id, StockLedger.location_id)
     )
@@ -228,7 +228,7 @@ async def _staged_by_wo(db: AsyncSession, wos: list[WorkOrder]) -> dict[tuple[st
         if input_loc.get(str(ref)) != str(loc_id):
             continue
         out[(str(ref), str(item_id))] = out.get((str(ref), str(item_id)), 0.0) + float(qty or 0)
-    return out
+    return {k: max(0.0, v) for k, v in out.items()}
 
 
 async def _on_hand_pool(db: AsyncSession, item_ids: set[str]) -> dict[tuple[str, str], float]:

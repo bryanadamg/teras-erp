@@ -17,7 +17,7 @@ from app.models.stock_balance import StockBalance
 from app.models.weaving import WeavingRun
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import (
-    WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
+    WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload, WOUnstagePayload,
     PutawayBinOption, PutawaySuggestionResponse,
     WorkOrderMarkPrintedBulk, BeamMountResponse, BeamMountCreate, BeamDismountPayload,
     BeamDismountResult, AvailableBeamRow, LoomBeamStatus, WOStagedLot,
@@ -629,8 +629,14 @@ async def _load_wo_and_mo(db: AsyncSession, wo_id: str):
 
 
 async def _wo_staged_by_item(db: AsyncSession, wo: WorkOrder) -> dict[str, float]:
-    """Qty already staged to this WO's input location, per item (positive
-    'Staging' ledger rows tagged with this WO's id)."""
+    """Qty currently staged to this WO's input location, per item.
+
+    Sums ALL 'Staging' ledger rows tagged with this WO's id at that location, so a
+    reversal (POST /work-orders/{id}/unstage) nets the original move back out.
+    Filtering to positives here is what used to make the total disagree with
+    `_wo_staged_lots` below, which has always netted — and it meant a status of
+    STAGED could never fall back once material left the line.
+    """
     if not wo.input_location_id:
         return {}
     rows = await db.execute(
@@ -639,11 +645,10 @@ async def _wo_staged_by_item(db: AsyncSession, wo: WorkOrder) -> dict[str, float
             StockLedger.reference_type == "Staging",
             StockLedger.reference_id == str(wo.id),
             StockLedger.location_id == wo.input_location_id,
-            StockLedger.qty_change > 0,
         )
         .group_by(StockLedger.item_id)
     )
-    return {str(i): float(s or 0) for i, s in rows.all()}
+    return {str(i): max(0.0, float(s or 0)) for i, s in rows.all()}
 
 
 async def _wo_staged_lots(db: AsyncSession, wo: WorkOrder) -> dict[str, list[WOStagedLot]]:
@@ -1218,6 +1223,100 @@ async def stage_wo_materials(
         db, user_id=current_user.id, action="STAGE",
         entity_type="WORK_ORDER", entity_id=str(wo.id),
         details=f"Staged materials to WO '{wo.code}' (status {wo.staging_status})",
+        changes={"lines": [{"item_id": str(l.item_id), "qty": l.qty} for l in payload.lines]},
+    )
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+
+    result = await db.execute(
+        select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo.id)
+    )
+    return result.scalars().first()
+
+
+@router.post("/work-orders/{wo_id}/unstage", response_model=WorkOrderResponse)
+async def unstage_wo_materials(
+    wo_id: str,
+    payload: WOUnstagePayload,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.stage')),
+):
+    """Return staged material from the WO's input location to a store.
+
+    The exact mirror of /stage, and written as a reversal of it: the ledger rows
+    carry the same reference_type "Staging" and reference_id, so the negative at
+    the input location nets the original move out of `staged` and the status falls
+    back to PARTIAL/NOT_STAGED. Without this route material picked to the wrong
+    line could only leave it by being consumed.
+
+    Beams are refused on purpose: a warp is a loom resource pegged to the work
+    center, not this WO's material, and it comes off through
+    POST /beam-mounts/{id}/dismount (which handles the weighed remnant).
+    """
+    wo, mo = await _load_wo_and_mo(db, wo_id)
+    _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
+    if not wo.input_location_id:
+        raise HTTPException(status_code=422, detail="Work Order has no input location — nothing can be staged to it")
+
+    required_rows = await _wo_required_rows(db, wo, mo)
+    req_by_item = {str(r.item_id): r for r in required_rows}
+
+    unstaged_any = False
+    for line in payload.lines:
+        qty = float(line.qty or 0)
+        if qty <= 0:
+            continue
+        rr = req_by_item.get(str(line.item_id))
+        if not rr:
+            raise HTTPException(status_code=400, detail=f"Item {line.item_id} is not a material of this WO's step")
+        if rr.is_beam:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{rr.item_code or line.item_id} is a warp beam — unmount it from the loom instead",
+            )
+        if rr.lot_tracked and not line.batch_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Select which lot of {rr.item_code or line.item_id} to return — it is batch-tracked",
+            )
+        dest = line.destination_location_id or rr.source_location_id
+        if not dest:
+            raise HTTPException(status_code=422, detail=f"No destination location for {rr.item_code or line.item_id}")
+
+        # Same variant-key rule as staging: a lot's stock sits under the key it was
+        # produced with, and both sides of the transfer must re-post under it.
+        attrs = [str(a) for a in (line.attribute_value_ids or rr.attribute_value_ids or [])]
+        move_color = None
+        if line.batch_id:
+            attrs, move_color = await stock_service.batch_variant(db, line.batch_id, wo.input_location_id)
+
+        # Over-return is blocked by stock_service's own negative-balance guard —
+        # it row-locks the balance before checking, so there's nothing to re-check here.
+        await stock_service.add_stock_entry(
+            db, item_id=line.item_id, location_id=wo.input_location_id, qty_change=-qty,
+            reference_type="Staging", reference_id=str(wo.id),
+            attribute_value_ids=attrs, color_id=move_color,
+            batch_id=line.batch_id,
+        )
+        await stock_service.add_stock_entry(
+            db, item_id=line.item_id, location_id=dest, qty_change=qty,
+            reference_type="Staging", reference_id=str(wo.id),
+            attribute_value_ids=attrs, color_id=move_color,
+            batch_id=line.batch_id,
+        )
+        unstaged_any = True
+
+    if not unstaged_any:
+        raise HTTPException(status_code=400, detail="Nothing to unstage")
+
+    new_rows = await _wo_required_rows(db, wo, mo)
+    wo.staging_status = _staging_status(new_rows)
+    await db.commit()
+
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="UNSTAGE",
+        entity_type="WorkOrder", entity_id=str(wo.id),
+        details=f"Returned staged materials from WO '{wo.code}' (status {wo.staging_status})",
         changes={"lines": [{"item_id": str(l.item_id), "qty": l.qty} for l in payload.lines]},
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})

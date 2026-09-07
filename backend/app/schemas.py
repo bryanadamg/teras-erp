@@ -929,6 +929,25 @@ class WOStagePayload(BaseModel):
     lines: list[WOStageLine]
 
 
+class WOUnstageLine(BaseModel):
+    item_id: UUID
+    qty: float
+    destination_location_id: UUID | None = None   # defaults to the line's resolved source store
+    batch_id: UUID | None = None                  # required for lot-tracked materials
+    attribute_value_ids: list[UUID] = []
+
+
+class WOUnstagePayload(BaseModel):
+    """Return staged material from a WO's input location to a store.
+
+    The mirror of WOStagePayload: without it, material picked to the wrong line
+    could only leave by being consumed, and `staging_status` never fell back.
+    Warp beams are NOT unstaged here — they are loom resources and come off
+    through POST /beam-mounts/{id}/dismount.
+    """
+    lines: list[WOUnstageLine]
+
+
 class BeamMountResponse(BaseModel):
     """One warp beam currently up on a loom (or a closed historical mount)."""
     id: UUID
