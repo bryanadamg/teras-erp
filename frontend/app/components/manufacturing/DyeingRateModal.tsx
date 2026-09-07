@@ -101,6 +101,7 @@ export default function DyeingRateModal({ isOpen, run, onClose, onSaved, authFet
             title={`${t('set_rate')} — ${run?.wo_code || run?.mo_code || ''}`}
             size="sm"
             variant="primary"
+            modeless
             footer={
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                     <XPActionButton classic={cls} tone="neutral" label={t('cancel')} onClick={onClose} />
