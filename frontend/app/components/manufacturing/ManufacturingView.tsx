@@ -15,7 +15,7 @@ import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor,
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
-import { pageFillStyle, viewShellStyle, xpTitleBar } from '../shared/shellTheme';
+import { pageFillStyle, viewShellStyle, PageTitleBar, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
 import { Tabs } from '../shared/Tabs';
 
 export default function ManufacturingView({
@@ -516,71 +516,41 @@ export default function ManufacturingView({
                   className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}
               >
 
-                  {/* ── Title bar / toolbar ── */}
-                  <div
-                      className="no-print"
-                      style={classic ? xpTitleBar() : {
-                          background: '#fff',
-                          borderBottom: '1px solid #dee2e6',
-                          padding: '8px 16px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                      }}
-                  >
-                      {/* Left: title + view switcher */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{
-                              fontFamily: classic ? xpFont : undefined,
-                              fontSize: classic ? '12px' : undefined,
-                              fontWeight: 'bold',
-                              color: classic ? '#fff' : '#000',
-                              textShadow: classic ? '1px 1px 1px rgba(0,0,0,0.4)' : undefined,
-                              letterSpacing: classic ? '0.3px' : undefined,
-                          }}>
-                              <i className={`bi ${activeTab === 'manufacturing-orders' ? 'bi-list-task' : 'bi-collection-play'} me-2`} style={{ fontSize: '13px' }}></i>
-                              {activeTab === 'manufacturing-orders' ? (t('manufacturing_orders') || 'Manufacturing Orders') : 'Production Runs'}
-                          </span>
+                  {/* ── Title bar / toolbar ──
+                      PageTitleBar + FilterChipBar instead of a hand-rolled bar and a
+                      hand-rolled XP gradient button group: the group painted its own
+                      "selected" face, which was a different blue from every other
+                      segmented picker in the app.
 
-                          {/* View-mode buttons */}
-                          <div style={{ display: 'flex', gap: classic ? '2px' : '0' }}>
-                              {[
-                                  { key: 'calendar', icon: 'bi-calendar-event', label: 'Calendar' },
-                                  { key: 'list',     icon: 'bi-list-ul',        label: 'List' },
-                                  { key: 'scanner',  icon: 'bi-qr-code-scan',   label: 'Scanner' },
-                              ].map(({ key, icon, label }) => {
-                                  const isActive = viewMode === key;
-                                  const handleClick = () => key === 'scanner' ? router.push('/scanner') : setViewMode(key);
-                                  return (
-                                      <button
-                                          key={key}
-                                          onClick={handleClick}
-                                          className={classic ? XP_BTN : `btn btn-sm btn-light border ${isActive ? 'active' : ''}`}
-                                          style={classic ? {
-                                              fontFamily: xpFont,
-                                              fontSize: '11px',
-                                              padding: '2px 8px',
-                                              borderRadius: BUTTON_RADIUS,
-                                              background: isActive
-                                                  ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
-                                                  : 'linear-gradient(to bottom,#d4d0c8 0%,#b8b4ac 100%)',
-                                              border: '1px solid',
-                                              borderColor: isActive
-                                                  ? '#808080 #dfdfdf #dfdfdf #808080'
-                                                  : '#dfdfdf #808080 #808080 #dfdfdf',
-                                              color: '#000',
-                                              cursor: 'pointer',
-                                              fontWeight: isActive ? 'bold' : 'normal',
-                                          } : undefined}
-                                      >
-                                          <i className={`bi ${icon} me-1`}></i>{label}
-                                      </button>
-                                  );
-                              })}
-                          </div>
-                      </div>
-
-                  </div>
+                      Scanner is a ToolbarButton, NOT a third segment. It never set
+                      viewMode — it only ever navigated to /scanner (the single scan
+                      entry point) — so sitting in a pick-one-of-these control it could
+                      never be the picked one. */}
+                  <PageTitleBar
+                      classic={classic}
+                      icon={activeTab === 'manufacturing-orders' ? 'bi-list-task' : 'bi-collection-play'}
+                      title={activeTab === 'manufacturing-orders' ? (t('manufacturing_orders') || 'Manufacturing Orders') : 'Production Runs'}
+                      right={
+                          <>
+                              <FilterChipBar
+                                  classic={classic}
+                                  value={viewMode}
+                                  onChange={(v) => setViewMode(v as string)}
+                                  options={[
+                                      { value: 'calendar', label: 'Calendar', title: 'Month view' },
+                                      { value: 'list', label: 'List', title: 'Table view' },
+                                  ]}
+                              />
+                              <ToolbarButton
+                                  classic={classic}
+                                  tone="launch"
+                                  icon="bi-qr-code-scan"
+                                  title="Open the scanner"
+                                  onClick={() => router.push('/scanner')}
+                              >Scanner</ToolbarButton>
+                          </>
+                      }
+                  />
 
                   {/* ── Tab bar ── */}
                   {showTabSwitcher && <div className="no-print">

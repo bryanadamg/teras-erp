@@ -1036,26 +1036,49 @@ const MODAL_FOOTER_CLASSIC_TONES: Record<'success' | 'primary' | 'danger', React
 // the global .btn-success/.btn-primary CSS override flattens color to plain
 // gray, which is why a Bootstrap-only button looks unstyled in Classic.
 // Don't hand-roll Cancel/Create buttons per modal — use this.
+//
+// `onSubmit` is optional: a read-only/dismiss-only modal passes just `onCancel`
+// (with `cancelLabel="Close"`). `onExtra` adds ONE muted side action to the left of
+// Cancel — for the MO Set-Color modal's "Clear", which previously existed only in
+// the modern branch as a `btn-outline-danger` with no classic counterpart, so in
+// Classic there was no way to clear a colour at all.
 export function ModalFooterActions({
     classic,
     onCancel, cancelLabel = 'Cancel',
     onSubmit, submitLabel, submittingLabel = 'Saving...', submitting = false,
     variant = 'success', disabled = false,
+    onExtra, extraLabel,
 }: {
     classic: boolean;
     onCancel: () => void;
     cancelLabel?: string;
-    onSubmit: () => void;
-    submitLabel: string;
+    onSubmit?: () => void;
+    submitLabel?: string;
     submittingLabel?: string;
     submitting?: boolean;
     variant?: 'success' | 'primary' | 'danger';
     disabled?: boolean;
+    onExtra?: () => void;
+    extraLabel?: string;
 }) {
     if (classic) {
         const tone = MODAL_FOOTER_CLASSIC_TONES[variant];
         return (
             <>
+                {onExtra && extraLabel && (
+                    <button
+                        type="button"
+                        className={XP_BTN}
+                        onClick={onExtra}
+                        style={{
+                            fontFamily: xpFont, fontSize: 11, padding: '3px 16px', cursor: 'pointer',
+                            borderRadius: BUTTON_RADIUS, border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                            background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#8a1a1a',
+                        }}
+                    >
+                        {extraLabel}
+                    </button>
+                )}
                 <button
                     type="button"
                     className={XP_BTN}
@@ -1068,30 +1091,39 @@ export function ModalFooterActions({
                 >
                     {cancelLabel}
                 </button>
-                <button
-                    type="button"
-                    className={XP_BTN}
-                    onClick={onSubmit}
-                    disabled={submitting || disabled}
-                    style={{
-                        fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '3px 20px', cursor: submitting || disabled ? 'default' : 'pointer',
-                        borderRadius: BUTTON_RADIUS, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
-                        ...tone,
-                    }}
-                >
-                    {(submitting ? submittingLabel : submitLabel).toUpperCase()}
-                </button>
+                {onSubmit && submitLabel && (
+                    <button
+                        type="button"
+                        className={XP_BTN}
+                        onClick={onSubmit}
+                        disabled={submitting || disabled}
+                        style={{
+                            fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '3px 20px', cursor: submitting || disabled ? 'default' : 'pointer',
+                            borderRadius: BUTTON_RADIUS, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
+                            ...tone,
+                        }}
+                    >
+                        {(submitting ? submittingLabel : submitLabel).toUpperCase()}
+                    </button>
+                )}
             </>
         );
     }
     return (
         <>
+            {onExtra && extraLabel && (
+                <button type="button" className="btn btn-sm btn-outline-danger" onClick={onExtra}>
+                    {extraLabel}
+                </button>
+            )}
             <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={onCancel}>
                 {cancelLabel}
             </button>
-            <button type="button" className={`btn btn-sm btn-${variant} px-4 fw-bold shadow-sm`} onClick={onSubmit} disabled={submitting || disabled}>
-                {submitting ? submittingLabel : submitLabel}
-            </button>
+            {onSubmit && submitLabel && (
+                <button type="button" className={`btn btn-sm btn-${variant} px-4 fw-bold shadow-sm`} onClick={onSubmit} disabled={submitting || disabled}>
+                    {submitting ? submittingLabel : submitLabel}
+                </button>
+            )}
         </>
     );
 }

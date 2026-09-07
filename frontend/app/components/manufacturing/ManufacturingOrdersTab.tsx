@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, xpBtn as xpBtnBase, BTN_TONES, LocationChip } from '../shared/xpTheme';
+import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, Chip, XPActionButton, ModalFooterActions, LocationChip } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, lvThead, lvTh, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -770,7 +770,13 @@ export default function ManufacturingOrdersTab({
                                                 <td style={{ ...cell, color: '#000' }}>
                                                     <div style={{ fontWeight: 500 }}>{line.item_name || getItemName(line.item_id)}</div>
                                                     <CodeChip code={line.item_code || getItemCode(line.item_id)} classic={classic} tier={2} style={{ display: 'block' }} />
-                                                    {hasSubBOM && <span style={{ borderRadius: CHIP_RADIUS, fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
+                                                    {hasSubBOM && (
+                                                        <Chip classic={classic} size="xs" bold
+                                                            tone={{ background: '#fff3cd', borderColor: '#b8860b', color: '#6b4e00' }}
+                                                            title="This component has its own BOM — it is made, not bought">
+                                                            SUB-BOM
+                                                        </Chip>
+                                                    )}
                                                 </td>
                                                 <td style={{ ...cell, color: '#333' }}>{attrLabel || '—'}</td>
                                                 <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -1100,20 +1106,6 @@ export default function ManufacturingOrdersTab({
                                     height: 46,
                                 } : { height: 46, verticalAlign: 'middle' };
 
-                                // XP-style action button
-                                const xpBtn = (label: string, colorScheme: 'primary'|'success'|'danger'|'default', onClick: () => void, title?: string, iconCls?: string) => {
-                                    if (!classic) return null; // rendered separately below
-                                    return (
-                                        <button key={label || title} className={XP_BTN} onClick={onClick} title={title} style={xpBtnBase({
-                                            fontSize: '10px', padding: '2px 7px',
-                                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            ...BTN_TONES[colorScheme],
-                                        })}>
-                                            {iconCls && <i className={label ? `${iconCls} me-1` : iconCls}></i>}{label}
-                                        </button>
-                                    );
-                                };
-
                                 // Keyed Fragment, not <>: a row is TWO <tr>s (the row and its
                                 // expanded detail), and a bare fragment takes no key — so the
                                 // keys sat on the inner <tr>s where React never sees them.
@@ -1170,21 +1162,23 @@ export default function ManufacturingOrdersTab({
                                         <td style={{ ...tdStyle, overflow: 'hidden' }}>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '9px', color: '#555', minWidth: 0, maxWidth: '100%' }}>
                                                 <CodeChip code={getBOMCode(wo.bom_id)} classic={classic} tier={2} style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
+                                                {/* Both badges go through Chip: the classic/modern pairs they
+                                                    replaced disagreed on radius (one square, one CHIP_RADIUS)
+                                                    and on wording ("NESTED x2" vs "NESTED (2)") for the same
+                                                    fact, and neither gave a clipped label the popout. */}
                                                 {wo.sales_order_id && (
-                                                    <span style={classic ? {
-                                                        fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
-                                                        color: '#003ea6', padding: '0 5px', fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                    } : {
-                                                        fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
-                                                        color: '#0a58ca', padding: '1px 6px', borderRadius: CHIP_RADIUS, fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                    }} title="Originating Sales Order">
-                                                        <i className="bi bi-receipt me-1" style={{ fontSize: classic ? '7px' : undefined }}></i>SO: {wo.sales_order_code || '—'}
-                                                    </span>
+                                                    <Chip classic={classic} size="xs" bold icon="bi-receipt" truncate
+                                                        tone={{ background: '#dce8ff', borderColor: '#9ab0e0', color: '#003ea6' }}
+                                                        title={`Originating Sales Order: ${wo.sales_order_code || 'unknown'}`}>
+                                                        SO: {wo.sales_order_code || '—'}
+                                                    </Chip>
                                                 )}
                                                 {wo.child_mos && wo.child_mos.length > 0 && (
-                                                    classic
-                                                        ? <span style={{ borderRadius: CHIP_RADIUS, fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED x{wo.child_mos.length}</span>
-                                                        : <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_mos.length})</span>
+                                                    <Chip classic={classic} size="xs" bold
+                                                        tone={{ background: '#fff3cd', borderColor: '#b8860b', color: '#6b4e00' }}
+                                                        title={`${wo.child_mos.length} nested component order(s) under this one`}>
+                                                        NESTED x{wo.child_mos.length}
+                                                    </Chip>
                                                 )}
                                             </div>
                                         </td>
@@ -1262,9 +1256,9 @@ export default function ManufacturingOrdersTab({
                                         <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print" onClick={(e) => e.stopPropagation()}>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
                                                 {canManage && wo.status === 'PENDING' && (
-                                                    classic
-                                                        ? <span style={{ width: '26px', display: 'inline-flex' }}>{xpBtn('', 'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'), 'Start production', 'bi bi-play-fill')}</span>
-                                                        : <button className="btn btn-sm btn-primary py-0 px-2" title="Start production" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
+                                                    <XPActionButton classic={classic} tone="primary" icon="bi-play-fill"
+                                                        title="Start production"
+                                                        onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')} />
                                                 )}
                                                 <MenuTriggerButton classic={classic} onClick={(e) => toggleMoMenu(wo.id, e)} />
                                             </div>
@@ -1320,9 +1314,6 @@ export default function ManufacturingOrdersTab({
             )}
 
             {editAttrsModal && (() => {
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 const isClassic = classic;
                 return (
                     <ModalWrapper
@@ -1332,17 +1323,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-tags me-1"></i>Edit Attributes — <span style={{ fontFamily: CODE_FONT }}>{editAttrsModal.mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {xpBtn(() => setEditAttrsModal(null), 'Cancel', false)}
-                                {xpBtn(() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected), 'Save', true)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button className="btn btn-sm btn-secondary" onClick={() => setEditAttrsModal(null)}>Cancel</button>
-                                <button className="btn btn-sm btn-primary" onClick={() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected)}>Save</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setEditAttrsModal(null)}
+                            onSubmit={() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected)}
+                            submitLabel="Save" />}
                     >
                         {/* Attribute rows: label + dropdown */}
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1398,9 +1382,6 @@ export default function ManufacturingOrdersTab({
             {editColorModal && (() => {
                 const isClassic = classic;
                 const mo = editColorModal.mo;
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 return (
                     <ModalWrapper
                         isOpen
@@ -1409,17 +1390,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-palette me-1"></i>Set Color — <span style={{ fontFamily: CODE_FONT }}>{mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {mo.color_id && xpBtn(() => handleSetMOColor(mo.id, null), 'Clear', false)}
-                                {xpBtn(() => setEditColorModal(null), 'Close', false)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                {mo.color_id && <button className="btn btn-sm btn-outline-danger" onClick={() => handleSetMOColor(mo.id, null)}>Clear</button>}
-                                <button className="btn btn-sm btn-secondary" onClick={() => setEditColorModal(null)}>Close</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setEditColorModal(null)} cancelLabel="Close"
+                            onExtra={mo.color_id ? () => handleSetMOColor(mo.id, null) : undefined}
+                            extraLabel={mo.color_id ? 'Clear' : undefined} />}
                     >
                         <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 13 }}>
                             {mo.color_code && (
@@ -1464,9 +1438,6 @@ export default function ManufacturingOrdersTab({
             })()}
 
             {putawayModal && (() => {
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 const isClassic = classic;
                 const pm = putawayModal;
                 const reasonText = pm.reason === 'same_item' ? 'bin already holds this item'
@@ -1490,17 +1461,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-box-arrow-in-down me-1"></i>Putaway Bin — <span style={{ fontFamily: CODE_FONT }}>{pm.mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {xpBtn(() => setPutawayModal(null), 'Cancel', false)}
-                                {xpBtn(() => handleSavePutaway(pm.mo.id, pm.selected), 'Save', true)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button className="btn btn-sm btn-secondary" onClick={() => setPutawayModal(null)}>Cancel</button>
-                                <button className="btn btn-sm btn-primary" onClick={() => handleSavePutaway(pm.mo.id, pm.selected)}>Save</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setPutawayModal(null)}
+                            onSubmit={() => handleSavePutaway(pm.mo.id, pm.selected)}
+                            submitLabel="Save" />}
                     >
                         <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 8 }}>
                             Where this output will be stored when produced. Operators see this on the work order — they do not choose it.
@@ -1546,9 +1510,6 @@ export default function ManufacturingOrdersTab({
             {toleranceModal && (() => {
                 const isClassic = classic;
                 const tm = toleranceModal;
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 const inpStyle = isClassic ? {
                     fontFamily: xpFont, fontSize: 11,
                     border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
@@ -1567,17 +1528,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-arrow-bar-up me-1"></i>Overdelivery Tolerance — <span style={{ fontFamily: CODE_FONT }}>{tm.mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {xpBtn(() => setToleranceModal(null), 'Cancel', false)}
-                                {xpBtn(handleSaveTolerance, 'Save', true)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button className="btn btn-sm btn-secondary" onClick={() => setToleranceModal(null)}>Cancel</button>
-                                <button className="btn btn-sm btn-primary" onClick={handleSaveTolerance}>Save</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setToleranceModal(null)}
+                            onSubmit={handleSaveTolerance}
+                            submitLabel="Save" />}
                     >
                         <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 10 }}>
                             How far past the order quantity the floor may log. Set this on the order
