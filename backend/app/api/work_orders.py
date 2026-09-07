@@ -1699,6 +1699,8 @@ async def delete_work_order(
         raise HTTPException(status_code=404, detail="Work Order not found")
     _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
     label = wo.code or wo.name
+    # Read before the delete — the instance is gone by broadcast time.
+    mo_id = wo.manufacturing_order_id
     # WeavingRun.work_order_id is ON DELETE SET NULL, so a run would survive the delete
     # orphaned at MO grain and keep accruing days against a WO that no longer exists.
     # Close it here, while the link is still there to find it by.
@@ -1716,4 +1718,11 @@ async def delete_work_order(
     # still hold their loaded ids (a lazy refresh here would raise MissingGreenlet).
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped, f"work order '{label}' deleted")
+    # The only WO mutation route that used to broadcast nothing, so a deleted WO
+    # stayed on every other client's board — and inside the MO panel — until someone
+    # refetched by hand. mo_id rides along so the parent MO's row re-pulls its WO list.
+    await manager.broadcast({
+        "type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": "DELETED",
+        "mo_id": str(mo_id) if mo_id else None,
+    })
     return {"status": "success"}
