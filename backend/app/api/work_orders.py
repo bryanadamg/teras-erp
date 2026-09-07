@@ -140,6 +140,40 @@ def _require_wo_scope(current_user: User, center_type: str | None):
     if not wo_scope_ok(current_user, center_type):
         raise HTTPException(status_code=403, detail=f"Your role is not scoped to work center type '{center_type}'")
 
+
+# The fields a WO edit can move. Audited as before -> after so a rewritten qty,
+# work center or location is reconstructable from the log; the payload alone is not
+# enough, because it names every field whether it changed or not and carries no
+# previous value.
+_WO_AUDITED_FIELDS = (
+    "sequence", "name", "work_center_id", "bom_operation_id", "qty",
+    "planned_duration_hours", "notes", "target_start_date", "target_end_date",
+    "input_location_id", "output_location_id",
+    "next_destination_location_id", "next_destination_work_center_id",
+)
+
+
+def _wo_snapshot(wo: WorkOrder) -> dict:
+    """Plain-value copy of the audited fields — taken before mutating, and again
+    after, so the two can be diffed. Values are stringified by audit_service."""
+    return {f: getattr(wo, f, None) for f in _WO_AUDITED_FIELDS}
+
+
+def _wo_diff(before: dict, after: dict) -> dict:
+    """{field: [before, after]} for the fields that actually moved.
+
+    `[old, new]` pairs match the convention already used elsewhere (see
+    api/colors.py). Compared as strings because a Numeric column comes back as
+    Decimal and a UUID column as UUID, so `4 != Decimal('4.0000')` would report a
+    change that never happened.
+    """
+    out = {}
+    for f in _WO_AUDITED_FIELDS:
+        a, b = before.get(f), after.get(f)
+        if (a is None) != (b is None) or (a is not None and str(a) != str(b)):
+            out[f] = [a, b]
+    return out
+
 @router.post("/work-orders", response_model=WorkOrderResponse)
 async def create_work_order(
     payload: WorkOrderCreate,
@@ -245,8 +279,12 @@ async def create_work_order(
     await audit_service.log_activity(
         db, user_id=current_user.id, action="CREATE",
         entity_type="WorkOrder", entity_id=str(wo.id),
-        details=f"Created Work Order '{wo.code}'",
-        changes=payload.model_dump()
+        details=f"Created Work Order '{wo.code}' on MO {mo.code}",
+        # The created row, not the payload: this route derives fields the client
+        # never sent — code and sequence off the MO's number range, both locations
+        # resolved from the work center, planned_recipe_id from the DYEING gate — so
+        # the payload alone doesn't say what was actually created.
+        changes={**_wo_snapshot(wo), "code": wo.code, "planned_recipe_id": wo.planned_recipe_id},
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": "PENDING"})
 
@@ -323,6 +361,8 @@ async def update_work_order(
             detail=f"Qty cannot be below the {float(logged):g} already logged on this work order",
         )
 
+    before = _wo_snapshot(wo)
+
     wo.sequence = payload.sequence
     if payload.name is not None:
         wo.name = payload.name
@@ -356,11 +396,19 @@ async def update_work_order(
     )
     wo = result.scalars().first()
 
+    # Before -> after, not the payload. `changes=payload.model_dump()` recorded what
+    # was SENT: every field, whether or not it moved, and with no previous value — so
+    # a WO whose qty, work center or locations were rewritten could not be
+    # reconstructed from the log, which is the one question asked of it.
+    diff = _wo_diff(before, _wo_snapshot(wo))
     await audit_service.log_activity(
         db, user_id=current_user.id, action="UPDATE",
         entity_type="WorkOrder", entity_id=wo_id,
-        details=f"Updated Work Order",
-        changes=payload.model_dump()
+        details=(
+            f"Updated Work Order '{wo.code or wo.name}': "
+            + ", ".join(f"{f} {a} -> {b}" for f, (a, b) in diff.items())
+        ) if diff else f"Updated Work Order '{wo.code or wo.name}' (no field changed)",
+        changes=diff,
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": wo.status})
 
@@ -407,6 +455,7 @@ async def update_work_order_status(
         raise HTTPException(status_code=404, detail="Work Order not found")
     _require_wo_scope(current_user, wo.work_center.center_type if wo.work_center else None)
 
+    previous_status = wo.status
     wo.status = status
     if status == "IN_PROGRESS" and not wo.actual_start_date:
         wo.actual_start_date = datetime.utcnow()
@@ -429,7 +478,11 @@ async def update_work_order_status(
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "WorkOrder", wo_id,
-        details=f"Status -> {status}"
+        # Both sides, matching the MO equivalent (api/manufacturing's
+        # update_manufacturing_order_status). Logging only the destination made a
+        # reopen indistinguishable from a first start in the trail.
+        details=f"{previous_status} -> {status}",
+        changes={"status": [previous_status, status]},
     )
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped, f"work order {status.lower()}")
