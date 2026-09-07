@@ -9,6 +9,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { lvThBanded, LV_STICKY_THEAD, lvZebra, Dash, lvBtn, lvInput } from '../shared/listViewTheme';
+import DoseSheet, { fmtDose, doseUnitFor, type DosePreview } from '../shared/DoseSheet';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -43,13 +44,6 @@ const SHADE_COLORS: Record<string, { bg: string; color: string }> = {
     REWORK: { bg: '#ffeeba', color: '#856404' },
 };
 
-interface ChemicalRow {
-    item_id: string;
-    planned_qty: string;
-    actual_qty: string;
-    uom_id: string;
-}
-
 interface CreateForm {
     recipe_id: string;
     substrate_qty: string;
@@ -72,56 +66,21 @@ interface CreateForm {
     qty_order_kg: string;
 }
 
-/** No output lot field: the dyed lot is minted once, by the WO production log, and
- *  the run adopts it (backend add_mo_completion). Typing one here created a second
- *  Batch row for the same physical dye lot. */
+/** The QC entry, and nothing else.
+ *
+ *  This tab is supervisory now: the bath, the doses and the chemicals actually used
+ *  are recorded in the work order flow (`useDyeingBath`, in the WO completion modal
+ *  and the mobile scan terminal), because the bath and the output it produced are
+ *  one act by one operator. The shade result stays here — it is a different person
+ *  at a later moment, which is exactly why it is not folded into the production log.
+ *
+ *  No output lot field either: the dyed lot is minted once, by that production log,
+ *  and the run adopts it (backend `add_mo_completion`).
+ */
 interface CompleteForm {
     shade_result: string;
     shade_notes: string;
-    chemicals: ChemicalRow[];
 }
-
-/** The bath as filled, editable while the run is open. Every g/L dose comes off it. */
-interface BathForm {
-    volume_air_liters: string;
-    substrate_qty: string;
-}
-
-/** A weighed-out recipe from GET /dye-recipes/{id}/doses. Never computed here — the
- *  formula lives in backend services/dyeing_dose_service.py so this preview, the
- *  Complete Run dose sheet and the recipe print view cannot drift apart. */
-interface DosePreview {
-    recipe_code?: string | null;
-    recipe_name?: string | null;
-    substrate_qty?: number | null;
-    bath_volume_liters?: number | null;
-    liquor_ratio?: number | null;
-    lines: {
-        line_id: string;
-        item_id: string;
-        item_code?: string | null;
-        item_name?: string | null;
-        chemical_type?: string | null;
-        basis?: string | null;
-        qty_per_liter?: number | null;
-        qty_per_100kg?: number | null;
-        dose?: number | null;
-        dose_unit?: string | null;
-        dose_kg?: number | null;
-        uom_id?: string | null;
-        uom_name?: string | null;
-    }[];
-}
-
-const fmtDose = (v: number | null | undefined, digits = 3) =>
-    v == null ? '—' : v.toLocaleString(undefined, { maximumFractionDigits: digits });
-
-/** How a line is dosed, spelled out — the two bases are not interchangeable and the
- *  operator has to see which number a row followed. */
-const BASIS_LABEL: Record<string, string> = {
-    PER_LITER: 'g/L x bath',
-    PER_100KG: '% owf x kg',
-};
 
 interface DyeingOrdersTabProps {
     items: any[];
@@ -155,10 +114,7 @@ const emptyCreateForm: CreateForm = {
 const emptyCompleteForm: CompleteForm = {
     shade_result: '',
     shade_notes: '',
-    chemicals: [],
 };
-
-const emptyBathForm: BathForm = { volume_air_liters: '', substrate_qty: '' };
 
 export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrdersTabProps) {
     const { uiStyle } = useTheme();
@@ -186,25 +142,14 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [runPage, setRunPage] = useState(1);
-    // Live dose preview under the create form, and the dose sheet behind the
-    // Complete Run modal's planned quantities.
+    // Live dose preview under the create form, and the read-only sheet the shade
+    // screen shows so QC can see what the bath was dosed at.
     const [dosePreview, setDosePreview] = useState<DosePreview | null>(null);
     const [completeDoses, setCompleteDoses] = useState<DosePreview | null>(null);
-    const [bathForm, setBathForm] = useState<BathForm>(emptyBathForm);
-    const [bathSaving, setBathSaving] = useState(false);
-    // Starting a run IS filling the bath, so the volume is taken there and the dose
-    // sheet is in the operator's hand before any chemical goes in.
-    const [showStartModal, setShowStartModal] = useState<any | null>(null);
-    const [startBath, setStartBath] = useState<BathForm>(emptyBathForm);
-    const [startDoses, setStartDoses] = useState<DosePreview | null>(null);
-    const [starting, setStarting] = useState(false);
     // Generation counter: the preview refires on every keystroke of substrate/volume,
     // so without it a slow earlier response lands after a newer one and shows doses
     // for a bath the operator has already changed.
     const doseGen = useRef(0);
-    // The Start modal keeps its own counter: the create form's preview can be open at
-    // the same time, and sharing one would let each cancel the other's response.
-    const startDoseGen = useRef(0);
 
     // Server-paginated: this list previously sent no window, so it silently showed
     // only the endpoint's default first page and paged over that — dyeing WO #51 was
@@ -261,23 +206,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         showCreateRun, createForm.recipe_id, createForm.substrate_qty,
         createForm.volume_air_liters, createForm.liquor_ratio, fetchDoses,
     ]);
-
-    // Same debounce for the Start modal's sheet: the operator types the volume off
-    // the machine and watches the weights settle before committing the start.
-    useEffect(() => {
-        if (!showStartModal?.recipe_id) {
-            setStartDoses(null);
-            return;
-        }
-        const gen = ++startDoseGen.current;
-        const timer = setTimeout(async () => {
-            const data = await fetchDoses(
-                showStartModal.recipe_id, startBath.substrate_qty, startBath.volume_air_liters,
-            );
-            if (gen === startDoseGen.current) setStartDoses(data);
-        }, 350);
-        return () => clearTimeout(timer);
-    }, [showStartModal, startBath.substrate_qty, startBath.volume_air_liters, fetchDoses]);
 
     const fetchRuns = useCallback(async (woId: string) => {
         setLoading(true);
@@ -394,298 +322,60 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         }
     };
 
-    const handleOpenStart = (run: any) => {
-        setShowStartModal(run);
-        setStartDoses(null);
-        setErrorMsg(null);
-        // The debounced effect below loads the sheet off this seed — no fetch here, or
-        // the modal fires two requests for the same bath on every open.
-        setStartBath({
-            volume_air_liters: run.volume_air_liters != null ? String(run.volume_air_liters) : '',
-            substrate_qty: run.substrate_qty != null ? String(run.substrate_qty) : '',
-        });
-    };
-
-    /** Start = bath fill. The backend rejects a start with no resolvable volume and
-     *  snapshots the doses onto the run, so there is nothing to seed at completion. */
-    const handleStartRun = async () => {
-        if (!showStartModal) return;
-        setStarting(true);
-        setErrorMsg(null);
-        try {
-            const res = await authFetch(`${API_BASE}/dyeing-runs/${showStartModal.id}/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    volume_air_liters: startBath.volume_air_liters ? parseFloat(startBath.volume_air_liters) : null,
-                    substrate_qty: startBath.substrate_qty ? parseFloat(startBath.substrate_qty) : null,
-                }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                setErrorMsg(err.detail || 'Failed to start run.');
-                return;
-            }
-            setShowStartModal(null);
-            setStartBath(emptyBathForm);
-            setStartDoses(null);
-            if (selectedWoId) await fetchRuns(selectedWoId);
-        } catch {
-            setErrorMsg('Network error starting run.');
-        } finally {
-            setStarting(false);
-        }
-    };
-
-    /** Dose rows -> chemical rows. `planned_qty` is the calculated dose in the unit
-     *  the dose sheet shows beside it (grams for a g/L line), so it is only ever
-     *  filled from the server calc — never recomputed here. */
-    const chemicalRowsFromDoses = (doses: DosePreview | null): ChemicalRow[] =>
-        (doses?.lines ?? []).map(l => ({
-            item_id: String(l.item_id ?? ''),
-            planned_qty: l.dose != null ? String(parseFloat(l.dose.toFixed(4))) : '',
-            actual_qty: '',
-            uom_id: String(l.uom_id ?? ''),
-        }));
-
-    const handleOpenComplete = async (run: any) => {
-        const preChemicals: ChemicalRow[] = (run.chemicals ?? []).map((c: any) => ({
-            item_id: String(c.item_id ?? ''),
-            planned_qty: String(c.planned_qty ?? ''),
-            actual_qty: String(c.actual_qty ?? ''),
-            uom_id: String(c.uom_id ?? ''),
-        }));
+    const handleOpenShade = async (run: any) => {
         setCompleteForm({
             shade_result: run.shade_result ?? '',
             shade_notes: run.shade_notes ?? '',
-            chemicals: preChemicals,
-        });
-        setBathForm({
-            volume_air_liters: run.volume_air_liters != null ? String(run.volume_air_liters) : '',
-            substrate_qty: run.substrate_qty != null ? String(run.substrate_qty) : '',
         });
         setCompleteDoses(null);
         setShowCompleteModal(run);
         setErrorMsg(null);
 
         if (!run.recipe_id) return;
-        // The dose sheet is loaded for reference only — it labels each row's basis and
-        // unit. The planned quantities themselves come off the run, snapshotted when
-        // the bath was filled at start; recomputing them here would quietly replace
-        // what the operator was told to weigh with what the recipe says today.
+        // Reference only, and read-only: it labels each row's basis and unit so the
+        // recorded quantities below are legible. The numbers QC is looking at were
+        // snapshotted when the bath was filled — recomputing them here would show
+        // what the recipe says today instead of what the operator weighed.
         setCompleteDoses(await fetchDoses(run.recipe_id, run.substrate_qty, run.volume_air_liters));
     };
 
-    /** Record the bath the operator actually filled, then re-weigh the recipe against
-     *  it. A bath change moves every g/L dose, so the planned column is refilled. */
-    const handleSaveBath = async () => {
-        if (!showCompleteModal) return;
-        setBathSaving(true);
-        setErrorMsg(null);
-        try {
-            const res = await authFetch(`${API_BASE}/dyeing-runs/${showCompleteModal.id}/bath`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    volume_air_liters: bathForm.volume_air_liters ? parseFloat(bathForm.volume_air_liters) : null,
-                    substrate_qty: bathForm.substrate_qty ? parseFloat(bathForm.substrate_qty) : null,
-                }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                setErrorMsg(err.detail || 'Failed to save the bath.');
-                return;
-            }
-            const updated = await res.json();
-            setShowCompleteModal(updated);
-            setBathForm({
-                volume_air_liters: updated.volume_air_liters != null ? String(updated.volume_air_liters) : '',
-                substrate_qty: updated.substrate_qty != null ? String(updated.substrate_qty) : '',
-            });
-            const doses = await fetchDoses(updated.recipe_id, updated.substrate_qty, updated.volume_air_liters);
-            setCompleteDoses(doses);
-            if (doses?.lines?.length) {
-                // Only the planned column follows the new bath. Typed actuals survive,
-                // an actual already recorded pins its plan (the backend leaves those
-                // rows alone too — the chemical is in the vessel), and off-recipe rows
-                // the operator added by hand are kept rather than replaced away.
-                setCompleteForm(prev => {
-                    const seeded = chemicalRowsFromDoses(doses);
-                    const seededIds = new Set(seeded.map(r => r.item_id));
-                    const reweighed = seeded.map(row => {
-                        const existing = prev.chemicals.find(c => c.item_id === row.item_id);
-                        if (!existing) return row;
-                        const weighed = parseFloat(existing.actual_qty);
-                        return {
-                            ...row,
-                            planned_qty: weighed > 0 ? existing.planned_qty : row.planned_qty,
-                            actual_qty: existing.actual_qty,
-                            uom_id: existing.uom_id || row.uom_id,
-                        };
-                    });
-                    const manual = prev.chemicals.filter(c => !seededIds.has(c.item_id));
-                    return { ...prev, chemicals: [...reweighed, ...manual] };
-                });
-            }
-            if (selectedWoId) await fetchRuns(selectedWoId);
-        } catch {
-            setErrorMsg('Network error saving the bath.');
-        } finally {
-            setBathSaving(false);
-        }
-    };
-
-    const handleCompleteFormChange = (field: keyof Omit<CompleteForm, 'chemicals'>, value: string) => {
+    const handleCompleteFormChange = (field: keyof CompleteForm, value: string) => {
         setCompleteForm(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleChemicalChange = (idx: number, field: keyof ChemicalRow, value: string) => {
-        setCompleteForm(prev => {
-            const updated = prev.chemicals.map((row, i) =>
-                i === idx ? { ...row, [field]: value } : row
-            );
-            return { ...prev, chemicals: updated };
-        });
-    };
-
-    const handleAddChemical = () => {
-        setCompleteForm(prev => ({
-            ...prev,
-            chemicals: [...prev.chemicals, { item_id: '', planned_qty: '', actual_qty: '', uom_id: '' }],
-        }));
-    };
-
-    const handleRemoveChemical = (idx: number) => {
-        setCompleteForm(prev => ({
-            ...prev,
-            chemicals: prev.chemicals.filter((_, i) => i !== idx),
-        }));
-    };
-
-    const handleSaveComplete = async () => {
+    /** Record the shade and close the bath.
+     *
+     *  `chemicals` is deliberately absent from the payload: omitting it means "leave
+     *  the recorded doses alone" (backend DyeingRunCompletePayload). The actuals were
+     *  recorded from the WO flow, and a QC entry must not wipe them.
+     */
+    const handleSaveShade = async () => {
         if (!showCompleteModal) return;
         setSaving(true);
         setErrorMsg(null);
         try {
-            const payload: any = {
-                shade_result: completeForm.shade_result || null,
-                shade_notes: completeForm.shade_notes || null,
-                chemicals: completeForm.chemicals
-                    .filter(c => c.item_id)
-                    .map(c => ({
-                        item_id: c.item_id,
-                        planned_qty: c.planned_qty ? parseFloat(c.planned_qty) : null,
-                        actual_qty: c.actual_qty ? parseFloat(c.actual_qty) : null,
-                        uom_id: c.uom_id || null,
-                    })),
-            };
             const res = await authFetch(`${API_BASE}/dyeing-runs/${showCompleteModal.id}/complete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    shade_result: completeForm.shade_result || null,
+                    shade_notes: completeForm.shade_notes || null,
+                }),
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                setErrorMsg(err.detail || 'Failed to complete run.');
+                setErrorMsg(err.detail || 'Failed to record the shade result.');
             } else {
                 setShowCompleteModal(null);
                 setCompleteForm(emptyCompleteForm);
-                setBathForm(emptyBathForm);
                 setCompleteDoses(null);
                 if (selectedWoId) await fetchRuns(selectedWoId);
             }
         } catch {
-            setErrorMsg('Network error completing run.');
+            setErrorMsg('Network error recording the shade result.');
         } finally {
             setSaving(false);
         }
-    };
-
-    /** Unit of a chemical row's planned qty, taken from the dose sheet that filled it.
-     *  A g/L line is dosed in grams while an owf line carries the line's own UOM, so
-     *  an unlabelled number in that column is a 1000x mistake waiting to happen. */
-    const doseUnitFor = (itemId: string) =>
-        completeDoses?.lines.find(l => String(l.item_id) === String(itemId))?.dose_unit ?? null;
-
-    /** The weighed-out recipe for one bath. Shared by the create form's preview and
-     *  the Complete Run modal so the operator reads the same sheet in both. */
-    const renderDoseSheet = (doses: DosePreview | null, emptyHint: string) => {
-        const rows = doses?.lines ?? [];
-        const noBath = !doses?.bath_volume_liters;
-        return (
-            <div style={{ ...xpPanel, marginTop: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
-                <div style={{ ...xpSectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span>Dye Weights for this Bath</span>
-                    <span style={{ fontWeight: 400, fontSize: classic ? 10 : 11 }}>
-                        {doses?.bath_volume_liters != null
-                            ? `${fmtDose(doses.bath_volume_liters, 1)} L water`
-                            : 'no bath volume yet'}
-                        {doses?.liquor_ratio != null ? `  |  1 : ${fmtDose(doses.liquor_ratio, 2)}` : ''}
-                        {doses?.substrate_qty != null ? `  |  ${fmtDose(doses.substrate_qty, 2)} kg substrate` : ''}
-                    </span>
-                </div>
-                {rows.length === 0 ? (
-                    <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>
-                        {emptyHint}
-                    </div>
-                ) : (
-                    <>
-                        {noBath && (
-                            <div style={classic
-                                ? { background: '#fff3cd', borderBottom: '1px solid #ffc107', padding: '3px 8px', fontSize: 10, color: '#664d03' }
-                                : { background: '#fef3cd', borderBottom: '1px solid #f0d98a', padding: '5px 10px', fontSize: 12, color: '#854d0e' }}>
-                                Enter the bath volume (Volume Air) to weigh out the g/L chemicals. Per-100kg
-                                dyestuff is already costed off the substrate weight.
-                            </div>
-                        )}
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
-                            <thead>
-                                <tr style={classic ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' } : {}}>
-                                    <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Chemical</th>
-                                    <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Type</th>
-                                    <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rate</th>
-                                    <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Basis</th>
-                                    <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Weigh Out</th>
-                                    <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>kg</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((l, idx) => (
-                                    <tr key={l.line_id} style={classic
-                                        ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
-                                        : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                                        <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>
-                                            {l.item_name ?? l.item_code ?? <Dash />}
-                                        </td>
-                                        <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#64748b', fontFamily: modernFont }}>
-                                            {l.chemical_type ?? <Dash />}
-                                        </td>
-                                        <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#334155', fontFamily: modernFont }}>
-                                            {l.basis === 'PER_LITER'
-                                                ? `${fmtDose(l.qty_per_liter, 4)} g/L`
-                                                : l.basis === 'PER_100KG'
-                                                    ? `${fmtDose(l.qty_per_100kg, 4)} /100kg`
-                                                    : <Dash />}
-                                        </td>
-                                        <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
-                                            {l.basis ? (BASIS_LABEL[l.basis] ?? l.basis) : 'no rate set'}
-                                        </td>
-                                        <td style={classic
-                                            ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold' }
-                                            : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>
-                                            {l.dose == null ? <Dash /> : `${fmtDose(l.dose, 3)}${l.dose_unit ? ` ${l.dose_unit}` : ''}`}
-                                        </td>
-                                        <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
-                                            {l.dose_kg == null ? <Dash /> : fmtDose(l.dose_kg, 4)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </>
-                )}
-            </div>
-        );
     };
 
     const formatDateTime = (dt: string | null | undefined) => {
@@ -980,9 +670,13 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                 </div>
-                                {createForm.recipe_id && renderDoseSheet(
-                                    dosePreview,
-                                    'This recipe has no chemical lines to weigh out.',
+                                {createForm.recipe_id && (
+                                    <DoseSheet
+                                        classic={classic}
+                                        doses={dosePreview}
+                                        emptyHint="This recipe has no chemical lines to weigh out."
+                                        style={{ marginTop: classic ? 6 : 10 }}
+                                    />
                                 )}
                                 <div style={{ marginTop: classic ? 6 : 10, display: 'flex', gap: classic ? 4 : 8 }}>
                                     <button className={XP_BTN} style={xpPrimaryBtn} onClick={handleSaveRun} disabled={saving}>
@@ -1091,23 +785,20 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                         {formatDateTime(run.completed_at)}
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                                                        {/* One action: the shade. There is no Start button
+                                                            any more — filling the bath is done from the WO,
+                                                            with the output it produced. */}
                                                         <div style={{ display: 'flex', gap: classic ? 3 : 6 }}>
-                                                            {canManage && !bathClosed && !bathFilled && (
-                                                                <button
-                                                                    className={XP_BTN}
-                                                                    style={xpPrimaryBtn}
-                                                                    onClick={() => handleOpenStart(run)}
-                                                                >
-                                                                    Start
-                                                                </button>
-                                                            )}
                                                             {canManage && !bathClosed && (
                                                                 <button
                                                                     className={XP_BTN}
                                                                     style={bathFilled ? xpPrimaryBtn : xpBtn}
-                                                                    onClick={() => handleOpenComplete(run)}
+                                                                    onClick={() => handleOpenShade(run)}
+                                                                    title={bathFilled
+                                                                        ? 'Record the shade result and close this bath'
+                                                                        : 'No bath recorded yet — the operator fills it from the work order log'}
                                                                 >
-                                                                    Complete
+                                                                    Shade Result
                                                                 </button>
                                                             )}
                                                         </div>
@@ -1124,32 +815,35 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                 )}
             </div>
 
-            {/* Start Run Modal — the bath-fill screen.
-                The volume is taken here, not at completion: the doses below are what
-                the operator actually weighs into the vessel, so they have to exist
-                before the run starts. Starting also snapshots them onto the run, which
-                is why the Complete screen no longer calculates anything. */}
-            {showStartModal && (
+            {/* Shade Result Modal — the QC gate, and all this tab does now.
+                The bath, the dose sheet and the chemicals actually used moved into
+                the work order flow (WOCompletionModal / the mobile scan terminal):
+                the bath and the output it produced are one act by one operator, and
+                recording them on two screens is what let a WO be finished with its
+                bath never recorded. What is left here is genuinely a different
+                person at a later moment, judging the colour — so everything below
+                the shade fields is read-only context for that judgement. */}
+            {showCompleteModal && (
                 <ModalWrapper
-                    isOpen={!!showStartModal}
-                    onClose={() => { setShowStartModal(null); setErrorMsg(null); }}
-                    title={`Start Dyeing Run ${showStartModal.run_number ?? `#${showStartModal.id}`} — Fill the Bath`}
+                    isOpen={!!showCompleteModal}
+                    onClose={() => { setShowCompleteModal(null); setErrorMsg(null); }}
+                    title={`Shade Result — Dyeing Run ${showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}`}
                     size="lg"
                     modeless
                     footer={<>
                         <button
                             className={XP_BTN}
                             style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
-                            onClick={handleStartRun}
-                            disabled={starting || !startBath.volume_air_liters}
+                            onClick={handleSaveShade}
+                            disabled={saving}
                         >
-                            {starting ? 'Starting...' : 'Start Run'}
+                            {saving ? 'Saving...' : 'Save & Close Bath'}
                         </button>
                         <button
                             className={XP_BTN}
                             style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpBtn, padding: '6px 18px' }}
-                            onClick={() => { setShowStartModal(null); setErrorMsg(null); }}
-                            disabled={starting}
+                            onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
+                            disabled={saving}
                         >
                             Cancel
                         </button>
@@ -1163,284 +857,121 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 {errorMsg}
                             </div>
                         )}
-                        <div style={{ ...xpPanel, overflow: classic ? undefined : 'hidden' }}>
-                            <div style={xpSectionHeader}>Bath</div>
-                            <div style={{ padding: classic ? '5px 8px' : '8px 12px', display: 'flex', alignItems: 'flex-end', gap: classic ? 8 : 12, flexWrap: 'wrap' }}>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span
-                                        style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
-                                        title="Water volume of the bath, in litres. Required to start — every g/L chemical is weighed out against it."
-                                    >Volume Air (L) *</span>
-                                    <input
-                                        type="number" step="0.1" style={{ ...xpInput, width: 110 }}
-                                        value={startBath.volume_air_liters}
-                                        onChange={e => setStartBath(prev => ({ ...prev, volume_air_liters: e.target.value }))}
-                                        placeholder="e.g. 950"
-                                        autoFocus
-                                    />
-                                </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Substrate (kg)</span>
-                                    <input
-                                        type="number" step="0.01" style={{ ...xpInput, width: 110 }}
-                                        value={startBath.substrate_qty}
-                                        onChange={e => setStartBath(prev => ({ ...prev, substrate_qty: e.target.value }))}
-                                        placeholder="e.g. 100"
-                                    />
-                                </label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Liquor Ratio</span>
-                                    <span
-                                        style={classic
-                                            ? { fontSize: 11, padding: '2px 4px', color: '#333' }
-                                            : { fontSize: 13, padding: '4px 2px', color: '#334155', fontFamily: modernFont }}
-                                        title="Derived from the bath volume and substrate weight — never typed separately, so the two can't disagree."
-                                    >
-                                        {startDoses?.liquor_ratio != null ? `1 : ${fmtDose(startDoses.liquor_ratio, 2)}` : '—'}
-                                    </span>
-                                </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Result</span>
+                                <select
+                                    style={classic ? { ...xpInput, height: 22 } : { ...xpInput, height: 30 }}
+                                    value={completeForm.shade_result}
+                                    onChange={e => handleCompleteFormChange('shade_result', e.target.value)}
+                                    autoFocus
+                                >
+                                    <option value="">-- select --</option>
+                                    <option value="PASS">PASS</option>
+                                    <option value="FAIL">FAIL</option>
+                                    <option value="REWORK">REWORK</option>
+                                </select>
+                            </label>
+                            {/* Read-only: the dyed lot is minted by the WO production log
+                                (one lot per physical dye batch) and this run adopts it. */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Output Lot</span>
+                                <span
+                                    style={classic
+                                        ? { fontSize: 11, padding: '2px 4px', color: showCompleteModal.output_batch_number ? '#333' : '#888' }
+                                        : { fontSize: 13, padding: '4px 2px', fontFamily: modernFont, color: showCompleteModal.output_batch_number ? '#334155' : '#94a3b8' }}
+                                    title="The dyed lot is created when the work order's output is logged, and this run picks it up automatically — one lot per physical dye batch."
+                                >
+                                    {showCompleteModal.output_batch_number || 'set when the WO output is logged'}
+                                </span>
+                            </div>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: 1, gridColumn: '1 / -1' }}>
+                                <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Notes</span>
+                                <textarea
+                                    style={{ ...xpInput, height: 48, resize: 'vertical' }}
+                                    value={completeForm.shade_notes}
+                                    onChange={e => handleCompleteFormChange('shade_notes', e.target.value)}
+                                    placeholder="optional notes"
+                                />
+                            </label>
+                        </div>
+
+                        {/* The bath as the floor recorded it. Read-only here: it is
+                            corrected in the WO log, where the operator is standing. */}
+                        <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
+                            <div style={xpSectionHeader}>Bath as Recorded</div>
+                            <div style={{ padding: classic ? '5px 8px' : '8px 12px', display: 'flex', gap: classic ? 16 : 24, flexWrap: 'wrap', fontSize: classic ? 11 : 13 }}>
+                                <span>Volume Air: <strong>{showCompleteModal.volume_air_liters != null ? `${fmtDose(showCompleteModal.volume_air_liters, 1)} L` : '—'}</strong></span>
+                                <span>Substrate: <strong>{showCompleteModal.substrate_qty != null ? `${fmtDose(showCompleteModal.substrate_qty, 2)} kg` : '—'}</strong></span>
+                                <span>Liquor Ratio: <strong>{showCompleteModal.liquor_ratio != null ? `1 : ${fmtDose(showCompleteModal.liquor_ratio, 2)}` : '—'}</strong></span>
                             </div>
                         </div>
 
-                        {showStartModal.recipe_id ? renderDoseSheet(
-                            startDoses,
-                            startDoses ? 'This recipe has no chemical lines to weigh out.' : 'Loading the recipe...',
-                        ) : (
-                            <div style={{ ...xpPanel, marginTop: classic ? 6 : 10, padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>
-                                This run carries no recipe, so there is nothing to dose. The bath volume is still recorded.
-                            </div>
-                        )}
-                    </div>
-                </ModalWrapper>
-            )}
-
-            {/* Complete Run Modal */}
-            {showCompleteModal && (
-                <ModalWrapper
-                    isOpen={!!showCompleteModal}
-                    onClose={() => { setShowCompleteModal(null); setErrorMsg(null); }}
-                    title={`Complete Dyeing Run ${showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}`}
-                    size="lg"
-                    modeless
-                    footer={<>
-                        <button
-                            className={XP_BTN}
-                            style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
-                            onClick={handleSaveComplete}
-                            disabled={saving}
-                        >
-                            {saving ? 'Saving...' : 'Save'}
-                        </button>
-                        <button
-                            className={XP_BTN}
-                            style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpBtn, padding: '6px 18px' }}
-                            onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
-                            disabled={saving}
-                        >
-                            Cancel
-                        </button>
-                    </>}
-                >
-                    <div>
-                            {errorMsg && (
-                                <div style={classic
-                                    ? { background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03', marginBottom: 6 }
-                                    : { background: '#fef3cd', border: '1px solid #f0d98a', borderRadius: 7, padding: '6px 10px', fontSize: 13, color: '#854d0e', marginBottom: 10 }}>
-                                    {errorMsg}
-                                </div>
-                            )}
-
-                            {/* Shade & batch fields */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Result</span>
-                                    <select
-                                        style={classic ? { ...xpInput, height: 22 } : { ...xpInput, height: 30 }}
-                                        value={completeForm.shade_result}
-                                        onChange={e => handleCompleteFormChange('shade_result', e.target.value)}
-                                    >
-                                        <option value="">-- select --</option>
-                                        <option value="PASS">PASS</option>
-                                        <option value="FAIL">FAIL</option>
-                                        <option value="REWORK">REWORK</option>
-                                    </select>
-                                </label>
-                                {/* Read-only: the dyed lot is minted by the WO production log
-                                    (one lot per physical dye batch) and this run adopts it.
-                                    Typing a number here used to mint a second Batch row. */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Output Lot</span>
-                                    <span
-                                        style={classic
-                                            ? { fontSize: 11, padding: '2px 4px', color: showCompleteModal.output_batch_number ? '#333' : '#888' }
-                                            : { fontSize: 13, padding: '4px 2px', fontFamily: modernFont, color: showCompleteModal.output_batch_number ? '#334155' : '#94a3b8' }}
-                                        title="The dyed lot is created when the work order's output is logged, and this run picks it up automatically — one lot per physical dye batch."
-                                    >
-                                        {showCompleteModal.output_batch_number || 'set when the WO output is logged'}
-                                    </span>
-                                </div>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1, gridColumn: '1 / -1' }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Notes</span>
-                                    <textarea
-                                        style={{ ...xpInput, height: 48, resize: 'vertical' }}
-                                        value={completeForm.shade_notes}
-                                        onChange={e => handleCompleteFormChange('shade_notes', e.target.value)}
-                                        placeholder="optional notes"
-                                    />
-                                </label>
-                            </div>
-
-                            {/* Bath — the correction path, not the primary entry point: the
-                                volume is normally taken at Start (bath fill). It stays editable
-                                here for a bath topped up mid-cycle, and for back-filling a run
-                                completed straight out of PENDING, which never saw a Start. */}
-                            <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
-                                <div style={xpSectionHeader}>Bath (adjust)</div>
-                                <div style={{ padding: classic ? '5px 8px' : '8px 12px', display: 'flex', alignItems: 'flex-end', gap: classic ? 8 : 12, flexWrap: 'wrap' }}>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span
-                                            style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
-                                            title="Water volume of the bath, in litres. Every g/L chemical is weighed out against this."
-                                        >Volume Air (L)</span>
-                                        <input
-                                            type="number" step="0.1" style={{ ...xpInput, width: 100 }}
-                                            value={bathForm.volume_air_liters}
-                                            onChange={e => setBathForm(prev => ({ ...prev, volume_air_liters: e.target.value }))}
-                                            placeholder="e.g. 950"
-                                        />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Substrate (kg)</span>
-                                        <input
-                                            type="number" step="0.01" style={{ ...xpInput, width: 100 }}
-                                            value={bathForm.substrate_qty}
-                                            onChange={e => setBathForm(prev => ({ ...prev, substrate_qty: e.target.value }))}
-                                            placeholder="e.g. 100"
-                                        />
-                                    </label>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Liquor Ratio</span>
-                                        <span
-                                            style={classic
-                                                ? { fontSize: 11, padding: '2px 4px', color: '#333' }
-                                                : { fontSize: 13, padding: '4px 2px', color: '#334155', fontFamily: modernFont }}
-                                            title="Derived from the bath volume and substrate weight — never typed separately, so the two can't disagree."
-                                        >
-                                            {showCompleteModal.liquor_ratio != null ? `1 : ${fmtDose(showCompleteModal.liquor_ratio, 2)}` : '—'}
-                                        </span>
-                                    </div>
-                                    <button
-                                        className={XP_BTN}
-                                        style={classic ? { ...xpPrimaryBtn } : { ...xpPrimaryBtn }}
-                                        onClick={handleSaveBath}
-                                        disabled={bathSaving || (!bathForm.volume_air_liters && !bathForm.substrate_qty)}
-                                    >
-                                        {bathSaving ? 'Saving...' : 'Save Bath & Recalculate'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {showCompleteModal.recipe_id && renderDoseSheet(
-                                completeDoses,
-                                completeDoses
+                        {showCompleteModal.recipe_id && (
+                            <DoseSheet
+                                classic={classic}
+                                doses={completeDoses}
+                                emptyHint={completeDoses
                                     ? 'This recipe has no chemical lines to weigh out.'
-                                    : 'Loading the recipe...',
-                            )}
+                                    : 'Loading the recipe...'}
+                            />
+                        )}
 
-                            {/* Chemicals section */}
-                            <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, marginTop: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
-                                <div style={{ ...xpSectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <span>Chemicals Used</span>
-                                    <button className={XP_BTN} style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }} onClick={handleAddChemical}>+ Add Chemical</button>
+                        {/* What the vessel actually took, recorded with the output log.
+                            Planned vs actual is the only dosing variance signal there
+                            is, which is why it sits in front of QC. */}
+                        <div style={{ ...xpPanel, marginTop: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
+                            <div style={xpSectionHeader}>Chemicals Used</div>
+                            {(showCompleteModal.chemicals ?? []).length === 0 ? (
+                                <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>
+                                    Nothing recorded yet — the operator enters what went in with the
+                                    work order&apos;s production log.
                                 </div>
-                                {completeForm.chemicals.length === 0 ? (
-                                    <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>No chemicals added. Click "+ Add Chemical" to begin.</div>
-                                ) : (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
-                                        <thead>
-                                            <tr style={classic
-                                                ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
-                                                : {}}>
-                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
-                                                <th
-                                                    style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}
-                                                    title="Calculated from the recipe against this bath — g/L lines follow the bath volume, per-100kg lines the substrate weight. Save the bath above to refill it."
-                                                >Planned Qty</th>
-                                                <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual Qty</th>
-                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>UOM</th>
-                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px' }}></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {completeForm.chemicals.map((row, idx) => (
-                                                <tr key={idx} style={classic
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
+                                    <thead>
+                                        <tr style={classic ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' } : {}}>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Planned</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Variance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(showCompleteModal.chemicals ?? []).map((c: any, idx: number) => {
+                                            const unit = doseUnitFor(completeDoses, String(c.item_id)) ?? '';
+                                            const planned = Number(c.planned_qty ?? 0);
+                                            const actual = Number(c.actual_qty ?? 0);
+                                            const variance = actual - planned;
+                                            return (
+                                                <tr key={c.id ?? idx} style={classic
                                                     ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
                                                     : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <select
-                                                            style={classic ? { ...xpInput, width: '100%', height: 22 } : { ...xpInput, width: '100%', height: 30 }}
-                                                            value={row.item_id}
-                                                            onChange={e => handleChemicalChange(idx, 'item_id', e.target.value)}
-                                                        >
-                                                            <option value="">-- select item --</option>
-                                                            {items.map(it => (
-                                                                <option key={it.id} value={it.id}>
-                                                                    {it.name ?? it.item_code ?? `Item ${it.id}`}
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                    <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>
+                                                        {c.item_name ?? items.find(it => String(it.id) === String(c.item_id))?.name ?? <Dash classic={classic} />}
                                                     </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
-                                                            <input
-                                                                type="number"
-                                                                style={{ ...xpInput, width: 70 }}
-                                                                value={row.planned_qty}
-                                                                onChange={e => handleChemicalChange(idx, 'planned_qty', e.target.value)}
-                                                            />
-                                                            <span style={{ fontSize: classic ? 10 : 11, color: classic ? '#666' : '#64748b', minWidth: 10 }}>
-                                                                {doseUnitFor(row.item_id) ?? ''}
-                                                            </span>
-                                                        </div>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
+                                                        {fmtDose(planned, 3)}{unit ? ` ${unit}` : ''}
                                                     </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
-                                                            <input
-                                                                type="number"
-                                                                style={{ ...xpInput, width: 70 }}
-                                                                value={row.actual_qty}
-                                                                onChange={e => handleChemicalChange(idx, 'actual_qty', e.target.value)}
-                                                            />
-                                                            <span style={{ fontSize: classic ? 10 : 11, color: classic ? '#666' : '#64748b', minWidth: 10 }}>
-                                                                {doseUnitFor(row.item_id) ?? ''}
-                                                            </span>
-                                                        </div>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>
+                                                        {actual > 0 ? `${fmtDose(actual, 3)}${unit ? ` ${unit}` : ''}` : <Dash classic={classic} />}
                                                     </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <input
-                                                            type="text"
-                                                            style={{ ...xpInput, width: 50 }}
-                                                            value={row.uom_id}
-                                                            onChange={e => handleChemicalChange(idx, 'uom_id', e.target.value)}
-                                                            placeholder="UOM"
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <button
-                                                            className={XP_BTN}
-                                                            style={classic ? { ...xpBtn, fontSize: 10, color: '#800' } : { ...xpBtn, fontSize: 12, color: '#b91c1c', borderColor: '#f0c2c2' }}
-                                                            onClick={() => handleRemoveChemical(idx)}
-                                                        >
-                                                            Remove
-                                                        </button>
+                                                    <td style={{
+                                                        ...(classic ? { padding: '2px 6px' } : { padding: '6px 10px', fontFamily: modernFont }),
+                                                        textAlign: 'right', whiteSpace: 'nowrap',
+                                                        color: actual <= 0 ? '#888' : Math.abs(variance) < 1e-9 ? '#666' : variance > 0 ? '#900' : '#1a5e1a',
+                                                    }}>
+                                                        {actual > 0 ? `${variance > 0 ? '+' : ''}${fmtDose(variance, 3)}` : '—'}
                                                     </td>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
+                    </div>
                 </ModalWrapper>
             )}
         </div>

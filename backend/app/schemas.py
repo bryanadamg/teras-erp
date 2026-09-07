@@ -2851,6 +2851,16 @@ class DyeingRunChemicalCreate(BaseModel):
     actual_qty: float
     uom_id: UUID | None = None
 
+class DyeingRunChemicalUpsert(BaseModel):
+    """One weighed chemical. `planned_qty` is optional here (unlike the create
+    shape): the plan was snapshotted when the bath was filled, and an actual being
+    recorded must not overwrite it."""
+    item_id: UUID
+    actual_qty: float
+    planned_qty: float | None = None
+    uom_id: UUID | None = None
+
+
 class DyeingRunChemicalResponse(DyeingRunChemicalCreate):
     id: UUID
     run_id: UUID
@@ -2918,8 +2928,29 @@ class DyeingRunBathUpdate(BaseModel):
     substrate_qty: float | None = None
 
 
+class DyeingRunChemicalsUpdate(BaseModel):
+    """What actually went into the vessel, recorded from the work order flow.
+
+    Separate from `/complete` because the two are different acts by different people:
+    the operator at the vessel records the doses they weighed out (with the output
+    log), and QC records the shade later. Folding actuals into the close meant the
+    only way to record them was to close the bath.
+
+    Upsert by item: a row already on the run keeps its `planned_qty` unless one is
+    sent, so recording an actual can never quietly rewrite what the operator was
+    told to weigh. Items not listed are left alone (nothing is cleared by omission).
+    """
+    chemicals: list[DyeingRunChemicalUpsert]
+
+
 class DyeingRunCompletePayload(BaseModel):
-    """Closes the bath: shade result plus the chemicals actually weighed out.
+    """Closes the bath — now the shade-result act, and nothing else has to ride on it.
+
+    `chemicals` is **None = leave the recorded doses alone**, which is what the QC
+    close sends: actuals are recorded from the work order flow
+    (`PATCH /dyeing-runs/{id}/chemicals`) and a shade entry must not wipe them. An
+    explicit list still replaces the whole sheet, `[]` included, for the legacy
+    all-in-one close.
 
     `output_batch_number` is legacy and optional. The dyed output lot is minted by
     the WO completion (`add_mo_completion`, the `DYE-` prefix) — one physical dye
@@ -2929,7 +2960,7 @@ class DyeingRunCompletePayload(BaseModel):
     shade_result: str | None = None
     shade_notes: str | None = None
     output_batch_number: str | None = None
-    chemicals: list[DyeingRunChemicalCreate]
+    chemicals: list[DyeingRunChemicalCreate] | None = None
 
 class DyeingRunResponse(BaseModel):
     id: UUID

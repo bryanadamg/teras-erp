@@ -23,13 +23,14 @@ from app.models.routing import WorkCenter
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.services import audit_service, dyeing_dose_service, dyeing_run_service
+from app.core.ws_manager import manager
 from app.core.pagination import PageParams, PageWindow
 from app.schemas import (
     DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse, PaginatedDyeRecipeResponse,
     DyeRecipeWashBathCreate, DyeRecipeWashBathResponse,
     DyeRecipeFinishingCreate, DyeRecipeFinishingResponse,
     DyeingRunCreate, DyeingRunCompletePayload, DyeingRunResponse,
-    DyeingRunStartPayload, DyeingRunBathUpdate, DyeDoseResponse,
+    DyeingRunStartPayload, DyeingRunBathUpdate, DyeingRunChemicalsUpdate, DyeDoseResponse,
     SettingRunCreate, SettingRunCompletePayload, SettingRunResponse,
 )
 
@@ -626,6 +627,7 @@ async def update_dyeing_run_bath(
         details=f"Bath set to {run.volume_air_liters} L on run #{run.run_number}",
         changes={k: [before[k], after[k]] for k in after if str(before[k]) != str(after[k])},
     )
+    await manager.broadcast({"type": "DYEING_RUN_UPDATE", "wo_id": str(run.work_order_id)})
     return _enrich_dyeing_run(run)
 
 
@@ -720,6 +722,84 @@ async def start_dyeing_run(
         ),
         changes={"status": [status_before, run.status], "volume_air_liters": [None, volume]},
     )
+    await manager.broadcast({"type": "DYEING_RUN_UPDATE", "wo_id": str(run.work_order_id)})
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    return _enrich_dyeing_run(result.scalars().first())
+
+
+@router.patch("/dyeing-runs/{run_id}/chemicals", response_model=DyeingRunResponse)
+async def update_dyeing_run_chemicals(
+    run_id: str,
+    payload: DyeingRunChemicalsUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.log')),
+):
+    """Record what actually went into the vessel.
+
+    This is the operator's act, at the machine, alongside the WO's output log — not
+    QC's. It used to be reachable only through `/complete`, so the only way to write
+    an actual was to close the bath, which is why closing a bath was the floor's job
+    and the shade gate had a production form bolted onto it.
+
+    Upsert by item, so a second entry (a chemical topped up mid-cycle) adds to the
+    sheet rather than replacing it, and an item's snapshotted `planned_qty` survives
+    unless the caller sends a new one. Omitted items are untouched: this cannot clear
+    the sheet — `/complete` with an explicit list is the only thing that replaces it.
+    """
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Dyeing run not found")
+    # The bath's own close, as everywhere else in this file: a closed bath's
+    # chemicals are history. A WO-closed run is still open for this.
+    if run.completed_at is not None:
+        raise HTTPException(status_code=400, detail="Run is completed — its chemicals are history")
+    if not payload.chemicals:
+        raise HTTPException(status_code=422, detail="Send at least one chemical row")
+    for chem in payload.chemicals:
+        if chem.actual_qty < 0 or (chem.planned_qty is not None and chem.planned_qty < 0):
+            raise HTTPException(status_code=422, detail="Chemical quantities cannot be negative")
+
+    by_item = {str(c.item_id): c for c in run.chemicals}
+    added, updated = 0, 0
+    for chem in payload.chemicals:
+        existing = by_item.get(str(chem.item_id))
+        if existing:
+            existing.actual_qty = chem.actual_qty
+            if chem.planned_qty is not None:
+                existing.planned_qty = chem.planned_qty
+            if chem.uom_id is not None:
+                existing.uom_id = chem.uom_id
+            updated += 1
+        else:
+            db.add(DyeingRunChemical(
+                run_id=run.id,
+                item_id=chem.item_id,
+                # An off-recipe chemical the operator added has no snapshotted plan;
+                # 0 planned against a real actual is the variance, and is correct.
+                planned_qty=chem.planned_qty if chem.planned_qty is not None else 0,
+                actual_qty=chem.actual_qty,
+                uom_id=chem.uom_id,
+            ))
+            added += 1
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "DyeingRun", run_id,
+        details=(
+            f"Recorded chemical actuals on run #{run.run_number}"
+            + (f" — {updated} updated" if updated else "")
+            + (f", {added} added off-recipe" if added else "")
+        ),
+        changes={},
+    )
+    await manager.broadcast({"type": "DYEING_RUN_UPDATE", "wo_id": str(run.work_order_id)})
+    # expire_on_commit=False: rows were added, so the cached `chemicals` collection
+    # would come back without them (same trap as complete_dyeing_run below).
+    db.expire_all()
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
     )
@@ -795,20 +875,24 @@ async def complete_dyeing_run(
     status_before = run.status
     await dyeing_run_service.sync_wo_runs(db, run.work_order_id)
 
-    # Replace chemicals with actual quantities
-    for old_chem in list(run.chemicals):
-        await db.delete(old_chem)
-    await db.flush()
+    # Replace the whole dose sheet — but only when a list was actually sent. The
+    # shade-result close sends none: actuals come in from the work order flow
+    # (PATCH /chemicals) now, and wiping them on a QC entry would delete the only
+    # record of what went into the vessel. `[]` is still an explicit clear.
+    if payload.chemicals is not None:
+        for old_chem in list(run.chemicals):
+            await db.delete(old_chem)
+        await db.flush()
 
-    for chem in payload.chemicals:
-        c = DyeingRunChemical(
-            run_id=run.id,
-            item_id=chem.item_id,
-            planned_qty=chem.planned_qty,
-            actual_qty=chem.actual_qty,
-            uom_id=chem.uom_id,
-        )
-        db.add(c)
+        for chem in payload.chemicals:
+            c = DyeingRunChemical(
+                run_id=run.id,
+                item_id=chem.item_id,
+                planned_qty=chem.planned_qty,
+                actual_qty=chem.actual_qty,
+                uom_id=chem.uom_id,
+            )
+            db.add(c)
 
     await db.commit()
     # expire_on_commit=False, so the re-fetch below would hand back this session's
@@ -828,6 +912,7 @@ async def complete_dyeing_run(
         ),
         changes={"status": [status_before, run.status]},
     )
+    await manager.broadcast({"type": "DYEING_RUN_UPDATE", "wo_id": str(run.work_order_id)})
     return _enrich_dyeing_run(run)
 
 
