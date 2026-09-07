@@ -28,9 +28,11 @@ moment, and a FAIL must not reopen anything.
 """
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models.dyeing_setting import DyeingRun
+from app.models.dyeing_setting import DyeingRun, DyeingRunChemical, DyeRecipe, DyeRecipeLine
 from app.models.work_order import WorkOrder
+from app.services import dyeing_dose_service
 
 # The WO statuses that take every bath under them off the machine. DELIVERED is
 # absent for the same reason it is absent from the MO close rules: qty met, order
@@ -80,3 +82,72 @@ async def sync_wo_runs(
             changed.append((run, run.status, now))
             run.status = now
     return changed
+
+
+async def seed_planned_bath(db: AsyncSession, run: DyeingRun, typed_volume=None) -> float | None:
+    """Plan `run`'s bath and freeze its dose sheet. Returns the planned litres.
+
+    Called when a DYEING work order is cut, because that is the last moment before
+    the Kartu Kerja is printed — and a card that reaches the vessel carrying g/L
+    rates instead of grams is not an instruction, it is homework. `typed_volume` is
+    the planner's own figure; blank falls back to the recipe's `liquor_ratio` times
+    the load, so the usual case needs no input at all.
+
+    Two things this deliberately does NOT do:
+      - write `volume_air_liters`. That column is the water the floor actually
+        filled, and `derive_status` reads it as "this vessel is running". The plan
+        lives in `planned_volume_air_liters` and the run stays PENDING.
+      - own the formula. Doses come from `dyeing_dose_service`, the same call the
+        screen and the print portal make.
+
+    The materialized `DyeingRunChemical.planned_qty` rows are the MOPlannedComponent
+    pattern: what the operator was told to weigh must stay readable after somebody
+    retunes the recipe. `PATCH /dyeing-runs/{id}/bath` re-prices the rows whose
+    actual is still 0 once the real bath is known, so a plan is never a ceiling.
+    """
+    if not run.recipe_id:
+        return None
+    res = await db.execute(
+        select(DyeRecipe)
+        .options(
+            # compute_doses reads line.item / line.uom; async can't lazy-load them.
+            selectinload(DyeRecipe.lines).selectinload(DyeRecipeLine.item),
+            selectinload(DyeRecipe.lines).selectinload(DyeRecipeLine.uom),
+        )
+        .filter(DyeRecipe.id == run.recipe_id)
+    )
+    recipe = res.scalars().first()
+    if not recipe:
+        return None
+
+    volume, _ratio = dyeing_dose_service.solve_bath(
+        run.substrate_qty, typed_volume, recipe.liquor_ratio,
+    )
+    if not volume or volume <= 0:
+        # No planner figure and no recipe ratio: nothing to plan. The card falls back
+        # to printing the rates with a "bath not set" note, exactly as before.
+        return None
+    run.planned_volume_air_liters = volume
+
+    # Guarded on "no rows yet" so a re-plan never rewrites a sheet the floor has
+    # already been weighing against.
+    if not await _has_chemicals(db, run):
+        for row in dyeing_dose_service.compute_doses(recipe, run.substrate_qty, volume):
+            if row["dose"] is None:
+                continue
+            db.add(DyeingRunChemical(
+                run_id=run.id, item_id=row["item_id"],
+                planned_qty=row["dose"], actual_qty=0, uom_id=row["uom_id"],
+            ))
+    return volume
+
+
+async def _has_chemicals(db: AsyncSession, run: DyeingRun) -> bool:
+    """Whether the run already carries a dose sheet, without lazy-loading it (async
+    sessions can't) and without assuming the run has been flushed."""
+    if run.id is None:
+        return False
+    res = await db.execute(
+        select(DyeingRunChemical.id).filter(DyeingRunChemical.run_id == run.id).limit(1)
+    )
+    return res.scalar() is not None

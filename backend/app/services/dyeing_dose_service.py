@@ -83,6 +83,22 @@ def solve_bath(substrate_qty, bath_volume_liters, liquor_ratio) -> tuple[float |
     return vol, ratio
 
 
+def effective_bath(run) -> float | None:
+    """The bath a run's doses are weighed against.
+
+    The actual volume wins the moment the floor records one; before that the
+    planner's `planned_volume_air_liters` stands in, which is the whole point of
+    planning it — a Kartu Kerja printed at dispatch has to carry grams, not a note
+    saying the bath is unset. Never merge the two columns: only the actual one means
+    "this vessel is running" (see services/dyeing_run_service).
+    """
+    actual = _f(getattr(run, "volume_air_liters", None))
+    if actual is not None and actual > 0:
+        return actual
+    planned = _f(getattr(run, "planned_volume_air_liters", None))
+    return planned if (planned is not None and planned > 0) else None
+
+
 def compute_line_dose(line, substrate_qty, bath_volume_liters) -> float | None:
     """Dose for one recipe line, in the unit implied by its basis. None = not dosable
     (no rate on the line, or the input its basis needs was not supplied)."""

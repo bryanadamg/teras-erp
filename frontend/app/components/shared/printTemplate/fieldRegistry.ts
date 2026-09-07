@@ -173,8 +173,11 @@ export function resolveField(key: string, ctx: PrintContext): ResolvedField {
 
         // The bath is the run's, not the WO's: a multi-bath WO splits its load across
         // runs, so `wo.qty` is the whole order and only the run knows this vessel.
+        // Actual bath once the floor filled one, the planner's until then — the same
+        // `effective_bath_liters` the doses on this card were weighed from, so the
+        // printed volume and the printed grams always agree.
         case 'dye.bath_volume':
-            return num(ctx.dyeing?.run?.volume_air_liters);
+            return num(ctx.dyeing?.run?.effective_bath_liters ?? ctx.dyeing?.run?.volume_air_liters);
         case 'dye.liquor_ratio': {
             const r = ctx.dyeing?.run?.liquor_ratio;
             return r == null ? { text: EM_DASH, empty: true } : { text: `1 : ${Number(r).toFixed(2)}`, empty: false };

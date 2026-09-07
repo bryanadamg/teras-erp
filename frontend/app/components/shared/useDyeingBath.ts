@@ -100,8 +100,14 @@ export function useDyeingBath({ workOrderId, enabled, authFetch, apiBase }: Opti
     // run's own number is the one that must win here.
     useEffect(() => {
         if (!run) { setBath(EMPTY_BATH); setChemicals([]); return; }
+        // The planned bath stands in until the floor records a real one: the WO was
+        // cut with it and the Kartu Kerja printed grams from it, so the operator is
+        // confirming a number they already hold rather than inventing one. It stays
+        // an editable proposal — `bathDirty` compares against the ACTUAL column, so
+        // a prefilled plan is dirty on purpose and gets written on submit.
+        const seedVolume = run.volume_air_liters ?? run.planned_volume_air_liters;
         setBath({
-            volume_air_liters: run.volume_air_liters != null ? String(run.volume_air_liters) : '',
+            volume_air_liters: seedVolume != null ? String(seedVolume) : '',
             substrate_qty: run.substrate_qty != null ? String(run.substrate_qty) : '',
         });
         setChemicals((run.chemicals ?? []).map((c: any) => ({
@@ -112,7 +118,7 @@ export function useDyeingBath({ workOrderId, enabled, authFetch, apiBase }: Opti
             uom_id: String(c.uom_id ?? ''),
             dose_unit: null,
         })));
-    }, [run?.id, run?.volume_air_liters, run?.substrate_qty, JSON.stringify(run?.chemicals ?? [])]);
+    }, [run?.id, run?.volume_air_liters, run?.planned_volume_air_liters, run?.substrate_qty, JSON.stringify(run?.chemicals ?? [])]);
 
     // Weigh the recipe against the typed bath, debounced 350ms — the same pause the
     // item search uses. Never per keystroke.
@@ -236,6 +242,10 @@ export function useDyeingBath({ workOrderId, enabled, authFetch, apiBase }: Opti
         rows,
         setActual,
         bathDirty,
+        /** The planner's bath, when the floor hasn't recorded its own yet — for the
+         *  "planned 900 L" hint beside the input. Null once an actual exists. */
+        plannedVolume: (run && run.volume_air_liters == null && run.planned_volume_air_liters != null)
+            ? Number(run.planned_volume_air_liters) : null,
         hasActuals: actualsEntered.length > 0,
         flush,
         refresh: load,

@@ -57,7 +57,12 @@ export async function fetchDyeingPrintData(
 
         const qs = new URLSearchParams();
         if (run.substrate_qty != null) qs.set('substrate_qty', String(run.substrate_qty));
-        if (run.volume_air_liters != null) qs.set('bath_volume_liters', String(run.volume_air_liters));
+        // The bath the card must print against: the actual once the floor filled it,
+        // the planner's figure until then (backend resolves the pair as
+        // `effective_bath_liters`). This card is normally printed at dispatch, before
+        // any actual exists — which is exactly why the plan is set at WO creation.
+        const bath = run.effective_bath_liters ?? run.volume_air_liters;
+        if (bath != null) qs.set('bath_volume_liters', String(bath));
         const dres = await authFetch(`${apiBase}/dye-recipes/${run.recipe_id}/doses?${qs.toString()}`);
         return { run, doses: dres.ok ? await dres.json() : null };
     } catch {

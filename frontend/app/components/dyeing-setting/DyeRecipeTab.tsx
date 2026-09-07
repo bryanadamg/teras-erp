@@ -75,6 +75,9 @@ interface RecipeForm {
     color_standard: string;
     color_id: string;
     substrate_type: string;
+    /** Litres of water per kg of substrate (1:10 -> "10"). Kept as a string like
+     *  every other numeric field on this form; '' means "not specified". */
+    liquor_ratio: string;
     notes: string;
     is_active: boolean;
     lines: RecipeLine[];
@@ -86,6 +89,7 @@ const emptyForm = (): RecipeForm => ({
     color_standard: '',
     color_id: '',
     substrate_type: '',
+    liquor_ratio: '',
     notes: '',
     is_active: true,
     lines: [],
@@ -312,6 +316,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             color_standard: recipe.color_standard || '',
             color_id: recipe.color_id || '',
             substrate_type: recipe.substrate_type || '',
+            liquor_ratio: recipe.liquor_ratio != null ? String(recipe.liquor_ratio) : '',
             notes: recipe.notes || '',
             is_active: recipe.is_active !== false,
             lines: (recipe.lines || []).map((l: any) => ({
@@ -359,6 +364,10 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
             const payload = {
                 ...form,
                 color_id: form.color_id || null,
+                // Blank stays null: "no standard ratio", which makes WO creation ask
+                // the planner for a bath volume instead of proposing one.
+                liquor_ratio: String(form.liquor_ratio ?? '').trim() === ''
+                    ? null : (parseFloat(String(form.liquor_ratio)) || null),
                 lines: form.lines.map((l, idx) => ({
                     ...l,
                     // Blank stays null, not 0 — null is what marks "this line is rated in g/L instead".
@@ -502,6 +511,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                     <div style={colHeaderStyle}>Recipe Info</div>
                     {infoRow('Color Standard', recipe.color_standard || '—')}
                     {infoRow('Substrate Type', recipe.substrate_type || '—')}
+                    {infoRow('Liquor Ratio', recipe.liquor_ratio != null ? `1 : ${Number(recipe.liquor_ratio).toFixed(2)}` : '—')}
                     {recipe.notes && (
                         <div style={{ marginTop: 4, padding: '2px 5px', background: '#fffbe6', border: '1px solid #e0d080', fontSize: 9, fontStyle: 'italic', color: '#666' }}>
                             {recipe.notes}
@@ -809,7 +819,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                 </div>
                             </div>
                         )}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '6px 12px' }}>
                             <div>
                                 <label style={lvLabel(classic)}>Substrate Type</label>
                                 <input
@@ -817,6 +827,21 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                     value={form.substrate_type}
                                     onChange={e => setForm(f => ({ ...f, substrate_type: e.target.value }))}
                                     placeholder="e.g. Cotton, Polyester"
+                                />
+                            </div>
+                            {/* The recipe's standard bath, as litres of water per kg of
+                                substrate. Cutting a dyeing WO multiplies it by the load to
+                                propose the bath, which is what lets the Kartu Kerja print
+                                weighed grams for the g/L lines instead of bare rates. */}
+                            <div>
+                                <label style={lvLabel(classic)}>Liquor Ratio (1 : x)</label>
+                                <input
+                                    type="number" min="0" step="any"
+                                    style={{ ...inputStyle(classic), width: '100%', boxSizing: 'border-box' }}
+                                    value={form.liquor_ratio}
+                                    onChange={e => setForm(f => ({ ...f, liquor_ratio: e.target.value }))}
+                                    placeholder="e.g. 10 = 10 L per kg"
+                                    title="Litres of water per kg of substrate. Work order creation uses this to propose the bath volume."
                                 />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>

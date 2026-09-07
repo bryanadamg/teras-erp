@@ -251,14 +251,21 @@ async def create_work_order(
 
     # Auto-seed pending DyeingRun so operator sees pre-filled recipe
     if planned_recipe_id:
-        db.add(DyeingRun(
+        dye_run = DyeingRun(
             work_order_id=wo.id,
             recipe_id=planned_recipe_id,
             run_number=1,
             substrate_qty=wo.qty or 0,
-            # No status: a bathless run on a fresh WO is PENDING, which is the
-            # column default. Status is derived, not typed (dyeing_run_service).
-        ))
+            # No status: an unfilled bath on a fresh WO is PENDING, which is the
+            # column default. Status is derived, not typed (dyeing_run_service) —
+            # and the PLANNED bath below deliberately doesn't move it.
+        )
+        db.add(dye_run)
+        await db.flush()
+        # Plan the bath here so the Kartu Kerja printed off this WO carries weighed
+        # grams. `payload.bath_volume_liters` is the planner's figure; blank falls
+        # back to the recipe's liquor ratio x the load.
+        await dyeing_run_service.seed_planned_bath(db, dye_run, payload.bath_volume_liters)
 
     # Auto-start MO on first WO creation if MO is still PENDING.
     # Stock is now checked at staging time (line-side issue), not here — creating a
@@ -679,13 +686,16 @@ async def create_work_orders_bulk(
         await db.flush()
 
         if planned_recipe_id:
-            db.add(DyeingRun(
+            dye_run = DyeingRun(
                 work_order_id=wo.id,
                 recipe_id=planned_recipe_id,
                 run_number=1,
                 substrate_qty=wo.qty or 0,
                 # No status, same as the single-WO path above: derived, not typed.
-            ))
+            )
+            db.add(dye_run)
+            await db.flush()
+            await dyeing_run_service.seed_planned_bath(db, dye_run, payload.bath_volume_liters)
         created_wos.append(wo)
 
     # Auto-start MO once if still PENDING. Stock is checked at staging time

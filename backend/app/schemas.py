@@ -847,6 +847,10 @@ class WorkOrderCreate(BaseModel):
     notes: str | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
+    # DYEING only: the bath the planner intends, litres. Seeds the auto-created
+    # DyeingRun's PLAN (never its actual) so the Kartu Kerja prints weighed grams.
+    # Left blank it falls back to the matched recipe's liquor_ratio x the load.
+    bath_volume_liters: float | None = None
 
 class WorkOrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -2768,6 +2772,7 @@ class DyeRecipeCreate(BaseModel):
     color_standard: str | None = None
     color_id: UUID | None = None
     substrate_type: str | None = None
+    liquor_ratio: float | None = None
     notes: str | None = None
     is_active: bool = True
     lines: list[DyeRecipeLineCreate] = []
@@ -2780,6 +2785,7 @@ class DyeRecipeUpdate(BaseModel):
     color_standard: str | None = None
     color_id: UUID | None = None
     substrate_type: str | None = None
+    liquor_ratio: float | None = None
     notes: str | None = None
     is_active: bool | None = None
     attribute_value_ids: list[UUID] | None = None
@@ -2799,6 +2805,7 @@ class DyeRecipeResponse(BaseModel):
     color_variant_label: str | None = None
     color_variant_hex: str | None = None
     substrate_type: str | None = None
+    liquor_ratio: float | None = None
     notes: str | None = None
     is_active: bool
     created_at: datetime
@@ -2977,7 +2984,12 @@ class DyeingRunResponse(BaseModel):
     input_batch_id: UUID | None = None
     output_batch_id: UUID | None = None
     liquor_ratio: float | None = None
+    planned_volume_air_liters: float | None = None
     volume_air_liters: float | None = None
+    # The bath every dose on screen or on paper is weighed from: the actual once the
+    # floor has filled it, the plan until then. Derived server-side so the print
+    # portal, the dose sheet and the scan terminal cannot each pick differently.
+    effective_bath_liters: float | None = None
     machine_speed: float | None = None
     machine_pressure: str | None = None
     temperature_c: float | None = None

@@ -98,6 +98,10 @@ def _enrich_dyeing_run(run: DyeingRun) -> dict:
     d["recipe_name"] = run.recipe.name if run.recipe else None
     d["input_batch_number"] = run.input_batch.batch_number if run.input_batch else None
     d["output_batch_number"] = run.output_batch.batch_number if run.output_batch else None
+    # One answer to "which bath do I weigh against": the water actually filled once
+    # it exists, the planner's figure until then. Resolved here so the dose sheet,
+    # the scan terminal and the print portal cannot each fall back differently.
+    d["effective_bath_liters"] = dyeing_dose_service.effective_bath(run)
     chems = []
     for c in run.chemicals:
         cd = {col.name: getattr(c, col.name) for col in c.__table__.columns}
@@ -218,6 +222,7 @@ async def create_dye_recipe(
         color_standard=payload.color_standard,
         color_id=payload.color_id,
         substrate_type=payload.substrate_type,
+        liquor_ratio=payload.liquor_ratio,
         notes=payload.notes,
         is_active=payload.is_active,
     )
@@ -342,7 +347,7 @@ async def update_dye_recipe(
     if payload.lines is not None:
         _assert_single_dose_basis(payload.lines)
 
-    for field in ("code", "name", "color_standard", "color_id", "substrate_type", "notes", "is_active"):
+    for field in ("code", "name", "color_standard", "color_id", "substrate_type", "liquor_ratio", "notes", "is_active"):
         val = getattr(payload, field)
         if val is not None:
             setattr(r, field, val)
@@ -688,15 +693,20 @@ async def start_dyeing_run(
     status_before = run.status
     await dyeing_run_service.sync_wo_runs(db, run.work_order_id)
 
-    # Materialize the dose sheet. Guarded on "no chemicals yet" so a run that
-    # somehow carries rows keeps them rather than having its history rewritten.
+    # Materialize the dose sheet — or re-price the one WO creation already planned.
+    # A dyeing WO is cut with a planned bath and a frozen sheet
+    # (dyeing_run_service.seed_planned_bath) so its Kartu Kerja can print grams; the
+    # actual bath the floor just filled is rarely the planned litre-for-litre, and
+    # every g/L row has to follow it. Rows with an actual already recorded are left
+    # alone: that chemical is in the vessel, and rewriting its plan erases the
+    # variance.
     dosed = 0
-    if run.recipe_id and not run.chemicals:
+    if run.recipe_id:
         rec_res = await db.execute(
             select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == run.recipe_id)
         )
         recipe = rec_res.scalars().first()
-        if recipe:
+        if recipe and not run.chemicals:
             for row in dyeing_dose_service.compute_doses(recipe, run.substrate_qty, volume):
                 if row["dose"] is None:
                     continue  # line carries no rate — nothing to weigh
@@ -710,6 +720,19 @@ async def start_dyeing_run(
                     uom_id=row["uom_id"],
                 ))
                 dosed += 1
+        elif recipe:
+            doses = {
+                str(row["item_id"]): row["dose"]
+                for row in dyeing_dose_service.compute_doses(recipe, run.substrate_qty, volume)
+                if row["dose"] is not None
+            }
+            for chem in run.chemicals:
+                if float(chem.actual_qty or 0) > 0:
+                    continue
+                new_dose = doses.get(str(chem.item_id))
+                if new_dose is not None and float(chem.planned_qty or 0) != float(new_dose):
+                    chem.planned_qty = new_dose
+                    dosed += 1
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "DyeingRun", run_id,
