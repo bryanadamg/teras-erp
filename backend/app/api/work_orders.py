@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload, aliased
 from typing import Optional
 from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
-from app.models.manufacturing import ManufacturingOrder
+from app.models.manufacturing import ManufacturingOrder, MOCompletion
 from app.models.routing import WorkCenter
 from app.models.item import Item
 from app.models.bom import BOMOperation
@@ -284,6 +284,44 @@ async def update_work_order(
     _require_wo_scope(current_user, wo.work_center.center_type if wo.work_center else None)
     if payload.work_center_id != wo.work_center_id:
         _require_wo_scope(current_user, await _wc_type(db, payload.work_center_id))
+
+    if wo.status == "CANCELLED":
+        raise HTTPException(status_code=400, detail="This work order is cancelled — reopen it before editing")
+
+    # Once output has been logged the WO's shape is history, not a plan. Rewriting it
+    # orphans what already moved: the completions were consumed out of THIS input
+    # location, credited to THIS output location, and consumed the step pegged by
+    # THIS bom_operation_id. Notes, name, dates and sequence stay editable.
+    logged = float((await db.execute(
+        select(func.sum(MOCompletion.qty_completed)).where(
+            MOCompletion.work_order_id == wo.id,
+            MOCompletion.rejected == False,  # noqa: E712
+        )
+    )).scalar() or 0)
+    if logged > 0:
+        frozen = []
+        if payload.work_center_id != wo.work_center_id:
+            frozen.append("work center")
+        if payload.bom_operation_id != wo.bom_operation_id:
+            frozen.append("routing step")
+        if payload.input_location_id is not None or payload.output_location_id is not None:
+            if payload.input_location_id != wo.input_location_id:
+                frozen.append("input location")
+            if payload.output_location_id != wo.output_location_id:
+                frozen.append("output location")
+        if frozen:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{float(logged):g} already logged on this work order — its "
+                       f"{', '.join(frozen)} can no longer be changed. Cancel it and cut a new one instead.",
+            )
+    # Dropping the target below what is already logged would put the WO past 100%
+    # and re-trip the auto-complete arithmetic in add_mo_completion.
+    if payload.qty is not None and float(payload.qty) + 1e-9 < logged:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Qty cannot be below the {float(logged):g} already logged on this work order",
+        )
 
     wo.sequence = payload.sequence
     if payload.name is not None:
