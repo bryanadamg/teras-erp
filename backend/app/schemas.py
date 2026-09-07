@@ -4025,7 +4025,7 @@ class WorkQueueRow(BaseModel):
     # Past its planned date and not yet started. Never set when date_source is
     # 'created' — an unscheduled order cannot be late.
     is_overdue: bool = False
-    # RUNNING | STAGED | READY | PARTIAL | WAITING_UPSTREAM | WAITING_PRIOR
+    # RUNNING | STAGED | READY | PARTIAL | WAITING_UPSTREAM
     # | SHORT | NO_MATERIALS | NOT_RELEASED
     verdict: str
     verdict_detail: str | None = None

@@ -181,7 +181,7 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     // stored. Blue = the PIC may start it (RUNNING/STAGED/READY already blue above);
     // amber = waiting on something with a known answer; red = nothing to run on.
     RUNNING: 'blue',
-    WAITING_UPSTREAM: 'amber', WAITING_PRIOR: 'amber',
+    WAITING_UPSTREAM: 'amber',
     SHORT: 'red', NO_MATERIALS: 'gray',
     // An open order with no work order cut for it. Amber, not red: nothing is
     // broken, someone just has to release it before the floor can touch it.
