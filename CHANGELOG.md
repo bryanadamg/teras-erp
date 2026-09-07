@@ -15,6 +15,33 @@ on `main`:
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-09-07
+
+### Added
+- Staged material can be returned from a work order line — the exact reversal of staging, so material picked to the wrong line no longer has to be consumed just to leave it. Beams are refused on purpose: a warp is a loom resource pegged to the work center, not the WO, and comes off through beam dismount instead
+- Dyeing Kartu Kerja prints the weighed dye doses computed from the actual bath volume, alongside the planned g/L sheet
+- Dyeing rate modal is modeless, so it can stay open while working the rest of the screen
+
+### Changed
+- Dyeing bath volume is taken when the dyeing run starts, not at completion, and the planned volume set when the work order was cut carries through as its default — doses calculate off the real bath the floor filled instead of a rate applied after the fact
+- A dyed batch produces one output lot instead of two
+- A dyeing run's status derives from its work order instead of being tracked independently, so the two can no longer disagree about whether a bath is done
+- Manufacturing Orders list and toolbar now use the shared list/toolbar primitives, matching the rest of the app
+
+### Fixed
+- The floor scanner's material check used a `line.is_percentage` field the schema does not have, so it silently fell back to the wrong formula for every percentage-based BOM line and disagreed with the MO page; both now share one calculation
+- Editing a work order after output has been logged against it no longer silently orphans that output — its work center, routing step, input/output locations and qty (below what's logged) are frozen once a completion exists; cancel and cut a new one instead
+- A rejected lot pushes updated MO progress (good vs. rejected totals) to other clients, not just a status ping — progress bars no longer kept showing the rejected qty as done
+- Manufacturing order code uniqueness is checked before creation instead of relying on the database to reject a clash, so two planners proposing the same code get a clean error instead of a 500
+- Bulk mark-printed on work orders enforces the same work-center scope as the single-WO route, so a weaving-scoped user can't mark dyeing cards printed by batching the request
+- A printed MO renders the BOM/recipe it was actually built against (snapshotted at creation) instead of the live BOM, which may have changed since
+- Work order delete broadcasts to other clients so the row disappears everywhere, not just for whoever deleted it
+- Logging an MO completion broadcasts the resulting stock and work order events, so other open screens pick up the change
+- Work queue no longer reports a work order as waiting on an earlier routing step — that gate was already dropped from the completion route, but the queue verdict still showed it as blocked
+- Automatic MO/work order status transitions (e.g. reopening a closed order on a lot reject) are recorded in the audit log with before/after values, and MO/work order audit entries use one consistent entity-type spelling
+- Manufacturing order list rows no longer remount when paging, and the unreachable BLOCKED status chip is gone
+- Navigating to a work order uses the router instead of a full page reload
+
 ## [0.24.0] - 2026-09-06
 
 ### Added
