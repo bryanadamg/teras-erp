@@ -244,7 +244,7 @@ async def create_work_order(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="CREATE",
-        entity_type="WORK_ORDER", entity_id=str(wo.id),
+        entity_type="WorkOrder", entity_id=str(wo.id),
         details=f"Created Work Order '{wo.code}'",
         changes=payload.model_dump()
     )
@@ -358,7 +358,7 @@ async def update_work_order(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="UPDATE",
-        entity_type="WORK_ORDER", entity_id=wo_id,
+        entity_type="WorkOrder", entity_id=wo_id,
         details=f"Updated Work Order",
         changes=payload.model_dump()
     )
@@ -625,7 +625,7 @@ async def create_work_orders_bulk(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="CREATE",
-        entity_type="WORK_ORDER", entity_id=str(mo_id),
+        entity_type="WorkOrder", entity_id=str(mo_id),
         details=f"Bulk created {len(wos)} Work Orders for MO '{mo.code}'",
         changes={"count": len(wos), "mo_id": str(mo_id)}
     )
@@ -1271,7 +1271,7 @@ async def stage_wo_materials(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="STAGE",
-        entity_type="WORK_ORDER", entity_id=str(wo.id),
+        entity_type="WorkOrder", entity_id=str(wo.id),
         details=f"Staged materials to WO '{wo.code}' (status {wo.staging_status})",
         changes={"lines": [{"item_id": str(l.item_id), "qty": l.qty} for l in payload.lines]},
     )
@@ -1711,7 +1711,7 @@ async def delete_work_order(
     await db.commit()
     await audit_service.log_activity(
         db, user_id=current_user.id, action="DELETE",
-        entity_type="WORK_ORDER", entity_id=wo_id,
+        entity_type="WorkOrder", entity_id=wo_id,
         details=f"Deleted Work Order '{label}'"
     )
     # Safe after commit: the session runs expire_on_commit=False, so the stopped runs

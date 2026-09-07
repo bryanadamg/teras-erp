@@ -2174,7 +2174,7 @@ async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_
     await db.commit()
     deleted_count = len(delete_ids)
     await audit_service.log_activity(
-        db, current_user.id, "DELETE", "manufacturing_order", mo_id,
+        db, current_user.id, "DELETE", "ManufacturingOrder", mo_id,
         details=f"Deleted MO {mo_code} and {deleted_count - 1} descendant/component MO(s)"
     )
 
