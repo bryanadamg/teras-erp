@@ -27,6 +27,12 @@ class DyeRecipe(Base):
         UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
     )
     substrate_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # Litres of water per kg of substrate this recipe is written for (1:10 -> 10).
+    # The recipe's own standard, because the g/L half of its lines is only weighable
+    # against a bath, and the planner should not have to know the arithmetic: WO
+    # creation multiplies this by the load to propose the bath. A run's own
+    # `liquor_ratio` stays the pair-partner of the volume ACTUALLY filled.
+    liquor_ratio: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -103,10 +109,10 @@ class DyeingRun(Base):
     substrate_qty: Mapped[float] = mapped_column(Numeric(14, 4))
     input_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
     output_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
-    # LEGACY, display only. The machine this batch ran on is `work_order.work_center_id`
-    # — the WO is the dispatch record. Any per-machine aggregate must peg through it and
-    # never through this free-text field (see services/dyeing_monitor_service.py).
-    machine_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    # The machine this batch ran on is `work_order.work_center_id` — the WO is the
+    # dispatch record, and every per-machine aggregate pegs through it (see
+    # services/dyeing_monitor_service.py). A free-text `machine_name` used to sit
+    # here as a display-only duplicate; dropped in a7c9e1b3d5f8, never populated.
 
     # --- Monitor rate inputs -------------------------------------------------
     # Reel speed and rope count for THIS batch. Both vary run to run (a heavier
@@ -122,17 +128,27 @@ class DyeingRun(Base):
         Numeric(6, 2), default=50, server_default="50"
     )
 
+    # The bath, dual-track, exactly like the WO's target vs actual dates:
+    #   planned_volume_air_liters  the planner's number, set when the WO is cut, so
+    #                              the Kartu Kerja can print weighed grams instead of
+    #                              "bath not set". Never a measurement.
+    #   volume_air_liters          the water the floor actually filled. This is the
+    #                              one every recorded dose is weighed from, and the
+    #                              one that means "this vessel is running"
+    #                              (dyeing_run_service.derive_status) — which is why
+    #                              a planned bath must never be written here.
+    # `liquor_ratio` is the pair-partner of the ACTUAL volume (solve_bath keeps the
+    # two from contradicting); the planned side's ratio lives on the recipe.
     liquor_ratio: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    planned_volume_air_liters: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     volume_air_liters: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     machine_speed: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     machine_pressure: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    color_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    color_matching_ref: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    lot_number: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    customer_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    artikel: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    po_number: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    qty_order_kg: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    # No customer / order / colour columns here. `customer_name`, `artikel`,
+    # `po_number` and `qty_order_kg` restated the SO → MO → WO chain this run hangs
+    # off; `color_name` and `color_matching_ref` restated the MO's colour attributes
+    # and the dye recipe's own colour; `lot_number` predated the output Batch. All
+    # eight were null in every one of 12 real runs — dropped in a7c9e1b3d5f8.
     temperature_c: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     duration_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="PENDING")

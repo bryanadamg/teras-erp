@@ -181,14 +181,11 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     // stored. Blue = the PIC may start it (RUNNING/STAGED/READY already blue above);
     // amber = waiting on something with a known answer; red = nothing to run on.
     RUNNING: 'blue',
-    WAITING_UPSTREAM: 'amber', WAITING_PRIOR: 'amber',
+    WAITING_UPSTREAM: 'amber',
     SHORT: 'red', NO_MATERIALS: 'gray',
     // An open order with no work order cut for it. Amber, not red: nothing is
     // broken, someone just has to release it before the floor can touch it.
     NOT_RELEASED: 'amber',
-    // Derived (MO/WO lists): a PENDING order whose earlier routing steps are not
-    // finished. Gray — it is not started and not broken, just not its turn.
-    BLOCKED: 'gray',
     // Lot quality_status beyond REJECTED: still usable keeps its warning colour,
     // disposed is terminal and out of every picker.
     REJECT_USABLE: 'amber', DISPOSED: 'gray',
@@ -830,6 +827,49 @@ export function WorkCenterChip({ type, name, label }: { type?: string | null; na
     );
 }
 
+// Location code badge. `in` (blue) is where material comes FROM, `out` (green)
+// where it goes TO — the same pair the WO row's "Route" cell and the staging
+// screens read left-to-right. `neutral` for a location with no direction (a stock
+// bin in a list).
+//
+// This palette was hand-rolled in three places with the same literals and only one
+// of them set a radius, so two location chips in the same panel rendered one
+// rounded and one square. Goes through Chip so geometry and the clipped-label
+// popout come from one place — a bin code is exactly the kind of text that gets
+// cut off in a narrow cell.
+const LOCATION_CHIP_TONES = {
+    in: { background: '#e8f0fe', color: '#1a56c4', borderColor: '#b0c8f8' },
+    out: { background: '#e6f4ea', color: '#1a6e2e', borderColor: '#a8d8b0' },
+    neutral: { background: '#f0efe9', color: '#444', borderColor: '#c8c6be' },
+} as const;
+
+export function LocationChip({
+    code, direction = 'in', classic, title, size = 'xs', children, style,
+}: {
+    /** Location code. Renders '?' when absent, matching the WO route cell. */
+    code?: string | null;
+    direction?: keyof typeof LOCATION_CHIP_TONES;
+    classic?: boolean;
+    title?: string;
+    size?: 'xs' | 'sm' | 'md';
+    /** Trailing detail inside the chip, e.g. the qty at that location. */
+    children?: React.ReactNode;
+    style?: React.CSSProperties;
+}) {
+    return (
+        <Chip
+            classic={classic}
+            tone={LOCATION_CHIP_TONES[direction]}
+            size={size}
+            title={title}
+            truncate
+            style={style}
+        >
+            {code || '?'}{children}
+        </Chip>
+    );
+}
+
 // Rounded, bordered track + filled bar for at-a-glance completion (receiving
 // progress, MO/WO progress, lineage) — the ONE progress bar shape for the
 // whole app; new progress UI should use this instead of hand-rolling a
@@ -996,26 +1036,49 @@ const MODAL_FOOTER_CLASSIC_TONES: Record<'success' | 'primary' | 'danger', React
 // the global .btn-success/.btn-primary CSS override flattens color to plain
 // gray, which is why a Bootstrap-only button looks unstyled in Classic.
 // Don't hand-roll Cancel/Create buttons per modal — use this.
+//
+// `onSubmit` is optional: a read-only/dismiss-only modal passes just `onCancel`
+// (with `cancelLabel="Close"`). `onExtra` adds ONE muted side action to the left of
+// Cancel — for the MO Set-Color modal's "Clear", which previously existed only in
+// the modern branch as a `btn-outline-danger` with no classic counterpart, so in
+// Classic there was no way to clear a colour at all.
 export function ModalFooterActions({
     classic,
     onCancel, cancelLabel = 'Cancel',
     onSubmit, submitLabel, submittingLabel = 'Saving...', submitting = false,
     variant = 'success', disabled = false,
+    onExtra, extraLabel,
 }: {
     classic: boolean;
     onCancel: () => void;
     cancelLabel?: string;
-    onSubmit: () => void;
-    submitLabel: string;
+    onSubmit?: () => void;
+    submitLabel?: string;
     submittingLabel?: string;
     submitting?: boolean;
     variant?: 'success' | 'primary' | 'danger';
     disabled?: boolean;
+    onExtra?: () => void;
+    extraLabel?: string;
 }) {
     if (classic) {
         const tone = MODAL_FOOTER_CLASSIC_TONES[variant];
         return (
             <>
+                {onExtra && extraLabel && (
+                    <button
+                        type="button"
+                        className={XP_BTN}
+                        onClick={onExtra}
+                        style={{
+                            fontFamily: xpFont, fontSize: 11, padding: '3px 16px', cursor: 'pointer',
+                            borderRadius: BUTTON_RADIUS, border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                            background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#8a1a1a',
+                        }}
+                    >
+                        {extraLabel}
+                    </button>
+                )}
                 <button
                     type="button"
                     className={XP_BTN}
@@ -1028,30 +1091,39 @@ export function ModalFooterActions({
                 >
                     {cancelLabel}
                 </button>
-                <button
-                    type="button"
-                    className={XP_BTN}
-                    onClick={onSubmit}
-                    disabled={submitting || disabled}
-                    style={{
-                        fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '3px 20px', cursor: submitting || disabled ? 'default' : 'pointer',
-                        borderRadius: BUTTON_RADIUS, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
-                        ...tone,
-                    }}
-                >
-                    {(submitting ? submittingLabel : submitLabel).toUpperCase()}
-                </button>
+                {onSubmit && submitLabel && (
+                    <button
+                        type="button"
+                        className={XP_BTN}
+                        onClick={onSubmit}
+                        disabled={submitting || disabled}
+                        style={{
+                            fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '3px 20px', cursor: submitting || disabled ? 'default' : 'pointer',
+                            borderRadius: BUTTON_RADIUS, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
+                            ...tone,
+                        }}
+                    >
+                        {(submitting ? submittingLabel : submitLabel).toUpperCase()}
+                    </button>
+                )}
             </>
         );
     }
     return (
         <>
+            {onExtra && extraLabel && (
+                <button type="button" className="btn btn-sm btn-outline-danger" onClick={onExtra}>
+                    {extraLabel}
+                </button>
+            )}
             <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={onCancel}>
                 {cancelLabel}
             </button>
-            <button type="button" className={`btn btn-sm btn-${variant} px-4 fw-bold shadow-sm`} onClick={onSubmit} disabled={submitting || disabled}>
-                {submitting ? submittingLabel : submitLabel}
-            </button>
+            {onSubmit && submitLabel && (
+                <button type="button" className={`btn btn-sm btn-${variant} px-4 fw-bold shadow-sm`} onClick={onSubmit} disabled={submitting || disabled}>
+                    {submitting ? submittingLabel : submitLabel}
+                </button>
+            )}
         </>
     );
 }

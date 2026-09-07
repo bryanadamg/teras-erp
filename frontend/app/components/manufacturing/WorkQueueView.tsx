@@ -106,7 +106,7 @@ interface QueueRow {
 }
 
 // Verdict order in the filter bar: what the PIC can act on first, blockers last.
-const VERDICTS = ['RUNNING', 'STAGED', 'READY', 'PARTIAL', 'WAITING_UPSTREAM', 'WAITING_PRIOR', 'SHORT', 'NO_MATERIALS', 'NOT_RELEASED'];
+const VERDICTS = ['RUNNING', 'STAGED', 'READY', 'PARTIAL', 'WAITING_UPSTREAM', 'SHORT', 'NO_MATERIALS', 'NOT_RELEASED'];
 
 const VERDICT_HELP: Record<string, string> = {
     RUNNING: 'Already started on the floor.',
@@ -114,7 +114,6 @@ const VERDICT_HELP: Record<string, string> = {
     READY: 'Enough free stock is reserved for this order. Stage it and go.',
     PARTIAL: 'Some material is available, not all of it.',
     WAITING_UPSTREAM: 'Material is on a production order that has not finished yet.',
-    WAITING_PRIOR: 'An earlier step on the same order is not complete, so this one cannot be logged.',
     SHORT: 'No free stock and nothing incoming.',
     NO_MATERIALS: 'No BOM materials resolved for this step.',
     NOT_RELEASED: 'The order exists but no work order has been created, so nobody on the floor can start it. Create the work order to release it.',
@@ -225,7 +224,7 @@ export default function WorkQueueView() {
     const onOverdueOnly = () => setOverdueOnly(v => !v);
 
     const startable = (counts.READY || 0) + (counts.STAGED || 0);
-    const blocked = (counts.SHORT || 0) + (counts.WAITING_UPSTREAM || 0) + (counts.WAITING_PRIOR || 0);
+    const blocked = (counts.SHORT || 0) + (counts.WAITING_UPSTREAM || 0);
 
     const font = classic ? LV_XP_FONT : LV_MODERN_FONT;
 

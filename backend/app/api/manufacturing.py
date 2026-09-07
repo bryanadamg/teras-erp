@@ -5,7 +5,10 @@ from sqlalchemy import select, func, or_, inspect, case
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
-from app.models.manufacturing import ManufacturingOrder, MOCompletion, MOCompletionItem, MODependency
+from app.models.manufacturing import (
+    ManufacturingOrder, MOCompletion, MOCompletionItem, MODependency, MOPlannedComponent,
+    CLOSED_ORDER_STATUSES,
+)
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
@@ -14,7 +17,7 @@ from app.models.color import Color
 from app.services import (
     stock_service, audit_service, kpi_service, beam_service, mrp_service,
     work_center_service, so_fulfilment_service, reject_service, weaving_service,
-    staging_service,
+    staging_service, dyeing_run_service,
 )
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
@@ -38,8 +41,8 @@ from app.api.auth import get_current_user, require_permission, require_any_permi
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
+from app.models.dyeing_setting import DyeingRun
 from app.api.batches import generate_batch_number
-from app.api.work_orders import next_wo_code
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
@@ -52,10 +55,11 @@ router = APIRouter()
 # (legacy rows created before the field existed).
 DEFAULT_OVERDELIVERY_PCT = 10.0
 
-# MO statuses that still accept production logs. DELIVERED means "planned qty met,
-# order still open" — the industry split between delivery and closure (SAP DLV vs
-# TECO). Only an explicit close moves an order to COMPLETED.
-OPEN_MO_STATUSES = ("PENDING", "IN_PROGRESS", "DELIVERED")
+# CLOSED_ORDER_STATUSES is imported from the model above. It replaced an
+# `OPEN_MO_STATUSES` tuple that documented the rule here while all six gates were
+# spelled out inline as `in ("COMPLETED","CANCELLED")` literals — so the constant was
+# free to drift from the behaviour it described, and adding a status meant finding
+# all six by hand.
 
 
 def mo_overdelivery_pct(mo) -> float:
@@ -76,13 +80,22 @@ def mo_max_loggable_qty(mo) -> float | None:
     return float(mo.qty) * (1 + mo_overdelivery_pct(mo) / 100)
 
 
-# Helper for consistent eager loading
 def get_mo_options():
-    # Base relationships for the main MO
+    """Eager loads for ONE MO and its own relationships — the write paths' loader.
+
+    Deliberately does NOT walk child_mos. The four routes that use it (status,
+    completions, reject, complete-with-batches) mutate a single order and none of
+    them read `mo.child_mos`; none returns this instance either — the two that
+    respond with an MO re-load it through `load_mo_tree` after committing. It used
+    to hand-unroll two levels of child BOM trees on top of this list, so logging one
+    bag pulled the whole sub-assembly graph, with 20 of its 24 selectinload chains
+    feeding nothing. Anything that needs a tree wants `load_mo_tree`, which is
+    depth-unlimited; `populate_mo_ids` stubs an unloaded child_mos as [].
+    """
     options = [
         selectinload(ManufacturingOrder.item),
         selectinload(ManufacturingOrder.attribute_values),
-        selectinload(ManufacturingOrder.planned_components),
+        selectinload(ManufacturingOrder.planned_components).selectinload(MOPlannedComponent.item),
         selectinload(ManufacturingOrder.work_orders),
         selectinload(ManufacturingOrder.sales_order),
         selectinload(ManufacturingOrder.required_dependencies),
@@ -100,38 +113,6 @@ def get_mo_options():
         # putaway bin + its parent zone (for the "Zone / Bin" display name)
         joinedload(ManufacturingOrder.planned_putaway_location).joinedload(Location.parent),
     ]
-
-    # Sub-relationships for children (Level 1)
-    child_rel = selectinload(ManufacturingOrder.child_mos)
-    options.append(child_rel.selectinload(ManufacturingOrder.item))
-    options.append(child_rel.selectinload(ManufacturingOrder.attribute_values))
-
-    # Fully load BOM for children to avoid serialization errors
-    child_bom = child_rel.selectinload(ManufacturingOrder.bom)
-    options.append(child_bom.selectinload(BOM.item))
-    options.append(child_bom.selectinload(BOM.attribute_values))
-    options.append(child_bom.selectinload(BOM.operations).joinedload(BOMOperation.operation))
-    options.append(child_bom.selectinload(BOM.operations).joinedload(BOMOperation.work_center))
-    options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
-    options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
-    options.append(child_bom.selectinload(BOM.customer))
-    options.append(child_bom.selectinload(BOM.work_center))
-
-    # Support deeper levels if needed (Level 2)
-    gchild_rel = child_rel.selectinload(ManufacturingOrder.child_mos)
-    options.append(gchild_rel.selectinload(ManufacturingOrder.item))
-    options.append(gchild_rel.selectinload(ManufacturingOrder.attribute_values))
-
-    gchild_bom = gchild_rel.selectinload(ManufacturingOrder.bom)
-    options.append(gchild_bom.selectinload(BOM.item))
-    options.append(gchild_bom.selectinload(BOM.attribute_values))
-    options.append(gchild_bom.selectinload(BOM.operations).joinedload(BOMOperation.operation))
-    options.append(gchild_bom.selectinload(BOM.operations).joinedload(BOMOperation.work_center))
-    options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
-    options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
-    options.append(gchild_bom.selectinload(BOM.customer))
-    options.append(gchild_bom.selectinload(BOM.work_center))
-
     return options
 
 def populate_mo_ids(mo: ManufacturingOrder):
@@ -187,6 +168,17 @@ def populate_mo_ids(mo: ManufacturingOrder):
         mo.qty_rejected_total = 0.0
         sa_attributes.set_committed_value(mo, "completions", [])
 
+    # 3c. Stamp item identity onto the BOM-line snapshot (if loaded). Done here
+    # rather than as model properties because most callers load planned_components
+    # without its `item`, and a lazy hop in an async route raises MissingGreenlet.
+    if "planned_components" not in insp.unloaded:
+        for comp in mo.planned_components:
+            if "item" not in inspect(comp).unloaded and comp.item:
+                comp.item_code = comp.item.code
+                comp.item_name = comp.item.name
+    else:
+        sa_attributes.set_committed_value(mo, "planned_components", [])
+
     # 4. Recurse into children (if loaded); stub unloaded child_mos as []
     if "child_mos" not in insp.unloaded:
         for child in mo.child_mos:
@@ -232,7 +224,10 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
         .options(
             selectinload(ManufacturingOrder.item),
             selectinload(ManufacturingOrder.attribute_values),
-            selectinload(ManufacturingOrder.planned_components),
+            # .item too: the snapshot is what the expanded MO panel renders, and the
+            # client can't resolve a code off its own `items` array — that's only one
+            # page of /items.
+            selectinload(ManufacturingOrder.planned_components).selectinload(MOPlannedComponent.item),
             selectinload(ManufacturingOrder.sales_order),
             selectinload(ManufacturingOrder.required_dependencies),
             selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.work_center),
@@ -280,31 +275,11 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
     return mo_map
 
 
-async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, operations: list) -> list:
-    """Auto-generate WorkOrders from BOMOperation routing steps at MO creation time.
-    Returns list of created WorkOrder objects (after flush so IDs are populated)."""
-    if not operations:
-        return []
-    sorted_ops = sorted(operations, key=lambda o: int(o.sequence))
-    created = []
-    for op in sorted_ops:
-        # Same allocator the manual WO endpoints use — a count-based sequence here
-        # would race any concurrent dispatch on this MO.
-        _, code = await next_wo_code(db, mo)
-        name = op.work_center.name if (op.work_center is not None) else code
-        wo = WorkOrderModel(
-            manufacturing_order_id=mo.id,
-            sequence=int(op.sequence),
-            code=code,
-            name=name,
-            work_center_id=op.work_center_id,
-            qty=mo.qty,
-            planned_duration_hours=float(op.time_minutes) / 60 if op.time_minutes else None,
-            status="PENDING",
-        )
-        db.add(wo)
-        created.append(wo)
-    return created
+# NOTE: WOs are NOT auto-generated from a BOM's routing steps. There was a
+# `_create_wos_from_operations` helper here that did exactly that; its call site was
+# removed in 1ff929b8 and it sat dead afterwards. Cutting a work order is a floor
+# dispatch decision — a WO existing is what says "this step is released" — so
+# creating one per BOMOperation up front would make every MO look released.
 
 
 @router.post("/manufacturing-orders/preview", response_model=list[NettingPreviewNode])
@@ -344,6 +319,17 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
         src_result = await db.execute(select(Location).filter(Location.code == payload.source_location_code))
         source_location = src_result.scalars().first()
 
+    # ManufacturingOrder.code is unique, and /available-code only PROPOSES one — two
+    # planners who opened the form together hold the same proposal. Check before
+    # either branch: the nested path overwrote the root code without looking, so the
+    # loser got a raw IntegrityError re-raised as a 500 below.
+    if payload.code:
+        clash = (await db.execute(
+            select(ManufacturingOrder.id).filter(ManufacturingOrder.code == payload.code).limit(1)
+        )).scalars().first()
+        if clash:
+            raise HTTPException(status_code=400, detail="Manufacturing Order Code already exists")
+
     # 2. Logic: Regular or Nested
     if payload.create_nested:
         try:
@@ -371,11 +357,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
             await db.rollback()
             raise HTTPException(status_code=500, detail=str(e))
     else:
-        # Standard Single MO logic
-        result = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.code == payload.code))
-        if result.scalars().first():
-            raise HTTPException(status_code=400, detail="Manufacturing Order Code already exists")
-
+        # Standard Single MO logic (code uniqueness already checked above)
         mo = ManufacturingOrder(
             code=payload.code,
             bom_id=bom.id,
@@ -441,13 +423,45 @@ async def get_available_mo_code(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_any_permission("manufacturing_order.view", "production_run.view"))
 ):
+    """Propose the next free `{base}-NNNNN`.
+
+    A preview for the create form, so it deliberately reserves nothing — two
+    planners opening the form at the same moment DO get the same code, and the
+    second POST is rejected by the unique constraint with a 409 (see below).
+    Reserving here instead would burn a number every time a form was cancelled.
+
+    Was `counter = 1; while True:` with one SELECT per candidate, which walked
+    every order already on that base — thousands of round trips on a live series,
+    and an unbounded loop on the request thread. Codes are zero-padded to five
+    digits, so the highest one lexicographically is the highest numerically: one
+    query finds it, and the probe below only covers oddly-shaped legacy codes.
+    """
+    escaped = base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    highest = (await db.execute(
+        select(ManufacturingOrder.code)
+        .filter(ManufacturingOrder.code.like(f"{escaped}-%", escape="\\"))
+        .order_by(ManufacturingOrder.code.desc())
+        .limit(1)
+    )).scalar()
+
     counter = 1
-    while True:
+    if highest:
+        suffix = highest.rsplit("-", 1)[-1]
+        if suffix.isdigit():
+            counter = int(suffix) + 1
+
+    for _ in range(50):
         candidate = f"{base}-{str(counter).zfill(5)}"
-        result = await db.execute(select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1))
-        if result.scalars().first() is None:
+        taken = (await db.execute(
+            select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1)
+        )).scalars().first()
+        if taken is None:
             return {"code": candidate}
         counter += 1
+    raise HTTPException(
+        status_code=409,
+        detail=f"Could not find a free code for '{base}' — the series looks corrupted",
+    )
 
 @router.get("/manufacturing-orders", response_model=PaginatedManufacturingOrderResponse)
 async def get_manufacturing_orders(
@@ -1089,7 +1103,7 @@ async def update_mo_putaway(
     mo = result.unique().scalars().first()
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
-    if mo.status in ("COMPLETED", "CANCELLED"):
+    if mo.status in CLOSED_ORDER_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot set putaway on a {mo.status} MO")
 
     old_id = str(mo.planned_putaway_location_id) if mo.planned_putaway_location_id else None
@@ -1211,7 +1225,7 @@ async def add_mo_completion(
 
     # DELIVERED is deliberately absent: the planned qty being met does not close the
     # order. Only an explicit close (COMPLETED) or CANCELLED stops logging.
-    if mo.status in ("COMPLETED", "CANCELLED"):
+    if mo.status in CLOSED_ORDER_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot log completion on a {mo.status} MO")
 
     if payload.qty_completed <= 0:
@@ -1240,7 +1254,7 @@ async def add_mo_completion(
         wo = next((w for w in mo.work_orders if str(w.id) == str(payload.work_order_id)), None)
         if not wo:
             raise HTTPException(status_code=400, detail="Work order does not belong to this MO")
-        if wo.status in ("COMPLETED", "CANCELLED"):
+        if wo.status in CLOSED_ORDER_STATUSES:
             raise HTTPException(status_code=400, detail=f"Cannot log on a {wo.status} work order")
         if wo.work_center_id:
             wc_type_res = await db.execute(
@@ -1522,10 +1536,39 @@ async def add_mo_completion(
     db.add(completion)
     await db.flush()
 
+    # A dyeing WO's bath record adopts the lot this completion just minted, instead
+    # of minting a second one of its own (complete_dyeing_run used to, so every dyed
+    # batch existed twice, unlinked). Claim the earliest run on the WO that has no
+    # lot yet: run 1 takes the first bag, run 2 the second on a multi-bath WO.
+    # Several bags off ONE bath keep only the first here — the rest trace through
+    # BatchConsumption + Batch.source_wo_id, as multiple bags per weaving WO already do.
+    dye_run_claimed = None
+    if output_batch and wo and wo_wc_type in ("DYEING", "CELUP"):
+        run_res = await db.execute(
+            select(DyeingRun)
+            .filter(
+                DyeingRun.work_order_id == wo.id,
+                DyeingRun.output_batch_id.is_(None),
+            )
+            .order_by(DyeingRun.run_number)
+            .limit(1)
+        )
+        dye_run = run_res.scalars().first()
+        if dye_run:
+            dye_run.output_batch_id = output_batch.id
+            dye_run_claimed = dye_run
+
     # Auto-advance WO to IN_PROGRESS on first log. Weaving runs are NOT started
     # here — the monitor run is opened manually on the /weaving-monitor page so
     # the operator sets lines/rate/target before the window starts counting.
+    # Every automatic transition below is recorded as its own STATUS_CHANGE row after
+    # the commit. They used to be folded into this route's COMPLETION detail string,
+    # so the trail could answer "who changed this status" for every MANUAL change and
+    # nothing at all for the automatic ones — including the one question actually
+    # asked of it, "when did this MO become DELIVERED".
+    auto_transitions: list[tuple[str, str, str, str]] = []   # (entity_type, id, from, to)
     if wo and wo.status == "PENDING":
+        auto_transitions.append(("WorkOrder", str(wo.id), wo.status, "IN_PROGRESS"))
         wo.status = "IN_PROGRESS"
         wo.actual_start_date = datetime.utcnow()
 
@@ -1686,6 +1729,7 @@ async def add_mo_completion(
     # Planned qty met -> DELIVERED, NOT COMPLETED. The order stays open so the floor
     # can keep logging (spare beams, extra bags) until someone closes it explicitly.
     if total_completed >= float(mo.qty) and mo.status not in ("DELIVERED", "COMPLETED"):
+        auto_transitions.append(("ManufacturingOrder", str(mo.id), mo.status, "DELIVERED"))
         mo.status = "DELIVERED"
         mo.actual_end_date = datetime.utcnow()
         # No SO status write here — delivering production is not the same as being
@@ -1711,6 +1755,7 @@ async def add_mo_completion(
         )
         wo_total = float(wo_total_result.scalar() or 0)
         if wo_total >= float(wo.qty) and wo.status != "COMPLETED":
+            auto_transitions.append(("WorkOrder", str(wo.id), wo.status, "COMPLETED"))
             wo.status = "COMPLETED"
             wo.actual_end_date = datetime.utcnow()
             # The loom that just finished this WO stops with it, so the monitor card
@@ -1719,14 +1764,49 @@ async def add_mo_completion(
                 db, work_order_id=wo.id, username=current_user.username,
             )
 
+    # The WO's status may have moved twice above (PENDING -> IN_PROGRESS on the first
+    # log, -> COMPLETED at target), and a dye bath's status follows its WO — a bath
+    # left PENDING under a finished WO is the mismatch dyeing_run_service exists to
+    # prevent. Audited through auto_transitions below like every other automatic move.
+    if wo and wo_wc_type in ("DYEING", "CELUP"):
+        for run, was, now in await dyeing_run_service.sync_wo_runs(
+            db, wo.id, wo_status=wo.status
+        ):
+            auto_transitions.append(("DyeingRun", str(run.id), was, now))
+
     await db.commit()
     completion_log_detail = f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})"
     if wo_machine_assigned:
         completion_log_detail += f" | Machine '{wo_machine_assigned}' assigned to WO {wo.code or wo.name}"
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, completion_log_detail)
+    for entity_type, entity_id, was, now in auto_transitions:
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", entity_type, entity_id,
+            details=f"{was} -> {now} (automatic, on production log)",
+            changes={"status": [was, now]},
+        )
+    if dye_run_claimed and output_batch:
+        await audit_service.log_activity(
+            db, current_user.id, "UPDATE", "DyeingRun", str(dye_run_claimed.id),
+            details=(
+                f"Output lot {output_batch.batch_number} linked from the production log "
+                f"on WO {wo.code or wo.name}"
+            ),
+            changes={"output_batch_id": [None, str(output_batch.id)]},
+        )
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped_runs, "work order completed (target qty reached)")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", **(await mo_progress_fields(db, mo, wo))})
+    # This route is the single largest stock mover in the system — it deducts every
+    # consumed component, credits the output, mints Batch rows and moves packaging
+    # tallies. Those screens live on the `stock` topic, which no MO event reaches.
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    # The WO itself changed too: status may have advanced (PENDING -> IN_PROGRESS, or
+    # -> COMPLETED at target) and a first log can pin its machine and both locations.
+    # mo_progress_fields carries those numbers for MO watchers, but a WO-only board
+    # is on no MO event.
+    if wo:
+        await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})
 
     try:
         await kpi_service.invalidate_kpis_async(db)
@@ -1857,7 +1937,9 @@ async def reject_mo_completion(
         .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
     )
     total_good = float(total_result.scalar() or 0)
+    reopened_from = None
     if mo.status in ("DELIVERED", "COMPLETED") and total_good < float(mo.qty):
+        reopened_from = mo.status
         mo.status = "IN_PROGRESS"
         mo.actual_end_date = None
 
@@ -1872,6 +1954,14 @@ async def reject_mo_completion(
         + (f": {comp.reject_reason}" if comp.reject_reason else "")
         + f" — good total {total_good:g}/{mo.qty}",
     )
+    if reopened_from:
+        # Its own row, like every manual transition: a reject that reopens a closed
+        # order is a status change someone will come looking for.
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", "ManufacturingOrder", mo_id,
+            details=f"{reopened_from} -> IN_PROGRESS (automatic, reopened by reject)",
+            changes={"status": [reopened_from, "IN_PROGRESS"]},
+        )
     # Loaded by id rather than through comp.work_order: the relationship isn't in
     # this route's eager-load set, and a lazy hop would raise MissingGreenlet.
     rejected_wo = None
@@ -1976,6 +2066,8 @@ async def complete_manufacturing_order_with_batches(
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped_runs, "MO completed")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": "COMPLETED", "code": mo.code})
+    # Deducts every planned component at MO level, so the stock screens have to hear it.
+    await manager.broadcast({"type": "STOCK_UPDATE"})
 
     try:
         await kpi_service.invalidate_kpis_async(db)
@@ -2130,7 +2222,7 @@ async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_
     await db.commit()
     deleted_count = len(delete_ids)
     await audit_service.log_activity(
-        db, current_user.id, "DELETE", "manufacturing_order", mo_id,
+        db, current_user.id, "DELETE", "ManufacturingOrder", mo_id,
         details=f"Deleted MO {mo_code} and {deleted_count - 1} descendant/component MO(s)"
     )
 

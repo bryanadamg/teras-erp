@@ -37,8 +37,8 @@ ACTIVE_RUN_STATUSES = dyeing_monitor_service.ACTIVE_RUN_STATUSES
 CARD_RUN_STATUSES = ACTIVE_RUN_STATUSES + ("PENDING",)
 
 # The MO behind a dye batch is reached through the WO -- DyeingRun has no mo_id of
-# its own, and `DyeingRun.machine_name` is legacy free text that must never be used
-# to identify a machine.
+# its own, and no machine of its own either: the vessel is `work_order.work_center_id`
+# (a free-text `machine_name` column used to sit on the run and was dropped, unused).
 _RUN_LOADS = (
     joinedload(DyeingRun.work_order).joinedload(WorkOrder.manufacturing_order)
     .selectinload(ManufacturingOrder.attribute_values).joinedload(AttributeValue.attribute),
@@ -70,8 +70,10 @@ def _run_card(run: DyeingRun, metrics: dict) -> dict:
         "target_qty": float(mo.qty) if mo else None,
         "substrate_qty": float(run.substrate_qty) if run.substrate_qty is not None else None,
         "recipe_code": run.recipe.code if run.recipe else None,
-        "color_name_run": run.color_name,
-        "lot_number": run.lot_number,
+        # No colour/lot keys: they came off `DyeingRun.color_name` / `lot_number`,
+        # dropped in a7c9e1b3d5f8 as never-populated duplicates of the MO's colour
+        # attributes (already in `variant_labels` below) and the output Batch. No
+        # frontend read either one.
         "status": run.status,
         "started_at": run.started_at,
         "completed_at": run.completed_at,

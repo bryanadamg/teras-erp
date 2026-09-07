@@ -186,7 +186,7 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
     // shown as one panel above the table (the material it belongs to rides along
     // as a chip), so what's on the line reads before what's still to pick.
     const allStagedLots = useMemo(
-        () => rows.flatMap(r => (r.staged_lots || []).map(l => ({ ...l, item_code: r.item_code }))),
+        () => rows.flatMap(r => (r.staged_lots || []).map(l => ({ ...l, item_code: r.item_code, item_id: r.item_id }))),
         [rows],
     );
     const stagedKg = useMemo(
@@ -281,6 +281,37 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
             }
             const updated = await res.json().catch(() => null);
             showToast(hasBeams ? 'Beam mounted on machine.' : 'Materials staged to line.', 'success');
+            onStaged(updated);
+            onClose();
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // Send a lot back to its store — the mirror of `submit` for one row. Returns
+    // whatever is still physically on the line (`on_line`), never the original
+    // staged qty, so a partly-consumed lot gives back only its remnant. Beams are
+    // absent from this list on purpose: a warp comes off through unmount.
+    const unstage = async (lot: { batch_id: string; item_id: string; batch_number: string | null; on_line: number }) => {
+        if (lot.on_line <= 1e-6) {
+            showToast('Nothing left of that lot on the line.', 'danger'); return;
+        }
+        setSubmitting(true);
+        try {
+            const res = await authFetch(`${API_BASE}/work-orders/${wo.id}/unstage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    lines: [{ item_id: lot.item_id, qty: lot.on_line, batch_id: lot.batch_id }],
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => null);
+                showToast(err?.detail || 'Return failed', 'danger');
+                return;
+            }
+            const updated = await res.json().catch(() => null);
+            showToast(`Lot ${lot.batch_number || ''} returned to store.`, 'success');
             onStaged(updated);
             onClose();
         } finally {
@@ -404,6 +435,17 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                             <span style={{ color: '#888', fontSize: 9 }}>
                                                 {new Date(sl.staged_at).toLocaleString()}
                                             </span>
+                                        ) : null}
+                                        {sl.on_line > 1e-6 ? (
+                                            <button
+                                                className={XP_BTN}
+                                                style={xpBtnBase({ ...BTN_TONES.danger, padding: '0 6px', fontSize: 9, marginLeft: 'auto' })}
+                                                onClick={() => unstage(sl as any)}
+                                                disabled={submitting}
+                                                title="Return what is left of this lot to its store"
+                                            >
+                                                <i className="bi bi-arrow-return-left" /> Return
+                                            </button>
                                         ) : null}
                                     </div>
                                 );

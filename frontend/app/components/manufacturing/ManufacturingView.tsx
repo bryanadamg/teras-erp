@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import CodeConfigModal, { CodeConfig, buildCodeParts } from '../shared/CodeConfigModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
@@ -15,7 +14,7 @@ import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor,
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
-import { pageFillStyle, viewShellStyle, xpTitleBar } from '../shared/shellTheme';
+import { pageFillStyle, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import { Tabs } from '../shared/Tabs';
 
 export default function ManufacturingView({
@@ -55,7 +54,6 @@ export default function ManufacturingView({
     initialPRFilter,
 }: any) {
   const { showToast } = useToast();
-  const router = useRouter();
   const { t } = useLanguage();
   const { authFetch, companyProfile, pagination, itemIndex } = useData();
   const { hasPermission, hasAnyPermission } = useUser();
@@ -139,7 +137,7 @@ export default function ManufacturingView({
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
 
-  const helpers = useManufacturingHelpers({ items, boms, locations, operations, workCenters, attributes, stockBalance, itemIndex });
+  const helpers = useManufacturingHelpers({ items, boms, locations, workCenters, attributes, stockBalance, itemIndex });
   const { getItemName, getAttributeValueName, getBomSizeLabel } = helpers;
 
   // Handle Automated Creation from Sales Order
@@ -516,71 +514,22 @@ export default function ManufacturingView({
                   className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}
               >
 
-                  {/* ── Title bar / toolbar ── */}
-                  <div
-                      className="no-print"
-                      style={classic ? xpTitleBar() : {
-                          background: '#fff',
-                          borderBottom: '1px solid #dee2e6',
-                          padding: '8px 16px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                      }}
-                  >
-                      {/* Left: title + view switcher */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{
-                              fontFamily: classic ? xpFont : undefined,
-                              fontSize: classic ? '12px' : undefined,
-                              fontWeight: 'bold',
-                              color: classic ? '#fff' : '#000',
-                              textShadow: classic ? '1px 1px 1px rgba(0,0,0,0.4)' : undefined,
-                              letterSpacing: classic ? '0.3px' : undefined,
-                          }}>
-                              <i className={`bi ${activeTab === 'manufacturing-orders' ? 'bi-list-task' : 'bi-collection-play'} me-2`} style={{ fontSize: '13px' }}></i>
-                              {activeTab === 'manufacturing-orders' ? (t('manufacturing_orders') || 'Manufacturing Orders') : 'Production Runs'}
-                          </span>
+                  {/* ── Title bar ──
+                      Kept to the title alone. The Calendar/List picker moved down to
+                      the tab's own toolbar, beside its search field, where the rest of
+                      the app puts its filters (SearchField -> filters -> count ->
+                      actions) — and where it can only be shown on the tab it actually
+                      drives. Up here it also rendered over Production Runs, which reads
+                      no viewMode, so clicking Calendar there changed nothing.
 
-                          {/* View-mode buttons */}
-                          <div style={{ display: 'flex', gap: classic ? '2px' : '0' }}>
-                              {[
-                                  { key: 'calendar', icon: 'bi-calendar-event', label: 'Calendar' },
-                                  { key: 'list',     icon: 'bi-list-ul',        label: 'List' },
-                                  { key: 'scanner',  icon: 'bi-qr-code-scan',   label: 'Scanner' },
-                              ].map(({ key, icon, label }) => {
-                                  const isActive = viewMode === key;
-                                  const handleClick = () => key === 'scanner' ? router.push('/scanner') : setViewMode(key);
-                                  return (
-                                      <button
-                                          key={key}
-                                          onClick={handleClick}
-                                          className={classic ? XP_BTN : `btn btn-sm btn-light border ${isActive ? 'active' : ''}`}
-                                          style={classic ? {
-                                              fontFamily: xpFont,
-                                              fontSize: '11px',
-                                              padding: '2px 8px',
-                                              borderRadius: BUTTON_RADIUS,
-                                              background: isActive
-                                                  ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
-                                                  : 'linear-gradient(to bottom,#d4d0c8 0%,#b8b4ac 100%)',
-                                              border: '1px solid',
-                                              borderColor: isActive
-                                                  ? '#808080 #dfdfdf #dfdfdf #808080'
-                                                  : '#dfdfdf #808080 #808080 #dfdfdf',
-                                              color: '#000',
-                                              cursor: 'pointer',
-                                              fontWeight: isActive ? 'bold' : 'normal',
-                                          } : undefined}
-                                      >
-                                          <i className={`bi ${icon} me-1`}></i>{label}
-                                      </button>
-                                  );
-                              })}
-                          </div>
-                      </div>
-
-                  </div>
+                      The Scanner button is gone as redundant: /scanner is reachable from
+                      the sidebar's QUICK SCAN on every page, so a per-page copy of it is
+                      just chrome in the ribbon. */}
+                  <PageTitleBar
+                      classic={classic}
+                      icon={activeTab === 'manufacturing-orders' ? 'bi-list-task' : 'bi-collection-play'}
+                      title={activeTab === 'manufacturing-orders' ? (t('manufacturing_orders') || 'Manufacturing Orders') : 'Production Runs'}
+                  />
 
                   {/* ── Tab bar ── */}
                   {showTabSwitcher && <div className="no-print">

@@ -6,7 +6,7 @@ from app.db.session import get_async_db
 from app.core.pagination import PageParams, PageWindow
 from uuid import UUID
 from app.models.production_run import ProductionRun
-from app.models.manufacturing import ManufacturingOrder, MOCompletion
+from app.models.manufacturing import ManufacturingOrder, MOCompletion, CLOSED_ORDER_STATUSES
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.location import Location
@@ -412,7 +412,7 @@ async def get_production_run_material_requirements(
     for mo in pr.manufacturing_orders:
         produced = produced_by_mo.get(mo.id, 0.0)
         # Closed orders make no more output and consume no more material.
-        if mo.status in ("COMPLETED", "CANCELLED"):
+        if mo.status in CLOSED_ORDER_STATUSES:
             outstanding = 0.0
         else:
             outstanding = max(0.0, float(mo.qty) - produced)
@@ -716,7 +716,7 @@ async def get_production_runs_material_status(
         agg: dict[tuple, float] = defaultdict(float)
         sup: dict[tuple, float] = defaultdict(float)
         for mo in pr.manufacturing_orders:
-            if mo.status in ("COMPLETED", "CANCELLED"):
+            if mo.status in CLOSED_ORDER_STATUSES:
                 outstanding = 0.0
             else:
                 completed = produced_by_mo.get(mo.id, 0.0)

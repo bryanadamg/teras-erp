@@ -103,8 +103,87 @@ const BOM_STEP_LINES: RowSourceDef = {
     },
 };
 
+/**
+ * The dye weights for this WO's bath — the grams the operator actually weighs out,
+ * which is the whole reason the card is carried to the vessel. Recipe rates alone
+ * are unusable there: a g/L line means nothing until a bath volume exists.
+ *
+ * Nothing is computed here. The rows come straight from
+ * `GET /dye-recipes/{id}/doses` (fetched by the print surface, see
+ * dyeingPrintData.ts), whose formula lives in backend
+ * services/dyeing_dose_service.py — so the card, the screen dose sheet and the
+ * snapshotted `DyeingRunChemical.planned_qty` cannot disagree.
+ *
+ * `weigh_out` is text, not a numeric column: the unit differs per row (grams for a
+ * g/L line, the line's own UOM for an owf one), and a bare number in that column is
+ * a 1000x mistake waiting to happen.
+ */
+const DYE_DOSES: RowSourceDef = {
+    id: 'dye_doses',
+    label: 'Dye Weights (this WO’s bath)',
+    columns: [
+        { field: 'item', label: 'Kimia' },
+        { field: 'item_code', label: 'Item Code' },
+        { field: 'item_name', label: 'Item Name' },
+        { field: 'chemical_type', label: 'Jenis' },
+        { field: 'rate', label: 'Rate' },
+        { field: 'basis', label: 'Basis' },
+        { field: 'weigh_out', label: 'Timbang' },
+        { field: 'dose', label: 'Dosis', numeric: true },
+        { field: 'dose_kg', label: 'kg', numeric: true },
+        { field: 'actual_qty', label: 'Aktual', numeric: true },
+    ],
+    resolve: (ctx) => {
+        const doses = ctx.dyeing?.doses;
+        const run = ctx.dyeing?.run;
+        const lines = doses?.lines ?? [];
+
+        // What the vessel has already been recorded as taking, so a reprinted card
+        // carries it. Blank on a first print — the operator writes it in.
+        const actualByItem: Record<string, number> = {};
+        (run?.chemicals || []).forEach((c: any) => {
+            const v = Number(c.actual_qty ?? 0);
+            if (v > 0) actualByItem[String(c.item_id)] = v;
+        });
+
+        const rows = lines.map((l: any) => ({
+            _key: l.line_id,
+            item_code: l.item_code || '',
+            item_name: l.item_name || l.item_code || '',
+            item: { code: l.item_code || '', name: l.item_name || l.item_code || '' },
+            chemical_type: l.chemical_type || '',
+            rate: l.basis === 'PER_LITER'
+                ? `${l.qty_per_liter ?? ''} g/L`
+                : l.basis === 'PER_100KG'
+                    ? `${l.qty_per_100kg ?? ''} /100kg`
+                    : '',
+            basis: l.basis === 'PER_LITER' ? 'g/L x bath'
+                : l.basis === 'PER_100KG' ? '% owf x kg'
+                    : 'no rate set',
+            weigh_out: l.dose == null
+                ? ''
+                : `${Number(l.dose).toFixed(3)}${l.dose_unit ? ` ${l.dose_unit}` : ''}`,
+            dose: l.dose ?? null,
+            dose_kg: l.dose_kg ?? null,
+            actual_qty: actualByItem[String(l.item_id)] ?? null,
+        }));
+
+        // The title carries the bath, because every g/L number in the table is
+        // meaningless without it — and says so plainly when there is none, rather
+        // than printing rates that look like weights.
+        const vol = doses?.bath_volume_liters;
+        const ratio = doses?.liquor_ratio;
+        const autoTitle = vol
+            ? `Dosis Kimia — bath ${vol} L${ratio ? ` · 1 : ${Number(ratio).toFixed(2)}` : ''}`
+            : 'Dosis Kimia — volume air belum diisi (rate resep saja)';
+
+        return { rows, autoTitle };
+    },
+};
+
 export const ROW_SOURCES: Record<string, RowSourceDef> = {
     [BOM_STEP_LINES.id]: BOM_STEP_LINES,
+    [DYE_DOSES.id]: DYE_DOSES,
 };
 
 export function rowSource(id: string): RowSourceDef | undefined {

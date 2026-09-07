@@ -22,7 +22,7 @@ export interface PrintSettings {
 }
 
 const renderPrintBOMLines = (
-    wo: any,
+    mo: any,
     lines: any[],
     level: number,
     currentParentQty: number,
@@ -48,7 +48,7 @@ const renderPrintBOMLines = (
         if (tolerance > 0) {
             scaledQty = scaledQty * (1 + (tolerance / 100));
         }
-        const reqQty = scaledQty * wo.qty;
+        const reqQty = scaledQty * mo.qty;
 
         return (
             <React.Fragment key={line.id}>
@@ -69,10 +69,10 @@ const renderPrintBOMLines = (
                         )}
                     </td>
                     <td style={{ fontSize: '8px', color: '#555', textAlign: 'center' }}>
-                        {getLocationName(line.source_location_id || wo.source_location_id || wo.location_id)}
+                        {getLocationName(line.source_location_id || mo.source_location_id || mo.location_id)}
                     </td>
                 </tr>
-                {subBOM && subBOM.lines && renderPrintBOMLines(wo, subBOM.lines, level + 1, scaledQty, subBOM, helpers)}
+                {subBOM && subBOM.lines && renderPrintBOMLines(mo, subBOM.lines, level + 1, scaledQty, subBOM, helpers)}
             </React.Fragment>
         );
     });
@@ -107,7 +107,7 @@ const renderChildWOsPrint = (
 };
 
 export default function MOPrintModal({
-    wo,
+    mo,
     onClose,
     printSettings,
     onPrintSettingsChange,
@@ -122,7 +122,7 @@ export default function MOPrintModal({
     hideChildMOs = false,
     onPrint,
 }: {
-    wo: any;
+    mo: any;
     onClose: () => void;
     printSettings: PrintSettings;
     onPrintSettingsChange: (updated: PrintSettings) => void;
@@ -159,7 +159,7 @@ export default function MOPrintModal({
     const fieldInputStyle: React.CSSProperties = { width: '100%', fontSize: '11px', padding: '3px 6px', border: '1px solid #ced4da', boxSizing: 'border-box', color: '#000' };
 
     // Resolve BOM once for use across all sections
-    const bom = boms.find((b: any) => b.id === wo.bom_id);
+    const bom = boms.find((b: any) => b.id === mo.bom_id);
     const displayCompanyName = headerCompanyName || companyProfile?.name || '';
 
     // Cell styles for the identity grid
@@ -204,7 +204,7 @@ export default function MOPrintModal({
                     )}
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '8px', color: '#555' }}>
-                    <div style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#000' }}>{wo.code}</div>
+                    <div style={{ fontFamily: CODE_FONT, fontWeight: 'bold', color: '#000' }}>{mo.code}</div>
                 </div>
             </div>
 
@@ -214,23 +214,23 @@ export default function MOPrintModal({
                     {/* ARTICLE — full width */}
                     <tr>
                         <td style={{ ...gridLbl, width: '18%' }}>ARTICLE</td>
-                        <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold', fontSize: '9px' }}>{wo.item_name || getItemName(wo.item_id)}</td>
+                        <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold', fontSize: '9px' }}>{mo.item_name || getItemName(mo.item_id)}</td>
                     </tr>
                     <tr>
                         <td style={{ ...gridLbl, width: '18%' }}>No. SPK</td>
-                        <td style={{ ...gridVal, fontFamily: CODE_FONT, width: '32%' }}>{wo.code}</td>
+                        <td style={{ ...gridVal, fontFamily: CODE_FONT, width: '32%' }}>{mo.code}</td>
                         <td style={{ ...gridLbl, width: '18%' }}>Jml Order</td>
-                        <td style={{ ...gridVal, fontWeight: 'bold' }}>{wo.qty} <span style={{ color: '#666', fontSize: '7px' }}>pcs</span></td>
+                        <td style={{ ...gridVal, fontWeight: 'bold' }}>{mo.qty} <span style={{ color: '#666', fontSize: '7px' }}>pcs</span></td>
                     </tr>
-                    {wo.sales_order_id && (
+                    {mo.sales_order_id && (
                         <tr>
                             <td style={gridLbl}>Sales Order</td>
-                            <td style={{ ...gridVal, fontFamily: CODE_FONT, color: '#0058e6' }}>{wo.sales_order_code || '—'}</td>
+                            <td style={{ ...gridVal, fontFamily: CODE_FONT, color: '#0058e6' }}>{mo.sales_order_code || '—'}</td>
                             <td style={gridLbl}>Customer</td>
                             <td style={gridVal}>{bom?.customer_name || '—'}</td>
                         </tr>
                     )}
-                    {!wo.sales_order_id && bom?.customer_name && (
+                    {!mo.sales_order_id && bom?.customer_name && (
                         <tr>
                             <td style={gridLbl}>Customer</td>
                             <td colSpan={3} style={gridVal}>{bom.customer_name}</td>
@@ -238,29 +238,29 @@ export default function MOPrintModal({
                     )}
                     <tr>
                         <td style={gridLbl}>Target Start</td>
-                        <td style={gridVal}>{formatDate(wo.target_start_date) || '—'}</td>
+                        <td style={gridVal}>{formatDate(mo.target_start_date) || '—'}</td>
                         <td style={gridLbl}>No Mesin</td>
                         <td style={gridVal}>{bom?.work_center_name || '—'}</td>
                     </tr>
                     <tr>
                         <td style={gridLbl}>Target End</td>
-                        <td style={gridVal}>{formatDate(wo.target_end_date) || '—'}</td>
+                        <td style={gridVal}>{formatDate(mo.target_end_date) || '—'}</td>
                         <td style={gridLbl}>Toleransi</td>
                         <td style={gridVal}>{bom?.tolerance_percentage != null ? `±${bom.tolerance_percentage}%` : '—'}</td>
                     </tr>
-                    {showTimeline && (wo.actual_start_date || wo.actual_end_date) && (
+                    {showTimeline && (mo.actual_start_date || mo.actual_end_date) && (
                         <tr>
                             <td style={gridLbl}>Actual Start</td>
-                            <td style={gridVal}>{wo.actual_start_date ? formatDate(wo.actual_start_date) : '—'}</td>
+                            <td style={gridVal}>{mo.actual_start_date ? formatDate(mo.actual_start_date) : '—'}</td>
                             <td style={gridLbl}>Actual End</td>
-                            <td style={gridVal}>{wo.actual_end_date ? formatDate(wo.actual_end_date) : '—'}</td>
+                            <td style={gridVal}>{mo.actual_end_date ? formatDate(mo.actual_end_date) : '—'}</td>
                         </tr>
                     )}
                     <tr>
                         <td style={gridLbl}>Status</td>
-                        <td style={gridVal}>{wo.status}</td>
+                        <td style={gridVal}>{mo.status}</td>
                         <td style={gridLbl}>Output Loc</td>
-                        <td style={gridVal}>{getLocationName(wo.location_id)}</td>
+                        <td style={gridVal}>{getLocationName(mo.location_id)}</td>
                     </tr>
                 </tbody>
             </table>
@@ -331,7 +331,7 @@ export default function MOPrintModal({
                             </tr>
                         </thead>
                         <tbody>
-                            {bom ? renderPrintBOMLines(wo, bom.lines, 0, 1, bom, { boms: hideChildMOs ? [] : boms, getItemName, getItemCode, getLocationName, getAttributeValueName }) : (
+                            {bom ? renderPrintBOMLines(mo, bom.lines, 0, 1, bom, { boms: hideChildMOs ? [] : boms, getItemName, getItemCode, getLocationName, getAttributeValueName }) : (
                                 <tr><td colSpan={3} style={{ border: '1px solid #ccc', padding: '4px', color: '#888' }}>No BOM found</td></tr>
                             )}
                         </tbody>
@@ -340,7 +340,7 @@ export default function MOPrintModal({
             )}
 
             {/* ── Child MOs ── */}
-            {showChildMOs && renderChildWOsPrint(wo.child_mos || [], { getItemName, getLocationName, formatDate })}
+            {showChildMOs && renderChildWOsPrint(mo.child_mos || [], { getItemName, getLocationName, formatDate })}
 
 
             {/* ── Sample photo ── */}
@@ -358,7 +358,7 @@ export default function MOPrintModal({
             {/* ── Signature / footer ── */}
             <div style={{ marginTop: '16px', borderTop: '1px solid #ccc', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div style={{ fontSize: '7px', color: '#555' }}>
-                    <div>No. SPK: {wo.code}</div>
+                    <div>No. SPK: {mo.code}</div>
                     <div>Printed: {tzFmt(new Date(), { dateStyle: 'short', timeStyle: 'short' }, 'id-ID')}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '40px' }}>
@@ -379,7 +379,7 @@ export default function MOPrintModal({
 
     return (
         <>
-            <PrintModalShell title={`Print SPK Produksi — ${wo.code}`} onClose={onClose} modeless>
+            <PrintModalShell title={`Print SPK Produksi — ${mo.code}`} onClose={onClose} modeless>
                     {/* Body */}
                     <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
 

@@ -129,6 +129,7 @@ EVENT_TOPICS: dict[str, str] = {
     "WORK_ORDER_UPDATE": "production",
     "PRODUCTION_RUN_UPDATE": "production",
     "WEAVING_RUN_UPDATE": "weaving",
+    "DYEING_RUN_UPDATE": "dyeing",
     "STOCK_UPDATE": "stock",
     "QUARANTINE_UPDATE": "stock",
     "SALES_ORDER_UPDATE": "sales",

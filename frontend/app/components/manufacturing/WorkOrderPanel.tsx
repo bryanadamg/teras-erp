@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 // Single-WO Kartu Kerja printing goes through WOBulkPrintModal (n=1 -> A6 card).
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 import WOStagingModal from './WOStagingModal';
@@ -13,7 +14,8 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC, woHasStaging, woScanStages } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN, xpInput as xpInputBase } from '../shared/xpTheme';
+import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, XP_BTN, xpBtn, BTN_TONES, xpInput as xpInputBase, LocationChip } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px' });
 
@@ -113,7 +115,7 @@ interface WO {
     created_at?: string;
 }
 
-const emptyForm = { group_id: '', work_center_id: '', bom_operation_id: '', input_location_id: '', output_location_id: '', next_destination_work_center_id: '', next_destination_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '' };
+const emptyForm = { group_id: '', work_center_id: '', bom_operation_id: '', input_location_id: '', output_location_id: '', next_destination_work_center_id: '', next_destination_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '', bath_volume_liters: '' };
 
 interface Props {
     manufacturingOrderId: string;
@@ -138,6 +140,7 @@ export default function WorkOrderPanel({
     onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO, bom,
 }: Props) {
     const { showToast } = useToast();
+    const router = useRouter();
     const { operations: opMaster } = useData() as any;
     const { hasPermission, hasWorkCenterScope } = useUser();
     const canCreate = hasPermission('work_order.create');
@@ -194,6 +197,10 @@ export default function WorkOrderPanel({
     }, [workCenters, bomWcGroup]);
 
     const locationList = locations || [];
+    // Locations are a 3-level warehouse > zone > bin tree; a flat <select> of every
+    // leaf code is unreadable past a handful of bins. Same picker every other
+    // location field uses (staging, packing, routing, PO receipt).
+    const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locationList), [locationList]);
 
     // Group locked by BOM's work_center_id (null = not locked, show standard group+machine selects)
     const lockedGroupId: string | null = effectiveBom?.work_center_id
@@ -244,6 +251,19 @@ export default function WorkOrderPanel({
 
     const machineOptions = (list: any[]) =>
         list.map((wc: any) => ({ value: String(wc.id), label: wc.name, subLabel: wc.code || undefined }));
+
+    // The work center this form will actually create against — machine if picked,
+    // else the group/type row, which carries the same center_type (see
+    // effectiveWorkCenterId below, which the submit uses for the same reason).
+    const selectedCenterType = useMemo(() => {
+        const wcId = form.work_center_id || lockedGroupId || form.group_id || '';
+        if (!wcId) return '';
+        const wc = workCenters.find((w: any) => String(w.id) === String(wcId));
+        return String(wc?.center_type || '').toUpperCase();
+    }, [workCenters, form.work_center_id, form.group_id, lockedGroupId]);
+    // DYEING only, and matching the backend's own gate exactly (api/work_orders.py
+    // keys the recipe resolve + run seed off `center_type == "DYEING"`).
+    const isDyeingSelection = selectedCenterType === 'DYEING';
 
     const resetForm = () => {
         setForm({ ...emptyForm });
@@ -308,6 +328,11 @@ export default function WorkOrderPanel({
                 qty: form.qty ? parseFloat(form.qty) : undefined,
                 target_start_date: form.target_start_date || null,
                 target_end_date: form.target_end_date || null,
+                // Plans the auto-created DyeingRun's bath so the Kartu Kerja prints
+                // weighed grams. Omitted (not zeroed) when blank — the backend then
+                // takes the recipe's liquor ratio x this WO's qty.
+                bath_volume_liters: isDyeingSelection && form.bath_volume_liters
+                    ? parseFloat(form.bath_volume_liters) : undefined,
             });
             if (res && !res.ok) {
                 try {
@@ -352,6 +377,11 @@ export default function WorkOrderPanel({
                 qty: form.qty ? parseFloat(form.qty) : undefined,
                 target_start_date: form.target_start_date || null,
                 target_end_date: form.target_end_date || null,
+                // Plans the auto-created DyeingRun's bath so the Kartu Kerja prints
+                // weighed grams. Omitted (not zeroed) when blank — the backend then
+                // takes the recipe's liquor ratio x this WO's qty.
+                bath_volume_liters: isDyeingSelection && form.bath_volume_liters
+                    ? parseFloat(form.bath_volume_liters) : undefined,
             });
             if (result?.warning === 'total_assigned_exceeds_mo_qty') {
                 setOverAssignWarning({ totalAssigned: result.total_assigned, moQty: result.mo_qty });
@@ -380,6 +410,10 @@ export default function WorkOrderPanel({
             qty: wo.qty != null ? String(wo.qty) : '',
             target_start_date: wo.target_start_date ? wo.target_start_date.slice(0, 10) : '',
             target_end_date: wo.target_end_date ? wo.target_end_date.slice(0, 10) : '',
+            // Creation-only: the bath is planned when the WO is cut and corrected by
+            // the operator at the vessel (PATCH /dyeing-runs/{id}/bath), so editing
+            // the WO is not where it moves. Reset so a stale figure can't be re-sent.
+            bath_volume_liters: '',
         });
     };
 
@@ -411,25 +445,17 @@ export default function WorkOrderPanel({
                 {canCreate && !addingRow && !editId && (
                     <div style={{ display: 'flex', gap: 4 }}>
                         <button
+                            className={XP_BTN}
                             onClick={() => { setAddingRow(true); setEditId(null); }}
-                            style={{
-                                fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
-                                background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                                cursor: 'pointer',
-                            }}
+                            style={xpBtn()}
                         >
                             + Add Work Order
                         </button>
                         {beamingMachines.length > 0 && (
                             <button
+                                className={XP_BTN}
                                 onClick={() => setBeamPlanOpen(true)}
-                                style={{
-                                    fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
-                                    background: 'linear-gradient(to bottom, #b0d0f8, #4a90d0)',
-                                    border: '1px solid', borderColor: '#dfdfdf #003080 #003080 #dfdfdf',
-                                    cursor: 'pointer', color: 'white', fontWeight: 'bold',
-                                }}
+                                style={xpBtn(BTN_TONES.primary)}
                             >
                                 Plan Beaming
                             </button>
@@ -595,40 +621,44 @@ export default function WorkOrderPanel({
                                             onChange={e => setForm(f => ({ ...f, target_end_date: e.target.value }))}
                                             title="Target end date"
                                         />
-                                        <button
-                                            onClick={() => handleUpdate(wo)}
-                                            disabled={isSaving}
-                                            style={{
-                                                fontFamily: xpFont, fontSize: 10, padding: '1px 8px',
-                                                background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-                                                border: '1px solid #0a3e0a', cursor: 'pointer',
-                                            }}
-                                        >
-                                            Save
-                                        </button>
-                                        <button
-                                            className={XP_BTN}
-                                            onClick={resetForm}
-                                            style={{
-                                                borderRadius: BUTTON_RADIUS,
-                                                fontFamily: xpFont, fontSize: 10, padding: '1px 6px',
-                                                background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                                border: '1px solid #808080', cursor: 'pointer',
-                                            }}
-                                        >
-                                            Cancel
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                                            <button
+                                                className={XP_BTN}
+                                                onClick={resetForm}
+                                                style={xpBtn()}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                className={XP_BTN}
+                                                onClick={() => handleUpdate(wo)}
+                                                disabled={isSaving}
+                                                style={xpBtn(BTN_TONES.success)}
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
                                     </div>
                                     {locationList.length > 0 && (
                                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 96 }}>
-                                            <select style={{ ...xpInput, minWidth: 120 }} value={form.input_location_id} onChange={e => setForm(f => ({ ...f, input_location_id: e.target.value }))}>
-                                                <option value="">In: —</option>
-                                                {locationList.map((l: any) => <option key={l.id} value={l.id}>In: {l.code}</option>)}
-                                            </select>
-                                            <select style={{ ...xpInput, minWidth: 120 }} value={form.output_location_id} onChange={e => setForm(f => ({ ...f, output_location_id: e.target.value }))}>
-                                                <option value="">Out: —</option>
-                                                {locationList.map((l: any) => <option key={l.id} value={l.id}>Out: {l.code}</option>)}
-                                            </select>
+                                            <div style={{ width: 150 }} title="Input location — where this step's materials are drawn from">
+                                                <TreeSelect
+                                                    options={locPickerTreeOptions}
+                                                    value={form.input_location_id}
+                                                    onChange={id => setForm(f => ({ ...f, input_location_id: id }))}
+                                                    allowEmpty emptyLabel="In: —"
+                                                    size="sm" style={{ width: '100%' }}
+                                                />
+                                            </div>
+                                            <div style={{ width: 150 }} title="Output location — where this step's output is put away">
+                                                <TreeSelect
+                                                    options={locPickerTreeOptions}
+                                                    value={form.output_location_id}
+                                                    onChange={id => setForm(f => ({ ...f, output_location_id: id }))}
+                                                    allowEmpty emptyLabel="Out: —"
+                                                    size="sm" style={{ width: '100%' }}
+                                                />
+                                            </div>
                                             <span style={{ fontSize: 9, color: '#444', fontWeight: 'bold', alignSelf: 'center' }}>Tujuan:</span>
                                             <div style={{ width: 160 }}>
                                                 <SearchableSelect
@@ -639,12 +669,15 @@ export default function WorkOrderPanel({
                                                     size="sm"
                                                 />
                                             </div>
-                                            <select style={{ ...xpInput, minWidth: 100, fontSize: 10 }} value={form.next_destination_location_id} onChange={e => setForm(f => ({ ...f, next_destination_location_id: e.target.value }))}>
-                                                <option value="">— Lokasi —</option>
-                                                {locationList.map((l: any) => (
-                                                    <option key={l.id} value={l.id}>{l.code || l.name}</option>
-                                                ))}
-                                            </select>
+                                            <div style={{ width: 150 }} title="Next destination location">
+                                                <TreeSelect
+                                                    options={locPickerTreeOptions}
+                                                    value={form.next_destination_location_id}
+                                                    onChange={id => setForm(f => ({ ...f, next_destination_location_id: id }))}
+                                                    allowEmpty emptyLabel="— Lokasi —"
+                                                    size="sm" style={{ width: '100%' }}
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -660,7 +693,7 @@ export default function WorkOrderPanel({
                                     <span
                                         style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, cursor: 'pointer' }}
                                         title={wo.code || `Step ${wo.sequence}`}
-                                        onClick={() => { window.location.href = `/work-orders?wo=${wo.id}`; }}
+                                        onClick={() => router.push(`/work-orders?wo=${wo.id}`)}
                                     >
                                         <span style={{
                                             width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
@@ -697,14 +730,12 @@ export default function WorkOrderPanel({
 
                                     {/* Location flow chips */}
                                     {(wo.input_location || wo.output_location) ? (
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, whiteSpace: 'nowrap' }}>
-                                            <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
-                                                {wo.input_location?.code || '?'}
-                                            </span>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, whiteSpace: 'nowrap', minWidth: 0 }}>
+                                            <LocationChip classic direction="in" code={wo.input_location?.code}
+                                                title={wo.input_location?.name || 'Input location'} />
                                             <span style={{ color: '#888' }}>&#8594;</span>
-                                            <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>
-                                                {wo.output_location?.code || '?'}
-                                            </span>
+                                            <LocationChip classic direction="out" code={wo.output_location?.code}
+                                                title={wo.output_location?.name || 'Output location'} />
                                         </span>
                                     ) : <span style={{ color: '#ccc', fontSize: 9 }}>—</span>}
 
@@ -904,41 +935,54 @@ export default function WorkOrderPanel({
                                         onChange={e => setForm(f => ({ ...f, target_end_date: e.target.value }))}
                                     />
                                 </label>
-                                <button
-                                    className={XP_BTN}
-                                    onClick={handleAdd}
-                                    disabled={isSaving}
-                                    style={{
-                                        borderRadius: BUTTON_RADIUS,
-                                        fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
-                                        background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-                                        border: '1px solid #0a3e0a', cursor: 'pointer',
-                                    }}
-                                >
-                                    {isSaving ? '...' : 'Add'}
-                                </button>
-                                <button
-                                    className={XP_BTN}
-                                    onClick={resetForm}
-                                    style={{
-                                        borderRadius: BUTTON_RADIUS,
-                                        fontFamily: xpFont, fontSize: 10, padding: '1px 6px',
-                                        background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                        border: '1px solid #808080', cursor: 'pointer',
-                                    }}
-                                >
-                                    Cancel
-                                </button>
+                                {/* Actions sit right-aligned at the end of the field row (matches
+                                    every other form footer: muted Cancel, solid submit, rightmost). */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                                    <button
+                                        className={XP_BTN}
+                                        onClick={resetForm}
+                                        style={xpBtn()}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        className={XP_BTN}
+                                        onClick={handleAdd}
+                                        disabled={isSaving}
+                                        style={xpBtn(BTN_TONES.success)}
+                                    >
+                                        {isSaving ? '...' : 'Add'}
+                                    </button>
+                                </div>
                             </div>
+                            {/* Dyeing only: the bath is planned here, not at the vessel, because
+                                the Kartu Kerja is printed off this WO and a card carrying g/L
+                                rates instead of grams is not an instruction. Blank is the normal
+                                case — the backend takes the recipe's liquor ratio x this qty. The
+                                operator still confirms (or corrects) the real bath when they log,
+                                and every g/L dose re-weighs against it. */}
+                            {isDyeingSelection && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#555', paddingLeft: 4, marginTop: 2 }}>
+                                    <span style={{ color: '#444', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Volume Air:</span>
+                                    <input
+                                        type="number" min="0" step="any"
+                                        style={{ ...xpInput, width: 70 }}
+                                        value={form.bath_volume_liters}
+                                        onChange={e => setForm(f => ({ ...f, bath_volume_liters: e.target.value }))}
+                                        placeholder="auto"
+                                        title="Planned bath volume in litres. Leave blank to take the recipe's liquor ratio x the target qty."
+                                    />
+                                    <span>L</span>
+                                    <span style={{ color: '#aaa' }}>(blank = from recipe liquor ratio &times; qty)</span>
+                                </div>
+                            )}
                             {(form.input_location_id || form.output_location_id) && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#555', paddingLeft: 4 }}>
-                                    <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
-                                        {locationList.find((l: any) => l.id === form.input_location_id)?.code || '?'}
-                                    </span>
+                                    <LocationChip classic direction="in"
+                                        code={locationList.find((l: any) => l.id === form.input_location_id)?.code} />
                                     <span>&#8594;</span>
-                                    <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>
-                                        {locationList.find((l: any) => l.id === form.output_location_id)?.code || '?'}
-                                    </span>
+                                    <LocationChip classic direction="out"
+                                        code={locationList.find((l: any) => l.id === form.output_location_id)?.code} />
                                     <span style={{ color: '#aaa' }}>(from work center)</span>
                                 </div>
                             )}
@@ -953,17 +997,15 @@ export default function WorkOrderPanel({
                                         size="sm"
                                     />
                                 </div>
-                                <select
-                                    style={{ ...xpInput, minWidth: 100, fontSize: 10 }}
-                                    value={form.next_destination_location_id}
-                                    onChange={e => setForm(f => ({ ...f, next_destination_location_id: e.target.value }))}
-                                    title="Next destination location"
-                                >
-                                    <option value="">— Lokasi —</option>
-                                    {locationList.map((l: any) => (
-                                        <option key={l.id} value={l.id}>{l.code || l.name}</option>
-                                    ))}
-                                </select>
+                                <div style={{ width: 160 }} title="Next destination location">
+                                    <TreeSelect
+                                        options={locPickerTreeOptions}
+                                        value={form.next_destination_location_id}
+                                        onChange={id => setForm(f => ({ ...f, next_destination_location_id: id }))}
+                                        allowEmpty emptyLabel="— Lokasi —"
+                                        size="sm" style={{ width: '100%' }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

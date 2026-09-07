@@ -481,6 +481,29 @@ class BatchConsumptionInMO(BaseModel):
     output_batch_number: Optional[str] = None
     qty_consumed: float
 
+class MOPlannedComponentResponse(BaseModel):
+    """One BOM line as it stood when the MO was cut.
+
+    The MO panel has to render THIS, not the live BOM: a BOM edited after the order
+    was created would otherwise retroactively change what an in-flight MO appears
+    to demand, and disagree with the server's own availability flag on the same row.
+    `item_code`/`item_name` are stamped by populate_mo_ids rather than read off the
+    relationship — most callers load planned_components without its `item`, and a
+    lazy hop in an async route raises MissingGreenlet.
+    """
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    percentage: float = 0.0
+    qty: float = 0.0
+    source_location_id: UUID | None = None
+    bom_line_id: UUID | None = None
+    bom_operation_id: UUID | None = None   # the routing step that consumes it, if pegged
+    attribute_value_ids: list[UUID] = []
+
+
 class ManufacturingOrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -529,6 +552,8 @@ class ManufacturingOrderResponse(BaseModel):
     work_orders: list['WorkOrderResponse'] = []
     batch_trace: list[BatchConsumptionInMO] = []
     completions: list[MOCompletionResponse] = []
+    # BOM lines snapshotted at creation — what this order is actually cut against.
+    planned_components: list[MOPlannedComponentResponse] = []
 
 # Forward refs resolved after WorkOrderResponse is defined below
 
@@ -822,6 +847,10 @@ class WorkOrderCreate(BaseModel):
     notes: str | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
+    # DYEING only: the bath the planner intends, litres. Seeds the auto-created
+    # DyeingRun's PLAN (never its actual) so the Kartu Kerja prints weighed grams.
+    # Left blank it falls back to the matched recipe's liquor_ratio x the load.
+    bath_volume_liters: float | None = None
 
 class WorkOrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -927,6 +956,25 @@ class WOStageLine(BaseModel):
 
 class WOStagePayload(BaseModel):
     lines: list[WOStageLine]
+
+
+class WOUnstageLine(BaseModel):
+    item_id: UUID
+    qty: float
+    destination_location_id: UUID | None = None   # defaults to the line's resolved source store
+    batch_id: UUID | None = None                  # required for lot-tracked materials
+    attribute_value_ids: list[UUID] = []
+
+
+class WOUnstagePayload(BaseModel):
+    """Return staged material from a WO's input location to a store.
+
+    The mirror of WOStagePayload: without it, material picked to the wrong line
+    could only leave by being consumed, and `staging_status` never fell back.
+    Warp beams are NOT unstaged here — they are loom resources and come off
+    through POST /beam-mounts/{id}/dismount.
+    """
+    lines: list[WOUnstageLine]
 
 
 class BeamMountResponse(BaseModel):
@@ -2724,6 +2772,7 @@ class DyeRecipeCreate(BaseModel):
     color_standard: str | None = None
     color_id: UUID | None = None
     substrate_type: str | None = None
+    liquor_ratio: float | None = None
     notes: str | None = None
     is_active: bool = True
     lines: list[DyeRecipeLineCreate] = []
@@ -2736,6 +2785,7 @@ class DyeRecipeUpdate(BaseModel):
     color_standard: str | None = None
     color_id: UUID | None = None
     substrate_type: str | None = None
+    liquor_ratio: float | None = None
     notes: str | None = None
     is_active: bool | None = None
     attribute_value_ids: list[UUID] | None = None
@@ -2755,6 +2805,7 @@ class DyeRecipeResponse(BaseModel):
     color_variant_label: str | None = None
     color_variant_hex: str | None = None
     substrate_type: str | None = None
+    liquor_ratio: float | None = None
     notes: str | None = None
     is_active: bool
     created_at: datetime
@@ -2770,11 +2821,52 @@ class PaginatedDyeRecipeResponse(BaseModel):
     page: int = 1
     size: int = 50
 
+class DyeDoseLine(BaseModel):
+    """One recipe line weighed out for a specific bath. See dyeing_dose_service."""
+    line_id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    chemical_type: str | None = None
+    sort_order: int = 0
+    # PER_LITER (g/L x bath volume) or PER_100KG (owf x substrate). None = the line
+    # carries no rate at all, so nothing can be dosed from it.
+    basis: str | None = None
+    qty_per_liter: float | None = None
+    qty_per_100kg: float | None = None
+    # None when the input this line's basis needs is still missing (typically the
+    # bath volume) — the row is still returned so the UI can say which line is blocked.
+    dose: float | None = None
+    dose_unit: str | None = None
+    dose_kg: float | None = None
+    uom_id: UUID | None = None
+    uom_name: str | None = None
+
+class DyeDoseResponse(BaseModel):
+    recipe_id: UUID
+    recipe_code: str | None = None
+    recipe_name: str | None = None
+    substrate_qty: float | None = None
+    bath_volume_liters: float | None = None
+    # Derived from the pair above, never a second typed copy (see solve_bath).
+    liquor_ratio: float | None = None
+    lines: list[DyeDoseLine] = []
+
 class DyeingRunChemicalCreate(BaseModel):
     item_id: UUID
     planned_qty: float
     actual_qty: float
     uom_id: UUID | None = None
+
+class DyeingRunChemicalUpsert(BaseModel):
+    """One weighed chemical. `planned_qty` is optional here (unlike the create
+    shape): the plan was snapshotted when the bath was filled, and an actual being
+    recorded must not overwrite it."""
+    item_id: UUID
+    actual_qty: float
+    planned_qty: float | None = None
+    uom_id: UUID | None = None
+
 
 class DyeingRunChemicalResponse(DyeingRunChemicalCreate):
     id: UUID
@@ -2784,11 +2876,24 @@ class DyeingRunChemicalResponse(DyeingRunChemicalCreate):
     model_config = ConfigDict(from_attributes=True)
 
 class DyeingRunCreate(BaseModel):
+    """A bath cut by hand. Runs are normally auto-created by WO creation.
+
+    `substrate_qty` is optional and defaults to the WO's own qty. It stays a
+    per-run column rather than being read off the WO every time, because a
+    multi-bath WO splits its load across runs — but the common case is one bath for
+    the whole WO, and a hand-typed copy of a number the WO already holds only
+    drifts.
+
+    The customer/order/colour fields this once carried (`customer_name`, `artikel`,
+    `po_number`, `qty_order_kg`, `color_name`, `color_matching_ref`, `lot_number`,
+    `machine_name`) are gone. They duplicated the SO/MO/WO chain and the colour
+    attributes, were never populated in 12 runs of real use, and the machine is
+    `work_order.work_center_id` — see migration a7c9e1b3d5f8.
+    """
     work_order_id: UUID
     recipe_id: UUID | None = None
-    substrate_qty: float
+    substrate_qty: float | None = None
     input_batch_id: UUID | None = None
-    machine_name: str | None = None
     liquor_ratio: float | None = None
     volume_air_liters: float | None = None
     machine_speed: float | None = None
@@ -2797,13 +2902,6 @@ class DyeingRunCreate(BaseModel):
     duration_min: int | None = None
     operator_name: str | None = None
     notes: str | None = None
-    color_name: str | None = None
-    color_matching_ref: str | None = None
-    lot_number: str | None = None
-    customer_name: str | None = None
-    artikel: str | None = None
-    po_number: str | None = None
-    qty_order_kg: float | None = None
 
 class DyeingRunMonitorUpdate(BaseModel):
     """The rate inputs the dyeing monitor needs for one batch.
@@ -2817,11 +2915,65 @@ class DyeingRunMonitorUpdate(BaseModel):
     target_efficiency_pct: float | None = None
 
 
+class DyeingRunStartPayload(BaseModel):
+    """The bath, recorded at the moment it is filled.
+
+    Starting a run is the bath-fill event, so this is where the volume belongs: the
+    dose sheet the operator weighs from is calculated off it, and calculating it
+    afterwards would make it a record of what should have been weighed rather than
+    an instruction for weighing it. Send a volume or a liquor ratio; one must resolve.
+    """
+    volume_air_liters: float | None = None
+    liquor_ratio: float | None = None
+    substrate_qty: float | None = None
+
+
+class DyeingRunBathUpdate(BaseModel):
+    """The bath the operator actually filled, set at fill time rather than at run
+    creation — the volume is only known once the machine is loaded, and it is what
+    every g/L dose is calculated from.
+
+    Send either field: the other is derived (`dyeing_dose_service.solve_bath`).
+    `substrate_qty` is here too because a re-weighed load moves both.
+    """
+    volume_air_liters: float | None = None
+    liquor_ratio: float | None = None
+    substrate_qty: float | None = None
+
+
+class DyeingRunChemicalsUpdate(BaseModel):
+    """What actually went into the vessel, recorded from the work order flow.
+
+    Separate from `/complete` because the two are different acts by different people:
+    the operator at the vessel records the doses they weighed out (with the output
+    log), and QC records the shade later. Folding actuals into the close meant the
+    only way to record them was to close the bath.
+
+    Upsert by item: a row already on the run keeps its `planned_qty` unless one is
+    sent, so recording an actual can never quietly rewrite what the operator was
+    told to weigh. Items not listed are left alone (nothing is cleared by omission).
+    """
+    chemicals: list[DyeingRunChemicalUpsert]
+
+
 class DyeingRunCompletePayload(BaseModel):
+    """Closes the bath — now the shade-result act, and nothing else has to ride on it.
+
+    `chemicals` is **None = leave the recorded doses alone**, which is what the QC
+    close sends: actuals are recorded from the work order flow
+    (`PATCH /dyeing-runs/{id}/chemicals`) and a shade entry must not wipe them. An
+    explicit list still replaces the whole sheet, `[]` included, for the legacy
+    all-in-one close.
+
+    `output_batch_number` is legacy and optional. The dyed output lot is minted by
+    the WO completion (`add_mo_completion`, the `DYE-` prefix) — one physical dye
+    lot, one `Batch` row — and the run adopts it rather than creating a second.
+    When given it may only name a lot that already exists; this route never mints.
+    """
     shade_result: str | None = None
     shade_notes: str | None = None
-    output_batch_number: str
-    chemicals: list[DyeingRunChemicalCreate]
+    output_batch_number: str | None = None
+    chemicals: list[DyeingRunChemicalCreate] | None = None
 
 class DyeingRunResponse(BaseModel):
     id: UUID
@@ -2831,18 +2983,15 @@ class DyeingRunResponse(BaseModel):
     substrate_qty: float
     input_batch_id: UUID | None = None
     output_batch_id: UUID | None = None
-    machine_name: str | None = None
     liquor_ratio: float | None = None
+    planned_volume_air_liters: float | None = None
     volume_air_liters: float | None = None
+    # The bath every dose on screen or on paper is weighed from: the actual once the
+    # floor has filled it, the plan until then. Derived server-side so the print
+    # portal, the dose sheet and the scan terminal cannot each pick differently.
+    effective_bath_liters: float | None = None
     machine_speed: float | None = None
     machine_pressure: str | None = None
-    color_name: str | None = None
-    color_matching_ref: str | None = None
-    lot_number: str | None = None
-    customer_name: str | None = None
-    artikel: str | None = None
-    po_number: str | None = None
-    qty_order_kg: float | None = None
     temperature_c: float | None = None
     duration_min: int | None = None
     status: str
@@ -4025,7 +4174,7 @@ class WorkQueueRow(BaseModel):
     # Past its planned date and not yet started. Never set when date_source is
     # 'created' — an unscheduled order cannot be late.
     is_overdue: bool = False
-    # RUNNING | STAGED | READY | PARTIAL | WAITING_UPSTREAM | WAITING_PRIOR
+    # RUNNING | STAGED | READY | PARTIAL | WAITING_UPSTREAM
     # | SHORT | NO_MATERIALS | NOT_RELEASED
     verdict: str
     verdict_detail: str | None = None

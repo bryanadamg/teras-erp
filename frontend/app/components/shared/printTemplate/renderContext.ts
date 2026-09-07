@@ -6,6 +6,8 @@
  * than pulled from React context inside the render tree.
  */
 
+import type { DyeingPrintData } from './dyeingPrintData';
+
 export interface PrintContext {
     workOrder: any;
     parentMO: any;
@@ -20,6 +22,13 @@ export interface PrintContext {
     formatDate: (iso: string) => string;
     /** Resolve a system attribute value carried by the MO, by system_role. */
     moAttributeValue: (systemRole: string) => string;
+    /**
+     * Bath + weighed doses for a dyeing card, fetched by the print surface (see
+     * dyeingPrintData.ts). Absent for every other work centre type, and for a
+     * dyeing WO whose run or dose calc could not be loaded — the doses band hides
+     * itself rather than printing an empty table.
+     */
+    dyeing?: DyeingPrintData | null;
 }
 
 export interface BuildContextArgs {
@@ -31,6 +40,7 @@ export interface BuildContextArgs {
     attributes?: any[];
     /** TimezoneContext's `formatCustom`. */
     tzFormatCustom: (iso: string, opts: Intl.DateTimeFormatOptions, locale?: string) => string;
+    dyeing?: DyeingPrintData | null;
 }
 
 const SHORT_DATE: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: '2-digit' };
@@ -42,6 +52,7 @@ const SHORT_DATE: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit
  */
 export function buildPrintContext({
     workOrder, parentMO, qrDataUrl, companyName, department, attributes = [], tzFormatCustom,
+    dyeing = null,
 }: BuildContextArgs): PrintContext {
     const moValueIds: string[] = parentMO?.attribute_value_ids || [];
 
@@ -62,5 +73,6 @@ export function buildPrintContext({
         printDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }),
         formatDate: (iso: string) => tzFormatCustom(iso, SHORT_DATE, 'id-ID'),
         moAttributeValue,
+        dyeing,
     };
 }

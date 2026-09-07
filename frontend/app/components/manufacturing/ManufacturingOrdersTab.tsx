@@ -2,14 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import CalendarView from '../shared/CalendarView';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
-import { ToolbarButton, TITLE_TONES } from '../shared/shellTheme';
+import { ToolbarButton, FilterChipBar, TITLE_TONES } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { Tabs } from '../shared/Tabs';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, Chip, XPActionButton, ModalFooterActions, LocationChip } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, lvThead, lvTh, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -66,18 +66,13 @@ export default function ManufacturingOrdersTab({
     const classic = currentStyle === 'classic';
 
     // Keep a ref so scanner callbacks always access the latest manufacturingOrders without stale closure issues
-    const workOrdersRef = useRef<any[]>(manufacturingOrders);
-    useEffect(() => { workOrdersRef.current = manufacturingOrders; }, [manufacturingOrders]);
 
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [printPreviewWO, setPrintPreviewWO] = useState<any>(null);
+    const [printPreviewMO, setPrintPreviewMO] = useState<any>(null);
     const [printHideChildren, setPrintHideChildren] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
     const { openId: openMoMenuId, pos: moMenuPos, toggle: toggleMoMenu, close: closeMoMenu } = useFloatingMenu();
     const [expandedDetailTabs, setExpandedDetailTabs] = useState<Record<string, 'bom' | 'steps'>>({});
     const [selectedTreeNodes, setSelectedTreeNodes] = useState<Record<string, string>>({});
-    const [scanningWOId, setScanningWOId] = useState<string | null>(null);
     const [completionMO, setCompletionMO] = useState<any>(null);
     const [completionWO, setCompletionWO] = useState<any>(null);
     const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
@@ -118,8 +113,8 @@ export default function ManufacturingOrdersTab({
     // Auto-expand the matching MO when arriving via a code deep-link
     useEffect(() => {
         if (!moCodeFilter || manufacturingOrders.length === 0) return;
-        const match = manufacturingOrders.find((wo: any) =>
-            wo.code.toLowerCase().includes(moCodeFilter.toLowerCase())
+        const match = manufacturingOrders.find((mo: any) =>
+            mo.code.toLowerCase().includes(moCodeFilter.toLowerCase())
         );
         if (match) setExpandedRows(prev => ({ ...prev, [match.id]: true }));
     }, [moCodeFilter, manufacturingOrders]);
@@ -133,31 +128,8 @@ export default function ManufacturingOrdersTab({
         return null;
     };
 
-    const findNodeByCodeInTree = (node: any, code: string): any => {
-        if (node.code === code) return node;
-        for (const child of (node.child_mos || [])) {
-            const found = findNodeByCodeInTree(child, code);
-            if (found) return found;
-        }
-        return null;
-    };
-
-    const findNodeByCode = (code: string): any => {
-        for (const wo of workOrdersRef.current) {
-            const found = findNodeByCodeInTree(wo, code);
-            if (found) return found;
-        }
-        // Also search shared component MOs from production runs
-        for (const pr of productionRuns) {
-            for (const mo of (pr.manufacturing_orders || [])) {
-                if (mo.is_shared_component && mo.code === code) return mo;
-            }
-        }
-        return null;
-    };
-
-    const flattenTree = (node: any, level = 0, moMap: Record<string, any> = {}, isShared = false): Array<{wo: any; level: number; isShared: boolean}> => {
-        const result: Array<{wo: any; level: number; isShared: boolean}> = [{wo: node, level, isShared}];
+    const flattenTree =(node: any, level = 0, moMap: Record<string, any> = {}, isShared = false): Array<{mo: any; level: number; isShared: boolean}> => {
+        const result: Array<{mo: any; level: number; isShared: boolean}> = [{mo: node, level, isShared}];
         for (const child of (node.child_mos || [])) {
             result.push(...flattenTree(child, level + 1, moMap, false));
         }
@@ -171,9 +143,9 @@ export default function ManufacturingOrdersTab({
         return result;
     };
 
-    const handlePrintWO = (wo: any, hideChildren = false) => {
+    const handlePrintMO = (mo: any, hideChildren = false) => {
         setPrintHideChildren(hideChildren);
-        setPrintPreviewWO(wo);
+        setPrintPreviewMO(mo);
     };
 
     const toggleRow = (id: string) => {
@@ -340,88 +312,37 @@ export default function ManufacturingOrdersTab({
         }
     };
 
-    const filteredWorkOrders = manufacturingOrders.filter((wo: any) => {
-        const date = new Date(wo.created_at);
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        if (start && date < start) return false;
-        if (end) {
-            const endDateTime = new Date(end);
-            endDateTime.setHours(23, 59, 59, 999);
-            if (date > endDateTime) return false;
-        }
-        return true;
-    });
+    // No client-side date filter. There was one here — a created_at range over
+    // `manufacturingOrders` whose startDate/endDate setters were never wired to any
+    // control, so it filtered nothing. Rebuilding it client-side would be wrong
+    // anyway: this list is one server page, so a range applied here would narrow
+    // only the visible rows and hide matches on every other page. A date filter has
+    // to go into the /manufacturing-orders query alongside `search`.
 
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skel = useTableSkeletonMetrics('manufacturing-orders', listBodyRef, filteredWorkOrders.length > 0);
+    const skel = useTableSkeletonMetrics('manufacturing-orders', listBodyRef, manufacturingOrders.length > 0);
 
-    // --- Inline QR Scanner Widget ---
-    const InlineScanWidget = ({ rootWoId, onClose }: { rootWoId: string; onClose: () => void }) => {
-        const scannerRef2 = useRef<any>(null);
-        const readerId = `reader-${rootWoId}`;
-
-        useEffect(() => {
-            let cancelled = false;
-            const timer = setTimeout(() => {
-                if (!document.getElementById(readerId)) return;
-                // html5-qrcode is only needed while this widget is mounted — load it
-                // on demand instead of paying its parse cost on every MO page visit.
-                import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
-                    if (cancelled || !document.getElementById(readerId)) return;
-                    const scanner = new Html5QrcodeScanner(readerId, { fps: 10, qrbox: { width: 180, height: 180 } }, false);
-                    scannerRef2.current = scanner;
-                    scanner.render((code: string) => {
-                        const found = findNodeByCode(code);
-                        if (found) {
-                            scanner.clear().catch(() => {});
-                            onClose();
-                            if (found.status === 'PENDING') {
-                                onUpdateStatus(found.id, 'IN_PROGRESS');
-                            } else if (found.status === 'IN_PROGRESS') {
-                                setCompletionMO(found);
-                            } else {
-                                showToast(`MO "${code}" is already ${found.status}`, 'warning');
-                            }
-                        } else {
-                            showToast(`MO "${code}" not found`, 'danger');
-                        }
-                    }, () => {});
-                });
-            }, 100);
-            return () => {
-                cancelled = true;
-                clearTimeout(timer);
-                scannerRef2.current?.clear().catch(() => {});
-            };
-        }, [readerId]);
-
-        return (
-            <div style={{ width: '100%' }}>
-                {/* ui-scale-exempt: html5-qrcode measures its own viewfinder — keep it 1:1. */}
-                <div id={readerId} className="ui-scale-exempt" style={{ width: '100%' }}></div>
-                <button className="btn btn-sm btn-outline-secondary w-100 mt-1 extra-small" onClick={onClose}>
-                    <i className="bi bi-x me-1"></i>Cancel Scan
-                </button>
-            </div>
-        );
-    };
+    // NOTE: there is deliberately no inline QR scanner here. `/scanner` is the single
+    // scan entry point for every domain (ScanDispatcher routes a code to the screen
+    // that owns it) — the toolbar's Scanner button navigates there. An InlineScanWidget
+    // lived here unrendered for a long time, holding the html5-qrcode import and a
+    // findNodeByCode tree walk alive with it.
 
     // --- Work Order Expanded Panel (Tree + Detail) ---
-    // NOTE: invoked as a plain function call (renderWOExpandedPanel({...})), NOT as <JSX/>.
+    // NOTE: invoked as a plain function call (renderMOExpandedPanel({...})), NOT as <JSX/>.
     // Defined inside the parent body, so as a JSX element it would get a fresh component
     // identity every parent render and React would remount its whole subtree — wiping
     // WorkOrderPanel's local add-WO form state (the "add row flashes and disappears" bug).
     // Calling it as a function inlines the output and keeps child state stable.
-    const renderWOExpandedPanel = ({ wo, detailTab, setDetailTab }: { wo: any; detailTab: 'bom' | 'steps'; setDetailTab: (t: 'bom' | 'steps') => void }) => {
-        const selectedNodeId = selectedTreeNodes[wo.id] ?? wo.id;
+    const renderMOExpandedPanel = ({ rootMO, detailTab, setDetailTab }: { rootMO: any; detailTab: 'bom' | 'steps'; setDetailTab: (t: 'bom' | 'steps') => void }) => {
+        const selectedNodeId = selectedTreeNodes[rootMO.id] ?? rootMO.id;
 
         // Build a map of all MOs in the same PR so required component MOs appear in the tree
         const moMap: Record<string, any> = {};
-        if (wo.production_run_id) {
-            const pr = productionRuns.find((p: any) => p.id === wo.production_run_id);
+        if (rootMO.production_run_id) {
+            const pr = productionRuns.find((p: any) => p.id === rootMO.production_run_id);
             if (pr) {
                 for (const mo of (pr.manufacturing_orders || [])) {
                     moMap[mo.id] = mo;
@@ -429,29 +350,40 @@ export default function ManufacturingOrdersTab({
             }
         }
 
-        const treeNodes = flattenTree(wo, 0, moMap);
+        const treeNodes = flattenTree(rootMO, 0, moMap);
 
         // findNodeById must also search moMap for shared component MOs
         const findNodeInTree = (id: string): any => {
-            const inTree = findNodeById(wo, id);
+            const inTree = findNodeById(rootMO, id);
             if (inTree) return inTree;
             return moMap[id] ?? null;
         };
 
-        const selectedNode = findNodeInTree(selectedNodeId) ?? wo;
+        const selectedNode = findNodeInTree(selectedNodeId) ?? rootMO;
         const bom = boms.find((b: any) => b.id === selectedNode.bom_id);
-        const isScanActive = scanningWOId === wo.id;
+        // The order's OWN recipe: BOM lines snapshotted when it was cut
+        // (MOPlannedComponent). The live BOM is only a fallback for pre-snapshot rows —
+        // reading it directly meant a later BOM edit retroactively changed what an
+        // in-flight MO appeared to demand, and disagreed with the availability flag the
+        // server computed for the same row off the snapshot.
+        const snapshot = selectedNode.planned_components || [];
+        const componentLines = snapshot.length > 0 ? snapshot : (bom?.lines || []);
+        const fromSnapshot = snapshot.length > 0;
         // Fixed body height for both tabs → no jittery resize when switching BOM/WO.
         // Inner sections scroll instead of flexing the panel taller.
         const PANEL_BODY_H = 360;
 
         // Compute per-parent-MO breakdown for shared component MOs (⇒ nodes)
         const parentMOBreakdown: Array<{ mo: any; qty: number }> = [];
-        if (selectedNode.id !== wo.id && Object.keys(moMap).length > 0) {
+        if (selectedNode.id !== rootMO.id && Object.keys(moMap).length > 0) {
             for (const mo of Object.values(moMap) as any[]) {
                 if ((mo.required_mo_ids || []).includes(selectedNode.id)) {
                     const parentBOM = boms.find((b: any) => b.id === mo.bom_id);
-                    const parentLine = parentBOM?.lines?.find((l: any) => l.item_id === selectedNode.item_id);
+                    // Parent's own snapshot first, same reason as componentLines below.
+                    const parentLines = (mo.planned_components || []).length > 0
+                        ? mo.planned_components
+                        : (parentBOM?.lines || []);
+                    const parentLine = parentLines.find((l: any) => l.item_id === selectedNode.item_id);
                     if (parentLine) {
                         parentMOBreakdown.push({
                             mo,
@@ -464,8 +396,7 @@ export default function ManufacturingOrdersTab({
         const showBreakdown = parentMOBreakdown.length > 0;
 
         const selectNode = (nodeId: string) => {
-            setSelectedTreeNodes(prev => ({ ...prev, [wo.id]: nodeId }));
-            if (scanningWOId === wo.id) setScanningWOId(null);
+            setSelectedTreeNodes(prev => ({ ...prev, [rootMO.id]: nodeId }));
         };
 
         // No gutter: the tab strip and the two-pane body carry their own edges and run
@@ -502,7 +433,7 @@ export default function ManufacturingOrdersTab({
                         <i className="bi bi-diagram-3-fill me-2"></i>MO Tree
                     </div>
                     <div style={{ padding: '4px', overflowY: 'auto', flex: 1 }}>
-                        {treeNodes.map(({ wo: node, level, isShared }: { wo: any; level: number; isShared: boolean }) => {
+                        {treeNodes.map(({ mo: node, level, isShared }: { mo: any; level: number; isShared: boolean }) => {
                             const isActive = node.id === selectedNodeId;
                             const statusColor = STATUS_COLORS[node.status] || '#6c757d';
                             return (
@@ -543,7 +474,7 @@ export default function ManufacturingOrdersTab({
                                                     const hex = getAttributeValueHex(id);
                                                     return (
                                                         <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic}
-                                                            swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                                            swatch={hex} icon={null} truncate
                                                             style={activeChipStyle(isActive)}
                                                         >{getAttributeValueName(id)}</VariantChip>
                                                     );
@@ -551,7 +482,7 @@ export default function ManufacturingOrdersTab({
                                                 {(node.bom_size_id || node.bom_size_snapshot) && (() => {
                                                     const label = getBomSizeLabel(node.bom_id, node.bom_size_id, node.bom_size_snapshot);
                                                     return label ? (
-                                                        <VariantChip kind="size" classic={classic} title={`Size: ${label}`}
+                                                        <VariantChip kind="size" classic={classic} truncate
                                                             style={activeChipStyle(isActive)}
                                                         >{label}</VariantChip>
                                                     ) : null;
@@ -598,7 +529,7 @@ export default function ManufacturingOrdersTab({
                             const hex = getAttributeValueHex(id);
                             return (
                                 <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic} size="sm"
-                                    swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                    swatch={hex} icon={null}
                                 >{getAttributeValueName(id)}</VariantChip>
                             );
                         })}
@@ -636,7 +567,7 @@ export default function ManufacturingOrdersTab({
                         {(selectedNode.bom_size_id || selectedNode.bom_size_snapshot) && (() => {
                             const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id, selectedNode.bom_size_snapshot);
                             return label ? (
-                                <VariantChip kind="size" classic={classic} size="sm" title={`Size: ${label}`}>{label}</VariantChip>
+                                <VariantChip kind="size" classic={classic} size="sm">{label}</VariantChip>
                             ) : null;
                         })()}
                         <span
@@ -678,7 +609,7 @@ export default function ManufacturingOrdersTab({
                                 title="Print this MO"
                                 className={classic ? XP_BTN : 'btn btn-sm btn-outline-secondary py-0 px-2'}
                                 style={classic ? { fontFamily: xpFont, fontSize: '10px', padding: '1px 8px', background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000', borderRadius: BUTTON_RADIUS } : { fontSize: '0.72rem' }}
-                                onClick={() => handlePrintWO(selectedNode, true)}
+                                onClick={() => handlePrintMO(selectedNode, true)}
                             >
                                 <i className="bi bi-printer me-1"></i>Print
                             </button>
@@ -787,12 +718,21 @@ export default function ManufacturingOrdersTab({
                         display: 'flex', alignItems: 'center', gap: '6px'
                     }}>
                         <i className="bi bi-boxes"></i>BOM Components
-                        {!bom && <span style={{ fontWeight: 'normal', color: '#888' }}>— No BOM linked</span>}
+                        {componentLines.length === 0 && <span style={{ fontWeight: 'normal', color: '#888' }}>— No BOM linked</span>}
+                        {fromSnapshot ? (
+                            <span title="The recipe snapshotted when this order was created — later BOM edits do not change it" style={{ fontWeight: 'normal', color: '#555', fontSize: 9 }}>
+                                as planned
+                            </span>
+                        ) : componentLines.length > 0 ? (
+                            <span title="This order has no snapshotted recipe (created before the snapshot existed) — showing the live BOM, which may have changed since" style={{ fontWeight: 'normal', color: '#8a6d00', fontSize: 9 }}>
+                                live BOM
+                            </span>
+                        ) : null}
                     </div>
 
                     {/* Components table */}
                     <div style={{ flex: 1, overflowY: 'auto' }}>
-                        {bom ? (
+                        {componentLines.length > 0 ? (
                             <table style={lvSubTable(classic)}>
                                 <thead>
                                     <tr style={{ position: 'sticky', top: 0 }}>
@@ -804,7 +744,7 @@ export default function ManufacturingOrdersTab({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {bom.lines.map((line: any, i: number) => {
+                                    {componentLines.map((line: any, i: number) => {
                                         const req = calculateRequiredQty(selectedNode.qty, line, bom);
                                         const { total, isEnough, locs } = getStockAcrossLocations(line.item_id, line.attribute_value_ids || [], req);
                                         const hasSubBOM = boms.some((b: any) => b.item_id === line.item_id && b.active !== false);
@@ -828,7 +768,13 @@ export default function ManufacturingOrdersTab({
                                                 <td style={{ ...cell, color: '#000' }}>
                                                     <div style={{ fontWeight: 500 }}>{line.item_name || getItemName(line.item_id)}</div>
                                                     <CodeChip code={line.item_code || getItemCode(line.item_id)} classic={classic} tier={2} style={{ display: 'block' }} />
-                                                    {hasSubBOM && <span style={{ borderRadius: CHIP_RADIUS, fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
+                                                    {hasSubBOM && (
+                                                        <Chip classic={classic} size="xs" bold
+                                                            tone={{ background: '#fff3cd', borderColor: '#b8860b', color: '#6b4e00' }}
+                                                            title="This component has its own BOM — it is made, not bought">
+                                                            SUB-BOM
+                                                        </Chip>
+                                                    )}
                                                 </td>
                                                 <td style={{ ...cell, color: '#333' }}>{attrLabel || '—'}</td>
                                                 <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -871,9 +817,9 @@ export default function ManufacturingOrdersTab({
                                                     ) : (
                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                                             {locs.map(l => (
-                                                                <span key={l.locId} style={{ borderRadius: CHIP_RADIUS, background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', fontSize: 8, padding: '0 4px', whiteSpace: 'nowrap' }}>
-                                                                    {l.code} <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
-                                                                </span>
+                                                                <LocationChip key={l.locId} classic={classic} direction="in" code={l.code}>
+                                                                    {' '}<span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
+                                                                </LocationChip>
                                                             ))}
                                                         </div>
                                                     )}
@@ -1024,7 +970,9 @@ export default function ManufacturingOrdersTab({
                         onUpdate={onUpdateWO}
                         onUpdateStatus={onUpdateWOStatus}
                         onDelete={onDeleteWO}
-                        onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(resolveMoBom(selectedNode, boms)); }}
+                        // `wo` here really IS a WorkOrder — the log-output callback off
+                        // WorkOrderPanel is the one place in this file that hands one back.
+                        onLogWO={(wo: any) => { setCompletionWO(wo); setCompletionMO(resolveMoBom(selectedNode, boms)); }}
                         parentMO={selectedNode}
                         bom={bom}
                     />
@@ -1036,10 +984,10 @@ export default function ManufacturingOrdersTab({
 
     return (
         <>
-            {printPreviewWO && (
+            {printPreviewMO && (
               <MOPrintModal
-                  wo={printPreviewWO}
-                  onClose={() => setPrintPreviewWO(null)}
+                  mo={printPreviewMO}
+                  onClose={() => setPrintPreviewMO(null)}
                   printSettings={printSettings}
                   onPrintSettingsChange={setPrintSettings}
                   currentStyle={currentStyle}
@@ -1052,7 +1000,7 @@ export default function ManufacturingOrdersTab({
                   formatDate={formatDate}
                   hideChildMOs={printHideChildren}
                   onPrint={() => {
-                      authFetch(`${API_BASE}/manufacturing-orders/${printPreviewWO.id}/mark-printed`, { method: 'POST' }).catch(() => {});
+                      authFetch(`${API_BASE}/manufacturing-orders/${printPreviewMO.id}/mark-printed`, { method: 'POST' }).catch(() => {});
                   }}
               />
           )}
@@ -1069,17 +1017,40 @@ export default function ManufacturingOrdersTab({
                     </>
                 ) : null;
 
+                // Calendar/List picker. Lives in this tab's toolbar rather than the
+                // page's title bar: it drives only this tab, and the shared toolbar
+                // order is search -> filters -> count -> actions. In calendar mode
+                // there is no search bar, so the same control is rendered into that
+                // branch's own row — dropping it there would strand the user on the
+                // calendar with no way back to the table.
+                const viewToggle = (
+                    <FilterChipBar
+                        classic={classic}
+                        value={viewMode}
+                        onChange={(v) => setViewMode(v as string)}
+                        options={[
+                            // No `title`: the labels already say what they do, so a
+                            // hover restating them is noise on every pass of the cursor.
+                            { value: 'calendar', label: 'Calendar' },
+                            { value: 'list', label: 'List' },
+                        ]}
+                    />
+                );
+
                 return viewMode === 'calendar' ? (
                     <>
                         <div className="no-print" style={{
                             padding: classic ? '5px 8px' : '8px 12px',
                             borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
                             background: classic ? '#ece9d8' : '#fff',
-                            display: 'flex', justifyContent: 'flex-end', gap: 6,
+                            display: 'flex', alignItems: 'center', gap: 6,
                         }}>
-                            {moActions}
+                            {viewToggle}
+                            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                                {moActions}
+                            </div>
                         </div>
-                        <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} onMOClick={openMOFromCalendar} endField="target_end_date" startField="target_start_date" showHolidays filterable showLoad /></div>
+                        <div className="p-3"><CalendarView orders={manufacturingOrders} items={items} onMOClick={openMOFromCalendar} endField="target_end_date" startField="target_start_date" showHolidays filterable showLoad /></div>
                     </>
                 ) : (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -1089,6 +1060,7 @@ export default function ManufacturingOrdersTab({
                         placeholder="Search by MO code, product, or BOM..."
                         total={totalItems}
                         classic={classic}
+                        filters={viewToggle}
                         actions={moActions}
                     />
                     <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -1135,7 +1107,7 @@ export default function ManufacturingOrdersTab({
                             </tr>
                         </thead>
                         <tbody ref={listBodyRef}>
-                            {filteredWorkOrders.length === 0 && (dataLoading.manufacturingOrders ? (
+                            {manufacturingOrders.length === 0 && (dataLoading.manufacturingOrders ? (
                                 <TableSkeleton rows={8} cols={skel.cols ?? 10} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : (
                                 <TableEmpty colSpan={10} classic={classic}
@@ -1143,10 +1115,10 @@ export default function ManufacturingOrdersTab({
                                         ? <>No Manufacturing Orders match &quot;<strong>{moCodeFilter}</strong>&quot;.</>
                                         : 'No Manufacturing Orders yet.'} />
                             ))}
-                            {filteredWorkOrders.map((wo: any, rowIdx: number) => {
-                                const warning = getDueDateWarning(wo);
-                                const isExpanded = expandedRows[wo.id];
-                                const isHighlighted = !!moCodeFilter && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
+                            {manufacturingOrders.map((mo: any, rowIdx: number) => {
+                                const warning = getDueDateWarning(mo);
+                                const isExpanded = expandedRows[mo.id];
+                                const isHighlighted = !!moCodeFilter && mo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
                                 const rowBg = isHighlighted ? rowStateBg('highlighted', classic)
                                     : isExpanded ? rowStateBg('expanded', classic)
                                     : classic ? lvZebra(true, rowIdx) : undefined;
@@ -1158,66 +1130,50 @@ export default function ManufacturingOrdersTab({
                                     height: 46,
                                 } : { height: 46, verticalAlign: 'middle' };
 
-                                const isBlocked = wo.status === 'PENDING' && manufacturingOrders.some(
-                                    (other: any) => other.manufacturing_order_id === wo.manufacturing_order_id
-                                                 && other.sequence < wo.sequence
-                                                 && other.status !== 'COMPLETED'
-                                                 && other.id !== wo.id
-                                );
-
-                                // XP-style action button
-                                const xpBtn = (label: string, colorScheme: 'primary'|'success'|'danger'|'default', onClick: () => void, title?: string, iconCls?: string) => {
-                                    if (!classic) return null; // rendered separately below
-                                    return (
-                                        <button key={label || title} className={XP_BTN} onClick={onClick} title={title} style={xpBtnBase({
-                                            fontSize: '10px', padding: '2px 7px',
-                                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            ...BTN_TONES[colorScheme],
-                                        })}>
-                                            {iconCls && <i className={label ? `${iconCls} me-1` : iconCls}></i>}{label}
-                                        </button>
-                                    );
-                                };
-
+                                // Keyed Fragment, not <>: a row is TWO <tr>s (the row and its
+                                // expanded detail), and a bare fragment takes no key — so the
+                                // keys sat on the inner <tr>s where React never sees them.
+                                // Paging or reordering then remounted both, dropping the
+                                // expanded panel's state and any open inline form with it.
                                 return (
-                                    <>
-                                    <tr key={wo.id} id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}>
+                                    <React.Fragment key={mo.id}>
+                                    <tr id={`mo-row-${mo.id}`} style={{ background: rowBg, cursor: 'default' }}>
 
-                                        <ExpanderCell classic={classic} expanded={!!isExpanded} onToggle={() => toggleRow(wo.id)} label="order detail" tdStyle={tdStyle} />
+                                        <ExpanderCell classic={classic} expanded={!!isExpanded} onToggle={() => toggleRow(mo.id)} label="order detail" tdStyle={tdStyle} />
 
                                         {/* MO Code */}
                                         <td style={{ ...tdStyle, paddingLeft: classic ? '10px' : undefined }}
                                             className={!classic ? 'ps-4' : ''}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                                                <CodeChip code={wo.code} classic={classic} style={{ fontWeight: 'bold', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} />
+                                                <CodeChip code={mo.code} classic={classic} style={{ fontWeight: 'bold', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} />
                                                 <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                                                    <PrintChip variant={wo.card_printed_at ? 'green' : 'gray'} label="Card"
-                                                        title={wo.card_printed_at ? `SPK Produksi printed ${tzFmt(wo.card_printed_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }, 'id-ID')}` : 'SPK Produksi not printed yet'} />
+                                                    <PrintChip variant={mo.card_printed_at ? 'green' : 'gray'} label="Card"
+                                                        title={mo.card_printed_at ? `SPK Produksi printed ${tzFmt(mo.card_printed_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }, 'id-ID')}` : 'SPK Produksi not printed yet'} />
                                                 </span>
                                             </div>
                                         </td>
 
                                         {/* Product — name (line 1) + variant chips (line 2); click to expand */}
-                                        <td style={{ ...tdStyle, cursor: 'pointer' }} onClick={() => toggleRow(wo.id)}>
+                                        <td style={{ ...tdStyle, cursor: 'pointer' }} onClick={() => toggleRow(mo.id)}>
                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ fontWeight: 'bold', color: '#000', fontSize: classic ? '11px' : '9pt', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {wo.item_name || getItemName(wo.item_id)}
+                                                        {mo.item_name || getItemName(mo.item_id)}
                                                     </div>
-                                                    {((wo.attribute_value_ids || []).length > 0 || wo.bom_size_id) && (
+                                                    {((mo.attribute_value_ids || []).length > 0 || mo.bom_size_id) && (
                                                         <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap', overflow: 'hidden', marginTop: 2 }}>
-                                                            {(wo.attribute_value_ids || []).map((id: string) => {
+                                                            {(mo.attribute_value_ids || []).map((id: string) => {
                                                                 const hex = getAttributeValueHex(id);
                                                                 return (
                                                                     <VariantChip key={id} kind={hex ? 'color' : 'material'} classic={classic}
-                                                                        swatch={hex} icon={null} title={getAttributeValueName(id)}
+                                                                        swatch={hex} icon={null} truncate
                                                                     >{getAttributeValueName(id)}</VariantChip>
                                                                 );
                                                             })}
-                                                            {wo.bom_size_id && (() => {
-                                                                const label = getBomSizeLabel(wo.bom_id, wo.bom_size_id);
+                                                            {mo.bom_size_id && (() => {
+                                                                const label = getBomSizeLabel(mo.bom_id, mo.bom_size_id);
                                                                 return label ? (
-                                                                    <VariantChip kind="size" classic={classic} title={`Size: ${label}`}>{label}</VariantChip>
+                                                                    <VariantChip kind="size" classic={classic} truncate>{label}</VariantChip>
                                                                 ) : null;
                                                             })()}
                                                         </div>
@@ -1229,22 +1185,24 @@ export default function ManufacturingOrdersTab({
                                         {/* BOM — code + originating SO + nested marker */}
                                         <td style={{ ...tdStyle, overflow: 'hidden' }}>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '9px', color: '#555', minWidth: 0, maxWidth: '100%' }}>
-                                                <CodeChip code={getBOMCode(wo.bom_id)} classic={classic} tier={2} style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
-                                                {wo.sales_order_id && (
-                                                    <span style={classic ? {
-                                                        fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
-                                                        color: '#003ea6', padding: '0 5px', fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                    } : {
-                                                        fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
-                                                        color: '#0a58ca', padding: '1px 6px', borderRadius: CHIP_RADIUS, fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                    }} title="Originating Sales Order">
-                                                        <i className="bi bi-receipt me-1" style={{ fontSize: classic ? '7px' : undefined }}></i>SO: {wo.sales_order_code || '—'}
-                                                    </span>
+                                                <CodeChip code={getBOMCode(mo.bom_id)} classic={classic} tier={2} style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
+                                                {/* Both badges go through Chip: the classic/modern pairs they
+                                                    replaced disagreed on radius (one square, one CHIP_RADIUS)
+                                                    and on wording ("NESTED x2" vs "NESTED (2)") for the same
+                                                    fact, and neither gave a clipped label the popout. */}
+                                                {mo.sales_order_id && (
+                                                    <Chip classic={classic} size="xs" bold icon="bi-receipt" truncate
+                                                        tone={{ background: '#dce8ff', borderColor: '#9ab0e0', color: '#003ea6' }}
+                                                        title={`Originating Sales Order: ${mo.sales_order_code || 'unknown'}`}>
+                                                        SO: {mo.sales_order_code || '—'}
+                                                    </Chip>
                                                 )}
-                                                {wo.child_mos && wo.child_mos.length > 0 && (
-                                                    classic
-                                                        ? <span style={{ borderRadius: CHIP_RADIUS, fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED x{wo.child_mos.length}</span>
-                                                        : <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_mos.length})</span>
+                                                {mo.child_mos && mo.child_mos.length > 0 && (
+                                                    <Chip classic={classic} size="xs" bold
+                                                        tone={{ background: '#fff3cd', borderColor: '#b8860b', color: '#6b4e00' }}
+                                                        title={`${mo.child_mos.length} nested component order(s) under this one`}>
+                                                        NESTED x{mo.child_mos.length}
+                                                    </Chip>
                                                 )}
                                             </div>
                                         </td>
@@ -1253,7 +1211,7 @@ export default function ManufacturingOrdersTab({
                                         <td style={{ ...tdStyle, fontWeight: 'bold', color: '#000', fontFamily: CODE_FONT }}
                                             className={!classic ? 'fw-bold' : ''}>
                                             {(() => {
-                                                const qtyStr = typeof wo.qty === 'number' ? wo.qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(wo.qty);
+                                                const qtyStr = typeof mo.qty === 'number' ? mo.qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(mo.qty);
                                                 const [intPart, decPart] = qtyStr.split('.');
                                                 return (
                                                     <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -1269,9 +1227,9 @@ export default function ManufacturingOrdersTab({
                                         <td style={tdStyle}>
                                             <div style={{ fontSize: classic ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '1px' }}
                                                  className={!classic ? 'extra-small' : ''}>
-                                                <span style={{ color: '#000' }}>S: {formatDate(wo.target_start_date)}</span>
+                                                <span style={{ color: '#000' }}>S: {formatDate(mo.target_start_date)}</span>
                                                 <span style={{ color: warning ? '#c00000' : '#000', fontWeight: warning ? 'bold' : undefined }}>
-                                                    E: {formatDate(wo.target_end_date)}
+                                                    E: {formatDate(mo.target_end_date)}
                                                     {warning && <i className={`bi ${warning.icon} ms-1`} style={{ fontSize: '9px' }}></i>}
                                                 </span>
                                             </div>
@@ -1281,29 +1239,29 @@ export default function ManufacturingOrdersTab({
                                         <td style={tdStyle}>
                                             <div style={{ fontSize: classic ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '1px' }}
                                                  className={!classic ? 'extra-small text-muted' : ''}>
-                                                <span style={{ color: '#555' }}>S: {formatDateTime(wo.actual_start_date)}</span>
-                                                <span style={{ color: '#555' }}>E: {formatDateTime(wo.actual_end_date)}</span>
+                                                <span style={{ color: '#555' }}>S: {formatDateTime(mo.actual_start_date)}</span>
+                                                <span style={{ color: '#555' }}>E: {formatDateTime(mo.actual_end_date)}</span>
                                             </div>
                                         </td>
 
                                         {/* Progress — bar + completed / target (2 lines) */}
                                         <td style={tdStyle}>
-                                            {(wo.qty_completed_total != null && wo.qty_completed_total > 0) ? (() => {
-                                                const pct = Math.min(100, Math.round((wo.qty_completed_total / wo.qty) * 100));
+                                            {(mo.qty_completed_total != null && mo.qty_completed_total > 0) ? (() => {
+                                                const pct = Math.min(100, Math.round((mo.qty_completed_total / mo.qty) * 100));
                                                 // Step-level scrap: the MO says how much was lost, this says where.
-                                                const rej = wo.qty_rejected_total ?? 0;
-                                                const prod = wo.qty_completed_total + rej;
+                                                const rej = mo.qty_rejected_total ?? 0;
+                                                const prod = mo.qty_completed_total + rej;
                                                 return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                         <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} height={8} />
-                                                        <span style={{ fontSize: '9px', color: '#555' }}>{parseFloat(wo.qty_completed_total).toFixed(2)} / {wo.qty} ({pct}%)</span>
+                                                        <span style={{ fontSize: '9px', color: '#555' }}>{parseFloat(mo.qty_completed_total).toFixed(2)} / {mo.qty} ({pct}%)</span>
                                                         {rej > 0 && (
                                                             <span
-                                                                title={`${rej.toFixed(2)} rejected on this step of ${prod.toFixed(2)} produced — yield ${(wo.qty_completed_total / prod * 100).toFixed(1)}%`}
+                                                                title={`${rej.toFixed(2)} rejected on this step of ${prod.toFixed(2)} produced — yield ${(mo.qty_completed_total / prod * 100).toFixed(1)}%`}
                                                                 style={{ fontSize: '9px', fontWeight: 700, color: '#a01010' }}
                                                             >
                                                                 <i className="bi bi-x-octagon-fill me-1" style={{ fontSize: '8px' }}></i>
-                                                                rej {rej.toFixed(2)} ({(wo.qty_completed_total / prod * 100).toFixed(1)}% yield)
+                                                                rej {rej.toFixed(2)} ({(mo.qty_completed_total / prod * 100).toFixed(1)}% yield)
                                                             </span>
                                                         )}
                                                     </div>
@@ -1315,35 +1273,33 @@ export default function ManufacturingOrdersTab({
 
                                         {/* Status */}
                                         <td style={tdStyle}>
-                                            {isBlocked
-                                                ? <StatusChip status="BLOCKED" title="Earlier routing steps must complete first" />
-                                                : <StatusChip status={wo.status || 'PENDING'} />}
+                                            <StatusChip status={mo.status || 'PENDING'} />
                                         </td>
 
                                         {/* Actions — icon Start + [...] menu (Print / Delete) */}
                                         <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print" onClick={(e) => e.stopPropagation()}>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                                                {canManage && wo.status === 'PENDING' && !isBlocked && (
-                                                    classic
-                                                        ? <span style={{ width: '26px', display: 'inline-flex' }}>{xpBtn('', 'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'), 'Start production', 'bi bi-play-fill')}</span>
-                                                        : <button className="btn btn-sm btn-primary py-0 px-2" title="Start production" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
+                                                {canManage && mo.status === 'PENDING' && (
+                                                    <XPActionButton classic={classic} tone="primary" icon="bi-play-fill"
+                                                        title="Start production"
+                                                        onClick={() => onUpdateStatus(mo.id, 'IN_PROGRESS')} />
                                                 )}
-                                                <MenuTriggerButton classic={classic} onClick={(e) => toggleMoMenu(wo.id, e)} />
+                                                <MenuTriggerButton classic={classic} onClick={(e) => toggleMoMenu(mo.id, e)} />
                                             </div>
                                         </td>
                                     </tr>
                                     {isExpanded && (
-                                        <tr key={`${wo.id}-detail`}>
+                                        <tr>
                                             <td colSpan={10} className="p-0 border-0">
-                                                {renderWOExpandedPanel({
-                                                    wo,
-                                                    detailTab: expandedDetailTabs[wo.id] || 'bom',
-                                                    setDetailTab: (t) => setExpandedDetailTabs(prev => ({ ...prev, [wo.id]: t })),
+                                                {renderMOExpandedPanel({
+                                                    rootMO: mo,
+                                                    detailTab: expandedDetailTabs[mo.id] || 'bom',
+                                                    setDetailTab: (t) => setExpandedDetailTabs(prev => ({ ...prev, [mo.id]: t })),
                                                 })}
                                             </td>
                                         </tr>
                                     )}
-                                    </>
+                                    </React.Fragment>
                                 );
                             })}
                         </tbody>
@@ -1351,13 +1307,13 @@ export default function ManufacturingOrdersTab({
                     </div>
                     {/* Floating "more actions" menu — Print / Delete */}
                     {openMoMenuId && (() => {
-                        const menuMO = filteredWorkOrders.find((m: any) => m.id === openMoMenuId);
+                        const menuMO = manufacturingOrders.find((m: any) => m.id === openMoMenuId);
                         if (!menuMO) return null;
                         return (
                             <FloatingMenu
                                 pos={moMenuPos}
                                 items={[
-                                    { key: 'print', icon: 'bi-printer', label: 'Print', onClick: () => { closeMoMenu(); handlePrintWO(menuMO); } },
+                                    { key: 'print', icon: 'bi-printer', label: 'Print', onClick: () => { closeMoMenu(); handlePrintMO(menuMO); } },
                                     { key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true, hidden: !canManage, onClick: () => { closeMoMenu(); onDeleteMO(menuMO.id); } },
                                 ]}
                             />
@@ -1382,9 +1338,6 @@ export default function ManufacturingOrdersTab({
             )}
 
             {editAttrsModal && (() => {
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 const isClassic = classic;
                 return (
                     <ModalWrapper
@@ -1394,17 +1347,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-tags me-1"></i>Edit Attributes — <span style={{ fontFamily: CODE_FONT }}>{editAttrsModal.mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {xpBtn(() => setEditAttrsModal(null), 'Cancel', false)}
-                                {xpBtn(() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected), 'Save', true)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button className="btn btn-sm btn-secondary" onClick={() => setEditAttrsModal(null)}>Cancel</button>
-                                <button className="btn btn-sm btn-primary" onClick={() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected)}>Save</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setEditAttrsModal(null)}
+                            onSubmit={() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected)}
+                            submitLabel="Save" />}
                     >
                         {/* Attribute rows: label + dropdown */}
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1460,9 +1406,6 @@ export default function ManufacturingOrdersTab({
             {editColorModal && (() => {
                 const isClassic = classic;
                 const mo = editColorModal.mo;
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 return (
                     <ModalWrapper
                         isOpen
@@ -1471,17 +1414,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-palette me-1"></i>Set Color — <span style={{ fontFamily: CODE_FONT }}>{mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {mo.color_id && xpBtn(() => handleSetMOColor(mo.id, null), 'Clear', false)}
-                                {xpBtn(() => setEditColorModal(null), 'Close', false)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                {mo.color_id && <button className="btn btn-sm btn-outline-danger" onClick={() => handleSetMOColor(mo.id, null)}>Clear</button>}
-                                <button className="btn btn-sm btn-secondary" onClick={() => setEditColorModal(null)}>Close</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setEditColorModal(null)} cancelLabel="Close"
+                            onExtra={mo.color_id ? () => handleSetMOColor(mo.id, null) : undefined}
+                            extraLabel={mo.color_id ? 'Clear' : undefined} />}
                     >
                         <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 13 }}>
                             {mo.color_code && (
@@ -1526,9 +1462,6 @@ export default function ManufacturingOrdersTab({
             })()}
 
             {putawayModal && (() => {
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 const isClassic = classic;
                 const pm = putawayModal;
                 const reasonText = pm.reason === 'same_item' ? 'bin already holds this item'
@@ -1552,17 +1485,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-box-arrow-in-down me-1"></i>Putaway Bin — <span style={{ fontFamily: CODE_FONT }}>{pm.mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {xpBtn(() => setPutawayModal(null), 'Cancel', false)}
-                                {xpBtn(() => handleSavePutaway(pm.mo.id, pm.selected), 'Save', true)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button className="btn btn-sm btn-secondary" onClick={() => setPutawayModal(null)}>Cancel</button>
-                                <button className="btn btn-sm btn-primary" onClick={() => handleSavePutaway(pm.mo.id, pm.selected)}>Save</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setPutawayModal(null)}
+                            onSubmit={() => handleSavePutaway(pm.mo.id, pm.selected)}
+                            submitLabel="Save" />}
                     >
                         <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 8 }}>
                             Where this output will be stored when produced. Operators see this on the work order — they do not choose it.
@@ -1608,9 +1534,6 @@ export default function ManufacturingOrdersTab({
             {toleranceModal && (() => {
                 const isClassic = classic;
                 const tm = toleranceModal;
-                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                    <button className={XP_BTN} onClick={onClick} style={xpBtnBase(primary ? { ...BTN_TONES.success, padding: '2px 14px', minWidth: 70 } : { padding: '2px 14px', minWidth: 70 })}>{label}</button>
-                );
                 const inpStyle = isClassic ? {
                     fontFamily: xpFont, fontSize: 11,
                     border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
@@ -1629,17 +1552,10 @@ export default function ManufacturingOrdersTab({
                         title={<><i className="bi bi-arrow-bar-up me-1"></i>Overdelivery Tolerance — <span style={{ fontFamily: CODE_FONT }}>{tm.mo.code}</span></>}
                         size="md"
                         level={2}
-                        footer={isClassic ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {xpBtn(() => setToleranceModal(null), 'Cancel', false)}
-                                {xpBtn(handleSaveTolerance, 'Save', true)}
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button className="btn btn-sm btn-secondary" onClick={() => setToleranceModal(null)}>Cancel</button>
-                                <button className="btn btn-sm btn-primary" onClick={handleSaveTolerance}>Save</button>
-                            </div>
-                        )}
+                        footer={<ModalFooterActions classic={isClassic}
+                            onCancel={() => setToleranceModal(null)}
+                            onSubmit={handleSaveTolerance}
+                            submitLabel="Save" />}
                     >
                         <div style={{ fontFamily: isClassic ? xpFont : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 10 }}>
                             How far past the order quantity the floor may log. Set this on the order

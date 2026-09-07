@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { STATUS_COLORS, xpFont, ListSkeleton, CHIP_RADIUS, FORM_SECTION_BLUE, XP_BTN } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
@@ -9,6 +9,7 @@ import { usePaginatedFetch } from '../../context/usePaginatedList';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { lvThBanded, LV_STICKY_THEAD, lvZebra, Dash, lvBtn, lvInput } from '../shared/listViewTheme';
+import DoseSheet, { fmtDose, doseUnitFor, type DosePreview } from '../shared/DoseSheet';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -43,18 +44,17 @@ const SHADE_COLORS: Record<string, { bg: string; color: string }> = {
     REWORK: { bg: '#ffeeba', color: '#856404' },
 };
 
-interface ChemicalRow {
-    item_id: string;
-    planned_qty: string;
-    actual_qty: string;
-    uom_id: string;
-}
-
+/** Cutting an extra bath by hand. Runs are normally auto-created with the WO.
+ *
+ *  No customer / artikel / PO / order-qty / colour / lot / machine fields: those
+ *  columns are gone (migration a7c9e1b3d5f8). Every one of them restated the
+ *  SO -> MO -> WO chain the run hangs off, or the MO's colour attributes, or the
+ *  output lot — and in 12 runs of real use not one was ever filled in. The machine
+ *  is the WO's work center. */
 interface CreateForm {
     recipe_id: string;
     substrate_qty: string;
     input_batch_id: string;
-    machine_name: string;
     liquor_ratio: string;
     volume_air_liters: string;
     machine_speed: string;
@@ -63,20 +63,22 @@ interface CreateForm {
     duration_min: string;
     operator_name: string;
     notes: string;
-    customer_name: string;
-    po_number: string;
-    artikel: string;
-    color_name: string;
-    color_matching_ref: string;
-    lot_number: string;
-    qty_order_kg: string;
 }
 
+/** The QC entry, and nothing else.
+ *
+ *  This tab is supervisory now: the bath, the doses and the chemicals actually used
+ *  are recorded in the work order flow (`useDyeingBath`, in the WO completion modal
+ *  and the mobile scan terminal), because the bath and the output it produced are
+ *  one act by one operator. The shade result stays here — it is a different person
+ *  at a later moment, which is exactly why it is not folded into the production log.
+ *
+ *  No output lot field either: the dyed lot is minted once, by that production log,
+ *  and the run adopts it (backend `add_mo_completion`).
+ */
 interface CompleteForm {
     shade_result: string;
     shade_notes: string;
-    output_batch_number: string;
-    chemicals: ChemicalRow[];
 }
 
 interface DyeingOrdersTabProps {
@@ -90,7 +92,6 @@ const emptyCreateForm: CreateForm = {
     recipe_id: '',
     substrate_qty: '',
     input_batch_id: '',
-    machine_name: '',
     liquor_ratio: '',
     volume_air_liters: '',
     machine_speed: '',
@@ -99,20 +100,11 @@ const emptyCreateForm: CreateForm = {
     duration_min: '',
     operator_name: '',
     notes: '',
-    customer_name: '',
-    po_number: '',
-    artikel: '',
-    color_name: '',
-    color_matching_ref: '',
-    lot_number: '',
-    qty_order_kg: '',
 };
 
 const emptyCompleteForm: CompleteForm = {
     shade_result: '',
     shade_notes: '',
-    output_batch_number: '',
-    chemicals: [],
 };
 
 export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrdersTabProps) {
@@ -141,6 +133,14 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [runPage, setRunPage] = useState(1);
+    // Live dose preview under the create form, and the read-only sheet the shade
+    // screen shows so QC can see what the bath was dosed at.
+    const [dosePreview, setDosePreview] = useState<DosePreview | null>(null);
+    const [completeDoses, setCompleteDoses] = useState<DosePreview | null>(null);
+    // Generation counter: the preview refires on every keystroke of substrate/volume,
+    // so without it a slow earlier response lands after a newer one and shows doses
+    // for a bath the operator has already changed.
+    const doseGen = useRef(0);
 
     // Server-paginated: this list previously sent no window, so it silently showed
     // only the endpoint's default first page and paged over that — dyeing WO #51 was
@@ -154,6 +154,49 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         pageSize: WO_PAGE_SIZE,
         params: { center_type: 'DYEING' },
     });
+
+    /** Weigh a recipe against a bath, server-side. Volume wins over ratio; the
+     *  backend derives whichever is missing (dyeing_dose_service.solve_bath). */
+    const fetchDoses = useCallback(async (
+        recipeId: string,
+        substrateQty: string | number | null | undefined,
+        volumeLiters: string | number | null | undefined,
+        liquorRatio?: string | number | null,
+    ): Promise<DosePreview | null> => {
+        if (!recipeId) return null;
+        const qs = new URLSearchParams();
+        if (substrateQty) qs.set('substrate_qty', String(substrateQty));
+        if (volumeLiters) qs.set('bath_volume_liters', String(volumeLiters));
+        else if (liquorRatio) qs.set('liquor_ratio', String(liquorRatio));
+        try {
+            const res = await authFetch(`${API_BASE}/dye-recipes/${recipeId}/doses?${qs.toString()}`);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch {
+            return null;
+        }
+    }, [authFetch]);
+
+    // Debounced so typing a substrate weight doesn't fire a request per keystroke —
+    // same 350ms the item search uses.
+    useEffect(() => {
+        if (!showCreateRun || !createForm.recipe_id) {
+            setDosePreview(null);
+            return;
+        }
+        const gen = ++doseGen.current;
+        const timer = setTimeout(async () => {
+            const data = await fetchDoses(
+                createForm.recipe_id, createForm.substrate_qty,
+                createForm.volume_air_liters, createForm.liquor_ratio,
+            );
+            if (gen === doseGen.current) setDosePreview(data);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [
+        showCreateRun, createForm.recipe_id, createForm.substrate_qty,
+        createForm.volume_air_liters, createForm.liquor_ratio, fetchDoses,
+    ]);
 
     const fetchRuns = useCallback(async (woId: string) => {
         setLoading(true);
@@ -231,8 +274,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
             const payload: any = {
                 work_order_id: selectedWoId,
                 recipe_id: createForm.recipe_id || null,
+                // Null = take the WO's own qty (backend create_dyeing_run).
                 substrate_qty: createForm.substrate_qty ? parseFloat(createForm.substrate_qty) : null,
-                machine_name: createForm.machine_name || null,
                 liquor_ratio: createForm.liquor_ratio ? parseFloat(createForm.liquor_ratio) : null,
                 volume_air_liters: createForm.volume_air_liters ? parseFloat(createForm.volume_air_liters) : null,
                 machine_speed: createForm.machine_speed ? parseFloat(createForm.machine_speed) : null,
@@ -242,13 +285,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                 operator_name: createForm.operator_name || null,
                 notes: createForm.notes || null,
                 input_batch_id: createForm.input_batch_id || null,
-                customer_name: createForm.customer_name || null,
-                po_number: createForm.po_number || null,
-                artikel: createForm.artikel || null,
-                color_name: createForm.color_name || null,
-                color_matching_ref: createForm.color_matching_ref || null,
-                lot_number: createForm.lot_number || null,
-                qty_order_kg: createForm.qty_order_kg ? parseFloat(createForm.qty_order_kg) : null,
             };
             const res = await authFetch(`${API_BASE}/dyeing-runs`, {
                 method: 'POST',
@@ -270,118 +306,57 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         }
     };
 
-    const handleStartRun = async (run: any) => {
-        setErrorMsg(null);
-        try {
-            const res = await authFetch(`${API_BASE}/dyeing-runs/${run.id}/start`, { method: 'POST' });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                setErrorMsg(err.detail || 'Failed to start run.');
-            } else {
-                if (selectedWoId) await fetchRuns(selectedWoId);
-            }
-        } catch {
-            setErrorMsg('Network error starting run.');
-        }
-    };
-
-    const handleOpenComplete = (run: any) => {
-        let preChemicals: ChemicalRow[] = (run.chemicals ?? []).map((c: any) => ({
-            item_id: String(c.item_id ?? ''),
-            planned_qty: String(c.planned_qty ?? ''),
-            actual_qty: String(c.actual_qty ?? ''),
-            uom_id: String(c.uom_id ?? ''),
-        }));
-        // Auto-populate from recipe if no chemicals recorded yet and volume_air_liters is set
-        if (preChemicals.length === 0 && run.recipe_id && run.volume_air_liters) {
-            const recipe = recipes.find((r: any) => String(r.id) === String(run.recipe_id));
-            if (recipe?.lines?.length) {
-                preChemicals = recipe.lines.map((line: any) => {
-                    let planned = 0;
-                    if (line.qty_per_liter != null) {
-                        planned = parseFloat((line.qty_per_liter * run.volume_air_liters).toFixed(4));
-                    } else if (line.qty_per_100kg != null) {
-                        planned = parseFloat((line.qty_per_100kg * run.substrate_qty / 100).toFixed(4));
-                    }
-                    return {
-                        item_id: String(line.item_id ?? ''),
-                        planned_qty: String(planned),
-                        actual_qty: '',
-                        uom_id: String(line.uom_id ?? ''),
-                    };
-                });
-            }
-        }
+    const handleOpenShade = async (run: any) => {
         setCompleteForm({
             shade_result: run.shade_result ?? '',
             shade_notes: run.shade_notes ?? '',
-            output_batch_number: run.output_batch_number ?? '',
-            chemicals: preChemicals,
         });
+        setCompleteDoses(null);
         setShowCompleteModal(run);
         setErrorMsg(null);
+
+        if (!run.recipe_id) return;
+        // Reference only, and read-only: it labels each row's basis and unit so the
+        // recorded quantities below are legible. The numbers QC is looking at were
+        // snapshotted when the bath was filled — recomputing them here would show
+        // what the recipe says today instead of what the operator weighed.
+        setCompleteDoses(await fetchDoses(run.recipe_id, run.substrate_qty, run.volume_air_liters));
     };
 
-    const handleCompleteFormChange = (field: keyof Omit<CompleteForm, 'chemicals'>, value: string) => {
+    const handleCompleteFormChange = (field: keyof CompleteForm, value: string) => {
         setCompleteForm(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleChemicalChange = (idx: number, field: keyof ChemicalRow, value: string) => {
-        setCompleteForm(prev => {
-            const updated = prev.chemicals.map((row, i) =>
-                i === idx ? { ...row, [field]: value } : row
-            );
-            return { ...prev, chemicals: updated };
-        });
-    };
-
-    const handleAddChemical = () => {
-        setCompleteForm(prev => ({
-            ...prev,
-            chemicals: [...prev.chemicals, { item_id: '', planned_qty: '', actual_qty: '', uom_id: '' }],
-        }));
-    };
-
-    const handleRemoveChemical = (idx: number) => {
-        setCompleteForm(prev => ({
-            ...prev,
-            chemicals: prev.chemicals.filter((_, i) => i !== idx),
-        }));
-    };
-
-    const handleSaveComplete = async () => {
+    /** Record the shade and close the bath.
+     *
+     *  `chemicals` is deliberately absent from the payload: omitting it means "leave
+     *  the recorded doses alone" (backend DyeingRunCompletePayload). The actuals were
+     *  recorded from the WO flow, and a QC entry must not wipe them.
+     */
+    const handleSaveShade = async () => {
         if (!showCompleteModal) return;
         setSaving(true);
         setErrorMsg(null);
         try {
-            const payload: any = {
-                shade_result: completeForm.shade_result || null,
-                shade_notes: completeForm.shade_notes || null,
-                output_batch_number: completeForm.output_batch_number || null,
-                chemicals: completeForm.chemicals
-                    .filter(c => c.item_id)
-                    .map(c => ({
-                        item_id: c.item_id,
-                        planned_qty: c.planned_qty ? parseFloat(c.planned_qty) : null,
-                        actual_qty: c.actual_qty ? parseFloat(c.actual_qty) : null,
-                        uom_id: c.uom_id || null,
-                    })),
-            };
             const res = await authFetch(`${API_BASE}/dyeing-runs/${showCompleteModal.id}/complete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    shade_result: completeForm.shade_result || null,
+                    shade_notes: completeForm.shade_notes || null,
+                }),
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                setErrorMsg(err.detail || 'Failed to complete run.');
+                setErrorMsg(err.detail || 'Failed to record the shade result.');
             } else {
                 setShowCompleteModal(null);
                 setCompleteForm(emptyCompleteForm);
+                setCompleteDoses(null);
                 if (selectedWoId) await fetchRuns(selectedWoId);
             }
         } catch {
-            setErrorMsg('Network error completing run.');
+            setErrorMsg('Network error recording the shade result.');
         } finally {
             setSaving(false);
         }
@@ -518,47 +493,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 <div style={classic
                                     ? { fontWeight: 'bold', fontSize: 11, marginBottom: 4 }
                                     : { fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#1e293b' }}>New Dyeing Run</div>
-                                {/* Job Info */}
-                                <div style={classic
-                                    ? { fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }
-                                    : { fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid #e6eaf1', paddingBottom: 4 }}>Job Info</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 12px', marginBottom: 8 }}>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Customer</span>
-                                        <input type="text" style={xpInput} value={createForm.customer_name}
-                                            onChange={e => handleCreateFormChange('customer_name', e.target.value)} placeholder="customer name" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>No. PO</span>
-                                        <input type="text" style={xpInput} value={createForm.po_number}
-                                            onChange={e => handleCreateFormChange('po_number', e.target.value)} placeholder="PO number" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Artikel</span>
-                                        <input type="text" style={xpInput} value={createForm.artikel}
-                                            onChange={e => handleCreateFormChange('artikel', e.target.value)} placeholder="article code" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Warna</span>
-                                        <input type="text" style={xpInput} value={createForm.color_name}
-                                            onChange={e => handleCreateFormChange('color_name', e.target.value)} placeholder="color name" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Color Matching</span>
-                                        <input type="text" style={xpInput} value={createForm.color_matching_ref}
-                                            onChange={e => handleCreateFormChange('color_matching_ref', e.target.value)} placeholder="ref code" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>LOT</span>
-                                        <input type="text" style={xpInput} value={createForm.lot_number}
-                                            onChange={e => handleCreateFormChange('lot_number', e.target.value)} placeholder="lot number" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Qty Order (kg)</span>
-                                        <input type="number" step="0.01" style={xpInput} value={createForm.qty_order_kg}
-                                            onChange={e => handleCreateFormChange('qty_order_kg', e.target.value)} placeholder="e.g. 65" />
-                                    </label>
-                                </div>
                                 {/* Process Params */}
                                 <div style={classic
                                     ? { fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }
@@ -598,17 +532,10 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Machine Name</span>
-                                        <input
-                                            type="text"
-                                            style={xpInput}
-                                            value={createForm.machine_name}
-                                            onChange={e => handleCreateFormChange('machine_name', e.target.value)}
-                                            placeholder="e.g. JET-01"
-                                        />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Liquor Ratio</span>
+                                        <span
+                                            style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
+                                            title="Litres of water per kg of substrate. Used to derive the bath volume when Volume Air is left blank; an entered Volume Air always wins."
+                                        >Liquor Ratio (1:x)</span>
                                         <input
                                             type="number"
                                             style={xpInput}
@@ -618,7 +545,10 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Volume Air (L)</span>
+                                        <span
+                                            style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}
+                                            title="Water volume of the bath, in litres. Every g/L chemical is weighed out against this. Leave blank to have it derived from the liquor ratio."
+                                        >Volume Air (L)</span>
                                         <input type="number" step="0.1" style={xpInput} value={createForm.volume_air_liters}
                                             onChange={e => handleCreateFormChange('volume_air_liters', e.target.value)} placeholder="e.g. 190" />
                                     </label>
@@ -673,6 +603,14 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                 </div>
+                                {createForm.recipe_id && (
+                                    <DoseSheet
+                                        classic={classic}
+                                        doses={dosePreview}
+                                        emptyHint="This recipe has no chemical lines to weigh out."
+                                        style={{ marginTop: classic ? 6 : 10 }}
+                                    />
+                                )}
                                 <div style={{ marginTop: classic ? 6 : 10, display: 'flex', gap: classic ? 4 : 8 }}>
                                     <button className={XP_BTN} style={xpPrimaryBtn} onClick={handleSaveRun} disabled={saving}>
                                         {saving ? 'Saving...' : 'Save Run'}
@@ -699,7 +637,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Run #</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Recipe</th>
                                             <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Substrate Qty</th>
-                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Machine</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }} title="Water volume of the bath — what every g/L dose is weighed against">Volume Air (L)</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>L:R</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
                                             <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Shade Result</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Started</th>
@@ -714,6 +653,13 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                 ?? recipes.find(r => String(r.id) === String(run.recipe_id))?.name
                                                 ?? (run.recipe_id ? shortId(run.recipe_id) : '—');
                                             const shadeColors = run.shade_result ? SHADE_COLORS[run.shade_result] : null;
+                                            // Gate the actions on the bath's own facts, not on `status`:
+                                            // status is derived from the WO too (backend
+                                            // services/dyeing_run_service), so a closed WO shows its
+                                            // baths COMPLETED — and the shade is QC at a later moment,
+                                            // which must stay recordable after the WO is finished.
+                                            const bathClosed = !!run.completed_at;
+                                            const bathFilled = !!run.started_at || run.volume_air_liters != null;
                                             return (
                                                 <tr key={run.id} style={classic
                                                     ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
@@ -723,7 +669,12 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                     <td style={classic ? { padding: '2px 6px', textAlign: 'right' } : { padding: '6px 10px', textAlign: 'right', color: '#334155', fontFamily: modernFont }}>
                                                         {run.substrate_qty != null ? run.substrate_qty : '—'}
                                                     </td>
-                                                    <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{run.machine_name ?? '-'}</td>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#334155', fontFamily: modernFont }}>
+                                                        {fmtDose(run.volume_air_liters, 1)}
+                                                    </td>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
+                                                        {run.liquor_ratio != null ? `1:${fmtDose(run.liquor_ratio, 2)}` : '—'}
+                                                    </td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
                                                         <span style={{
                                                             color: STATUS_COLORS[run.status] ?? '#333',
@@ -734,7 +685,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                         </span>
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px' }}>
-                                                        {run.status === 'COMPLETED' && run.shade_result ? (
+                                                        {run.shade_result ? (
                                                             <span style={classic ? {
                                                                 padding: '1px 6px',
                                                                 borderRadius: CHIP_RADIUS,
@@ -765,32 +716,20 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                         {formatDateTime(run.completed_at)}
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                                                        {/* One action: the shade. There is no Start button
+                                                            any more — filling the bath is done from the WO,
+                                                            with the output it produced. */}
                                                         <div style={{ display: 'flex', gap: classic ? 3 : 6 }}>
-                                                            {canManage && run.status === 'PENDING' && (
-                                                                <>
-                                                                    <button
-                                                                        className={XP_BTN}
-                                                                        style={xpPrimaryBtn}
-                                                                        onClick={() => handleStartRun(run)}
-                                                                    >
-                                                                        Start
-                                                                    </button>
-                                                                    <button
-                                                                        className={XP_BTN}
-                                                                        style={xpBtn}
-                                                                        onClick={() => handleOpenComplete(run)}
-                                                                    >
-                                                                        Complete
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                            {canManage && run.status === 'IN_PROGRESS' && (
+                                                            {canManage && !bathClosed && (
                                                                 <button
                                                                     className={XP_BTN}
-                                                                    style={xpPrimaryBtn}
-                                                                    onClick={() => handleOpenComplete(run)}
+                                                                    style={bathFilled ? xpPrimaryBtn : xpBtn}
+                                                                    onClick={() => handleOpenShade(run)}
+                                                                    title={bathFilled
+                                                                        ? 'Record the shade result and close this bath'
+                                                                        : 'No bath recorded yet — the operator fills it from the work order log'}
                                                                 >
-                                                                    Complete
+                                                                    Shade Result
                                                                 </button>
                                                             )}
                                                         </div>
@@ -807,22 +746,29 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                 )}
             </div>
 
-            {/* Complete Run Modal */}
+            {/* Shade Result Modal — the QC gate, and all this tab does now.
+                The bath, the dose sheet and the chemicals actually used moved into
+                the work order flow (WOCompletionModal / the mobile scan terminal):
+                the bath and the output it produced are one act by one operator, and
+                recording them on two screens is what let a WO be finished with its
+                bath never recorded. What is left here is genuinely a different
+                person at a later moment, judging the colour — so everything below
+                the shade fields is read-only context for that judgement. */}
             {showCompleteModal && (
                 <ModalWrapper
                     isOpen={!!showCompleteModal}
                     onClose={() => { setShowCompleteModal(null); setErrorMsg(null); }}
-                    title={`Complete Dyeing Run ${showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}`}
+                    title={`Shade Result — Dyeing Run ${showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}`}
                     size="lg"
                     modeless
                     footer={<>
                         <button
                             className={XP_BTN}
                             style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
-                            onClick={handleSaveComplete}
-                            disabled={saving || !completeForm.output_batch_number}
+                            onClick={handleSaveShade}
+                            disabled={saving}
                         >
-                            {saving ? 'Saving...' : 'Save'}
+                            {saving ? 'Saving...' : 'Save & Close Bath'}
                         </button>
                         <button
                             className={XP_BTN}
@@ -835,131 +781,128 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                     </>}
                 >
                     <div>
-                            {errorMsg && (
-                                <div style={classic
-                                    ? { background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03', marginBottom: 6 }
-                                    : { background: '#fef3cd', border: '1px solid #f0d98a', borderRadius: 7, padding: '6px 10px', fontSize: 13, color: '#854d0e', marginBottom: 10 }}>
-                                    {errorMsg}
-                                </div>
-                            )}
-
-                            {/* Shade & batch fields */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Result</span>
-                                    <select
-                                        style={classic ? { ...xpInput, height: 22 } : { ...xpInput, height: 30 }}
-                                        value={completeForm.shade_result}
-                                        onChange={e => handleCompleteFormChange('shade_result', e.target.value)}
-                                    >
-                                        <option value="">-- select --</option>
-                                        <option value="PASS">PASS</option>
-                                        <option value="FAIL">FAIL</option>
-                                        <option value="REWORK">REWORK</option>
-                                    </select>
-                                </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Output Lot Number *</span>
-                                    <input
-                                        type="text"
-                                        style={xpInput}
-                                        value={completeForm.output_batch_number}
-                                        onChange={e => handleCompleteFormChange('output_batch_number', e.target.value)}
-                                        placeholder="lot number (required)"
-                                    />
-                                </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', gap: 1, gridColumn: '1 / -1' }}>
-                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Notes</span>
-                                    <textarea
-                                        style={{ ...xpInput, height: 48, resize: 'vertical' }}
-                                        value={completeForm.shade_notes}
-                                        onChange={e => handleCompleteFormChange('shade_notes', e.target.value)}
-                                        placeholder="optional notes"
-                                    />
-                                </label>
+                        {errorMsg && (
+                            <div style={classic
+                                ? { background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03', marginBottom: 6 }
+                                : { background: '#fef3cd', border: '1px solid #f0d98a', borderRadius: 7, padding: '6px 10px', fontSize: 13, color: '#854d0e', marginBottom: 10 }}>
+                                {errorMsg}
                             </div>
+                        )}
 
-                            {/* Chemicals section */}
-                            <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
-                                <div style={{ ...xpSectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <span>Chemicals Used</span>
-                                    <button className={XP_BTN} style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }} onClick={handleAddChemical}>+ Add Chemical</button>
-                                </div>
-                                {completeForm.chemicals.length === 0 ? (
-                                    <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>No chemicals added. Click "+ Add Chemical" to begin.</div>
-                                ) : (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
-                                        <thead>
-                                            <tr style={classic
-                                                ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
-                                                : {}}>
-                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
-                                                <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Planned Qty</th>
-                                                <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual Qty</th>
-                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>UOM</th>
-                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px' }}></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {completeForm.chemicals.map((row, idx) => (
-                                                <tr key={idx} style={classic
-                                                    ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
-                                                    : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <select
-                                                            style={classic ? { ...xpInput, width: '100%', height: 22 } : { ...xpInput, width: '100%', height: 30 }}
-                                                            value={row.item_id}
-                                                            onChange={e => handleChemicalChange(idx, 'item_id', e.target.value)}
-                                                        >
-                                                            <option value="">-- select item --</option>
-                                                            {items.map(it => (
-                                                                <option key={it.id} value={it.id}>
-                                                                    {it.name ?? it.item_code ?? `Item ${it.id}`}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <input
-                                                            type="number"
-                                                            style={{ ...xpInput, width: 70 }}
-                                                            value={row.planned_qty}
-                                                            onChange={e => handleChemicalChange(idx, 'planned_qty', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <input
-                                                            type="number"
-                                                            style={{ ...xpInput, width: 70 }}
-                                                            value={row.actual_qty}
-                                                            onChange={e => handleChemicalChange(idx, 'actual_qty', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <input
-                                                            type="text"
-                                                            style={{ ...xpInput, width: 50 }}
-                                                            value={row.uom_id}
-                                                            onChange={e => handleChemicalChange(idx, 'uom_id', e.target.value)}
-                                                            placeholder="UOM"
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
-                                                        <button
-                                                            className={XP_BTN}
-                                                            style={classic ? { ...xpBtn, fontSize: 10, color: '#800' } : { ...xpBtn, fontSize: 12, color: '#b91c1c', borderColor: '#f0c2c2' }}
-                                                            onClick={() => handleRemoveChemical(idx)}
-                                                        >
-                                                            Remove
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Result</span>
+                                <select
+                                    style={classic ? { ...xpInput, height: 22 } : { ...xpInput, height: 30 }}
+                                    value={completeForm.shade_result}
+                                    onChange={e => handleCompleteFormChange('shade_result', e.target.value)}
+                                    autoFocus
+                                >
+                                    <option value="">-- select --</option>
+                                    <option value="PASS">PASS</option>
+                                    <option value="FAIL">FAIL</option>
+                                    <option value="REWORK">REWORK</option>
+                                </select>
+                            </label>
+                            {/* Read-only: the dyed lot is minted by the WO production log
+                                (one lot per physical dye batch) and this run adopts it. */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Output Lot</span>
+                                <span
+                                    style={classic
+                                        ? { fontSize: 11, padding: '2px 4px', color: showCompleteModal.output_batch_number ? '#333' : '#888' }
+                                        : { fontSize: 13, padding: '4px 2px', fontFamily: modernFont, color: showCompleteModal.output_batch_number ? '#334155' : '#94a3b8' }}
+                                    title="The dyed lot is created when the work order's output is logged, and this run picks it up automatically — one lot per physical dye batch."
+                                >
+                                    {showCompleteModal.output_batch_number || 'set when the WO output is logged'}
+                                </span>
+                            </div>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: 1, gridColumn: '1 / -1' }}>
+                                <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Notes</span>
+                                <textarea
+                                    style={{ ...xpInput, height: 48, resize: 'vertical' }}
+                                    value={completeForm.shade_notes}
+                                    onChange={e => handleCompleteFormChange('shade_notes', e.target.value)}
+                                    placeholder="optional notes"
+                                />
+                            </label>
+                        </div>
+
+                        {/* The bath as the floor recorded it. Read-only here: it is
+                            corrected in the WO log, where the operator is standing. */}
+                        <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
+                            <div style={xpSectionHeader}>Bath as Recorded</div>
+                            <div style={{ padding: classic ? '5px 8px' : '8px 12px', display: 'flex', gap: classic ? 16 : 24, flexWrap: 'wrap', fontSize: classic ? 11 : 13 }}>
+                                <span>Volume Air: <strong>{showCompleteModal.volume_air_liters != null ? `${fmtDose(showCompleteModal.volume_air_liters, 1)} L` : '—'}</strong></span>
+                                <span>Substrate: <strong>{showCompleteModal.substrate_qty != null ? `${fmtDose(showCompleteModal.substrate_qty, 2)} kg` : '—'}</strong></span>
+                                <span>Liquor Ratio: <strong>{showCompleteModal.liquor_ratio != null ? `1 : ${fmtDose(showCompleteModal.liquor_ratio, 2)}` : '—'}</strong></span>
                             </div>
                         </div>
+
+                        {showCompleteModal.recipe_id && (
+                            <DoseSheet
+                                classic={classic}
+                                doses={completeDoses}
+                                emptyHint={completeDoses
+                                    ? 'This recipe has no chemical lines to weigh out.'
+                                    : 'Loading the recipe...'}
+                            />
+                        )}
+
+                        {/* What the vessel actually took, recorded with the output log.
+                            Planned vs actual is the only dosing variance signal there
+                            is, which is why it sits in front of QC. */}
+                        <div style={{ ...xpPanel, marginTop: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
+                            <div style={xpSectionHeader}>Chemicals Used</div>
+                            {(showCompleteModal.chemicals ?? []).length === 0 ? (
+                                <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>
+                                    Nothing recorded yet — the operator enters what went in with the
+                                    work order&apos;s production log.
+                                </div>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
+                                    <thead>
+                                        <tr style={classic ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' } : {}}>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Planned</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Variance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(showCompleteModal.chemicals ?? []).map((c: any, idx: number) => {
+                                            const unit = doseUnitFor(completeDoses, String(c.item_id)) ?? '';
+                                            const planned = Number(c.planned_qty ?? 0);
+                                            const actual = Number(c.actual_qty ?? 0);
+                                            const variance = actual - planned;
+                                            return (
+                                                <tr key={c.id ?? idx} style={classic
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
+                                                    : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                                    <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>
+                                                        {c.item_name ?? items.find(it => String(it.id) === String(c.item_id))?.name ?? <Dash classic={classic} />}
+                                                    </td>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
+                                                        {fmtDose(planned, 3)}{unit ? ` ${unit}` : ''}
+                                                    </td>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>
+                                                        {actual > 0 ? `${fmtDose(actual, 3)}${unit ? ` ${unit}` : ''}` : <Dash classic={classic} />}
+                                                    </td>
+                                                    <td style={{
+                                                        ...(classic ? { padding: '2px 6px' } : { padding: '6px 10px', fontFamily: modernFont }),
+                                                        textAlign: 'right', whiteSpace: 'nowrap',
+                                                        color: actual <= 0 ? '#888' : Math.abs(variance) < 1e-9 ? '#666' : variance > 0 ? '#900' : '#1a5e1a',
+                                                    }}>
+                                                        {actual > 0 ? `${variance > 0 ? '+' : ''}${fmtDose(variance, 3)}` : '—'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
                 </ModalWrapper>
             )}
         </div>

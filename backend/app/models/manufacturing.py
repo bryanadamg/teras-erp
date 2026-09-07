@@ -13,6 +13,17 @@ if TYPE_CHECKING:
     from app.models.routing import WorkCenter
     from app.models.item import Item
 
+# Statuses that STOP an order accepting work — the set every gate actually asks
+# about. DELIVERED is deliberately NOT one of them: it means "planned qty met, order
+# still open" (SAP DLV vs TECO), so the floor keeps logging spare beams and extra
+# bags until someone closes the order explicitly. See `status` on
+# ManufacturingOrder below.
+#
+# Lives on the model, not in api/manufacturing, so api/production_runs can use it
+# too — that module can only import api/manufacturing lazily inside a function.
+# Work orders share the set: their lifecycle is the same minus DELIVERED.
+CLOSED_ORDER_STATUSES = ("COMPLETED", "CANCELLED")
+
 # Association table for ManufacturingOrder <-> AttributeValue
 manufacturing_order_values = Table(
     "manufacturing_order_values",

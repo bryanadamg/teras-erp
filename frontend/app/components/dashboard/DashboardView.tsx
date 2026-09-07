@@ -485,7 +485,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         <ShellWindow classic={false} fill={false} className="h-100">
                             <ShellTitleBar classic={false} icon="bi-calendar-event" title={t('production_deadlines')} />
                             <div className="card-body">
-                                <CalendarView workOrders={workOrders} items={items} compact={true} />
+                                <CalendarView orders={workOrders} items={items} compact={true} />
                                 <div className="mt-3 d-flex flex-wrap gap-2 justify-content-center">
                                     <small className="text-muted d-flex align-items-center"><span className="bg-primary rounded-circle me-1" style={{ width: 6, height: 6, display: 'inline-block' }}></span> {t('pending')}</small>
                                     <small className="text-muted d-flex align-items-center"><span className="bg-warning rounded-circle me-1" style={{ width: 6, height: 6, display: 'inline-block' }}></span> {t('in_progress')}</small>

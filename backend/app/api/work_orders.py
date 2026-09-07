@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload, aliased
 from typing import Optional
 from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
-from app.models.manufacturing import ManufacturingOrder
+from app.models.manufacturing import ManufacturingOrder, MOCompletion
 from app.models.routing import WorkCenter
 from app.models.item import Item
 from app.models.bom import BOMOperation
@@ -17,7 +17,7 @@ from app.models.stock_balance import StockBalance
 from app.models.weaving import WeavingRun
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import (
-    WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
+    WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload, WOUnstagePayload,
     PutawayBinOption, PutawaySuggestionResponse,
     WorkOrderMarkPrintedBulk, BeamMountResponse, BeamMountCreate, BeamDismountPayload,
     BeamDismountResult, AvailableBeamRow, LoomBeamStatus, WOStagedLot,
@@ -29,7 +29,7 @@ from app.api.batches import (
 )
 from app.services import (
     audit_service, stock_service, beam_service, work_center_service, reject_service,
-    weaving_service, numbering_service, staging_service,
+    weaving_service, numbering_service, staging_service, dyeing_run_service,
 )
 from app.core.ws_manager import manager
 from datetime import datetime
@@ -140,6 +140,40 @@ def _require_wo_scope(current_user: User, center_type: str | None):
     if not wo_scope_ok(current_user, center_type):
         raise HTTPException(status_code=403, detail=f"Your role is not scoped to work center type '{center_type}'")
 
+
+# The fields a WO edit can move. Audited as before -> after so a rewritten qty,
+# work center or location is reconstructable from the log; the payload alone is not
+# enough, because it names every field whether it changed or not and carries no
+# previous value.
+_WO_AUDITED_FIELDS = (
+    "sequence", "name", "work_center_id", "bom_operation_id", "qty",
+    "planned_duration_hours", "notes", "target_start_date", "target_end_date",
+    "input_location_id", "output_location_id",
+    "next_destination_location_id", "next_destination_work_center_id",
+)
+
+
+def _wo_snapshot(wo: WorkOrder) -> dict:
+    """Plain-value copy of the audited fields — taken before mutating, and again
+    after, so the two can be diffed. Values are stringified by audit_service."""
+    return {f: getattr(wo, f, None) for f in _WO_AUDITED_FIELDS}
+
+
+def _wo_diff(before: dict, after: dict) -> dict:
+    """{field: [before, after]} for the fields that actually moved.
+
+    `[old, new]` pairs match the convention already used elsewhere (see
+    api/colors.py). Compared as strings because a Numeric column comes back as
+    Decimal and a UUID column as UUID, so `4 != Decimal('4.0000')` would report a
+    change that never happened.
+    """
+    out = {}
+    for f in _WO_AUDITED_FIELDS:
+        a, b = before.get(f), after.get(f)
+        if (a is None) != (b is None) or (a is not None and str(a) != str(b)):
+            out[f] = [a, b]
+    return out
+
 @router.post("/work-orders", response_model=WorkOrderResponse)
 async def create_work_order(
     payload: WorkOrderCreate,
@@ -217,19 +251,28 @@ async def create_work_order(
 
     # Auto-seed pending DyeingRun so operator sees pre-filled recipe
     if planned_recipe_id:
-        db.add(DyeingRun(
+        dye_run = DyeingRun(
             work_order_id=wo.id,
             recipe_id=planned_recipe_id,
             run_number=1,
             substrate_qty=wo.qty or 0,
-            status="PENDING",
-        ))
+            # No status: an unfilled bath on a fresh WO is PENDING, which is the
+            # column default. Status is derived, not typed (dyeing_run_service) —
+            # and the PLANNED bath below deliberately doesn't move it.
+        )
+        db.add(dye_run)
+        await db.flush()
+        # Plan the bath here so the Kartu Kerja printed off this WO carries weighed
+        # grams. `payload.bath_volume_liters` is the planner's figure; blank falls
+        # back to the recipe's liquor ratio x the load.
+        await dyeing_run_service.seed_planned_bath(db, dye_run, payload.bath_volume_liters)
 
     # Auto-start MO on first WO creation if MO is still PENDING.
     # Stock is now checked at staging time (line-side issue), not here — creating a
     # WO no longer requires its components to already be on hand. Just flip the MO
     # to IN_PROGRESS so completions can be logged once materials are staged.
-    if mo.status == "PENDING":
+    mo_auto_started = mo.status == "PENDING"
+    if mo_auto_started:
         mo.status = "IN_PROGRESS"
         mo.actual_start_date = datetime.utcnow()
         await db.commit()
@@ -244,10 +287,24 @@ async def create_work_order(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="CREATE",
-        entity_type="WORK_ORDER", entity_id=str(wo.id),
-        details=f"Created Work Order '{wo.code}'",
-        changes=payload.model_dump()
+        entity_type="WorkOrder", entity_id=str(wo.id),
+        details=f"Created Work Order '{wo.code}' on MO {mo.code}",
+        # The created row, not the payload: this route derives fields the client
+        # never sent — code and sequence off the MO's number range, both locations
+        # resolved from the work center, planned_recipe_id from the DYEING gate — so
+        # the payload alone doesn't say what was actually created.
+        changes={**_wo_snapshot(wo), "code": wo.code, "planned_recipe_id": wo.planned_recipe_id},
     )
+    if mo_auto_started:
+        # Cutting the first WO starts the order. That is a status change nobody asked
+        # for explicitly, so it needs its own row against the MO — the WO's CREATE
+        # entry is not where anyone looks for "when did this MO start".
+        await audit_service.log_activity(
+            db, user_id=current_user.id, action="STATUS_CHANGE",
+            entity_type="ManufacturingOrder", entity_id=str(mo.id),
+            details=f"PENDING -> IN_PROGRESS (automatic, first work order {wo.code} created)",
+            changes={"status": ["PENDING", "IN_PROGRESS"]},
+        )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": "PENDING"})
 
     response = WorkOrderResponse.model_validate(wo)
@@ -285,6 +342,46 @@ async def update_work_order(
     if payload.work_center_id != wo.work_center_id:
         _require_wo_scope(current_user, await _wc_type(db, payload.work_center_id))
 
+    if wo.status == "CANCELLED":
+        raise HTTPException(status_code=400, detail="This work order is cancelled — reopen it before editing")
+
+    # Once output has been logged the WO's shape is history, not a plan. Rewriting it
+    # orphans what already moved: the completions were consumed out of THIS input
+    # location, credited to THIS output location, and consumed the step pegged by
+    # THIS bom_operation_id. Notes, name, dates and sequence stay editable.
+    logged = float((await db.execute(
+        select(func.sum(MOCompletion.qty_completed)).where(
+            MOCompletion.work_order_id == wo.id,
+            MOCompletion.rejected == False,  # noqa: E712
+        )
+    )).scalar() or 0)
+    if logged > 0:
+        frozen = []
+        if payload.work_center_id != wo.work_center_id:
+            frozen.append("work center")
+        if payload.bom_operation_id != wo.bom_operation_id:
+            frozen.append("routing step")
+        if payload.input_location_id is not None or payload.output_location_id is not None:
+            if payload.input_location_id != wo.input_location_id:
+                frozen.append("input location")
+            if payload.output_location_id != wo.output_location_id:
+                frozen.append("output location")
+        if frozen:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{float(logged):g} already logged on this work order — its "
+                       f"{', '.join(frozen)} can no longer be changed. Cancel it and cut a new one instead.",
+            )
+    # Dropping the target below what is already logged would put the WO past 100%
+    # and re-trip the auto-complete arithmetic in add_mo_completion.
+    if payload.qty is not None and float(payload.qty) + 1e-9 < logged:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Qty cannot be below the {float(logged):g} already logged on this work order",
+        )
+
+    before = _wo_snapshot(wo)
+
     wo.sequence = payload.sequence
     if payload.name is not None:
         wo.name = payload.name
@@ -318,11 +415,19 @@ async def update_work_order(
     )
     wo = result.scalars().first()
 
+    # Before -> after, not the payload. `changes=payload.model_dump()` recorded what
+    # was SENT: every field, whether or not it moved, and with no previous value — so
+    # a WO whose qty, work center or locations were rewritten could not be
+    # reconstructed from the log, which is the one question asked of it.
+    diff = _wo_diff(before, _wo_snapshot(wo))
     await audit_service.log_activity(
         db, user_id=current_user.id, action="UPDATE",
-        entity_type="WORK_ORDER", entity_id=wo_id,
-        details=f"Updated Work Order",
-        changes=payload.model_dump()
+        entity_type="WorkOrder", entity_id=wo_id,
+        details=(
+            f"Updated Work Order '{wo.code or wo.name}': "
+            + ", ".join(f"{f} {a} -> {b}" for f, (a, b) in diff.items())
+        ) if diff else f"Updated Work Order '{wo.code or wo.name}' (no field changed)",
+        changes=diff,
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": wo.status})
 
@@ -369,6 +474,7 @@ async def update_work_order_status(
         raise HTTPException(status_code=404, detail="Work Order not found")
     _require_wo_scope(current_user, wo.work_center.center_type if wo.work_center else None)
 
+    previous_status = wo.status
     wo.status = status
     if status == "IN_PROGRESS" and not wo.actual_start_date:
         wo.actual_start_date = datetime.utcnow()
@@ -388,13 +494,33 @@ async def update_work_order_status(
         stopped = await weaving_service.stop_runs(
             db, work_order_id=wo.id, username=current_user.username,
         )
+
+    # A dye bath cannot outlive the WO it belongs to: closing the WO takes every
+    # bath under it off the machine, cancelling it drops them, and reopening the WO
+    # reopens the ones that were never closed on their own. The runs' statuses used
+    # to be written independently of this, which is how a COMPLETED WO ended up with
+    # a PENDING bath — see services/dyeing_run_service for the whole rule.
+    dye_runs_synced = await dyeing_run_service.sync_wo_runs(db, wo.id, wo_status=status)
+
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "WorkOrder", wo_id,
-        details=f"Status -> {status}"
+        # Both sides, matching the MO equivalent (api/manufacturing's
+        # update_manufacturing_order_status). Logging only the destination made a
+        # reopen indistinguishable from a first start in the trail.
+        details=f"{previous_status} -> {status}",
+        changes={"status": [previous_status, status]},
     )
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped, f"work order {status.lower()}")
+    for run, was, now in dye_runs_synced:
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", "DyeingRun", str(run.id),
+            details=f"{was} -> {now} (automatic, work order {status.lower()})",
+            changes={"status": [was, now]},
+        )
+    if dye_runs_synced:
+        await manager.broadcast({"type": "DYEING_RUN_UPDATE", "wo_id": wo_id})
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status})
 
     result = await db.execute(
@@ -415,6 +541,18 @@ async def mark_work_orders_printed_bulk(
         return {"updated": 0}
     result = await db.execute(select(WorkOrder).filter(WorkOrder.id.in_(payload.ids)))
     wos = result.scalars().all()
+    # Same scope wall as the single-WO route: card_printed_at drives the `unprinted`
+    # filter the floor dispatches off, so a weaving-scoped user must not be able to
+    # mark dyeing cards printed just by batching the ids.
+    types = {}
+    if wos:
+        rows = await db.execute(
+            select(WorkCenter.id, WorkCenter.center_type)
+            .filter(WorkCenter.id.in_({w.work_center_id for w in wos if w.work_center_id}))
+        )
+        types = {str(i): t for i, t in rows.all()}
+    for wo in wos:
+        _require_wo_scope(current_user, types.get(str(wo.work_center_id)))
     now = datetime.utcnow()
     for wo in wos:
         if payload.kind == "card":
@@ -548,18 +686,22 @@ async def create_work_orders_bulk(
         await db.flush()
 
         if planned_recipe_id:
-            db.add(DyeingRun(
+            dye_run = DyeingRun(
                 work_order_id=wo.id,
                 recipe_id=planned_recipe_id,
                 run_number=1,
                 substrate_qty=wo.qty or 0,
-                status="PENDING",
-            ))
+                # No status, same as the single-WO path above: derived, not typed.
+            )
+            db.add(dye_run)
+            await db.flush()
+            await dyeing_run_service.seed_planned_bath(db, dye_run, payload.bath_volume_liters)
         created_wos.append(wo)
 
     # Auto-start MO once if still PENDING. Stock is checked at staging time
     # (line-side issue), not at WO creation.
-    if mo.status == "PENDING":
+    mo_auto_started = mo.status == "PENDING"
+    if mo_auto_started:
         mo.status = "IN_PROGRESS"
         mo.actual_start_date = datetime.utcnow()
 
@@ -575,10 +717,18 @@ async def create_work_orders_bulk(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="CREATE",
-        entity_type="WORK_ORDER", entity_id=str(mo_id),
+        entity_type="WorkOrder", entity_id=str(mo_id),
         details=f"Bulk created {len(wos)} Work Orders for MO '{mo.code}'",
         changes={"count": len(wos), "mo_id": str(mo_id)}
     )
+    if mo_auto_started:
+        # Same automatic start as the single-WO route — see the note there.
+        await audit_service.log_activity(
+            db, user_id=current_user.id, action="STATUS_CHANGE",
+            entity_type="ManufacturingOrder", entity_id=str(mo.id),
+            details=f"PENDING -> IN_PROGRESS (automatic, {len(wos)} work orders created)",
+            changes={"status": ["PENDING", "IN_PROGRESS"]},
+        )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "mo_id": str(mo_id), "bulk": True})
     if mo.status == "IN_PROGRESS":
         await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": "IN_PROGRESS", "code": mo.code})
@@ -629,8 +779,14 @@ async def _load_wo_and_mo(db: AsyncSession, wo_id: str):
 
 
 async def _wo_staged_by_item(db: AsyncSession, wo: WorkOrder) -> dict[str, float]:
-    """Qty already staged to this WO's input location, per item (positive
-    'Staging' ledger rows tagged with this WO's id)."""
+    """Qty currently staged to this WO's input location, per item.
+
+    Sums ALL 'Staging' ledger rows tagged with this WO's id at that location, so a
+    reversal (POST /work-orders/{id}/unstage) nets the original move back out.
+    Filtering to positives here is what used to make the total disagree with
+    `_wo_staged_lots` below, which has always netted — and it meant a status of
+    STAGED could never fall back once material left the line.
+    """
     if not wo.input_location_id:
         return {}
     rows = await db.execute(
@@ -639,11 +795,10 @@ async def _wo_staged_by_item(db: AsyncSession, wo: WorkOrder) -> dict[str, float
             StockLedger.reference_type == "Staging",
             StockLedger.reference_id == str(wo.id),
             StockLedger.location_id == wo.input_location_id,
-            StockLedger.qty_change > 0,
         )
         .group_by(StockLedger.item_id)
     )
-    return {str(i): float(s or 0) for i, s in rows.all()}
+    return {str(i): max(0.0, float(s or 0)) for i, s in rows.all()}
 
 
 async def _wo_staged_lots(db: AsyncSession, wo: WorkOrder) -> dict[str, list[WOStagedLot]]:
@@ -1216,8 +1371,102 @@ async def stage_wo_materials(
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="STAGE",
-        entity_type="WORK_ORDER", entity_id=str(wo.id),
+        entity_type="WorkOrder", entity_id=str(wo.id),
         details=f"Staged materials to WO '{wo.code}' (status {wo.staging_status})",
+        changes={"lines": [{"item_id": str(l.item_id), "qty": l.qty} for l in payload.lines]},
+    )
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+
+    result = await db.execute(
+        select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo.id)
+    )
+    return result.scalars().first()
+
+
+@router.post("/work-orders/{wo_id}/unstage", response_model=WorkOrderResponse)
+async def unstage_wo_materials(
+    wo_id: str,
+    payload: WOUnstagePayload,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.stage')),
+):
+    """Return staged material from the WO's input location to a store.
+
+    The exact mirror of /stage, and written as a reversal of it: the ledger rows
+    carry the same reference_type "Staging" and reference_id, so the negative at
+    the input location nets the original move out of `staged` and the status falls
+    back to PARTIAL/NOT_STAGED. Without this route material picked to the wrong
+    line could only leave it by being consumed.
+
+    Beams are refused on purpose: a warp is a loom resource pegged to the work
+    center, not this WO's material, and it comes off through
+    POST /beam-mounts/{id}/dismount (which handles the weighed remnant).
+    """
+    wo, mo = await _load_wo_and_mo(db, wo_id)
+    _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
+    if not wo.input_location_id:
+        raise HTTPException(status_code=422, detail="Work Order has no input location — nothing can be staged to it")
+
+    required_rows = await _wo_required_rows(db, wo, mo)
+    req_by_item = {str(r.item_id): r for r in required_rows}
+
+    unstaged_any = False
+    for line in payload.lines:
+        qty = float(line.qty or 0)
+        if qty <= 0:
+            continue
+        rr = req_by_item.get(str(line.item_id))
+        if not rr:
+            raise HTTPException(status_code=400, detail=f"Item {line.item_id} is not a material of this WO's step")
+        if rr.is_beam:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{rr.item_code or line.item_id} is a warp beam — unmount it from the loom instead",
+            )
+        if rr.lot_tracked and not line.batch_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Select which lot of {rr.item_code or line.item_id} to return — it is batch-tracked",
+            )
+        dest = line.destination_location_id or rr.source_location_id
+        if not dest:
+            raise HTTPException(status_code=422, detail=f"No destination location for {rr.item_code or line.item_id}")
+
+        # Same variant-key rule as staging: a lot's stock sits under the key it was
+        # produced with, and both sides of the transfer must re-post under it.
+        attrs = [str(a) for a in (line.attribute_value_ids or rr.attribute_value_ids or [])]
+        move_color = None
+        if line.batch_id:
+            attrs, move_color = await stock_service.batch_variant(db, line.batch_id, wo.input_location_id)
+
+        # Over-return is blocked by stock_service's own negative-balance guard —
+        # it row-locks the balance before checking, so there's nothing to re-check here.
+        await stock_service.add_stock_entry(
+            db, item_id=line.item_id, location_id=wo.input_location_id, qty_change=-qty,
+            reference_type="Staging", reference_id=str(wo.id),
+            attribute_value_ids=attrs, color_id=move_color,
+            batch_id=line.batch_id,
+        )
+        await stock_service.add_stock_entry(
+            db, item_id=line.item_id, location_id=dest, qty_change=qty,
+            reference_type="Staging", reference_id=str(wo.id),
+            attribute_value_ids=attrs, color_id=move_color,
+            batch_id=line.batch_id,
+        )
+        unstaged_any = True
+
+    if not unstaged_any:
+        raise HTTPException(status_code=400, detail="Nothing to unstage")
+
+    new_rows = await _wo_required_rows(db, wo, mo)
+    wo.staging_status = _staging_status(new_rows)
+    await db.commit()
+
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="UNSTAGE",
+        entity_type="WorkOrder", entity_id=str(wo.id),
+        details=f"Returned staged materials from WO '{wo.code}' (status {wo.staging_status})",
         changes={"lines": [{"item_id": str(l.item_id), "qty": l.qty} for l in payload.lines]},
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})
@@ -1550,6 +1799,8 @@ async def delete_work_order(
         raise HTTPException(status_code=404, detail="Work Order not found")
     _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
     label = wo.code or wo.name
+    # Read before the delete — the instance is gone by broadcast time.
+    mo_id = wo.manufacturing_order_id
     # WeavingRun.work_order_id is ON DELETE SET NULL, so a run would survive the delete
     # orphaned at MO grain and keep accruing days against a WO that no longer exists.
     # Close it here, while the link is still there to find it by.
@@ -1560,11 +1811,18 @@ async def delete_work_order(
     await db.commit()
     await audit_service.log_activity(
         db, user_id=current_user.id, action="DELETE",
-        entity_type="WORK_ORDER", entity_id=wo_id,
+        entity_type="WorkOrder", entity_id=wo_id,
         details=f"Deleted Work Order '{label}'"
     )
     # Safe after commit: the session runs expire_on_commit=False, so the stopped runs
     # still hold their loaded ids (a lazy refresh here would raise MissingGreenlet).
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped, f"work order '{label}' deleted")
+    # The only WO mutation route that used to broadcast nothing, so a deleted WO
+    # stayed on every other client's board — and inside the MO panel — until someone
+    # refetched by hand. mo_id rides along so the parent MO's row re-pulls its WO list.
+    await manager.broadcast({
+        "type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": "DELETED",
+        "mo_id": str(mo_id) if mo_id else None,
+    })
     return {"status": "success"}

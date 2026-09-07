@@ -929,6 +929,7 @@ async def reject_batch(
     )).scalars().first()
     mo = None
     returned = 0.0
+    reopened_from = None
     if comp:
         if partial:
             # Reduce the good qty this completion contributes; every MO/WO progress
@@ -962,6 +963,7 @@ async def reject_batch(
                 .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
             )).scalar() or 0)
             if mo.status in ("DELIVERED", "COMPLETED") and total_good < float(mo.qty):
+                reopened_from = mo.status
                 mo.status = "IN_PROGRESS"
                 mo.actual_end_date = None
 
@@ -975,9 +977,30 @@ async def reject_batch(
         + (f" → moved {relocated:g} to {defect_loc.name}" if defect_loc and relocated else "")
         + (f": {reason}" if reason else ""),
     )
+    if mo and reopened_from:
+        # Its own row against the MO, not just a clause on the Batch's REJECT entry —
+        # the MO's own history is where someone looks for why a closed order reopened.
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", "ManufacturingOrder", str(mo.id),
+            details=f"{reopened_from} -> IN_PROGRESS (automatic, reopened by lot reject)",
+            changes={"status": [reopened_from, "IN_PROGRESS"]},
+        )
     await manager.broadcast({"type": "STOCK_UPDATE"})
     if mo:
-        await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
+        # Progress, not just status: a lot-level reject moves the MO's good and
+        # rejected totals, and a status-only event left every progress bar showing
+        # the rejected qty as done. Imported here, not at module scope —
+        # api.manufacturing already imports generate_batch_number from this file.
+        from app.api.manufacturing import mo_progress_fields
+        rejected_wo = None
+        if comp and comp.work_order_id:
+            rejected_wo = (await db.execute(
+                select(WorkOrder).filter(WorkOrder.id == comp.work_order_id)
+            )).scalars().first()
+        await manager.broadcast({
+            "type": "MANUFACTURING_ORDER_UPDATE",
+            **(await mo_progress_fields(db, mo, rejected_wo)),
+        })
     try:
         await kpi_service.invalidate_kpis_async(db)
         await manager.broadcast({"type": "KPI_UPDATE"})

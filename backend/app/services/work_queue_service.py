@@ -77,7 +77,11 @@ VERDICT_STAGED = "STAGED"
 VERDICT_READY = "READY"
 VERDICT_PARTIAL = "PARTIAL"
 VERDICT_WAITING_UPSTREAM = "WAITING_UPSTREAM"
-VERDICT_WAITING_PRIOR = "WAITING_PRIOR"
+# NOTE: there is deliberately no WAITING_PRIOR verdict. Routing-sequence gating was
+# removed from the completion route in 75a5ef58 — the API accepts a log on any open
+# WO regardless of earlier steps — so the queue must not report a WO as blocked by
+# its predecessor. It told the floor "you cannot run this yet" while the scanner
+# happily took the log.
 VERDICT_SHORT = "SHORT"
 VERDICT_NO_MATERIALS = "NO_MATERIALS"
 # The order exists and its material may well be ready, but nobody has cut a work
@@ -95,7 +99,6 @@ _VERDICT_WEIGHT = {
     VERDICT_PARTIAL: 3,
     VERDICT_WAITING_UPSTREAM: 4,
     VERDICT_SHORT: 5,
-    VERDICT_WAITING_PRIOR: 6,
     VERDICT_NO_MATERIALS: 7,
     # Below the dispatched work: a released order that is ready outranks an order
     # that still needs a ticket written, even when both have material.
@@ -201,9 +204,10 @@ def _required_qty(wo: Optional[WorkOrder], mo: ManufacturingOrder, c: MOPlannedC
 
 
 async def _staged_by_wo(db: AsyncSession, wos: list[WorkOrder]) -> dict[tuple[str, str], float]:
-    """(wo_id, item_id) -> qty already staged to that WO's input location.
+    """(wo_id, item_id) -> qty currently staged to that WO's input location.
     One grouped query for the whole queue; the per-WO helper in api/work_orders
-    runs one query per WO."""
+    runs one query per WO. Signed sum, so an unstage reversal nets back out —
+    keep this in step with _wo_staged_by_item there."""
     wo_ids = [str(w.id) for w in wos if w.input_location_id]
     if not wo_ids:
         return {}
@@ -213,7 +217,6 @@ async def _staged_by_wo(db: AsyncSession, wos: list[WorkOrder]) -> dict[tuple[st
         .where(
             StockLedger.reference_type == "Staging",
             StockLedger.reference_id.in_(wo_ids),
-            StockLedger.qty_change > 0,
         )
         .group_by(StockLedger.reference_id, StockLedger.item_id, StockLedger.location_id)
     )
@@ -225,7 +228,7 @@ async def _staged_by_wo(db: AsyncSession, wos: list[WorkOrder]) -> dict[tuple[st
         if input_loc.get(str(ref)) != str(loc_id):
             continue
         out[(str(ref), str(item_id))] = out.get((str(ref), str(item_id)), 0.0) + float(qty or 0)
-    return out
+    return {k: max(0.0, v) for k, v in out.items()}
 
 
 async def _on_hand_pool(db: AsyncSession, item_ids: set[str]) -> dict[tuple[str, str], float]:
@@ -296,36 +299,6 @@ async def _pegged_supply(db: AsyncSession, mo_ids: list) -> dict[tuple[str, str]
         # supplier has landed, so the earliest ETA would be an optimistic lie.
         if req_mo.target_end_date and (not cur["eta"] or req_mo.target_end_date > cur["eta"]):
             cur["eta"] = req_mo.target_end_date
-    return out
-
-
-async def _prior_ops_open(db: AsyncSession, wos: list[WorkOrder]) -> dict[str, str]:
-    """wo_id -> code of the earlier-sequence WO still blocking it.
-
-    Mirrors the completion gate in api/manufacturing: logging on a PENDING WO is
-    rejected while any lower-sequence WO on the same MO is not COMPLETED. Material
-    readiness is moot if the floor cannot log the order at all."""
-    mo_ids = {w.manufacturing_order_id for w in wos}
-    if not mo_ids:
-        return {}
-    rows = await db.execute(
-        select(WorkOrder.manufacturing_order_id, WorkOrder.sequence, WorkOrder.code, WorkOrder.status)
-        .where(WorkOrder.manufacturing_order_id.in_(list(mo_ids)))
-    )
-    by_mo: dict[str, list[tuple[int, str, str]]] = {}
-    for mo_id, seq, code, status in rows.all():
-        by_mo.setdefault(str(mo_id), []).append((int(seq or 0), code or "", status or ""))
-
-    out: dict[str, str] = {}
-    for w in wos:
-        if w.status != "PENDING":
-            continue
-        blockers = [
-            (s, c) for s, c, st in by_mo.get(str(w.manufacturing_order_id), [])
-            if s < int(w.sequence or 0) and st != "COMPLETED"
-        ]
-        if blockers:
-            out[str(w.id)] = sorted(blockers)[0][1]
     return out
 
 
@@ -553,7 +526,6 @@ async def build_queue(
         all_mos = [w.manufacturing_order for w in wos] + unreleased
 
     staged = await _staged_by_wo(db, wos)
-    prior_blockers = await _prior_ops_open(db, wos)
     pegged = await _pegged_supply(db, [m.id for m in all_mos])
     so_due = await _so_due_dates(db, all_mos)
 
@@ -705,7 +677,7 @@ async def build_queue(
             })
 
         if released:
-            verdict, detail = _verdict(w, substrate, materials_out, prior_blockers.get(str(w.id)))
+            verdict, detail = _verdict(w, substrate, materials_out)
         else:
             verdict, detail = _unreleased_verdict(substrate, materials_out, r["hint_source"])
         chem_short = [
@@ -939,12 +911,9 @@ def _unreleased_verdict(substrate: Optional[dict], materials: list[dict],
     return VERDICT_NOT_RELEASED, f"No work order - {mat}{guess}"
 
 
-def _verdict(wo: WorkOrder, substrate: Optional[dict], materials: list[dict],
-             prior_blocker: Optional[str]) -> tuple[str, Optional[str]]:
+def _verdict(wo: WorkOrder, substrate: Optional[dict], materials: list[dict]) -> tuple[str, Optional[str]]:
     if wo.status == "IN_PROGRESS":
         return VERDICT_RUNNING, None
-    if prior_blocker:
-        return VERDICT_WAITING_PRIOR, f"Waiting on {prior_blocker}"
     if not substrate:
         return VERDICT_NO_MATERIALS, "No materials resolved for this step"
 
