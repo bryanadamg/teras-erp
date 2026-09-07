@@ -9,7 +9,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
-import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, xpBtn as xpBtnBase, BTN_TONES } from '../shared/xpTheme';
+import { STATUS_COLORS, useFloatingMenu, MenuTriggerButton, FloatingMenu, ExpandedRowPanel, ExpandedRowPanelBody, ProgressBar, CodeChip, CODE_FONT, xpFont, TableSkeleton, useTableSkeletonMetrics, rowStateBg, StatusChip, CHIP_RADIUS, VariantChip, colorHexFor, colorLabel, colorTitle, BUTTON_RADIUS, XP_BTN, xpBtn as xpBtnBase, BTN_TONES, LocationChip } from '../shared/xpTheme';
 import { lvSubTh, lvSubTd, lvSubTable, lvSubRow, ExpanderCell, LV_EXPANDER_COL_W, lvZebra, lvThead, lvTh, TableEmpty, Dash } from '../shared/listViewTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
@@ -813,9 +813,9 @@ export default function ManufacturingOrdersTab({
                                                     ) : (
                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                                             {locs.map(l => (
-                                                                <span key={l.locId} style={{ borderRadius: CHIP_RADIUS, background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', fontSize: 8, padding: '0 4px', whiteSpace: 'nowrap' }}>
-                                                                    {l.code} <span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
-                                                                </span>
+                                                                <LocationChip key={l.locId} classic={classic} direction="in" code={l.code}>
+                                                                    {' '}<span style={{ fontFamily: CODE_FONT, fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
+                                                                </LocationChip>
                                                             ))}
                                                         </div>
                                                     )}

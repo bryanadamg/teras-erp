@@ -827,6 +827,49 @@ export function WorkCenterChip({ type, name, label }: { type?: string | null; na
     );
 }
 
+// Location code badge. `in` (blue) is where material comes FROM, `out` (green)
+// where it goes TO — the same pair the WO row's "Route" cell and the staging
+// screens read left-to-right. `neutral` for a location with no direction (a stock
+// bin in a list).
+//
+// This palette was hand-rolled in three places with the same literals and only one
+// of them set a radius, so two location chips in the same panel rendered one
+// rounded and one square. Goes through Chip so geometry and the clipped-label
+// popout come from one place — a bin code is exactly the kind of text that gets
+// cut off in a narrow cell.
+const LOCATION_CHIP_TONES = {
+    in: { background: '#e8f0fe', color: '#1a56c4', borderColor: '#b0c8f8' },
+    out: { background: '#e6f4ea', color: '#1a6e2e', borderColor: '#a8d8b0' },
+    neutral: { background: '#f0efe9', color: '#444', borderColor: '#c8c6be' },
+} as const;
+
+export function LocationChip({
+    code, direction = 'in', classic, title, size = 'xs', children, style,
+}: {
+    /** Location code. Renders '?' when absent, matching the WO route cell. */
+    code?: string | null;
+    direction?: keyof typeof LOCATION_CHIP_TONES;
+    classic?: boolean;
+    title?: string;
+    size?: 'xs' | 'sm' | 'md';
+    /** Trailing detail inside the chip, e.g. the qty at that location. */
+    children?: React.ReactNode;
+    style?: React.CSSProperties;
+}) {
+    return (
+        <Chip
+            classic={classic}
+            tone={LOCATION_CHIP_TONES[direction]}
+            size={size}
+            title={title}
+            truncate
+            style={style}
+        >
+            {code || '?'}{children}
+        </Chip>
+    );
+}
+
 // Rounded, bordered track + filled bar for at-a-glance completion (receiving
 // progress, MO/WO progress, lineage) — the ONE progress bar shape for the
 // whole app; new progress UI should use this instead of hand-rolling a

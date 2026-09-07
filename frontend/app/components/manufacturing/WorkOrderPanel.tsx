@@ -14,7 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC, woHasStaging, woScanStages } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN, xpInput as xpInputBase } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN, xpInput as xpInputBase, LocationChip } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px' });
 
@@ -699,14 +699,12 @@ export default function WorkOrderPanel({
 
                                     {/* Location flow chips */}
                                     {(wo.input_location || wo.output_location) ? (
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, whiteSpace: 'nowrap' }}>
-                                            <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
-                                                {wo.input_location?.code || '?'}
-                                            </span>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, whiteSpace: 'nowrap', minWidth: 0 }}>
+                                            <LocationChip classic direction="in" code={wo.input_location?.code}
+                                                title={wo.input_location?.name || 'Input location'} />
                                             <span style={{ color: '#888' }}>&#8594;</span>
-                                            <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>
-                                                {wo.output_location?.code || '?'}
-                                            </span>
+                                            <LocationChip classic direction="out" code={wo.output_location?.code}
+                                                title={wo.output_location?.name || 'Output location'} />
                                         </span>
                                     ) : <span style={{ color: '#ccc', fontSize: 9 }}>—</span>}
 
@@ -934,13 +932,11 @@ export default function WorkOrderPanel({
                             </div>
                             {(form.input_location_id || form.output_location_id) && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#555', paddingLeft: 4 }}>
-                                    <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
-                                        {locationList.find((l: any) => l.id === form.input_location_id)?.code || '?'}
-                                    </span>
+                                    <LocationChip classic direction="in"
+                                        code={locationList.find((l: any) => l.id === form.input_location_id)?.code} />
                                     <span>&#8594;</span>
-                                    <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>
-                                        {locationList.find((l: any) => l.id === form.output_location_id)?.code || '?'}
-                                    </span>
+                                    <LocationChip classic direction="out"
+                                        code={locationList.find((l: any) => l.id === form.output_location_id)?.code} />
                                     <span style={{ color: '#aaa' }}>(from work center)</span>
                                 </div>
                             )}
