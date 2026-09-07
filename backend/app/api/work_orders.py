@@ -29,7 +29,7 @@ from app.api.batches import (
 )
 from app.services import (
     audit_service, stock_service, beam_service, work_center_service, reject_service,
-    weaving_service, numbering_service, staging_service,
+    weaving_service, numbering_service, staging_service, dyeing_run_service,
 )
 from app.core.ws_manager import manager
 from datetime import datetime
@@ -256,7 +256,8 @@ async def create_work_order(
             recipe_id=planned_recipe_id,
             run_number=1,
             substrate_qty=wo.qty or 0,
-            status="PENDING",
+            # No status: a bathless run on a fresh WO is PENDING, which is the
+            # column default. Status is derived, not typed (dyeing_run_service).
         ))
 
     # Auto-start MO on first WO creation if MO is still PENDING.
@@ -486,6 +487,14 @@ async def update_work_order_status(
         stopped = await weaving_service.stop_runs(
             db, work_order_id=wo.id, username=current_user.username,
         )
+
+    # A dye bath cannot outlive the WO it belongs to: closing the WO takes every
+    # bath under it off the machine, cancelling it drops them, and reopening the WO
+    # reopens the ones that were never closed on their own. The runs' statuses used
+    # to be written independently of this, which is how a COMPLETED WO ended up with
+    # a PENDING bath — see services/dyeing_run_service for the whole rule.
+    dye_runs_synced = await dyeing_run_service.sync_wo_runs(db, wo.id, wo_status=status)
+
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "WorkOrder", wo_id,
@@ -497,6 +506,14 @@ async def update_work_order_status(
     )
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped, f"work order {status.lower()}")
+    for run, was, now in dye_runs_synced:
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", "DyeingRun", str(run.id),
+            details=f"{was} -> {now} (automatic, work order {status.lower()})",
+            changes={"status": [was, now]},
+        )
+    if dye_runs_synced:
+        await manager.broadcast({"type": "DYEING_RUN_UPDATE", "wo_id": wo_id})
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status})
 
     result = await db.execute(
@@ -667,7 +684,7 @@ async def create_work_orders_bulk(
                 recipe_id=planned_recipe_id,
                 run_number=1,
                 substrate_qty=wo.qty or 0,
-                status="PENDING",
+                # No status, same as the single-WO path above: derived, not typed.
             ))
         created_wos.append(wo)
 

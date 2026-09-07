@@ -1027,6 +1027,13 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                 ?? recipes.find(r => String(r.id) === String(run.recipe_id))?.name
                                                 ?? (run.recipe_id ? shortId(run.recipe_id) : '—');
                                             const shadeColors = run.shade_result ? SHADE_COLORS[run.shade_result] : null;
+                                            // Gate the actions on the bath's own facts, not on `status`:
+                                            // status is derived from the WO too (backend
+                                            // services/dyeing_run_service), so a closed WO shows its
+                                            // baths COMPLETED — and the shade is QC at a later moment,
+                                            // which must stay recordable after the WO is finished.
+                                            const bathClosed = !!run.completed_at;
+                                            const bathFilled = !!run.started_at || run.volume_air_liters != null;
                                             return (
                                                 <tr key={run.id} style={classic
                                                     ? { borderBottom: '1px solid #e0e0e0', background: lvZebra(true, idx) }
@@ -1053,7 +1060,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                         </span>
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px' }}>
-                                                        {run.status === 'COMPLETED' && run.shade_result ? (
+                                                        {run.shade_result ? (
                                                             <span style={classic ? {
                                                                 padding: '1px 6px',
                                                                 borderRadius: CHIP_RADIUS,
@@ -1085,28 +1092,19 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
                                                         <div style={{ display: 'flex', gap: classic ? 3 : 6 }}>
-                                                            {canManage && run.status === 'PENDING' && (
-                                                                <>
-                                                                    <button
-                                                                        className={XP_BTN}
-                                                                        style={xpPrimaryBtn}
-                                                                        onClick={() => handleOpenStart(run)}
-                                                                    >
-                                                                        Start
-                                                                    </button>
-                                                                    <button
-                                                                        className={XP_BTN}
-                                                                        style={xpBtn}
-                                                                        onClick={() => handleOpenComplete(run)}
-                                                                    >
-                                                                        Complete
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                            {canManage && run.status === 'IN_PROGRESS' && (
+                                                            {canManage && !bathClosed && !bathFilled && (
                                                                 <button
                                                                     className={XP_BTN}
                                                                     style={xpPrimaryBtn}
+                                                                    onClick={() => handleOpenStart(run)}
+                                                                >
+                                                                    Start
+                                                                </button>
+                                                            )}
+                                                            {canManage && !bathClosed && (
+                                                                <button
+                                                                    className={XP_BTN}
+                                                                    style={bathFilled ? xpPrimaryBtn : xpBtn}
                                                                     onClick={() => handleOpenComplete(run)}
                                                                 >
                                                                     Complete

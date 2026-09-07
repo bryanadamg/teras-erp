@@ -17,7 +17,7 @@ from app.models.color import Color
 from app.services import (
     stock_service, audit_service, kpi_service, beam_service, mrp_service,
     work_center_service, so_fulfilment_service, reject_service, weaving_service,
-    staging_service,
+    staging_service, dyeing_run_service,
 )
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
@@ -1763,6 +1763,16 @@ async def add_mo_completion(
             stopped_runs = await weaving_service.stop_runs(
                 db, work_order_id=wo.id, username=current_user.username,
             )
+
+    # The WO's status may have moved twice above (PENDING -> IN_PROGRESS on the first
+    # log, -> COMPLETED at target), and a dye bath's status follows its WO — a bath
+    # left PENDING under a finished WO is the mismatch dyeing_run_service exists to
+    # prevent. Audited through auto_transitions below like every other automatic move.
+    if wo and wo_wc_type in ("DYEING", "CELUP"):
+        for run, was, now in await dyeing_run_service.sync_wo_runs(
+            db, wo.id, wo_status=wo.status
+        ):
+            auto_transitions.append(("DyeingRun", str(run.id), was, now))
 
     await db.commit()
     completion_log_detail = f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})"

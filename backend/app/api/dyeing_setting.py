@@ -22,7 +22,7 @@ from app.models.work_order import WorkOrder
 from app.models.routing import WorkCenter
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission
-from app.services import audit_service, dyeing_dose_service
+from app.services import audit_service, dyeing_dose_service, dyeing_run_service
 from app.core.pagination import PageParams, PageWindow
 from app.schemas import (
     DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse, PaginatedDyeRecipeResponse,
@@ -484,7 +484,8 @@ async def create_dyeing_run(
     current_user: User = Depends(require_permission('work_order.log')),
 ):
     wo_result = await db.execute(select(WorkOrder).filter(WorkOrder.id == payload.work_order_id))
-    if not wo_result.scalars().first():
+    wo = wo_result.scalars().first()
+    if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
 
     run_number = await _get_next_run_number(db, DyeingRun, payload.work_order_id)
@@ -515,8 +516,10 @@ async def create_dyeing_run(
         artikel=payload.artikel,
         po_number=payload.po_number,
         qty_order_kg=payload.qty_order_kg,
-        status="PENDING",
     )
+    # Status is never typed, here or anywhere else — see services/dyeing_run_service.
+    # A run cut with its bath volume already filled in is IN_PROGRESS from birth.
+    run.status = dyeing_run_service.derive_status(run, wo.status)
     db.add(run)
     await db.commit()
     result = await db.execute(
@@ -551,7 +554,11 @@ async def update_dyeing_run_bath(
     run = result.scalars().first()
     if not run:
         raise HTTPException(status_code=404, detail="Dyeing run not found")
-    if run.status == "COMPLETED":
+    # Gated on the bath's OWN close, not on the derived status: a WO closing marks
+    # its baths COMPLETED (dyeing_run_service), and a bath nobody ever recorded is
+    # still back-fillable after that. Once the bath itself was closed, the recorded
+    # chemicals are history and the volume they were weighed from must not move.
+    if run.completed_at is not None:
         raise HTTPException(status_code=400, detail="Run is completed — its bath is history, not a plan")
     if payload.volume_air_liters is None and payload.liquor_ratio is None and payload.substrate_qty is None:
         raise HTTPException(status_code=422, detail="Send a bath volume, a liquor ratio or a substrate qty")
@@ -563,6 +570,7 @@ async def update_dyeing_run_bath(
         "substrate_qty": run.substrate_qty,
         "volume_air_liters": run.volume_air_liters,
         "liquor_ratio": run.liquor_ratio,
+        "status": run.status,
     }
     if payload.substrate_qty is not None:
         run.substrate_qty = payload.substrate_qty
@@ -598,6 +606,9 @@ async def update_dyeing_run_bath(
                 new_dose = doses.get(str(chem.item_id))
                 if new_dose is not None:
                     chem.planned_qty = new_dose
+    # A bath back-filled onto a run that never saw a Start is under way by
+    # definition — the vessel is full. Derived, never typed.
+    await dyeing_run_service.sync_wo_runs(db, run.work_order_id)
     await db.commit()
 
     result = await db.execute(
@@ -608,6 +619,7 @@ async def update_dyeing_run_bath(
         "substrate_qty": run.substrate_qty,
         "volume_air_liters": run.volume_air_liters,
         "liquor_ratio": run.liquor_ratio,
+        "status": run.status,
     }
     await audit_service.log_activity(
         db, current_user.id, "UPDATE", "DyeingRun", run_id,
@@ -641,8 +653,13 @@ async def start_dyeing_run(
     run = result.scalars().first()
     if not run:
         raise HTTPException(status_code=404, detail="Dyeing run not found")
-    if run.status != "PENDING":
-        raise HTTPException(status_code=400, detail=f"Run is already {run.status}")
+    # Gated on the facts rather than the derived status: `COMPLETED` on a run can
+    # now mean "its WO closed" as well as "this bath was closed", and only the
+    # latter is a reason to refuse. Same pair the IN_PROGRESS rule reads.
+    if run.completed_at is not None:
+        raise HTTPException(status_code=400, detail="Run is already completed")
+    if run.started_at is not None or run.volume_air_liters is not None:
+        raise HTTPException(status_code=400, detail="Run is already started — correct its bath instead")
 
     for v in (payload.volume_air_liters, payload.liquor_ratio, payload.substrate_qty):
         if v is not None and v <= 0:
@@ -665,8 +682,12 @@ async def start_dyeing_run(
         )
     run.volume_air_liters = volume
     run.liquor_ratio = ratio
-    run.status = "IN_PROGRESS"
     run.started_at = datetime.now(timezone.utc)
+    # `started_at` is the fact; the status follows from it. Derived through the
+    # service (which reads the WO's own status), never assigned here — see
+    # services/dyeing_run_service.
+    status_before = run.status
+    await dyeing_run_service.sync_wo_runs(db, run.work_order_id)
 
     # Materialize the dose sheet. Guarded on "no chemicals yet" so a run that
     # somehow carries rows keeps them rather than having its history rewritten.
@@ -697,7 +718,7 @@ async def start_dyeing_run(
             f"Started dyeing run {run.run_number} — bath {volume} L"
             + (f", {dosed} chemical doses calculated" if dosed else "")
         ),
-        changes={"status": ["PENDING", "IN_PROGRESS"], "volume_air_liters": [None, volume]},
+        changes={"status": [status_before, run.status], "volume_air_liters": [None, volume]},
     )
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
@@ -718,7 +739,11 @@ async def complete_dyeing_run(
     run = result.scalars().first()
     if not run:
         raise HTTPException(status_code=404, detail="Dyeing run not found")
-    if run.status == "COMPLETED":
+    # The bath's own close, again — a WO closed before anyone recorded the shade
+    # marks its runs COMPLETED, and QC is a separate act at a later moment (that is
+    # the whole reason shade_result is not folded into the status). Refusing on the
+    # derived status here would make the shade unrecordable on a finished WO.
+    if run.completed_at is not None:
         raise HTTPException(status_code=400, detail="Run already completed")
 
     # Output lot — ONE per physical dye lot. This route used to mint its own Batch
@@ -760,12 +785,15 @@ async def complete_dyeing_run(
             )
         run.output_batch_id = named.id
 
-    run.status = "COMPLETED"
     run.shade_result = payload.shade_result
     run.shade_notes = payload.shade_notes
     run.completed_at = datetime.now(timezone.utc)
     if not run.started_at:
         run.started_at = run.completed_at
+    # `completed_at` is the fact that closes the bath — the status follows from it
+    # (dyeing_run_service), so this route no longer writes COMPLETED by hand.
+    status_before = run.status
+    await dyeing_run_service.sync_wo_runs(db, run.work_order_id)
 
     # Replace chemicals with actual quantities
     for old_chem in list(run.chemicals):
@@ -798,7 +826,7 @@ async def complete_dyeing_run(
             f"Completed dyeing run #{run.run_number}, shade={payload.shade_result}"
             + (f", lot {lot_no}" if lot_no else ", no output lot yet (log the WO output)")
         ),
-        changes={},
+        changes={"status": [status_before, run.status]},
     )
     return _enrich_dyeing_run(run)
 
