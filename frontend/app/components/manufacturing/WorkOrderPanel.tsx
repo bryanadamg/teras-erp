@@ -14,7 +14,8 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC, woHasStaging, woScanStages } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, BUTTON_RADIUS, XP_BTN, xpInput as xpInputBase, LocationChip } from '../shared/xpTheme';
+import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar, CodeChip, CODE_FONT, xpFont, StatusChip, CHIP_RADIUS, XP_BTN, xpBtn, BTN_TONES, xpInput as xpInputBase, LocationChip } from '../shared/xpTheme';
 
 const xpInput: React.CSSProperties = xpInputBase({ padding: '0 4px' });
 
@@ -196,6 +197,10 @@ export default function WorkOrderPanel({
     }, [workCenters, bomWcGroup]);
 
     const locationList = locations || [];
+    // Locations are a 3-level warehouse > zone > bin tree; a flat <select> of every
+    // leaf code is unreadable past a handful of bins. Same picker every other
+    // location field uses (staging, packing, routing, PO receipt).
+    const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locationList), [locationList]);
 
     // Group locked by BOM's work_center_id (null = not locked, show standard group+machine selects)
     const lockedGroupId: string | null = effectiveBom?.work_center_id
@@ -413,25 +418,17 @@ export default function WorkOrderPanel({
                 {canCreate && !addingRow && !editId && (
                     <div style={{ display: 'flex', gap: 4 }}>
                         <button
+                            className={XP_BTN}
                             onClick={() => { setAddingRow(true); setEditId(null); }}
-                            style={{
-                                fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
-                                background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                                cursor: 'pointer',
-                            }}
+                            style={xpBtn()}
                         >
                             + Add Work Order
                         </button>
                         {beamingMachines.length > 0 && (
                             <button
+                                className={XP_BTN}
                                 onClick={() => setBeamPlanOpen(true)}
-                                style={{
-                                    fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
-                                    background: 'linear-gradient(to bottom, #b0d0f8, #4a90d0)',
-                                    border: '1px solid', borderColor: '#dfdfdf #003080 #003080 #dfdfdf',
-                                    cursor: 'pointer', color: 'white', fontWeight: 'bold',
-                                }}
+                                style={xpBtn(BTN_TONES.primary)}
                             >
                                 Plan Beaming
                             </button>
@@ -597,40 +594,44 @@ export default function WorkOrderPanel({
                                             onChange={e => setForm(f => ({ ...f, target_end_date: e.target.value }))}
                                             title="Target end date"
                                         />
-                                        <button
-                                            onClick={() => handleUpdate(wo)}
-                                            disabled={isSaving}
-                                            style={{
-                                                fontFamily: xpFont, fontSize: 10, padding: '1px 8px',
-                                                background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-                                                border: '1px solid #0a3e0a', cursor: 'pointer',
-                                            }}
-                                        >
-                                            Save
-                                        </button>
-                                        <button
-                                            className={XP_BTN}
-                                            onClick={resetForm}
-                                            style={{
-                                                borderRadius: BUTTON_RADIUS,
-                                                fontFamily: xpFont, fontSize: 10, padding: '1px 6px',
-                                                background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                                border: '1px solid #808080', cursor: 'pointer',
-                                            }}
-                                        >
-                                            Cancel
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                                            <button
+                                                className={XP_BTN}
+                                                onClick={resetForm}
+                                                style={xpBtn()}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                className={XP_BTN}
+                                                onClick={() => handleUpdate(wo)}
+                                                disabled={isSaving}
+                                                style={xpBtn(BTN_TONES.success)}
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
                                     </div>
                                     {locationList.length > 0 && (
                                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 96 }}>
-                                            <select style={{ ...xpInput, minWidth: 120 }} value={form.input_location_id} onChange={e => setForm(f => ({ ...f, input_location_id: e.target.value }))}>
-                                                <option value="">In: —</option>
-                                                {locationList.map((l: any) => <option key={l.id} value={l.id}>In: {l.code}</option>)}
-                                            </select>
-                                            <select style={{ ...xpInput, minWidth: 120 }} value={form.output_location_id} onChange={e => setForm(f => ({ ...f, output_location_id: e.target.value }))}>
-                                                <option value="">Out: —</option>
-                                                {locationList.map((l: any) => <option key={l.id} value={l.id}>Out: {l.code}</option>)}
-                                            </select>
+                                            <div style={{ width: 150 }} title="Input location — where this step's materials are drawn from">
+                                                <TreeSelect
+                                                    options={locPickerTreeOptions}
+                                                    value={form.input_location_id}
+                                                    onChange={id => setForm(f => ({ ...f, input_location_id: id }))}
+                                                    allowEmpty emptyLabel="In: —"
+                                                    size="sm" style={{ width: '100%' }}
+                                                />
+                                            </div>
+                                            <div style={{ width: 150 }} title="Output location — where this step's output is put away">
+                                                <TreeSelect
+                                                    options={locPickerTreeOptions}
+                                                    value={form.output_location_id}
+                                                    onChange={id => setForm(f => ({ ...f, output_location_id: id }))}
+                                                    allowEmpty emptyLabel="Out: —"
+                                                    size="sm" style={{ width: '100%' }}
+                                                />
+                                            </div>
                                             <span style={{ fontSize: 9, color: '#444', fontWeight: 'bold', alignSelf: 'center' }}>Tujuan:</span>
                                             <div style={{ width: 160 }}>
                                                 <SearchableSelect
@@ -641,12 +642,15 @@ export default function WorkOrderPanel({
                                                     size="sm"
                                                 />
                                             </div>
-                                            <select style={{ ...xpInput, minWidth: 100, fontSize: 10 }} value={form.next_destination_location_id} onChange={e => setForm(f => ({ ...f, next_destination_location_id: e.target.value }))}>
-                                                <option value="">— Lokasi —</option>
-                                                {locationList.map((l: any) => (
-                                                    <option key={l.id} value={l.id}>{l.code || l.name}</option>
-                                                ))}
-                                            </select>
+                                            <div style={{ width: 150 }} title="Next destination location">
+                                                <TreeSelect
+                                                    options={locPickerTreeOptions}
+                                                    value={form.next_destination_location_id}
+                                                    onChange={id => setForm(f => ({ ...f, next_destination_location_id: id }))}
+                                                    allowEmpty emptyLabel="— Lokasi —"
+                                                    size="sm" style={{ width: '100%' }}
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -904,31 +908,25 @@ export default function WorkOrderPanel({
                                         onChange={e => setForm(f => ({ ...f, target_end_date: e.target.value }))}
                                     />
                                 </label>
-                                <button
-                                    className={XP_BTN}
-                                    onClick={handleAdd}
-                                    disabled={isSaving}
-                                    style={{
-                                        borderRadius: BUTTON_RADIUS,
-                                        fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
-                                        background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-                                        border: '1px solid #0a3e0a', cursor: 'pointer',
-                                    }}
-                                >
-                                    {isSaving ? '...' : 'Add'}
-                                </button>
-                                <button
-                                    className={XP_BTN}
-                                    onClick={resetForm}
-                                    style={{
-                                        borderRadius: BUTTON_RADIUS,
-                                        fontFamily: xpFont, fontSize: 10, padding: '1px 6px',
-                                        background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                        border: '1px solid #808080', cursor: 'pointer',
-                                    }}
-                                >
-                                    Cancel
-                                </button>
+                                {/* Actions sit right-aligned at the end of the field row (matches
+                                    every other form footer: muted Cancel, solid submit, rightmost). */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                                    <button
+                                        className={XP_BTN}
+                                        onClick={resetForm}
+                                        style={xpBtn()}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        className={XP_BTN}
+                                        onClick={handleAdd}
+                                        disabled={isSaving}
+                                        style={xpBtn(BTN_TONES.success)}
+                                    >
+                                        {isSaving ? '...' : 'Add'}
+                                    </button>
+                                </div>
                             </div>
                             {(form.input_location_id || form.output_location_id) && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#555', paddingLeft: 4 }}>
@@ -951,17 +949,15 @@ export default function WorkOrderPanel({
                                         size="sm"
                                     />
                                 </div>
-                                <select
-                                    style={{ ...xpInput, minWidth: 100, fontSize: 10 }}
-                                    value={form.next_destination_location_id}
-                                    onChange={e => setForm(f => ({ ...f, next_destination_location_id: e.target.value }))}
-                                    title="Next destination location"
-                                >
-                                    <option value="">— Lokasi —</option>
-                                    {locationList.map((l: any) => (
-                                        <option key={l.id} value={l.id}>{l.code || l.name}</option>
-                                    ))}
-                                </select>
+                                <div style={{ width: 160 }} title="Next destination location">
+                                    <TreeSelect
+                                        options={locPickerTreeOptions}
+                                        value={form.next_destination_location_id}
+                                        onChange={id => setForm(f => ({ ...f, next_destination_location_id: id }))}
+                                        allowEmpty emptyLabel="— Lokasi —"
+                                        size="sm" style={{ width: '100%' }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
