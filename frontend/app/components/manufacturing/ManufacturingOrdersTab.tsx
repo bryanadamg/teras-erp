@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import CalendarView from '../shared/CalendarView';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
-import { ToolbarButton, TITLE_TONES } from '../shared/shellTheme';
+import { ToolbarButton, FilterChipBar, TITLE_TONES } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import { Tabs } from '../shared/Tabs';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -1017,15 +1017,38 @@ export default function ManufacturingOrdersTab({
                     </>
                 ) : null;
 
+                // Calendar/List picker. Lives in this tab's toolbar rather than the
+                // page's title bar: it drives only this tab, and the shared toolbar
+                // order is search -> filters -> count -> actions. In calendar mode
+                // there is no search bar, so the same control is rendered into that
+                // branch's own row — dropping it there would strand the user on the
+                // calendar with no way back to the table.
+                const viewToggle = (
+                    <FilterChipBar
+                        classic={classic}
+                        value={viewMode}
+                        onChange={(v) => setViewMode(v as string)}
+                        options={[
+                            // No `title`: the labels already say what they do, so a
+                            // hover restating them is noise on every pass of the cursor.
+                            { value: 'calendar', label: 'Calendar' },
+                            { value: 'list', label: 'List' },
+                        ]}
+                    />
+                );
+
                 return viewMode === 'calendar' ? (
                     <>
                         <div className="no-print" style={{
                             padding: classic ? '5px 8px' : '8px 12px',
                             borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
                             background: classic ? '#ece9d8' : '#fff',
-                            display: 'flex', justifyContent: 'flex-end', gap: 6,
+                            display: 'flex', alignItems: 'center', gap: 6,
                         }}>
-                            {moActions}
+                            {viewToggle}
+                            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                                {moActions}
+                            </div>
                         </div>
                         <div className="p-3"><CalendarView orders={manufacturingOrders} items={items} onMOClick={openMOFromCalendar} endField="target_end_date" startField="target_start_date" showHolidays filterable showLoad /></div>
                     </>
@@ -1037,6 +1060,7 @@ export default function ManufacturingOrdersTab({
                         placeholder="Search by MO code, product, or BOM..."
                         total={totalItems}
                         classic={classic}
+                        filters={viewToggle}
                         actions={moActions}
                     />
                     <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>

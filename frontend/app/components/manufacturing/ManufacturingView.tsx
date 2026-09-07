@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import CodeConfigModal, { CodeConfig, buildCodeParts } from '../shared/CodeConfigModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
@@ -15,7 +14,7 @@ import { xpFont, xpInput, xpLabel, ModalFooterActions, VariantChip, colorHexFor,
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
-import { pageFillStyle, viewShellStyle, PageTitleBar, FilterChipBar, ToolbarButton } from '../shared/shellTheme';
+import { pageFillStyle, viewShellStyle, PageTitleBar } from '../shared/shellTheme';
 import { Tabs } from '../shared/Tabs';
 
 export default function ManufacturingView({
@@ -55,7 +54,6 @@ export default function ManufacturingView({
     initialPRFilter,
 }: any) {
   const { showToast } = useToast();
-  const router = useRouter();
   const { t } = useLanguage();
   const { authFetch, companyProfile, pagination, itemIndex } = useData();
   const { hasPermission, hasAnyPermission } = useUser();
@@ -516,40 +514,21 @@ export default function ManufacturingView({
                   className={classic ? '' : 'card h-100 border-0 shadow-sm shell-window'}
               >
 
-                  {/* ── Title bar / toolbar ──
-                      PageTitleBar + FilterChipBar instead of a hand-rolled bar and a
-                      hand-rolled XP gradient button group: the group painted its own
-                      "selected" face, which was a different blue from every other
-                      segmented picker in the app.
+                  {/* ── Title bar ──
+                      Kept to the title alone. The Calendar/List picker moved down to
+                      the tab's own toolbar, beside its search field, where the rest of
+                      the app puts its filters (SearchField -> filters -> count ->
+                      actions) — and where it can only be shown on the tab it actually
+                      drives. Up here it also rendered over Production Runs, which reads
+                      no viewMode, so clicking Calendar there changed nothing.
 
-                      Scanner is a ToolbarButton, NOT a third segment. It never set
-                      viewMode — it only ever navigated to /scanner (the single scan
-                      entry point) — so sitting in a pick-one-of-these control it could
-                      never be the picked one. */}
+                      The Scanner button is gone as redundant: /scanner is reachable from
+                      the sidebar's QUICK SCAN on every page, so a per-page copy of it is
+                      just chrome in the ribbon. */}
                   <PageTitleBar
                       classic={classic}
                       icon={activeTab === 'manufacturing-orders' ? 'bi-list-task' : 'bi-collection-play'}
                       title={activeTab === 'manufacturing-orders' ? (t('manufacturing_orders') || 'Manufacturing Orders') : 'Production Runs'}
-                      right={
-                          <>
-                              <FilterChipBar
-                                  classic={classic}
-                                  value={viewMode}
-                                  onChange={(v) => setViewMode(v as string)}
-                                  options={[
-                                      { value: 'calendar', label: 'Calendar', title: 'Month view' },
-                                      { value: 'list', label: 'List', title: 'Table view' },
-                                  ]}
-                              />
-                              <ToolbarButton
-                                  classic={classic}
-                                  tone="launch"
-                                  icon="bi-qr-code-scan"
-                                  title="Open the scanner"
-                                  onClick={() => router.push('/scanner')}
-                              >Scanner</ToolbarButton>
-                          </>
-                      }
                   />
 
                   {/* ── Tab bar ── */}
