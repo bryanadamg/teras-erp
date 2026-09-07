@@ -5,7 +5,6 @@ export interface ManufacturingHelpersInput {
     items: any[];
     boms: any[];
     locations: any[];
-    operations: any[];
     workCenters: any[];
     attributes: any[];
     stockBalance: any[];
@@ -16,7 +15,7 @@ export interface ManufacturingHelpersInput {
 // and Manufacturing Orders tabs. No local UI state lives here — everything is
 // derived from the props passed in, so both tabs get identical behavior.
 export function useManufacturingHelpers({
-    items, boms, locations, operations, workCenters, attributes, stockBalance, itemIndex,
+    items, boms, locations, workCenters, attributes, stockBalance, itemIndex,
 }: ManufacturingHelpersInput) {
     const { formatDate: tzFormatDate, formatDateTime: tzFormatDateTime } = useTimezone();
 
@@ -28,7 +27,6 @@ export function useManufacturingHelpers({
     const getItemEnds = (id: string) => { const v = items.find((i: any) => i.id === id)?.ends; return v != null ? v : null; };
     const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
-    const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
     const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
 
     const getAttributeValueName = (valId: string) => {
@@ -105,20 +103,10 @@ export function useManufacturingHelpers({
         return required;
     };
 
-    const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
-        const targetKey = [...attribute_value_ids].map(String).sort().join(',');
-        const matchingEntries = stockBalance.filter((s: any) => {
-            if (String(s.item_id) !== String(item_id)) return false;
-            if (String(s.location_id) !== String(location_id)) return false;
-            if (attribute_value_ids.length > 0) {
-                const sKey = [...(s.attribute_value_ids || [])].map(String).sort().join(',');
-                return sKey === targetKey;
-            }
-            return true;
-        });
-        const available = matchingEntries.reduce((sum: number, e: any) => sum + parseFloat(e.qty), 0);
-        return { available, isEnough: available >= required_qty };
-    };
+    // NOTE: no checkStockAvailability here. Nothing on the MO/PR side consumed it —
+    // every caller wants getStockAcrossLocations below, which rolls up plant-wide
+    // rather than asking about one bin. components/shared/QRScannerView.tsx carries
+    // its own local copy of the single-location check it actually needs.
 
     const getBeamBatchCount = (item_id: string) => {
         const keys = new Set<string>();
@@ -169,10 +157,10 @@ export function useManufacturingHelpers({
     return {
         uomBadgeStyle,
         getItemName, getItemCode, getItemUom, getItemEnds,
-        getBOMCode, getLocationName, getOpName, getWCName,
+        getBOMCode, getLocationName, getWCName,
         getAttributeValueName, getAttributeValueHex, getBomSizeLabel,
         formatDate, formatDateTime, getDueDateWarning,
-        calculateRequiredQty, checkStockAvailability, getStockAcrossLocations,
+        calculateRequiredQty, getStockAcrossLocations,
         getBeamBatchCount, isBatchIdentityItem,
     };
 }

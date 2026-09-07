@@ -69,15 +69,12 @@ export default function ManufacturingOrdersTab({
     const workOrdersRef = useRef<any[]>(manufacturingOrders);
     useEffect(() => { workOrdersRef.current = manufacturingOrders; }, [manufacturingOrders]);
 
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
     const [printPreviewWO, setPrintPreviewWO] = useState<any>(null);
     const [printHideChildren, setPrintHideChildren] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
     const { openId: openMoMenuId, pos: moMenuPos, toggle: toggleMoMenu, close: closeMoMenu } = useFloatingMenu();
     const [expandedDetailTabs, setExpandedDetailTabs] = useState<Record<string, 'bom' | 'steps'>>({});
     const [selectedTreeNodes, setSelectedTreeNodes] = useState<Record<string, string>>({});
-    const [scanningWOId, setScanningWOId] = useState<string | null>(null);
     const [completionMO, setCompletionMO] = useState<any>(null);
     const [completionWO, setCompletionWO] = useState<any>(null);
     const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
@@ -133,30 +130,7 @@ export default function ManufacturingOrdersTab({
         return null;
     };
 
-    const findNodeByCodeInTree = (node: any, code: string): any => {
-        if (node.code === code) return node;
-        for (const child of (node.child_mos || [])) {
-            const found = findNodeByCodeInTree(child, code);
-            if (found) return found;
-        }
-        return null;
-    };
-
-    const findNodeByCode = (code: string): any => {
-        for (const wo of workOrdersRef.current) {
-            const found = findNodeByCodeInTree(wo, code);
-            if (found) return found;
-        }
-        // Also search shared component MOs from production runs
-        for (const pr of productionRuns) {
-            for (const mo of (pr.manufacturing_orders || [])) {
-                if (mo.is_shared_component && mo.code === code) return mo;
-            }
-        }
-        return null;
-    };
-
-    const flattenTree = (node: any, level = 0, moMap: Record<string, any> = {}, isShared = false): Array<{wo: any; level: number; isShared: boolean}> => {
+    const flattenTree =(node: any, level = 0, moMap: Record<string, any> = {}, isShared = false): Array<{wo: any; level: number; isShared: boolean}> => {
         const result: Array<{wo: any; level: number; isShared: boolean}> = [{wo: node, level, isShared}];
         for (const child of (node.child_mos || [])) {
             result.push(...flattenTree(child, level + 1, moMap, false));
@@ -340,74 +314,23 @@ export default function ManufacturingOrdersTab({
         }
     };
 
-    const filteredWorkOrders = manufacturingOrders.filter((wo: any) => {
-        const date = new Date(wo.created_at);
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        if (start && date < start) return false;
-        if (end) {
-            const endDateTime = new Date(end);
-            endDateTime.setHours(23, 59, 59, 999);
-            if (date > endDateTime) return false;
-        }
-        return true;
-    });
+    // No client-side date filter. There was one here — a created_at range over
+    // `manufacturingOrders` whose startDate/endDate setters were never wired to any
+    // control, so it filtered nothing. Rebuilding it client-side would be wrong
+    // anyway: this list is one server page, so a range applied here would narrow
+    // only the visible rows and hide matches on every other page. A date filter has
+    // to go into the /manufacturing-orders query alongside `search`.
 
     // Skeleton sizing: measure one real row so the placeholders shown on the next
     // load are exactly as tall as the rows that replace them.
     const listBodyRef = useRef<HTMLTableSectionElement>(null);
-    const skel = useTableSkeletonMetrics('manufacturing-orders', listBodyRef, filteredWorkOrders.length > 0);
+    const skel = useTableSkeletonMetrics('manufacturing-orders', listBodyRef, manufacturingOrders.length > 0);
 
-    // --- Inline QR Scanner Widget ---
-    const InlineScanWidget = ({ rootWoId, onClose }: { rootWoId: string; onClose: () => void }) => {
-        const scannerRef2 = useRef<any>(null);
-        const readerId = `reader-${rootWoId}`;
-
-        useEffect(() => {
-            let cancelled = false;
-            const timer = setTimeout(() => {
-                if (!document.getElementById(readerId)) return;
-                // html5-qrcode is only needed while this widget is mounted — load it
-                // on demand instead of paying its parse cost on every MO page visit.
-                import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
-                    if (cancelled || !document.getElementById(readerId)) return;
-                    const scanner = new Html5QrcodeScanner(readerId, { fps: 10, qrbox: { width: 180, height: 180 } }, false);
-                    scannerRef2.current = scanner;
-                    scanner.render((code: string) => {
-                        const found = findNodeByCode(code);
-                        if (found) {
-                            scanner.clear().catch(() => {});
-                            onClose();
-                            if (found.status === 'PENDING') {
-                                onUpdateStatus(found.id, 'IN_PROGRESS');
-                            } else if (found.status === 'IN_PROGRESS') {
-                                setCompletionMO(found);
-                            } else {
-                                showToast(`MO "${code}" is already ${found.status}`, 'warning');
-                            }
-                        } else {
-                            showToast(`MO "${code}" not found`, 'danger');
-                        }
-                    }, () => {});
-                });
-            }, 100);
-            return () => {
-                cancelled = true;
-                clearTimeout(timer);
-                scannerRef2.current?.clear().catch(() => {});
-            };
-        }, [readerId]);
-
-        return (
-            <div style={{ width: '100%' }}>
-                {/* ui-scale-exempt: html5-qrcode measures its own viewfinder — keep it 1:1. */}
-                <div id={readerId} className="ui-scale-exempt" style={{ width: '100%' }}></div>
-                <button className="btn btn-sm btn-outline-secondary w-100 mt-1 extra-small" onClick={onClose}>
-                    <i className="bi bi-x me-1"></i>Cancel Scan
-                </button>
-            </div>
-        );
-    };
+    // NOTE: there is deliberately no inline QR scanner here. `/scanner` is the single
+    // scan entry point for every domain (ScanDispatcher routes a code to the screen
+    // that owns it) — the toolbar's Scanner button navigates there. An InlineScanWidget
+    // lived here unrendered for a long time, holding the html5-qrcode import and a
+    // findNodeByCode tree walk alive with it.
 
     // --- Work Order Expanded Panel (Tree + Detail) ---
     // NOTE: invoked as a plain function call (renderWOExpandedPanel({...})), NOT as <JSX/>.
@@ -448,7 +371,6 @@ export default function ManufacturingOrdersTab({
         const snapshot = selectedNode.planned_components || [];
         const componentLines = snapshot.length > 0 ? snapshot : (bom?.lines || []);
         const fromSnapshot = snapshot.length > 0;
-        const isScanActive = scanningWOId === wo.id;
         // Fixed body height for both tabs → no jittery resize when switching BOM/WO.
         // Inner sections scroll instead of flexing the panel taller.
         const PANEL_BODY_H = 360;
@@ -477,7 +399,6 @@ export default function ManufacturingOrdersTab({
 
         const selectNode = (nodeId: string) => {
             setSelectedTreeNodes(prev => ({ ...prev, [wo.id]: nodeId }));
-            if (scanningWOId === wo.id) setScanningWOId(null);
         };
 
         // No gutter: the tab strip and the two-pane body carry their own edges and run
@@ -1156,7 +1077,7 @@ export default function ManufacturingOrdersTab({
                             </tr>
                         </thead>
                         <tbody ref={listBodyRef}>
-                            {filteredWorkOrders.length === 0 && (dataLoading.manufacturingOrders ? (
+                            {manufacturingOrders.length === 0 && (dataLoading.manufacturingOrders ? (
                                 <TableSkeleton rows={8} cols={skel.cols ?? 10} classic={classic} rowHeight={skel.rowHeight} fillHeight={skel.fillHeight} />
                             ) : (
                                 <TableEmpty colSpan={10} classic={classic}
@@ -1164,7 +1085,7 @@ export default function ManufacturingOrdersTab({
                                         ? <>No Manufacturing Orders match &quot;<strong>{moCodeFilter}</strong>&quot;.</>
                                         : 'No Manufacturing Orders yet.'} />
                             ))}
-                            {filteredWorkOrders.map((wo: any, rowIdx: number) => {
+                            {manufacturingOrders.map((wo: any, rowIdx: number) => {
                                 const warning = getDueDateWarning(wo);
                                 const isExpanded = expandedRows[wo.id];
                                 const isHighlighted = !!moCodeFilter && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
@@ -1368,7 +1289,7 @@ export default function ManufacturingOrdersTab({
                     </div>
                     {/* Floating "more actions" menu — Print / Delete */}
                     {openMoMenuId && (() => {
-                        const menuMO = filteredWorkOrders.find((m: any) => m.id === openMoMenuId);
+                        const menuMO = manufacturingOrders.find((m: any) => m.id === openMoMenuId);
                         if (!menuMO) return null;
                         return (
                             <FloatingMenu

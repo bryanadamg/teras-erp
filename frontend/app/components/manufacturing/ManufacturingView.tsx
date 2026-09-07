@@ -139,7 +139,7 @@ export default function ManufacturingView({
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
 
-  const helpers = useManufacturingHelpers({ items, boms, locations, operations, workCenters, attributes, stockBalance, itemIndex });
+  const helpers = useManufacturingHelpers({ items, boms, locations, workCenters, attributes, stockBalance, itemIndex });
   const { getItemName, getAttributeValueName, getBomSizeLabel } = helpers;
 
   // Handle Automated Creation from Sales Order
