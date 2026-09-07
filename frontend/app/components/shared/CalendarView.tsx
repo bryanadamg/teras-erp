@@ -16,7 +16,16 @@ const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.ge
 const dayKey = (v?: string | null) => (v ? String(v).slice(0, 10) : null);
 
 /**
- * Month calendar. Shared by the Dashboard (compact, WO due_date) and the MO view.
+ * Month calendar of manufacturing orders. Shared by the Dashboard (compact) and the
+ * MO view.
+ *
+ * `orders` is MOs from BOTH callers — the dashboard's feed is named
+ * `dashboardWorkOrders` in DataContext but is populated from
+ * `manufacturing-orders-slim`. This prop was called `workOrders` and every local
+ * was `wo`/`endWOs`, which is the naming that produced the MO list's unreachable
+ * BLOCKED chip (it tested WorkOrder fields against an MO). Nothing here has ever
+ * been handed a WorkOrder.
+ *
  * Props:
  *  - endField   which field carries the deadline day (default 'due_date'; MO passes 'target_end_date')
  *  - startField optional lead-time start; when set, days between start..end render a slim status trail
@@ -26,7 +35,7 @@ const dayKey = (v?: string | null) => (v ? String(v).slice(0, 10) : null);
  *  - showLoad   render per-day count/qty + a load bar scaled to the month's busiest day
  */
 export default function CalendarView({
-    workOrders, items, compact = false,
+    orders, items, compact = false,
     onMOClick, endField = 'due_date', startField,
     showHolidays = false, filterable = false, showLoad = false,
 }: any) {
@@ -58,7 +67,7 @@ export default function CalendarView({
     };
     const dotColor = (status: string) => statusColor(status);
 
-    const getEnd = (wo: any) => dayKey(wo[endField]) || (startField ? dayKey(wo[startField]) : null);
+    const getEnd = (mo: any) => dayKey(mo[endField]) || (startField ? dayKey(mo[startField]) : null);
 
     // ── Holidays (national) ──────────────────────────────────────────────────
     useEffect(() => {
@@ -76,30 +85,30 @@ export default function CalendarView({
 
     // ── Filtering ────────────────────────────────────────────────────────────
     const statusOptions = useMemo(
-        () => Array.from(new Set(workOrders.map((wo: any) => wo.status).filter(Boolean))).sort() as string[],
-        [workOrders]
+        () => Array.from(new Set(orders.map((mo: any) => mo.status).filter(Boolean))).sort() as string[],
+        [orders]
     );
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        return workOrders.filter((wo: any) => {
-            if (statusFilter.size && !statusFilter.has(wo.status)) return false;
+        return orders.filter((mo: any) => {
+            if (statusFilter.size && !statusFilter.has(mo.status)) return false;
             if (q) {
-                const name = getItemName(wo.item_id).toLowerCase();
-                const code = String(wo.code || '').toLowerCase();
+                const name = getItemName(mo.item_id).toLowerCase();
+                const code = String(mo.code || '').toLowerCase();
                 if (!code.includes(q) && !name.includes(q)) return false;
             }
             return true;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [workOrders, statusFilter, search, items]);
+    }, [orders, statusFilter, search, items]);
 
     // ── Build per-day index: deadline chips, keyed on the deadline day ─────────
     const { byDay, maxLoad } = useMemo(() => {
         const map: Record<string, any[]> = {};
-        for (const wo of filtered) {
-            const e = getEnd(wo);
+        for (const mo of filtered) {
+            const e = getEnd(mo);
             if (!e) continue;
-            (map[e] ??= []).push(wo);
+            (map[e] ??= []).push(mo);
         }
         let max = 0;
         for (const k in map) {
@@ -136,8 +145,8 @@ export default function CalendarView({
         const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
         const isToday = todayStr === dateStr;
         const holidayName = showHolidays ? holidays[dateStr] : undefined;
-        const endWOs = byDay[dateStr] || [];
-        const dayQty = showLoad ? endWOs.reduce((a: number, w: any) => a + (Number(w.qty) || 0), 0) : 0;
+        const dueOrders = byDay[dateStr] || [];
+        const dayQty = showLoad ? dueOrders.reduce((a: number, w: any) => a + (Number(w.qty) || 0), 0) : 0;
         const loadPct = showLoad && maxLoad > 0 ? Math.max(8, Math.round((dayQty / maxLoad) * 100)) : 0;
 
         if (classic) {
@@ -147,39 +156,39 @@ export default function CalendarView({
                     style={{ background: bg, border: isToday ? '1px solid #316ac5' : '1px solid #c0bdb5', minHeight: compact ? 34 : 100, padding: compact ? '2px 3px' : '4px 6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: compact ? 2 : 4, minHeight: compact ? undefined : 14 }}>
                         <span style={{ fontFamily: xpFont, fontSize: compact ? '9px' : '11px', fontWeight: 'bold', color: holidayName ? '#994d00' : isToday ? '#0058e6' : '#555' }}>{day}</span>
-                        {!compact && endWOs.length > 0 && (
-                            <span title={showLoad ? `${endWOs.length} MO · qty ${dayQty}` : `${endWOs.length} due`}
+                        {!compact && dueOrders.length > 0 && (
+                            <span title={showLoad ? `${dueOrders.length} MO · qty ${dayQty}` : `${dueOrders.length} due`}
                                 style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                 {showLoad && maxLoad > 0 && (
                                     <span style={{ display: 'inline-block', width: 22, height: 4, background: '#e2ddd2' }}>
                                         <span style={{ display: 'block', height: '100%', width: `${loadPct}%`, background: statusColor('IN_PROGRESS') }}></span>
                                     </span>
                                 )}
-                                <span style={{ fontFamily: xpFont, fontSize: '9px', fontWeight: 'bold', color: '#888' }}>{endWOs.length}</span>
+                                <span style={{ fontFamily: xpFont, fontSize: '9px', fontWeight: 'bold', color: '#888' }}>{dueOrders.length}</span>
                             </span>
                         )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: compact ? 'row' : 'column', gap: compact ? 2 : 3, overflow: 'hidden' }}>
                         {compact ? (
-                            endWOs.slice(0, 3).map((wo: any) => (
-                                <div key={wo.id} title={wo.code} style={{ width: 5, height: 5, background: dotColor(wo.status), border: '1px solid rgba(0,0,0,0.2)' }}></div>
+                            dueOrders.slice(0, 3).map((mo: any) => (
+                                <div key={mo.id} title={mo.code} style={{ width: 5, height: 5, background: dotColor(mo.status), border: '1px solid rgba(0,0,0,0.2)' }}></div>
                             ))
                         ) : (
-                            endWOs.slice(0, MAX_VISIBLE).map((wo: any) => {
-                                const name = getItemName(wo.item_id);
+                            dueOrders.slice(0, MAX_VISIBLE).map((mo: any) => {
+                                const name = getItemName(mo.item_id);
                                 return (
-                                    <div key={wo.id} title={`${wo.code}${name ? ': ' + name : ''}`}
-                                        onClick={onMOClick ? () => onMOClick(wo.id) : undefined}
-                                        style={{ ...chipStyle(wo.status), padding: '2px 5px', fontFamily: xpFont, overflow: 'hidden', cursor: onMOClick ? 'pointer' : 'default' }}>
-                                        <div style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.code}</div>
+                                    <div key={mo.id} title={`${mo.code}${name ? ': ' + name : ''}`}
+                                        onClick={onMOClick ? () => onMOClick(mo.id) : undefined}
+                                        style={{ ...chipStyle(mo.status), padding: '2px 5px', fontFamily: xpFont, overflow: 'hidden', cursor: onMOClick ? 'pointer' : 'default' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mo.code}</div>
                                         {name && <div style={{ fontSize: '9px', lineHeight: 1.3, opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>}
                                     </div>
                                 );
                             })
                         )}
-                        {compact && endWOs.length > 3 && <span style={{ fontFamily: xpFont, fontSize: '8px', color: '#666' }}>+</span>}
-                        {!compact && endWOs.length > MAX_VISIBLE && (
-                            <span style={{ fontFamily: xpFont, fontSize: '9px', color: '#888', paddingLeft: 2 }}>+{endWOs.length - MAX_VISIBLE} more</span>
+                        {compact && dueOrders.length > 3 && <span style={{ fontFamily: xpFont, fontSize: '8px', color: '#666' }}>+</span>}
+                        {!compact && dueOrders.length > MAX_VISIBLE && (
+                            <span style={{ fontFamily: xpFont, fontSize: '9px', color: '#888', paddingLeft: 2 }}>+{dueOrders.length - MAX_VISIBLE} more</span>
                         )}
                     </div>
                 </div>
@@ -190,39 +199,39 @@ export default function CalendarView({
                 <div key={day} className={`calendar-day border p-1 ${bgCls}`} style={{ minHeight: compact ? '40px' : '120px' }} title={holidayName || undefined}>
                     <div className="d-flex justify-content-between align-items-center mb-1" style={{ minHeight: compact ? undefined : 16 }}>
                         <span className={`fw-bold ${compact ? 'extra-small' : 'small'} ${holidayName ? 'text-warning' : isToday ? 'text-primary' : 'text-secondary'}`} style={{ fontSize: compact ? '0.6rem' : 'inherit' }}>{day}</span>
-                        {!compact && endWOs.length > 0 && (
-                            <span className="d-flex align-items-center gap-1" title={showLoad ? `${endWOs.length} MO · qty ${dayQty}` : `${endWOs.length} due`}>
+                        {!compact && dueOrders.length > 0 && (
+                            <span className="d-flex align-items-center gap-1" title={showLoad ? `${dueOrders.length} MO · qty ${dayQty}` : `${dueOrders.length} due`}>
                                 {showLoad && maxLoad > 0 && (
                                     <span style={{ display: 'inline-block', width: 22, height: 4, background: '#e5e7eb', borderRadius: 2 }}>
                                         <span style={{ display: 'block', height: '100%', width: `${loadPct}%`, background: statusColor('IN_PROGRESS'), borderRadius: 2 }}></span>
                                     </span>
                                 )}
-                                <span className="text-muted fw-bold" style={{ fontSize: '0.6rem' }}>{endWOs.length}</span>
+                                <span className="text-muted fw-bold" style={{ fontSize: '0.6rem' }}>{dueOrders.length}</span>
                             </span>
                         )}
                     </div>
                     <div className={`d-flex ${compact ? 'flex-row justify-content-center' : 'flex-column'} gap-1 overflow-hidden`}>
                         {compact ? (
-                            endWOs.slice(0, 3).map((wo: any) => (
-                                <div key={wo.id} className="rounded-circle" style={{ width: '4px', height: '4px', background: dotColor(wo.status) }} title={wo.code}></div>
+                            dueOrders.slice(0, 3).map((mo: any) => (
+                                <div key={mo.id} className="rounded-circle" style={{ width: '4px', height: '4px', background: dotColor(mo.status) }} title={mo.code}></div>
                             ))
                         ) : (
-                            endWOs.slice(0, MAX_VISIBLE).map((wo: any) => {
-                                const name = getItemName(wo.item_id);
+                            dueOrders.slice(0, MAX_VISIBLE).map((mo: any) => {
+                                const name = getItemName(mo.item_id);
                                 return (
-                                    <div key={wo.id} className="text-start text-truncate w-100"
-                                        style={{ ...chipStyle(wo.status), borderRadius: CHIP_RADIUS, padding: '2px 6px', cursor: onMOClick ? 'pointer' : 'default' }}
-                                        title={`${wo.code}${name ? ': ' + name : ''}`}
-                                        onClick={onMOClick ? () => onMOClick(wo.id) : undefined}>
-                                        <div className="text-truncate fw-bold" style={{ fontSize: '0.65rem', lineHeight: '1.3' }}>{wo.code}</div>
+                                    <div key={mo.id} className="text-start text-truncate w-100"
+                                        style={{ ...chipStyle(mo.status), borderRadius: CHIP_RADIUS, padding: '2px 6px', cursor: onMOClick ? 'pointer' : 'default' }}
+                                        title={`${mo.code}${name ? ': ' + name : ''}`}
+                                        onClick={onMOClick ? () => onMOClick(mo.id) : undefined}>
+                                        <div className="text-truncate fw-bold" style={{ fontSize: '0.65rem', lineHeight: '1.3' }}>{mo.code}</div>
                                         {name && <div className="text-truncate" style={{ fontSize: '0.68rem', lineHeight: '1.3', opacity: 0.8 }}>{name}</div>}
                                     </div>
                                 );
                             })
                         )}
-                        {compact && endWOs.length > 3 && <div className="text-muted" style={{ fontSize: '0.5rem' }}>+</div>}
-                        {!compact && endWOs.length > MAX_VISIBLE && (
-                            <div className="text-muted" style={{ fontSize: '0.65rem' }}>+{endWOs.length - MAX_VISIBLE} more</div>
+                        {compact && dueOrders.length > 3 && <div className="text-muted" style={{ fontSize: '0.5rem' }}>+</div>}
+                        {!compact && dueOrders.length > MAX_VISIBLE && (
+                            <div className="text-muted" style={{ fontSize: '0.65rem' }}>+{dueOrders.length - MAX_VISIBLE} more</div>
                         )}
                     </div>
                 </div>
