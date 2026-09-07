@@ -5,7 +5,9 @@ from sqlalchemy import select, func, or_, inspect, case
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
-from app.models.manufacturing import ManufacturingOrder, MOCompletion, MOCompletionItem, MODependency
+from app.models.manufacturing import (
+    ManufacturingOrder, MOCompletion, MOCompletionItem, MODependency, MOPlannedComponent,
+)
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
@@ -82,7 +84,7 @@ def get_mo_options():
     options = [
         selectinload(ManufacturingOrder.item),
         selectinload(ManufacturingOrder.attribute_values),
-        selectinload(ManufacturingOrder.planned_components),
+        selectinload(ManufacturingOrder.planned_components).selectinload(MOPlannedComponent.item),
         selectinload(ManufacturingOrder.work_orders),
         selectinload(ManufacturingOrder.sales_order),
         selectinload(ManufacturingOrder.required_dependencies),
@@ -187,6 +189,17 @@ def populate_mo_ids(mo: ManufacturingOrder):
         mo.qty_rejected_total = 0.0
         sa_attributes.set_committed_value(mo, "completions", [])
 
+    # 3c. Stamp item identity onto the BOM-line snapshot (if loaded). Done here
+    # rather than as model properties because most callers load planned_components
+    # without its `item`, and a lazy hop in an async route raises MissingGreenlet.
+    if "planned_components" not in insp.unloaded:
+        for comp in mo.planned_components:
+            if "item" not in inspect(comp).unloaded and comp.item:
+                comp.item_code = comp.item.code
+                comp.item_name = comp.item.name
+    else:
+        sa_attributes.set_committed_value(mo, "planned_components", [])
+
     # 4. Recurse into children (if loaded); stub unloaded child_mos as []
     if "child_mos" not in insp.unloaded:
         for child in mo.child_mos:
@@ -232,7 +245,10 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
         .options(
             selectinload(ManufacturingOrder.item),
             selectinload(ManufacturingOrder.attribute_values),
-            selectinload(ManufacturingOrder.planned_components),
+            # .item too: the snapshot is what the expanded MO panel renders, and the
+            # client can't resolve a code off its own `items` array — that's only one
+            # page of /items.
+            selectinload(ManufacturingOrder.planned_components).selectinload(MOPlannedComponent.item),
             selectinload(ManufacturingOrder.sales_order),
             selectinload(ManufacturingOrder.required_dependencies),
             selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.work_center),

@@ -440,6 +440,14 @@ export default function ManufacturingOrdersTab({
 
         const selectedNode = findNodeInTree(selectedNodeId) ?? wo;
         const bom = boms.find((b: any) => b.id === selectedNode.bom_id);
+        // The order's OWN recipe: BOM lines snapshotted when it was cut
+        // (MOPlannedComponent). The live BOM is only a fallback for pre-snapshot rows —
+        // reading it directly meant a later BOM edit retroactively changed what an
+        // in-flight MO appeared to demand, and disagreed with the availability flag the
+        // server computed for the same row off the snapshot.
+        const snapshot = selectedNode.planned_components || [];
+        const componentLines = snapshot.length > 0 ? snapshot : (bom?.lines || []);
+        const fromSnapshot = snapshot.length > 0;
         const isScanActive = scanningWOId === wo.id;
         // Fixed body height for both tabs → no jittery resize when switching BOM/WO.
         // Inner sections scroll instead of flexing the panel taller.
@@ -451,7 +459,11 @@ export default function ManufacturingOrdersTab({
             for (const mo of Object.values(moMap) as any[]) {
                 if ((mo.required_mo_ids || []).includes(selectedNode.id)) {
                     const parentBOM = boms.find((b: any) => b.id === mo.bom_id);
-                    const parentLine = parentBOM?.lines?.find((l: any) => l.item_id === selectedNode.item_id);
+                    // Parent's own snapshot first, same reason as componentLines below.
+                    const parentLines = (mo.planned_components || []).length > 0
+                        ? mo.planned_components
+                        : (parentBOM?.lines || []);
+                    const parentLine = parentLines.find((l: any) => l.item_id === selectedNode.item_id);
                     if (parentLine) {
                         parentMOBreakdown.push({
                             mo,
@@ -787,12 +799,21 @@ export default function ManufacturingOrdersTab({
                         display: 'flex', alignItems: 'center', gap: '6px'
                     }}>
                         <i className="bi bi-boxes"></i>BOM Components
-                        {!bom && <span style={{ fontWeight: 'normal', color: '#888' }}>— No BOM linked</span>}
+                        {componentLines.length === 0 && <span style={{ fontWeight: 'normal', color: '#888' }}>— No BOM linked</span>}
+                        {fromSnapshot ? (
+                            <span title="The recipe snapshotted when this order was created — later BOM edits do not change it" style={{ fontWeight: 'normal', color: '#555', fontSize: 9 }}>
+                                as planned
+                            </span>
+                        ) : componentLines.length > 0 ? (
+                            <span title="This order has no snapshotted recipe (created before the snapshot existed) — showing the live BOM, which may have changed since" style={{ fontWeight: 'normal', color: '#8a6d00', fontSize: 9 }}>
+                                live BOM
+                            </span>
+                        ) : null}
                     </div>
 
                     {/* Components table */}
                     <div style={{ flex: 1, overflowY: 'auto' }}>
-                        {bom ? (
+                        {componentLines.length > 0 ? (
                             <table style={lvSubTable(classic)}>
                                 <thead>
                                     <tr style={{ position: 'sticky', top: 0 }}>
@@ -804,7 +825,7 @@ export default function ManufacturingOrdersTab({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {bom.lines.map((line: any, i: number) => {
+                                    {componentLines.map((line: any, i: number) => {
                                         const req = calculateRequiredQty(selectedNode.qty, line, bom);
                                         const { total, isEnough, locs } = getStockAcrossLocations(line.item_id, line.attribute_value_ids || [], req);
                                         const hasSubBOM = boms.some((b: any) => b.item_id === line.item_id && b.active !== false);

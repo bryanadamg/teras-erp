@@ -481,6 +481,29 @@ class BatchConsumptionInMO(BaseModel):
     output_batch_number: Optional[str] = None
     qty_consumed: float
 
+class MOPlannedComponentResponse(BaseModel):
+    """One BOM line as it stood when the MO was cut.
+
+    The MO panel has to render THIS, not the live BOM: a BOM edited after the order
+    was created would otherwise retroactively change what an in-flight MO appears
+    to demand, and disagree with the server's own availability flag on the same row.
+    `item_code`/`item_name` are stamped by populate_mo_ids rather than read off the
+    relationship — most callers load planned_components without its `item`, and a
+    lazy hop in an async route raises MissingGreenlet.
+    """
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    percentage: float = 0.0
+    qty: float = 0.0
+    source_location_id: UUID | None = None
+    bom_line_id: UUID | None = None
+    bom_operation_id: UUID | None = None   # the routing step that consumes it, if pegged
+    attribute_value_ids: list[UUID] = []
+
+
 class ManufacturingOrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -529,6 +552,8 @@ class ManufacturingOrderResponse(BaseModel):
     work_orders: list['WorkOrderResponse'] = []
     batch_trace: list[BatchConsumptionInMO] = []
     completions: list[MOCompletionResponse] = []
+    # BOM lines snapshotted at creation — what this order is actually cut against.
+    planned_components: list[MOPlannedComponentResponse] = []
 
 # Forward refs resolved after WorkOrderResponse is defined below
 
