@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 // Single-WO Kartu Kerja printing goes through WOBulkPrintModal (n=1 -> A6 card).
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 import WOStagingModal from './WOStagingModal';
@@ -138,6 +139,7 @@ export default function WorkOrderPanel({
     onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO, bom,
 }: Props) {
     const { showToast } = useToast();
+    const router = useRouter();
     const { operations: opMaster } = useData() as any;
     const { hasPermission, hasWorkCenterScope } = useUser();
     const canCreate = hasPermission('work_order.create');
@@ -660,7 +662,7 @@ export default function WorkOrderPanel({
                                     <span
                                         style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, cursor: 'pointer' }}
                                         title={wo.code || `Step ${wo.sequence}`}
-                                        onClick={() => { window.location.href = `/work-orders?wo=${wo.id}`; }}
+                                        onClick={() => router.push(`/work-orders?wo=${wo.id}`)}
                                     >
                                         <span style={{
                                             width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
