@@ -2869,11 +2869,24 @@ class DyeingRunChemicalResponse(DyeingRunChemicalCreate):
     model_config = ConfigDict(from_attributes=True)
 
 class DyeingRunCreate(BaseModel):
+    """A bath cut by hand. Runs are normally auto-created by WO creation.
+
+    `substrate_qty` is optional and defaults to the WO's own qty. It stays a
+    per-run column rather than being read off the WO every time, because a
+    multi-bath WO splits its load across runs — but the common case is one bath for
+    the whole WO, and a hand-typed copy of a number the WO already holds only
+    drifts.
+
+    The customer/order/colour fields this once carried (`customer_name`, `artikel`,
+    `po_number`, `qty_order_kg`, `color_name`, `color_matching_ref`, `lot_number`,
+    `machine_name`) are gone. They duplicated the SO/MO/WO chain and the colour
+    attributes, were never populated in 12 runs of real use, and the machine is
+    `work_order.work_center_id` — see migration a7c9e1b3d5f8.
+    """
     work_order_id: UUID
     recipe_id: UUID | None = None
-    substrate_qty: float
+    substrate_qty: float | None = None
     input_batch_id: UUID | None = None
-    machine_name: str | None = None
     liquor_ratio: float | None = None
     volume_air_liters: float | None = None
     machine_speed: float | None = None
@@ -2882,13 +2895,6 @@ class DyeingRunCreate(BaseModel):
     duration_min: int | None = None
     operator_name: str | None = None
     notes: str | None = None
-    color_name: str | None = None
-    color_matching_ref: str | None = None
-    lot_number: str | None = None
-    customer_name: str | None = None
-    artikel: str | None = None
-    po_number: str | None = None
-    qty_order_kg: float | None = None
 
 class DyeingRunMonitorUpdate(BaseModel):
     """The rate inputs the dyeing monitor needs for one batch.
@@ -2970,18 +2976,10 @@ class DyeingRunResponse(BaseModel):
     substrate_qty: float
     input_batch_id: UUID | None = None
     output_batch_id: UUID | None = None
-    machine_name: str | None = None
     liquor_ratio: float | None = None
     volume_air_liters: float | None = None
     machine_speed: float | None = None
     machine_pressure: str | None = None
-    color_name: str | None = None
-    color_matching_ref: str | None = None
-    lot_number: str | None = None
-    customer_name: str | None = None
-    artikel: str | None = None
-    po_number: str | None = None
-    qty_order_kg: float | None = None
     temperature_c: float | None = None
     duration_min: int | None = None
     status: str

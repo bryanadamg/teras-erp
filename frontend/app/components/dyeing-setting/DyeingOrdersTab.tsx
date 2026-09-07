@@ -44,11 +44,17 @@ const SHADE_COLORS: Record<string, { bg: string; color: string }> = {
     REWORK: { bg: '#ffeeba', color: '#856404' },
 };
 
+/** Cutting an extra bath by hand. Runs are normally auto-created with the WO.
+ *
+ *  No customer / artikel / PO / order-qty / colour / lot / machine fields: those
+ *  columns are gone (migration a7c9e1b3d5f8). Every one of them restated the
+ *  SO -> MO -> WO chain the run hangs off, or the MO's colour attributes, or the
+ *  output lot — and in 12 runs of real use not one was ever filled in. The machine
+ *  is the WO's work center. */
 interface CreateForm {
     recipe_id: string;
     substrate_qty: string;
     input_batch_id: string;
-    machine_name: string;
     liquor_ratio: string;
     volume_air_liters: string;
     machine_speed: string;
@@ -57,13 +63,6 @@ interface CreateForm {
     duration_min: string;
     operator_name: string;
     notes: string;
-    customer_name: string;
-    po_number: string;
-    artikel: string;
-    color_name: string;
-    color_matching_ref: string;
-    lot_number: string;
-    qty_order_kg: string;
 }
 
 /** The QC entry, and nothing else.
@@ -93,7 +92,6 @@ const emptyCreateForm: CreateForm = {
     recipe_id: '',
     substrate_qty: '',
     input_batch_id: '',
-    machine_name: '',
     liquor_ratio: '',
     volume_air_liters: '',
     machine_speed: '',
@@ -102,13 +100,6 @@ const emptyCreateForm: CreateForm = {
     duration_min: '',
     operator_name: '',
     notes: '',
-    customer_name: '',
-    po_number: '',
-    artikel: '',
-    color_name: '',
-    color_matching_ref: '',
-    lot_number: '',
-    qty_order_kg: '',
 };
 
 const emptyCompleteForm: CompleteForm = {
@@ -283,8 +274,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
             const payload: any = {
                 work_order_id: selectedWoId,
                 recipe_id: createForm.recipe_id || null,
+                // Null = take the WO's own qty (backend create_dyeing_run).
                 substrate_qty: createForm.substrate_qty ? parseFloat(createForm.substrate_qty) : null,
-                machine_name: createForm.machine_name || null,
                 liquor_ratio: createForm.liquor_ratio ? parseFloat(createForm.liquor_ratio) : null,
                 volume_air_liters: createForm.volume_air_liters ? parseFloat(createForm.volume_air_liters) : null,
                 machine_speed: createForm.machine_speed ? parseFloat(createForm.machine_speed) : null,
@@ -294,13 +285,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                 operator_name: createForm.operator_name || null,
                 notes: createForm.notes || null,
                 input_batch_id: createForm.input_batch_id || null,
-                customer_name: createForm.customer_name || null,
-                po_number: createForm.po_number || null,
-                artikel: createForm.artikel || null,
-                color_name: createForm.color_name || null,
-                color_matching_ref: createForm.color_matching_ref || null,
-                lot_number: createForm.lot_number || null,
-                qty_order_kg: createForm.qty_order_kg ? parseFloat(createForm.qty_order_kg) : null,
             };
             const res = await authFetch(`${API_BASE}/dyeing-runs`, {
                 method: 'POST',
@@ -509,47 +493,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 <div style={classic
                                     ? { fontWeight: 'bold', fontSize: 11, marginBottom: 4 }
                                     : { fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#1e293b' }}>New Dyeing Run</div>
-                                {/* Job Info */}
-                                <div style={classic
-                                    ? { fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }
-                                    : { fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid #e6eaf1', paddingBottom: 4 }}>Job Info</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 12px', marginBottom: 8 }}>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Customer</span>
-                                        <input type="text" style={xpInput} value={createForm.customer_name}
-                                            onChange={e => handleCreateFormChange('customer_name', e.target.value)} placeholder="customer name" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>No. PO</span>
-                                        <input type="text" style={xpInput} value={createForm.po_number}
-                                            onChange={e => handleCreateFormChange('po_number', e.target.value)} placeholder="PO number" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Artikel</span>
-                                        <input type="text" style={xpInput} value={createForm.artikel}
-                                            onChange={e => handleCreateFormChange('artikel', e.target.value)} placeholder="article code" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Warna</span>
-                                        <input type="text" style={xpInput} value={createForm.color_name}
-                                            onChange={e => handleCreateFormChange('color_name', e.target.value)} placeholder="color name" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Color Matching</span>
-                                        <input type="text" style={xpInput} value={createForm.color_matching_ref}
-                                            onChange={e => handleCreateFormChange('color_matching_ref', e.target.value)} placeholder="ref code" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>LOT</span>
-                                        <input type="text" style={xpInput} value={createForm.lot_number}
-                                            onChange={e => handleCreateFormChange('lot_number', e.target.value)} placeholder="lot number" />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Qty Order (kg)</span>
-                                        <input type="number" step="0.01" style={xpInput} value={createForm.qty_order_kg}
-                                            onChange={e => handleCreateFormChange('qty_order_kg', e.target.value)} placeholder="e.g. 65" />
-                                    </label>
-                                </div>
                                 {/* Process Params */}
                                 <div style={classic
                                     ? { fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }
@@ -586,16 +529,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             value={createForm.input_batch_id}
                                             onChange={e => handleCreateFormChange('input_batch_id', e.target.value)}
                                             placeholder="lot number"
-                                        />
-                                    </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Machine Name</span>
-                                        <input
-                                            type="text"
-                                            style={xpInput}
-                                            value={createForm.machine_name}
-                                            onChange={e => handleCreateFormChange('machine_name', e.target.value)}
-                                            placeholder="e.g. JET-01"
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -706,7 +639,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Substrate Qty</th>
                                             <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }} title="Water volume of the bath — what every g/L dose is weighed against">Volume Air (L)</th>
                                             <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>L:R</th>
-                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Machine</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
                                             <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Shade Result</th>
                                             <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Started</th>
@@ -743,7 +675,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                     <td style={classic ? { padding: '2px 6px', textAlign: 'right', whiteSpace: 'nowrap', color: '#666' } : { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontFamily: modernFont }}>
                                                         {run.liquor_ratio != null ? `1:${fmtDose(run.liquor_ratio, 2)}` : '—'}
                                                     </td>
-                                                    <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{run.machine_name ?? '-'}</td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
                                                         <span style={{
                                                             color: STATUS_COLORS[run.status] ?? '#333',

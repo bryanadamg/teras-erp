@@ -490,18 +490,22 @@ async def create_dyeing_run(
         raise HTTPException(status_code=404, detail="Work Order not found")
 
     run_number = await _get_next_run_number(db, DyeingRun, payload.work_order_id)
+    # Default the load from the WO, the same way WO creation's auto-run does. It stays
+    # a per-run column because a multi-bath WO splits its load across runs — but the
+    # common case is one bath for the whole WO, and a hand-typed copy of a number the
+    # WO already holds is just something to drift.
+    substrate_qty = payload.substrate_qty if payload.substrate_qty is not None else (wo.qty or 0)
     # Bath volume and liquor ratio are one fact twice — store the pair solved, so a
     # dose calculated from the volume can never disagree with the ratio on screen.
     bath_volume, bath_ratio = dyeing_dose_service.solve_bath(
-        payload.substrate_qty, payload.volume_air_liters, payload.liquor_ratio,
+        substrate_qty, payload.volume_air_liters, payload.liquor_ratio,
     )
     run = DyeingRun(
         work_order_id=payload.work_order_id,
         run_number=run_number,
         recipe_id=payload.recipe_id,
-        substrate_qty=payload.substrate_qty,
+        substrate_qty=substrate_qty,
         input_batch_id=payload.input_batch_id,
-        machine_name=payload.machine_name,
         liquor_ratio=bath_ratio,
         temperature_c=payload.temperature_c,
         duration_min=payload.duration_min,
@@ -510,13 +514,6 @@ async def create_dyeing_run(
         volume_air_liters=bath_volume,
         machine_speed=payload.machine_speed,
         machine_pressure=payload.machine_pressure,
-        color_name=payload.color_name,
-        color_matching_ref=payload.color_matching_ref,
-        lot_number=payload.lot_number,
-        customer_name=payload.customer_name,
-        artikel=payload.artikel,
-        po_number=payload.po_number,
-        qty_order_kg=payload.qty_order_kg,
     )
     # Status is never typed, here or anywhere else — see services/dyeing_run_service.
     # A run cut with its bath volume already filled in is IN_PROGRESS from birth.
