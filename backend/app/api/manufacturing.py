@@ -1557,7 +1557,14 @@ async def add_mo_completion(
     # Auto-advance WO to IN_PROGRESS on first log. Weaving runs are NOT started
     # here — the monitor run is opened manually on the /weaving-monitor page so
     # the operator sets lines/rate/target before the window starts counting.
+    # Every automatic transition below is recorded as its own STATUS_CHANGE row after
+    # the commit. They used to be folded into this route's COMPLETION detail string,
+    # so the trail could answer "who changed this status" for every MANUAL change and
+    # nothing at all for the automatic ones — including the one question actually
+    # asked of it, "when did this MO become DELIVERED".
+    auto_transitions: list[tuple[str, str, str, str]] = []   # (entity_type, id, from, to)
     if wo and wo.status == "PENDING":
+        auto_transitions.append(("WorkOrder", str(wo.id), wo.status, "IN_PROGRESS"))
         wo.status = "IN_PROGRESS"
         wo.actual_start_date = datetime.utcnow()
 
@@ -1718,6 +1725,7 @@ async def add_mo_completion(
     # Planned qty met -> DELIVERED, NOT COMPLETED. The order stays open so the floor
     # can keep logging (spare beams, extra bags) until someone closes it explicitly.
     if total_completed >= float(mo.qty) and mo.status not in ("DELIVERED", "COMPLETED"):
+        auto_transitions.append(("ManufacturingOrder", str(mo.id), mo.status, "DELIVERED"))
         mo.status = "DELIVERED"
         mo.actual_end_date = datetime.utcnow()
         # No SO status write here — delivering production is not the same as being
@@ -1743,6 +1751,7 @@ async def add_mo_completion(
         )
         wo_total = float(wo_total_result.scalar() or 0)
         if wo_total >= float(wo.qty) and wo.status != "COMPLETED":
+            auto_transitions.append(("WorkOrder", str(wo.id), wo.status, "COMPLETED"))
             wo.status = "COMPLETED"
             wo.actual_end_date = datetime.utcnow()
             # The loom that just finished this WO stops with it, so the monitor card
@@ -1756,6 +1765,12 @@ async def add_mo_completion(
     if wo_machine_assigned:
         completion_log_detail += f" | Machine '{wo_machine_assigned}' assigned to WO {wo.code or wo.name}"
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, completion_log_detail)
+    for entity_type, entity_id, was, now in auto_transitions:
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", entity_type, entity_id,
+            details=f"{was} -> {now} (automatic, on production log)",
+            changes={"status": [was, now]},
+        )
     await weaving_service.audit_and_broadcast_stops(
         db, current_user.id, stopped_runs, "work order completed (target qty reached)")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", **(await mo_progress_fields(db, mo, wo))})
@@ -1899,7 +1914,9 @@ async def reject_mo_completion(
         .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
     )
     total_good = float(total_result.scalar() or 0)
+    reopened_from = None
     if mo.status in ("DELIVERED", "COMPLETED") and total_good < float(mo.qty):
+        reopened_from = mo.status
         mo.status = "IN_PROGRESS"
         mo.actual_end_date = None
 
@@ -1914,6 +1931,14 @@ async def reject_mo_completion(
         + (f": {comp.reject_reason}" if comp.reject_reason else "")
         + f" — good total {total_good:g}/{mo.qty}",
     )
+    if reopened_from:
+        # Its own row, like every manual transition: a reject that reopens a closed
+        # order is a status change someone will come looking for.
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", "ManufacturingOrder", mo_id,
+            details=f"{reopened_from} -> IN_PROGRESS (automatic, reopened by reject)",
+            changes={"status": [reopened_from, "IN_PROGRESS"]},
+        )
     # Loaded by id rather than through comp.work_order: the relationship isn't in
     # this route's eager-load set, and a lazy hop would raise MissingGreenlet.
     rejected_wo = None

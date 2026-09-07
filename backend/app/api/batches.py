@@ -929,6 +929,7 @@ async def reject_batch(
     )).scalars().first()
     mo = None
     returned = 0.0
+    reopened_from = None
     if comp:
         if partial:
             # Reduce the good qty this completion contributes; every MO/WO progress
@@ -962,6 +963,7 @@ async def reject_batch(
                 .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
             )).scalar() or 0)
             if mo.status in ("DELIVERED", "COMPLETED") and total_good < float(mo.qty):
+                reopened_from = mo.status
                 mo.status = "IN_PROGRESS"
                 mo.actual_end_date = None
 
@@ -975,6 +977,14 @@ async def reject_batch(
         + (f" → moved {relocated:g} to {defect_loc.name}" if defect_loc and relocated else "")
         + (f": {reason}" if reason else ""),
     )
+    if mo and reopened_from:
+        # Its own row against the MO, not just a clause on the Batch's REJECT entry —
+        # the MO's own history is where someone looks for why a closed order reopened.
+        await audit_service.log_activity(
+            db, current_user.id, "STATUS_CHANGE", "ManufacturingOrder", str(mo.id),
+            details=f"{reopened_from} -> IN_PROGRESS (automatic, reopened by lot reject)",
+            changes={"status": [reopened_from, "IN_PROGRESS"]},
+        )
     await manager.broadcast({"type": "STOCK_UPDATE"})
     if mo:
         # Progress, not just status: a lot-level reject moves the MO's good and

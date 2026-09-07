@@ -263,7 +263,8 @@ async def create_work_order(
     # Stock is now checked at staging time (line-side issue), not here — creating a
     # WO no longer requires its components to already be on hand. Just flip the MO
     # to IN_PROGRESS so completions can be logged once materials are staged.
-    if mo.status == "PENDING":
+    mo_auto_started = mo.status == "PENDING"
+    if mo_auto_started:
         mo.status = "IN_PROGRESS"
         mo.actual_start_date = datetime.utcnow()
         await db.commit()
@@ -286,6 +287,16 @@ async def create_work_order(
         # the payload alone doesn't say what was actually created.
         changes={**_wo_snapshot(wo), "code": wo.code, "planned_recipe_id": wo.planned_recipe_id},
     )
+    if mo_auto_started:
+        # Cutting the first WO starts the order. That is a status change nobody asked
+        # for explicitly, so it needs its own row against the MO — the WO's CREATE
+        # entry is not where anyone looks for "when did this MO start".
+        await audit_service.log_activity(
+            db, user_id=current_user.id, action="STATUS_CHANGE",
+            entity_type="ManufacturingOrder", entity_id=str(mo.id),
+            details=f"PENDING -> IN_PROGRESS (automatic, first work order {wo.code} created)",
+            changes={"status": ["PENDING", "IN_PROGRESS"]},
+        )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": "PENDING"})
 
     response = WorkOrderResponse.model_validate(wo)
@@ -662,7 +673,8 @@ async def create_work_orders_bulk(
 
     # Auto-start MO once if still PENDING. Stock is checked at staging time
     # (line-side issue), not at WO creation.
-    if mo.status == "PENDING":
+    mo_auto_started = mo.status == "PENDING"
+    if mo_auto_started:
         mo.status = "IN_PROGRESS"
         mo.actual_start_date = datetime.utcnow()
 
@@ -682,6 +694,14 @@ async def create_work_orders_bulk(
         details=f"Bulk created {len(wos)} Work Orders for MO '{mo.code}'",
         changes={"count": len(wos), "mo_id": str(mo_id)}
     )
+    if mo_auto_started:
+        # Same automatic start as the single-WO route — see the note there.
+        await audit_service.log_activity(
+            db, user_id=current_user.id, action="STATUS_CHANGE",
+            entity_type="ManufacturingOrder", entity_id=str(mo.id),
+            details=f"PENDING -> IN_PROGRESS (automatic, {len(wos)} work orders created)",
+            changes={"status": ["PENDING", "IN_PROGRESS"]},
+        )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "mo_id": str(mo_id), "bulk": True})
     if mo.status == "IN_PROGRESS":
         await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": "IN_PROGRESS", "code": mo.code})
