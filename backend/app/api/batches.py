@@ -977,7 +977,20 @@ async def reject_batch(
     )
     await manager.broadcast({"type": "STOCK_UPDATE"})
     if mo:
-        await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
+        # Progress, not just status: a lot-level reject moves the MO's good and
+        # rejected totals, and a status-only event left every progress bar showing
+        # the rejected qty as done. Imported here, not at module scope —
+        # api.manufacturing already imports generate_batch_number from this file.
+        from app.api.manufacturing import mo_progress_fields
+        rejected_wo = None
+        if comp and comp.work_order_id:
+            rejected_wo = (await db.execute(
+                select(WorkOrder).filter(WorkOrder.id == comp.work_order_id)
+            )).scalars().first()
+        await manager.broadcast({
+            "type": "MANUFACTURING_ORDER_UPDATE",
+            **(await mo_progress_fields(db, mo, rejected_wo)),
+        })
     try:
         await kpi_service.invalidate_kpis_async(db)
         await manager.broadcast({"type": "KPI_UPDATE"})
