@@ -78,9 +78,18 @@ def mo_max_loggable_qty(mo) -> float | None:
     return float(mo.qty) * (1 + mo_overdelivery_pct(mo) / 100)
 
 
-# Helper for consistent eager loading
 def get_mo_options():
-    # Base relationships for the main MO
+    """Eager loads for ONE MO and its own relationships — the write paths' loader.
+
+    Deliberately does NOT walk child_mos. The four routes that use it (status,
+    completions, reject, complete-with-batches) mutate a single order and none of
+    them read `mo.child_mos`; none returns this instance either — the two that
+    respond with an MO re-load it through `load_mo_tree` after committing. It used
+    to hand-unroll two levels of child BOM trees on top of this list, so logging one
+    bag pulled the whole sub-assembly graph, with 20 of its 24 selectinload chains
+    feeding nothing. Anything that needs a tree wants `load_mo_tree`, which is
+    depth-unlimited; `populate_mo_ids` stubs an unloaded child_mos as [].
+    """
     options = [
         selectinload(ManufacturingOrder.item),
         selectinload(ManufacturingOrder.attribute_values),
@@ -102,38 +111,6 @@ def get_mo_options():
         # putaway bin + its parent zone (for the "Zone / Bin" display name)
         joinedload(ManufacturingOrder.planned_putaway_location).joinedload(Location.parent),
     ]
-
-    # Sub-relationships for children (Level 1)
-    child_rel = selectinload(ManufacturingOrder.child_mos)
-    options.append(child_rel.selectinload(ManufacturingOrder.item))
-    options.append(child_rel.selectinload(ManufacturingOrder.attribute_values))
-
-    # Fully load BOM for children to avoid serialization errors
-    child_bom = child_rel.selectinload(ManufacturingOrder.bom)
-    options.append(child_bom.selectinload(BOM.item))
-    options.append(child_bom.selectinload(BOM.attribute_values))
-    options.append(child_bom.selectinload(BOM.operations).joinedload(BOMOperation.operation))
-    options.append(child_bom.selectinload(BOM.operations).joinedload(BOMOperation.work_center))
-    options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
-    options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
-    options.append(child_bom.selectinload(BOM.customer))
-    options.append(child_bom.selectinload(BOM.work_center))
-
-    # Support deeper levels if needed (Level 2)
-    gchild_rel = child_rel.selectinload(ManufacturingOrder.child_mos)
-    options.append(gchild_rel.selectinload(ManufacturingOrder.item))
-    options.append(gchild_rel.selectinload(ManufacturingOrder.attribute_values))
-
-    gchild_bom = gchild_rel.selectinload(ManufacturingOrder.bom)
-    options.append(gchild_bom.selectinload(BOM.item))
-    options.append(gchild_bom.selectinload(BOM.attribute_values))
-    options.append(gchild_bom.selectinload(BOM.operations).joinedload(BOMOperation.operation))
-    options.append(gchild_bom.selectinload(BOM.operations).joinedload(BOMOperation.work_center))
-    options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
-    options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
-    options.append(gchild_bom.selectinload(BOM.customer))
-    options.append(gchild_bom.selectinload(BOM.work_center))
-
     return options
 
 def populate_mo_ids(mo: ManufacturingOrder):
